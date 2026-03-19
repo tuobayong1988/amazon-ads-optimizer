@@ -12,14 +12,14 @@ export interface ExportColumn {
 export interface ExportOptions {
   filename: string;
   columns: ExportColumn[];
-  data: Record<string, any>[];
+  data: Record<string, unknown>[];
   format: 'csv' | 'excel';
 }
 
 /**
  * 格式化单元格值用于导出
  */
-function formatCellValue(value: any): string {
+function formatCellValue(value: unknown): string {
   if (value === null || value === undefined) {
     return '';
   }

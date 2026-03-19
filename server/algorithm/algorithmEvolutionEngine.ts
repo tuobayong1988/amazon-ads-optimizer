@@ -223,7 +223,7 @@ async function trackEffectsForPeriod(period: number): Promise<number> {
         const effectScore = calculateEffectScore(event, perfData, period);
         
         // 更新追踪数据
-        const updateData: Record<string, any> = {
+        const updateData: Record<string, unknown> = {
           trackingUpdatedAt: now.toISOString().slice(0, 19).replace('T', ' '),
         };
         
@@ -262,7 +262,7 @@ async function trackEffectsForPeriod(period: number): Promise<number> {
  */
 async function getEventPerformanceData(
   db: DbInstance,
-  event: Record<string, any>,
+  event: Record<string, unknown>,
   startDate: Date,
   endDate: Date
 ): Promise<{ spend: number; sales: number; impressions: number; clicks: number; orders: number } | null> {
@@ -271,7 +271,7 @@ async function getEventPerformanceData(
     const endStr = endDate.toISOString().slice(0, 10);
     
     // 根据事件类型获取对应的效果数据
-    let result: Record<string, any>;
+    let result: Record<string, unknown>;
     
     if (event.keywordId) {
       // 关键词级别：从keywords表获取聚合数据
@@ -283,7 +283,7 @@ async function getEventPerformanceData(
         .limit(1);
       
       if (kwData.length > 0) {
-        const kw = kwData[0] as any;
+        const kw = kwData[0] as unknown;
         result = {
           spend: parseFloat(kw.spend || '0'),
           sales: parseFloat(kw.sales || '0'),
@@ -302,7 +302,7 @@ async function getEventPerformanceData(
         .limit(1);
       
       if (campData.length > 0) {
-        const camp = campData[0] as any;
+        const camp = campData[0] as unknown;
         result = {
           spend: parseFloat(camp.spend || '0'),
           sales: parseFloat(camp.sales || '0'),
@@ -325,7 +325,7 @@ async function getEventPerformanceData(
  * 计算优化效果分数 (-100 到 100)
  */
 function calculateEffectScore(
-  event: Record<string, any>,
+  event: Record<string, unknown>,
   perfData: { spend: number; sales: number; impressions: number; clicks: number; orders: number },
   period: number
 ): number {
@@ -449,7 +449,7 @@ export async function evaluateTargetPerformance(
       totalEffectScore += effectScore;
       
       // 按算法分类统计
-      const algo = (event.performanceData as Record<string, any>)?.algorithmUsed || 'unknown';
+      const algo = (event.performanceData as Record<string, unknown>)?.algorithmUsed || 'unknown';
       const algoStats = algorithmMap.get(algo) || { count: 0, totalScore: 0, successCount: 0 };
       algoStats.count++;
       algoStats.totalScore += effectScore;
@@ -523,11 +523,11 @@ export async function getTargetAlgorithmConfig(targetId: number): Promise<Target
       .limit(1);
     
     if (groups.length > 0) {
-      const group = groups[0] as any;
+      const group = groups[0] as unknown;
       // 尝试从performanceData JSON字段读取（如果有的话）
       // 目前使用默认配置，后续可以扩展到数据库持久化
       // @ts-expect-error - dynamic property access
-      const storedConfig = (group as unknown).algorithmConfig;
+      const storedConfig = (group as Record<string, unknown>).algorithmConfig;
       if (storedConfig && typeof storedConfig === 'object') {
         return { ...DEFAULT_TARGET_ALGORITHM_CONFIG, ...storedConfig };
       }
@@ -627,7 +627,7 @@ export function calculateParameterAdjustments(
   // ===== 规则2: 算法权重调整 =====
   
   if (evaluation.algorithmPerformance.length >= 2) {
-    const totalAlgoEvents = evaluation.algorithmPerformance.reduce((sum: any, a: any) => sum + a.count, 0);
+    const totalAlgoEvents = evaluation.algorithmPerformance.reduce((sum: number, a: Record<string, unknown>) => sum + a.count, 0);
     
     if (totalAlgoEvents >= MIN_EVENTS_FOR_EVOLUTION) {
       const newWeights = { ...currentConfig.algorithmWeights };
@@ -654,7 +654,7 @@ export function calculateParameterAdjustments(
       
       if (weightsChanged) {
         // 归一化权重使总和为1
-        const totalWeight = Object.values(newWeights).reduce((sum: any, w: any) => sum + w, 0);
+        const totalWeight = Object.values(newWeights).reduce((sum: number, w: Record<string, unknown>) => sum + w, 0);
         for (const key of Object.keys(newWeights) as Array<keyof typeof newWeights>) {
           newWeights[key] = newWeights[key] / totalWeight;
         }
@@ -671,7 +671,7 @@ export function calculateParameterAdjustments(
         
         // 存储实际的新权重值（通过特殊编码）
         // @ts-expect-error - dynamic property assignment
-        (adjustments[adjustments.length - 1] as unknown)._newWeights = newWeights;
+        (adjustments[adjustments.length - 1] as Record<string, unknown>)._newWeights = newWeights;
       }
     }
   }
@@ -788,9 +788,9 @@ export function applyAdjustments(
         break;
       case 'algorithmWeights':
         // @ts-expect-error - dynamic property access
-        if ((adj as unknown)._newWeights) {
+        if ((adj as Record<string, unknown>)._newWeights) {
           // @ts-expect-error - dynamic property access
-          newConfig.algorithmWeights = (adj as unknown)._newWeights;
+          newConfig.algorithmWeights = (adj as Record<string, unknown>)._newWeights;
         }
         break;
     }
@@ -829,7 +829,7 @@ export async function runEvolutionCycle(targetId: number): Promise<EvolutionRepo
       return null;
     }
     
-    const group = groups[0] as any;
+    const group = groups[0] as unknown;
     
     // 2. 获取当前算法配置
     const currentConfig = await getTargetAlgorithmConfig(targetId);
@@ -895,7 +895,7 @@ export async function runEvolutionCycle(targetId: number): Promise<EvolutionRepo
       evaluation,
       adjustments,
       expectedImprovement: adjustments.length > 0
-        ? adjustments.reduce((sum: any, a: any) => sum + a.confidence, 0) / adjustments.length * 0.1
+        ? adjustments.reduce((sum: number, a: Record<string, unknown>) => sum + a.confidence, 0) / adjustments.length * 0.1
         : 0,
     };
     

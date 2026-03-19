@@ -23,15 +23,15 @@ export default function PrelaunchM2Competitors() {
   const [tierFilter, setTierFilter] = useState<string>("");
   const [page, setPage] = useState(1);
 
-  const projectsQuery = trpc.prelaunch.listProjects.useQuery() as any;
+  const projectsQuery = trpc.prelaunch.listProjects.useQuery() as unknown;
   const projects = (() => {
     const d = projectsQuery.data;
-    return (d && 'data' in (d as any) ? (d as any).data : d) || [];
+    return (d && 'data' in (d as unknown) ? (d as Record<string, unknown>).data : d) || [];
   })();
   if (!projectId && projects.length > 0) setProjectId(projects[0].id);
 
   const competitorsQuery = trpc.prelaunch.getCompetitors.useQuery(
-    { projectId: projectId!, tier: tierFilter as any || undefined, page, pageSize: 20 },
+    { projectId: projectId!, tier: tierFilter as unknown || undefined, page, pageSize: 20 },
     { enabled: !!projectId }
   );
 
@@ -45,9 +45,9 @@ export default function PrelaunchM2Competitors() {
     onError: (err) => toast.error("启动失败: " + err.message),
   });
 
-  const competitorsData = (competitorsQuery.data as any)?.data || [];
-  const totalCompetitors = (competitorsQuery.data as any)?.total || 0;
-  const matrixData = (scenarioMatrixQuery.data as any)?.data || [];
+  const competitorsData = (competitorsQuery.data as unknown)?.data || [];
+  const totalCompetitors = (competitorsQuery.data as unknown)?.total || 0;
+  const matrixData = (scenarioMatrixQuery.data as unknown)?.data || [];
 
   const tiers = [
     { key: '', label: '全部' },
@@ -78,7 +78,7 @@ export default function PrelaunchM2Competitors() {
             <select className="h-8 rounded-md border border-input bg-transparent px-2 text-xs"
               value={projectId || ''} onChange={(e) => { setProjectId(Number(e.target.value)); setPage(1); }}>
               <option value="">选择项目</option>
-              {projects.map((p: any) => <option key={p.id} value={p.id}>{p.projectName}</option>)}
+              {projects.map((p: unknown) => <option key={p.id} value={p.id}>{p.projectName}</option>)}
             </select>
             <Button variant="outline" size="sm" onClick={() => competitorsQuery.refetch()} disabled={competitorsQuery.isFetching}>
               <RefreshCw className={`w-3 h-3 mr-1 ${competitorsQuery.isFetching ? 'animate-spin' : ''}`} />刷新
@@ -103,7 +103,7 @@ export default function PrelaunchM2Competitors() {
               <p className="text-xs text-muted-foreground">平均TRS评分</p>
               <p className="text-2xl font-bold">
                 {competitorsData.length > 0
-                  ? (competitorsData.reduce((s: number, c: any) => s + Number(c.trsScore || 0), 0) / competitorsData.length).toFixed(1)
+                  ? (competitorsData.reduce((s: number, c: unknown) => s + Number(c.trsScore || 0), 0) / competitorsData.length).toFixed(1)
                   : '-'}
               </p>
             </CardContent>
@@ -124,7 +124,7 @@ export default function PrelaunchM2Competitors() {
 
           <TabsContent value="competitors" className="space-y-4">
             <div className="flex items-center gap-2">
-              {tiers.map((t: any) => (
+              {tiers.map((t: unknown) => (
                 <Button key={t.key} variant={tierFilter === t.key ? "default" : "outline"} size="sm" className="h-7 text-xs"
                   onClick={() => { setTierFilter(t.key); setPage(1); }}>
                   {t.label}
@@ -159,7 +159,7 @@ export default function PrelaunchM2Competitors() {
                         </tr>
                       </thead>
                       <tbody>
-                        {competitorsData.map((comp: any) => (
+                        {competitorsData.map((comp: unknown) => (
                           <tr key={comp.id} className="border-b border-border/30 hover:bg-muted/20 transition-colors">
                             <td className="px-4 py-2.5">
                               <a href={`https://www.amazon.com/dp/${comp.asin}`} target="_blank" rel="noopener noreferrer"
@@ -220,7 +220,7 @@ export default function PrelaunchM2Competitors() {
               </Card>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {matrixData.map((item: any, i: number) => (
+                {matrixData.map((item: unknown, i: number) => (
                   <Card key={i} className="hover:border-purple-500/30 transition-colors">
                     <CardHeader className="pb-2">
                       <CardTitle className="text-sm">{item.scenario || item.scenarioCode || `场景 ${i + 1}`}</CardTitle>
@@ -228,7 +228,7 @@ export default function PrelaunchM2Competitors() {
                     </CardHeader>
                     <CardContent>
                       <div className="flex flex-wrap gap-1">
-                        {(item.competitors || item.asins || []).slice(0, 5).map((c: any, j: number) => (
+                        {(item.competitors || item.asins || []).slice(0, 5).map((c: unknown, j: number) => (
                           <Badge key={j} variant="outline" className="text-xs">{typeof c === 'string' ? c : c.asin}</Badge>
                         ))}
                       </div>

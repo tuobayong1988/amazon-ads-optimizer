@@ -14,7 +14,7 @@ import { eq, and, gte, lte, desc } from 'drizzle-orm';
 export const schedulerRouter = router({
   // Get scheduled tasks
   getTasks: protectedProcedure
-    .query(async ({ ctx }: any) => {
+    .query(async ({ ctx }: unknown) => {
       return db.getScheduledTasksByUserId(ctx.user.id);
     }),
 
@@ -68,7 +68,7 @@ export const schedulerRouter = router({
       requireApproval: z.boolean().optional(),
       parameters: z.record(z.string(), z.unknown()).optional(),
     }))
-    .mutation(async ({ ctx, input }: any) => {
+    .mutation(async ({ ctx, input }: unknown) => {
       const { verifyScheduledTaskAccess } = await import('../utils/accessControl');
       await verifyScheduledTaskAccess(ctx.user.id, input.id);
       await db.updateScheduledTask(input.id, {
@@ -89,7 +89,7 @@ export const schedulerRouter = router({
   // v370.4: 数据隔离 - Delete scheduled task
   deleteTask: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ ctx, input }: any) => {
+    .mutation(async ({ ctx, input }: unknown) => {
       const { verifyScheduledTaskAccess } = await import('../utils/accessControl');
       await verifyScheduledTaskAccess(ctx.user.id, input.id);
       await db.deleteScheduledTask(input.id);
@@ -198,7 +198,7 @@ export const schedulerRouter = router({
       taskId: z.number(),
       limit: z.number().optional().default(20),
     }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       const { verifyScheduledTaskAccess } = await import('../utils/accessControl');
       await verifyScheduledTaskAccess(ctx.user.id, input.taskId);
       return db.getTaskExecutionHistory(input.taskId, input.limit);

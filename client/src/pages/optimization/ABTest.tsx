@@ -25,7 +25,7 @@ export default function ABTest() {
   const { user } = useAuth();
   // v399: 使用全局店铺选择器替代本地状态
   const { accountId: selectedAccountId, accounts, isLoading: accountsLoading } = useGlobalAccountId();
-  const setSelectedAccountId = (_: any) => {}; // v399: 由全局选择器控制，本地setter为no-op
+  const setSelectedAccountId = (_: unknown) => {}; // v399: 由全局选择器控制，本地setter为no-op
 const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
   const [selectedTestId, setSelectedTestId] = useState<number | null>(null);
@@ -69,7 +69,7 @@ const [createDialogOpen, setCreateDialogOpen] = useState(false);
       setCreateDialogOpen(false);
       refetchTests();
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       toast.error(error.message);
     },
   });
@@ -81,7 +81,7 @@ const [createDialogOpen, setCreateDialogOpen] = useState(false);
       setTemplateDialogOpen(false);
       refetchTests();
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       toast.error(error.message);
     },
   });
@@ -95,7 +95,7 @@ const [createDialogOpen, setCreateDialogOpen] = useState(false);
         toast.warning(data.message);
       }
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       toast.error(error.message);
     },
   });
@@ -160,12 +160,12 @@ const [createDialogOpen, setCreateDialogOpen] = useState(false);
     if (!selectedAccountId) return;
     createFromTemplateMutation.mutate({
       accountId: selectedAccountId,
-      template: selectedTemplate as any,
+      template: selectedTemplate as unknown,
     });
   };
 
   const getStatusBadge = (status: string) => {
-    const statusConfig: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline'; label: string; icon: any }> = {
+    const statusConfig: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline'; label: string; icon: unknown }> = {
       draft: { variant: 'secondary', label: '草稿', icon: Clock },
       running: { variant: 'default', label: '运行中', icon: Activity },
       paused: { variant: 'outline', label: '已暂停', icon: Pause },
@@ -210,7 +210,7 @@ const [createDialogOpen, setCreateDialogOpen] = useState(false);
                 <SelectValue placeholder="选择账号" />
               </SelectTrigger>
               <SelectContent>
-                {accounts?.map((account: any) => (
+                {accounts?.map((account: unknown) => (
                   <SelectItem key={account.id} value={account.id.toString()}>
                     {account.accountName}
                   </SelectItem>
@@ -306,7 +306,7 @@ const [createDialogOpen, setCreateDialogOpen] = useState(false);
                     <Select
                       value={newTest.testType}
                       onValueChange={(value) => 
-                        setNewTest({ ...newTest, testType: value as any })
+                        setNewTest({ ...newTest, testType: value as unknown })
                       }
                     >
                       <SelectTrigger>
@@ -324,7 +324,7 @@ const [createDialogOpen, setCreateDialogOpen] = useState(false);
                     <Select
                       value={newTest.targetMetric}
                       onValueChange={(value) => 
-                        setNewTest({ ...newTest, targetMetric: value as any })
+                        setNewTest({ ...newTest, targetMetric: value as unknown })
                       }
                     >
                       <SelectTrigger>
@@ -457,7 +457,7 @@ const [createDialogOpen, setCreateDialogOpen] = useState(false);
                     <p className="text-xs text-muted-foreground">点击上方"快速创建"或"自定义创建"开始</p>
                   </div>
                 )}
-                {tests?.map((test: any) => (
+                {tests?.map((test: unknown) => (
                   <div
                     key={test.id}
                     className={`p-3 rounded-lg border cursor-pointer transition-colors ${
@@ -628,7 +628,7 @@ const [createDialogOpen, setCreateDialogOpen] = useState(false);
                                 </tr>
                               </thead>
                               <tbody>
-                                {analysisResults.metrics.map((m: any, idx: number) => (
+                                {analysisResults.metrics.map((m: unknown, idx: number) => (
                                   <tr key={idx} className="border-b">
                                     <td className="p-2 font-medium">{m.metricName?.toUpperCase()}</td>
                                     <td className="p-2 text-right">{(m.controlValue || 0).toFixed(4)}</td>
@@ -653,7 +653,7 @@ const [createDialogOpen, setCreateDialogOpen] = useState(false);
 
                         {/* 可视化图表 */}
                         <ABTestCharts 
-                          analysisResults={analysisResults as any} 
+                          analysisResults={analysisResults as unknown} 
                           testName={testDetails?.test?.testName}
                         />
                       </>
@@ -759,7 +759,7 @@ const [createDialogOpen, setCreateDialogOpen] = useState(false);
                     </tr>
                   </thead>
                   <tbody>
-                    {overview.recentResults.map((r: any) => (
+                    {overview.recentResults.map((r: unknown) => (
                       <tr key={r.testId} className="border-b hover:bg-accent/50 cursor-pointer" onClick={() => setSelectedTestId(r.testId)}>
                         <td className="p-2 font-medium">{r.testName}</td>
                         <td className="p-2 text-center">{r.targetMetric?.toUpperCase()}</td>

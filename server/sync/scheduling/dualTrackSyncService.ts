@@ -219,7 +219,7 @@ async function getAmsSyncStatus(db: DbInstance, accountId: number): Promise<Sync
     const sqsConsumer = getSQSConsumer();
     const consumerStatuses = sqsConsumer.getStatus();
     const hasRunningConsumers = consumerStatuses.some(s => s.isRunning);
-    const totalMessagesProcessed = consumerStatuses.reduce((sum: any, s: any) => sum + s.messagesProcessed, 0);
+    const totalMessagesProcessed = consumerStatuses.reduce((sum: number, s: Record<string, unknown>) => sum + s.messagesProcessed, 0);
     const lastProcessedAt = consumerStatuses
       .map(s => s.lastProcessedAt)
       .filter(Boolean)
@@ -277,7 +277,7 @@ async function getAmsSyncStatus(db: DbInstance, accountId: number): Promise<Sync
       const sqsConsumer = getSQSConsumer();
       const consumerStatuses = sqsConsumer.getStatus();
       const hasRunningConsumers = consumerStatuses.some(s => s.isRunning);
-      const totalMessagesProcessed = consumerStatuses.reduce((sum: any, s: any) => sum + s.messagesProcessed, 0);
+      const totalMessagesProcessed = consumerStatuses.reduce((sum: number, s: Record<string, unknown>) => sum + s.messagesProcessed, 0);
       const lastProcessedAt = consumerStatuses
         .map(s => s.lastProcessedAt)
         .filter(Boolean)
@@ -498,7 +498,7 @@ export async function getMergedPerformanceData(
   startDate: string,
   endDate: string,
   priority: 'realtime' | 'historical' | 'reporting' = 'historical'
-): Promise<Record<string, any>[]> {
+): Promise<Record<string, unknown>[]> {
   const db = await getDb();
   if (!db) return [];
 
@@ -560,7 +560,7 @@ export async function getDataForAlgorithm(
   algorithmType: AlgorithmType,
   lookbackDays: number = 30
 ): Promise<{
-  data: any[];
+  data: unknown[];
   safeEndDate: Date;
   excludedDays: number;
   warning?: string;
@@ -677,7 +677,7 @@ export async function getRealtimeSpendForGuard(
     // 优先从AMS缓冲表获取实时数据
     let dataSource: 'ams' | 'api' = 'api';
     // @ts-expect-error - runtime type mismatch
-    let result: Record<string, any> = null;
+    let result: Record<string, unknown> = null;
 
     // 尝试从AMS缓冲表获取
     try {

@@ -59,14 +59,14 @@ import type { OptimizationExecutionResult, OptimizationTargetConfig } from './ty
 
 export async function executePlacementOptimization(
   config: OptimizationTargetConfig,
-  campaigns: any[],
+  campaigns: unknown[],
   dryRun: boolean
-): Promise<{ executed: boolean; adjustmentsCount: number; details: Record<string, any>[] }> {
-  const details: Record<string, any>[] = [];
+): Promise<{ executed: boolean; adjustmentsCount: number; details: Record<string, unknown>[] }> {
+  const details: Record<string, unknown>[] = [];
   let adjustmentsCount = 0;
   
   // v183: 预加载多维度组合分析结果，用于智能位置倾斜
-  let accountComboMap = new Map<number, Record<string, any>[]>(); // campaignId -> comboAnalysis[]
+  let accountComboMap = new Map<number, Record<string, unknown>[]>(); // campaignId -> comboAnalysis[]
   try {
     const dbConn = await getDb();
     if (dbConn) {
@@ -83,7 +83,7 @@ export async function executePlacementOptimization(
     log.warn(`[PlacementOptimization] v183: 加载组合分析结果失败: ${(comboErr as Error).message}`);
   }
 
-  for (const campaign of (campaigns as any[])) {
+  for (const campaign of (campaigns as unknown[])) {
     const campaignLocalId = getCampaignLocalId(campaign);
     const campaignAmazonId = getCampaignAmazonId(campaign);
     try {
@@ -108,12 +108,12 @@ export async function executePlacementOptimization(
           placements: analysis?.placements?.length || 0,
         })}`);
       } else {
-        log.info(`[PlacementOptimization] v353诊断: Campaign "${campaign.campaignName}" (${campaignAmazonId}) 生成${suggestions.length}条建议: ${suggestions.map((s: Record<string, any>) => `${s.placement}: ${s.currentMultiplier}→${s.suggestedMultiplier}%`).join(', ')}`);
+        log.info(`[PlacementOptimization] v353诊断: Campaign "${campaign.campaignName}" (${campaignAmazonId}) 生成${suggestions.length}条建议: ${suggestions.map((s: Record<string, unknown>) => `${s.placement}: ${s.currentMultiplier}→${s.suggestedMultiplier}%`).join(', ')}`);
       }
       
       // v183: 基于多维度组合分析智能调整位置倾斜
       const campaignCombos = accountComboMap.get(campaignLocalId) || [];
-      const goldenCombos = campaignCombos.filter((c: Record<string, any>) => c.comboCategory === 'golden' && c.confidenceLevel !== 'insufficient');
+      const goldenCombos = campaignCombos.filter((c: Record<string, unknown>) => c.comboCategory === 'golden' && c.confidenceLevel !== 'insufficient');
       
       // 统计黄金组合中各位置的表现
       let topOfSearchGoldenCount = 0;
@@ -123,7 +123,7 @@ export async function executePlacementOptimization(
         if (combo.bestPlacement === 'product_page') productPageGoldenCount++;
       }
       
-      for (const suggestion of (suggestions as any[])) {
+      for (const suggestion of (suggestions as unknown[])) {
         // v183: 如果多维度分析显示某个位置有大量黄金组合，则增强该位置的倾斜
         let comboAdjustedMultiplier = suggestion.suggestedMultiplier;
         let comboReason = '';
@@ -141,7 +141,7 @@ export async function executePlacementOptimization(
           }
         }
         
-        const adjustment: Record<string, any> = {
+        const adjustment: Record<string, unknown> = {
           accountId: config.accountId,
           localCampaignId: campaignLocalId,
           amazonCampaignId: campaignAmazonId,
@@ -176,11 +176,11 @@ export async function executePlacementOptimization(
         try {
           // v186: Amazon API调用必须使用Amazon Campaign ID
           const amazonCampaignId = campaignAmazonId;
-          const topSuggestion = suggestions.find((s: Record<string, any>) => s.placement === 'top_of_search');
-          const productSuggestion = suggestions.find((s: Record<string, any>) => s.placement === 'product_page');
+          const topSuggestion = suggestions.find((s: Record<string, unknown>) => s.placement === 'top_of_search');
+          const productSuggestion = suggestions.find((s: Record<string, unknown>) => s.placement === 'product_page');
           
           if (topSuggestion || productSuggestion) {
-            const syncResult: any = await amazonApiHelper.syncPlacementAdjustmentToAmazon(
+            const syncResult: unknown = await amazonApiHelper.syncPlacementAdjustmentToAmazon(
               config.accountId,
               amazonCampaignId,
               topSuggestion?.suggestedMultiplier || campaign.placementTopSearchBidAdjustment || 0,
@@ -205,8 +205,8 @@ export async function executePlacementOptimization(
           try {
             // v186: 验证任务中也使用正确的Amazon Campaign ID
             const amazonCampaignIdForVerify = campaignAmazonId;
-            const topSuggestion = suggestions?.find((s: Record<string, any>) => s.placement === 'top_of_search');
-            const productSuggestion = suggestions?.find((s: Record<string, any>) => s.placement === 'product_page');
+            const topSuggestion = suggestions?.find((s: Record<string, unknown>) => s.placement === 'top_of_search');
+            const productSuggestion = suggestions?.find((s: Record<string, unknown>) => s.placement === 'product_page');
             postOptVerifier.schedulePlacementVerification(
               config.accountId,
               [{

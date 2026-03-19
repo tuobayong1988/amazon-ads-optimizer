@@ -255,7 +255,7 @@ function getLanguageName(langCode: string): string {
  *       language: z.string().optional(),
  *       prompt: z.string().optional(),
  *     }))
- *     .mutation(async ({ input, ctx }: any) => {
+ *     .mutation(async ({ input, ctx }: unknown) => {
  *       const result = await transcribeAudio(input);
  *       
  *       // Check if it's an error

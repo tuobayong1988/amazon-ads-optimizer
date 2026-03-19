@@ -89,7 +89,7 @@ export async function migrateEncryptCredentials(): Promise<{
     log.info(`[v345-migration] 共 ${records.length} 条凭证记录`);
 
     // 步骤3: 逐条加密
-    for (const record of (records as any[])) {
+    for (const record of (records as unknown[])) {
       try {
         const needEncryptSecret = record.clientSecret && !isEncrypted(record.clientSecret);
         const needEncryptToken = record.refreshToken && !isEncrypted(record.refreshToken);

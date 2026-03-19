@@ -212,7 +212,7 @@ const enforceAccountAccess = t.middleware(async opts => {
   // 只对已认证用户生效
   const rawInput = await getRawInput();
   if (ctx.user && rawInput && typeof rawInput === 'object') {
-    const input = rawInput as Record<string, any>;
+    const input = rawInput as Record<string, unknown>;
     const userId = ctx.user.id;
     
     // v452.9: 只有系统管理员(内部组织 org_id=1)才能跳过数据隔离检查

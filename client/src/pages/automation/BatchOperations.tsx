@@ -195,7 +195,7 @@ export default function BatchOperations() {
         return;
       }
 
-      const items = lines.map((line: any, index: any) => {
+      const items = lines.map((line: unknown, index: unknown) => {
         // @ts-expect-error - array method type inference
         const parts = line.split(',').map(p => p.trim());
         return {
@@ -221,7 +221,7 @@ export default function BatchOperations() {
         return;
       }
 
-      const items = lines.map((line: any, index: any) => {
+      const items = lines.map((line: unknown, index: unknown) => {
         // @ts-expect-error - array method type inference
         const parts = line.split(',').map(p => p.trim());
         return {
@@ -459,7 +459,7 @@ export default function BatchOperations() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {batches.map((batch: any) => (
+                      {batches.map((batch: unknown) => (
                         <TableRow 
                           key={batch.id}
                           className={selectedBatch === batch.id ? 'bg-muted/50' : ''}
@@ -631,7 +631,7 @@ export default function BatchOperations() {
                       <div>
                         <Label className="text-muted-foreground mb-2 block">操作项目</Label>
                         <div className="max-h-60 overflow-y-auto space-y-2">
-                          {batchDetails.items.slice(0, 10).map((item: any, index: any) => (
+                          {batchDetails.items.slice(0, 10).map((item: unknown, index: unknown) => (
                             <div 
                               key={item.id || index}
                               className="p-2 bg-muted/50 rounded text-sm flex items-center justify-between"
@@ -786,7 +786,7 @@ export default function BatchOperations() {
                     <Label>操作类型</Label>
                     <Select 
                       value={historyFilter.operationType || "all"}
-                      onValueChange={(v) => setHistoryFilter(prev => ({ ...prev, operationType: v === "all" ? undefined : v as any }))}
+                      onValueChange={(v) => setHistoryFilter(prev => ({ ...prev, operationType: v === "all" ? undefined : v as unknown }))}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="全部类型" />
@@ -804,7 +804,7 @@ export default function BatchOperations() {
                     <Label>状态</Label>
                     <Select 
                       value={historyFilter.status || "all"}
-                      onValueChange={(v) => setHistoryFilter(prev => ({ ...prev, status: v === "all" ? undefined : v as any }))}
+                      onValueChange={(v) => setHistoryFilter(prev => ({ ...prev, status: v === "all" ? undefined : v as unknown }))}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="全部状态" />
@@ -878,7 +878,7 @@ export default function BatchOperations() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {historyData.operations.map((op: any) => {
+                        {historyData.operations.map((op: unknown) => {
                           const opType = operationTypeConfig[op.operationType as OperationType];
                           const status = statusConfig[op.batchStatus as BatchStatus];
                           return (
@@ -1068,7 +1068,7 @@ export default function BatchOperations() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {historyDetail.itemsByStatus.success.map((item: any) => (
+                          {historyDetail.itemsByStatus.success.map((item: unknown) => (
                             <TableRow key={item.id}>
                               <TableCell>{item.entityName || '-'}</TableCell>
                               <TableCell>{item.entityType}</TableCell>
@@ -1108,7 +1108,7 @@ export default function BatchOperations() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {historyDetail.itemsByStatus.failed.map((item: any) => (
+                          {historyDetail.itemsByStatus.failed.map((item: unknown) => (
                             <TableRow key={item.id}>
                               <TableCell>{item.entityName || '-'}</TableCell>
                               <TableCell>{item.entityType}</TableCell>

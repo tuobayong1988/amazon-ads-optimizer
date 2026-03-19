@@ -20,7 +20,7 @@ const log = createModuleLogger('Route_performanceGroup');
 
 // ==================== 趋势数据辅助函数 ====================
 // 生成模拟的趋势数据（当没有真实历史数据时使用）
-function generateSimulatedTrendData(target: Record<string, any>, days: number) {
+function generateSimulatedTrendData(target: Record<string, unknown>, days: number) {
   const data = [];
   const now = new Date();
   
@@ -70,7 +70,7 @@ function generateSimulatedTrendData(target: Record<string, any>, days: number) {
 }
 
 // 计算趋势摘要数据
-function calculateTrendSummary(data: any[]) {
+function calculateTrendSummary(data: unknown[]) {
   if (!data || data.length === 0) {
     return {
       totalImpressions: 0,
@@ -94,11 +94,11 @@ function calculateTrendSummary(data: any[]) {
     };
   }
   
-  const totalImpressions = data.reduce((sum: any, d: any) => sum + d.impressions, 0);
-  const totalClicks = data.reduce((sum: any, d: any) => sum + d.clicks, 0);
-  const totalSpend = data.reduce((sum: any, d: any) => sum + d.spend, 0);
-  const totalSales = data.reduce((sum: any, d: any) => sum + d.sales, 0);
-  const totalOrders = data.reduce((sum: any, d: any) => sum + d.orders, 0);
+  const totalImpressions = data.reduce((sum: number, d: Record<string, unknown>) => sum + d.impressions, 0);
+  const totalClicks = data.reduce((sum: number, d: Record<string, unknown>) => sum + d.clicks, 0);
+  const totalSpend = data.reduce((sum: number, d: Record<string, unknown>) => sum + d.spend, 0);
+  const totalSales = data.reduce((sum: number, d: Record<string, unknown>) => sum + d.sales, 0);
+  const totalOrders = data.reduce((sum: number, d: Record<string, unknown>) => sum + d.orders, 0);
   
   const avgCtr = totalImpressions > 0 ? (totalClicks / totalImpressions * 100) : 0;
   const avgCvr = totalClicks > 0 ? (totalOrders / totalClicks * 100) : 0;
@@ -112,8 +112,8 @@ function calculateTrendSummary(data: any[]) {
   const secondHalf = data.slice(midPoint);
   
   const calcTrend = (metric: string) => {
-    const firstAvg = firstHalf.reduce((sum: any, d: any) => sum + (d[metric] || 0), 0) / (firstHalf.length || 1);
-    const secondAvg = secondHalf.reduce((sum: any, d: any) => sum + (d[metric] || 0), 0) / (secondHalf.length || 1);
+    const firstAvg = firstHalf.reduce((sum: number, d: Record<string, unknown>) => sum + (d[metric] || 0), 0) / (firstHalf.length || 1);
+    const secondAvg = secondHalf.reduce((sum: number, d: Record<string, unknown>) => sum + (d[metric] || 0), 0) / (secondHalf.length || 1);
     const change = firstAvg > 0 ? ((secondAvg - firstAvg) / firstAvg * 100) : 0;
     
     if (change > 10) return 'up';
@@ -149,7 +149,7 @@ function calculateTrendSummary(data: any[]) {
 export const performanceGroupRouter = router({
   list: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    .query(async ({ input, ctx }: any) => {
+    .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       log.info('[performanceGroup.list] accountId:', input.accountId);
       const result = await db.getPerformanceGroupsByAccountId(input.accountId);
@@ -165,7 +165,7 @@ export const performanceGroupRouter = router({
           let totalClicks = 0;
           let totalImpressions = 0;
           
-          for (const campaign of (campaigns as any[])) {
+          for (const campaign of (campaigns as unknown[])) {
             totalSpend += Number(campaign.spend) || 0;
             totalSales += Number(campaign.sales) || 0;
             totalOrders += (campaign.orders || 0);
@@ -295,7 +295,7 @@ export const performanceGroupRouter = router({
   // v370.4: 数据隔离 - 验证绩效组归属
   get: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       const { verifyPerformanceGroupAccess } = await import('../utils/accessControl');
       await verifyPerformanceGroupAccess(ctx.user.id, input.id);
       return db.getPerformanceGroupById(input.id);
@@ -392,7 +392,7 @@ export const performanceGroupRouter = router({
       strategyTemplateId: z.string().optional(),
       strategyTemplateName: z.string().optional(),
     }))
-    .mutation(async ({ ctx, input }: any) => {
+    .mutation(async ({ ctx, input }: unknown) => {
       // v370.4: 数据隔离 - 验证绩效组归属
       const { verifyPerformanceGroupAccess } = await import('../utils/accessControl');
       await verifyPerformanceGroupAccess(ctx.user.id, input.id);
@@ -417,7 +417,7 @@ export const performanceGroupRouter = router({
   // v370.4: 数据隔离 - 验证绩效组归属
   delete: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ ctx, input }: any) => {
+    .mutation(async ({ ctx, input }: unknown) => {
       const { verifyPerformanceGroupAccess } = await import('../utils/accessControl');
       await verifyPerformanceGroupAccess(ctx.user.id, input.id);
       await db.deletePerformanceGroup(input.id);
@@ -429,7 +429,7 @@ export const performanceGroupRouter = router({
       campaignId: z.number(),
       performanceGroupId: z.number().nullable(),
     }))
-    .mutation(async ({ ctx, input }: any) => {
+    .mutation(async ({ ctx, input }: unknown) => {
       await db.assignCampaignToPerformanceGroup(input.campaignId, input.performanceGroupId);
       return { success: true };
     }),
@@ -440,7 +440,7 @@ export const performanceGroupRouter = router({
       campaignIds: z.array(z.number()),
       performanceGroupId: z.number(),
     }))
-    .mutation(async ({ ctx, input }: any) => {
+    .mutation(async ({ ctx, input }: unknown) => {
       let count = 0;
       for (const campaignId of input.campaignIds) {
         await db.assignCampaignToPerformanceGroup(campaignId, input.performanceGroupId);
@@ -466,7 +466,7 @@ export const performanceGroupRouter = router({
     .input(z.object({
       campaignIds: z.array(z.number()),
     }))
-    .mutation(async ({ ctx, input }: any) => {
+    .mutation(async ({ ctx, input }: unknown) => {
       let count = 0;
       for (const campaignId of input.campaignIds) {
         await db.assignCampaignToPerformanceGroup(campaignId, null);
@@ -484,13 +484,13 @@ export const performanceGroupRouter = router({
       campaignIds: z.array(z.number()),
       newStatus: z.enum(['enabled', 'paused']),
     }))
-    .mutation(async ({ ctx, input }: any) => {
+    .mutation(async ({ ctx, input }: unknown) => {
       const group = await db.getPerformanceGroupById(input.groupId);
       if (!group) throw new TRPCError({ code: 'NOT_FOUND', message: '绩效组不存在' });
       
       // 获取所有需要更新的campaign详情
       const campaigns = await db.getCampaignsByPerformanceGroupId(input.groupId);
-      const targetCampaigns = campaigns.filter((c: Record<string, any>) => input.campaignIds.includes(c.id));
+      const targetCampaigns = campaigns.filter((c: Record<string, unknown>) => input.campaignIds.includes(c.id));
       
       if (targetCampaigns.length === 0) {
         throw new TRPCError({ code: 'BAD_REQUEST', message: '未找到指定的广告活动' });
@@ -498,8 +498,8 @@ export const performanceGroupRouter = router({
       
       // 1. 更新本地数据库状态
       let localUpdated = 0;
-      for (const campaign of (targetCampaigns as any[])) {
-        await db.updateCampaign(campaign.id, { campaignStatus: input.newStatus } as Record<string, any>);
+      for (const campaign of (targetCampaigns as unknown[])) {
+        await db.updateCampaign(campaign.id, { campaignStatus: input.newStatus } as Record<string, unknown>);
         localUpdated++;
       }
       
@@ -507,8 +507,8 @@ export const performanceGroupRouter = router({
       // v158修复: campaigns表中Amazon Campaign ID存储在campaignId字段
       // v159修复: 添加campaignType以支持SP/SB/SD三种类型的API同步
       const statusChanges = targetCampaigns
-        .filter((c: Record<string, any>) => c.campaignId && c.campaignId !== '0' && c.campaignId !== '')
-        .map((c: Record<string, any>) => ({
+        .filter((c: Record<string, unknown>) => c.campaignId && c.campaignId !== '0' && c.campaignId !== '')
+        .map((c: Record<string, unknown>) => ({
           campaignId: c.id,
           amazonCampaignId: String(c.campaignId),
           newStatus: input.newStatus as 'enabled' | 'paused',
@@ -555,7 +555,7 @@ export const performanceGroupRouter = router({
       groupId: z.number(),
       campaignIds: z.array(z.number()),
     }))
-    .mutation(async ({ ctx, input }: any) => {
+    .mutation(async ({ ctx, input }: unknown) => {
       let count = 0;
       for (const campaignId of input.campaignIds) {
         await db.assignCampaignToPerformanceGroup(campaignId, null);
@@ -568,7 +568,7 @@ export const performanceGroupRouter = router({
   // v370.4: 数据隔离 - 获取绩效组详情（通过ID）
   getById: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       const { verifyPerformanceGroupAccess } = await import('../utils/accessControl');
       await verifyPerformanceGroupAccess(ctx.user.id, input.id);
       return db.getPerformanceGroupById(input.id);
@@ -577,7 +577,7 @@ export const performanceGroupRouter = router({
   // v370.4: 数据隔离 - 获取绩效组内的广告活动
   getCampaigns: protectedProcedure
     .input(z.object({ groupId: z.number() }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       const { verifyPerformanceGroupAccess } = await import('../utils/accessControl');
       await verifyPerformanceGroupAccess(ctx.user.id, input.groupId);
       return db.getCampaignsByPerformanceGroupId(input.groupId);
@@ -586,7 +586,7 @@ export const performanceGroupRouter = router({
   // v370.4: 数据隔离 - 获取绩效组KPI汇总
   getKpiSummary: protectedProcedure
     .input(z.object({ groupId: z.number() }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       const { verifyPerformanceGroupAccess } = await import('../utils/accessControl');
       await verifyPerformanceGroupAccess(ctx.user.id, input.groupId);
       // 获取绩效组内所有广告活动的汇总数据
@@ -597,7 +597,7 @@ export const performanceGroupRouter = router({
       let totalClicks = 0;
       let totalImpressions = 0;
       
-      for (const campaign of (campaigns as any[])) {
+      for (const campaign of (campaigns as unknown[])) {
         totalSpend += Number(campaign.spend) || 0;
         totalRevenue += Number(campaign.sales) || 0;
         totalConversions += campaign.orders || 0;
@@ -630,7 +630,7 @@ export const performanceGroupRouter = router({
       groupId: z.number(),
       campaignIds: z.array(z.number()),
     }))
-    .mutation(async ({ ctx, input }: any) => {
+    .mutation(async ({ ctx, input }: unknown) => {
       const { verifyPerformanceGroupAccess } = await import('../utils/accessControl');
       await verifyPerformanceGroupAccess(ctx.user.id, input.groupId);
       let count = 0;
@@ -659,7 +659,7 @@ export const performanceGroupRouter = router({
       groupId: z.number(),
       campaignId: z.number(),
     }))
-    .mutation(async ({ ctx, input }: any) => {
+    .mutation(async ({ ctx, input }: unknown) => {
       const { verifyPerformanceGroupAccess } = await import('../utils/accessControl');
       await verifyPerformanceGroupAccess(ctx.user.id, input.groupId);
       await db.assignCampaignToPerformanceGroup(input.campaignId, null);
@@ -679,11 +679,11 @@ export const performanceGroupRouter = router({
       strategyTemplateId: z.string().optional(),
       autoOptimize: z.boolean().optional(),
     }))
-    .mutation(async ({ ctx, input }: any) => {
+    .mutation(async ({ ctx, input }: unknown) => {
       // v370.4: 数据隔离
       const { verifyPerformanceGroupAccess } = await import('../utils/accessControl');
       await verifyPerformanceGroupAccess(ctx.user.id, input.groupId);
-      const updateData: Record<string, any> = {
+      const updateData: Record<string, unknown> = {
         optimizationGoal: input.goalType,
       };
       
@@ -726,13 +726,13 @@ export const performanceGroupRouter = router({
   // v451: 添加2分钟API缓存解决大数据量下的超时问题
   getExecutionSummary: protectedProcedure
     .input(z.object({ targetId: z.number() }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       const { verifyPerformanceGroupAccess } = await import('../utils/accessControl');
       await verifyPerformanceGroupAccess(ctx.user.id, input.targetId);
       
       // v451: 缓存优化 - 执行摘要涉及dry-run计算，非常耗时，添加2分钟缓存
       const cacheKey = apiCache.generateKey('performanceGroup.getExecutionSummary', ctx.user.id, input);
-      const cached = apiCache.get<any>(cacheKey);
+      const cached = apiCache.get<unknown>(cacheKey);
       if (cached) {
         log.info(`[Cache HIT] getExecutionSummary targetId=${input.targetId}`);
         return cached;
@@ -752,7 +752,7 @@ export const performanceGroupRouter = router({
       targetId: z.number(),
       specificModules: z.array(z.string()).optional(),
     }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       const { verifyPerformanceGroupAccess } = await import('../utils/accessControl');
       await verifyPerformanceGroupAccess(ctx.user.id, input.targetId);
       const optimizationTargetEngine = await import('../optimization/optimizationTargetEngine');
@@ -769,7 +769,7 @@ export const performanceGroupRouter = router({
       targetId: z.number(),
       specificModules: z.array(z.string()).optional(),
     }))
-    .mutation(async ({ ctx, input }: any) => {
+    .mutation(async ({ ctx, input }: unknown) => {
       const { verifyPerformanceGroupAccess } = await import('../utils/accessControl');
       await verifyPerformanceGroupAccess(ctx.user.id, input.targetId);
       const optimizationTargetEngine = await import('../optimization/optimizationTargetEngine');
@@ -785,7 +785,7 @@ export const performanceGroupRouter = router({
       accountId: z.number().optional(),
       dryRun: z.boolean().optional().default(false),
     }))
-    .mutation(async ({ ctx, input }: any) => {
+    .mutation(async ({ ctx, input }: unknown) => {
       const optimizationTargetEngine = await import('../optimization/optimizationTargetEngine');
       return optimizationTargetEngine.executeAllEnabledTargets(input.accountId, {
         dryRun: input.dryRun,
@@ -798,7 +798,7 @@ export const performanceGroupRouter = router({
       targetId: z.number(),
       isEnabled: z.boolean(),
     }))
-    .mutation(async ({ ctx, input }: any) => {
+    .mutation(async ({ ctx, input }: unknown) => {
       await db.updatePerformanceGroup(input.targetId, { 
         daypartingEnabled: input.isEnabled ? 1 : 0 
       });
@@ -817,7 +817,7 @@ export const performanceGroupRouter = router({
       page: z.number().optional().default(1),
       pageSize: z.number().optional().default(50),
     }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       return db.getOptimizationLogs(input);
     }),
 
@@ -827,7 +827,7 @@ export const performanceGroupRouter = router({
       batchId: z.string().optional(),
       optimizationTargetId: z.number().optional(),
     }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       const syncEngine = await import('../sync/optimizationSyncEngine');
       if (input.batchId) {
         return syncEngine.getBatchStatus(input.batchId);
@@ -841,7 +841,7 @@ export const performanceGroupRouter = router({
       batchId: z.string().optional(),
       accountId: z.number().optional(),
     }))
-    .mutation(async ({ ctx, input }: any) => {
+    .mutation(async ({ ctx, input }: unknown) => {
       const syncEngine = await import('../sync/optimizationSyncEngine');
       return syncEngine.executeBatchSync({
         batchId: input.batchId,
@@ -855,7 +855,7 @@ export const performanceGroupRouter = router({
       performanceGroupId: z.number(),
       days: z.number().optional().default(30),
     }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       return db.getOptimizationLogStats(input.performanceGroupId, input.days);
     }),
 
@@ -865,7 +865,7 @@ export const performanceGroupRouter = router({
       performanceGroupId: z.number(),
       days: z.number().optional().default(30),
     }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       const { performanceGroupId, days } = input;
       
       // 获取绩效组信息
@@ -983,7 +983,7 @@ export const performanceGroupRouter = router({
       page: z.number().optional().default(1),
       pageSize: z.number().optional().default(50),
     }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       // v146: 重定向到统一事件表查询
       const group = await db.getPerformanceGroupById(input.performanceGroupId);
       if (!group) throw new Error('Performance group not found');
@@ -998,7 +998,7 @@ export const performanceGroupRouter = router({
         offset: (input.page - 1) * input.pageSize,
       });
       return {
-        records: result.events.map((e: Record<string, any>) => ({
+        records: result.events.map((e: Record<string, unknown>) => ({
           ...e,
           appliedAt: e.createdAt,
           adjustmentType: e.adjustmentType || e.actionType,
@@ -1018,7 +1018,7 @@ export const performanceGroupRouter = router({
       performanceGroupId: z.number(),
       days: z.number().optional().default(30),
     }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       const group = await db.getPerformanceGroupById(input.performanceGroupId);
       if (!group) throw new Error('Performance group not found');
       return db.getOptimizationEventStats({
@@ -1034,7 +1034,7 @@ export const performanceGroupRouter = router({
       performanceGroupId: z.number(),
       days: z.number().optional().default(30),
     }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       const group = await db.getPerformanceGroupById(input.performanceGroupId);
       if (!group) throw new Error('Performance group not found');
       return db.getOptimizationEventStats({
@@ -1049,7 +1049,7 @@ export const performanceGroupRouter = router({
     .input(z.object({
       adjustmentId: z.number(),
     }))
-    .mutation(async ({ input, ctx }: any) => {
+    .mutation(async ({ input, ctx }: unknown) => {
       return db.rollbackOptimizationEvent(input.adjustmentId, ctx.user.name || ctx.user.openId);
     }),
 
@@ -1058,7 +1058,7 @@ export const performanceGroupRouter = router({
     .input(z.object({
       adjustmentIds: z.array(z.number()),
     }))
-    .mutation(async ({ input, ctx }: any) => {
+    .mutation(async ({ input, ctx }: unknown) => {
       const results = [];
       for (const id of input.adjustmentIds) {
         try {
@@ -1076,7 +1076,7 @@ export const performanceGroupRouter = router({
     .input(z.object({
       period: z.enum(['7d', '14d', '30d']).optional(),
     }))
-    .mutation(async ({ ctx, input }: any) => {
+    .mutation(async ({ ctx, input }: unknown) => {
       if (input.period) {
         const { runEffectTrackingTask } = await import('../scheduler/effectTrackingScheduler');
         const periodMap: Record<string, number> = { '7d': 7, '14d': 14, '30d': 30 };
@@ -1096,7 +1096,7 @@ export const performanceGroupRouter = router({
       page: z.number().optional().default(1),
       pageSize: z.number().optional().default(50),
     }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       // v146: 重定向到统一事件表查询
       const group = await db.getPerformanceGroupById(input.performanceGroupId);
       if (!group) throw new Error('Performance group not found');
@@ -1109,12 +1109,12 @@ export const performanceGroupRouter = router({
         limit: input.pageSize,
         offset: (input.page - 1) * input.pageSize,
       });
-      const allRecords = result.events.map((e: Record<string, any>) => ({
+      const allRecords = result.events.map((e: Record<string, unknown>) => ({
         ...e,
         appliedAt: e.createdAt,
         adjustmentType: e.adjustmentType || e.actionType,
       }));
-      const trackedRecords = allRecords.filter((r: Record<string, any>) => 
+      const trackedRecords = allRecords.filter((r: Record<string, unknown>) => 
         r.actualProfit7D !== null || r.actualProfit14D !== null || r.actualProfit30D !== null
       );
       return {
@@ -1142,7 +1142,7 @@ export const performanceGroupRouter = router({
       page: z.number().optional().default(1),
       pageSize: z.number().optional().default(50),
     }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       const group = await db.getPerformanceGroupById(input.performanceGroupId);
       if (!group) throw new Error('Performance group not found');
       const result = await db.getOptimizationEvents({
@@ -1166,7 +1166,7 @@ export const performanceGroupRouter = router({
       performanceGroupId: z.number(),
       days: z.number().optional().default(30),
     }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       const group = await db.getPerformanceGroupById(input.performanceGroupId);
       if (!group) throw new Error('Performance group not found');
       return db.getOptimizationEventStats({
@@ -1181,7 +1181,7 @@ export const performanceGroupRouter = router({
     .input(z.object({
       eventId: z.number(),
     }))
-    .mutation(async ({ input, ctx }: any) => {
+    .mutation(async ({ input, ctx }: unknown) => {
       return db.rollbackOptimizationEvent(input.eventId, ctx.user.name || ctx.user.openId);
     }),
 
@@ -1191,7 +1191,7 @@ export const performanceGroupRouter = router({
       performanceGroupId: z.number(),
       sourceTables: z.array(z.enum(['bidding_logs', 'bid_adjustment_history', 'optimization_logs'])).optional(),
     }))
-    .mutation(async ({ ctx, input }: any) => {
+    .mutation(async ({ ctx, input }: unknown) => {
       const group = await db.getPerformanceGroupById(input.performanceGroupId);
       if (!group) throw new Error('Performance group not found');
       
@@ -1208,7 +1208,7 @@ export const performanceGroupRouter = router({
         results.optimizationLogs = await db.migrateFromOptimizationLogs(input.performanceGroupId);
       }
       
-       return { success: true, migrated: results, total: Object.values(results).reduce((a: any, b: any) => a + b, 0) };
+       return { success: true, migrated: results, total: Object.values(results).reduce((a: unknown, b: unknown) => a + b, 0) };
     }),
 
   // ==================== v151: 统一分析API入口 ====================
@@ -1221,7 +1221,7 @@ export const performanceGroupRouter = router({
       groupId: z.number(),
       days: z.number().optional().default(30),
     }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       const group = await import('../db').then(m => m.getPerformanceGroupById(input.groupId));
       if (!group) throw new Error('优化目标不存在');
 
@@ -1250,7 +1250,7 @@ export const performanceGroupRouter = router({
   // 获取优化目标的优化状态（代替原 unifiedOptimization.getPerformanceGroupState）
   getOptimizationState: protectedProcedure
     .input(z.object({ groupId: z.number() }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       return unifiedOptimizationEngine.getPerformanceGroupOptimizationState(input.groupId);
     }),
 });

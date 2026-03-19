@@ -49,7 +49,7 @@ export async function getAlgorithmEfficacyForTarget(
     let positiveCount = 0;
     
     if (bidLogs && bidLogs.length > 0) {
-      for (const log of (bidLogs as any[])) {
+      for (const log of (bidLogs as unknown[])) {
         try {
           const detail = typeof log.action_detail === 'string' ? JSON.parse(log.action_detail) : log.action_detail;
           if (!detail) continue;

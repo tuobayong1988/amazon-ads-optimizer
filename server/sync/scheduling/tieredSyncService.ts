@@ -125,7 +125,7 @@ interface TieredTaskInput {
   reportType: ReportType;
   startDate: string;
   endDate: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 /**
@@ -177,7 +177,7 @@ export class TieredSyncService {
    * 获取总任务数
    */
   getTotalTaskCount(): number {
-    return this.calculateTaskCounts().reduce((sum: any, t: any) => sum + t.totalTasks, 0);
+    return this.calculateTaskCounts().reduce((sum: number, t: Record<string, unknown>) => sum + t.totalTasks, 0);
   }
 
   /**
@@ -332,7 +332,7 @@ export class TieredSyncService {
     const progress = await this.getTaskProgress(taskId);
     if (!progress) return;
 
-    const metadata: Record<string, any> = {
+    const metadata: Record<string, unknown> = {
       tier: progress.tier,
       reportType: progress.reportType,
       processedRanges: progress.processedRanges,
@@ -348,7 +348,7 @@ export class TieredSyncService {
     // 添加失败范围
     if (update.failedRange) {
       const existingFailed = metadata.failedRanges.find(
-        (r: Record<string, any>) => r.start === update.failedRange!.start && r.end === update.failedRange!.end
+        (r: Record<string, unknown>) => r.start === update.failedRange!.start && r.end === update.failedRange!.end
       );
       if (existingFailed) {
         existingFailed.retryCount = (existingFailed.retryCount || 0) + 1;
@@ -412,10 +412,10 @@ export class TieredSyncService {
     }
 
     const totalDays = this.calculateDaysBetween(progress.startDate, progress.endDate);
-    const processedDays = progress.processedRanges.reduce((sum: any, r: any) => {
+    const processedDays = progress.processedRanges.reduce((sum: unknown, r: unknown) => {
       return sum + this.calculateDaysBetween(r.start, r.end);
     }, 0);
-    const failedDays = progress.failedRanges.reduce((sum: any, r: any) => {
+    const failedDays = progress.failedRanges.reduce((sum: unknown, r: unknown) => {
       return sum + this.calculateDaysBetween(r.start, r.end);
     }, 0);
 
@@ -587,7 +587,7 @@ export class TieredSyncService {
       const failedRanges = metadata.failedRanges || [];
       
       // 检查是否还有可重试的范围
-      const retryableRanges = failedRanges.filter((r: Record<string, any>) => r.retryCount < maxRetries);
+      const retryableRanges = failedRanges.filter((r: Record<string, unknown>) => r.retryCount < maxRetries);
       
       if (retryableRanges.length > 0) {
         // 重置任务状态为pending，只处理失败的范围
@@ -598,7 +598,7 @@ export class TieredSyncService {
             metadata: JSON.stringify({
               ...metadata,
               retryMode: true,
-              rangesToProcess: retryableRanges.map((r: Record<string, any>) => ({ start: r.start, end: r.end })),
+              rangesToProcess: retryableRanges.map((r: Record<string, unknown>) => ({ start: r.start, end: r.end })),
             }),
             updatedAt: new Date().toISOString(),
           })

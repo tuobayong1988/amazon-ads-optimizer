@@ -231,7 +231,7 @@ describe('OptimizationTargetEngine', () => {
       // 由于内部依赖复杂，我们只验证不会因为"未启用"而抛出
       try {
         await executeOptimizationTarget(2, { forceExecution: true });
-      } catch (err: any) {
+      } catch (err: unknown) {
         // 可能因为其他原因失败（如数据库查询），但不应该是"未启用"
         expect(err.message).not.toContain('未启用');
       }

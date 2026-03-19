@@ -18,7 +18,7 @@ export const multiTenantRouter = router({
       const tenantCtx = await withTenant()(ctx);
       return next({ ctx: tenantCtx });
     })
-    .query(async ({ ctx }: any) => {
+    .query(async ({ ctx }: unknown) => {
       const tenantCtx = ctx as TenantContext;
       return {
         organization: tenantCtx.organization,
@@ -84,7 +84,7 @@ export const multiTenantRouter = router({
       const tenantCtx = await withTenant()(ctx);
       return next({ ctx: tenantCtx });
     })
-    .query(async ({ ctx }: any) => {
+    .query(async ({ ctx }: unknown) => {
       const tenantCtx = ctx as TenantContext;
       const { organizationId } = tenantCtx;
 
@@ -252,7 +252,7 @@ export const multiTenantRouter = router({
       const tenantCtx = await withTenant()(ctx);
       return next({ ctx: tenantCtx });
     })
-    .query(async ({ ctx }: any) => {
+    .query(async ({ ctx }: unknown) => {
       const tenantCtx = ctx as TenantContext;
       const { organizationId, userRole } = tenantCtx;
 
@@ -273,7 +273,7 @@ export const multiTenantRouter = router({
       const tenantCtx = await withTenant()(ctx);
       return next({ ctx: tenantCtx });
     })
-    .query(async ({ ctx }: any) => {
+    .query(async ({ ctx }: unknown) => {
       const tenantCtx = ctx as TenantContext;
       const { organizationId } = tenantCtx;
 
@@ -356,7 +356,7 @@ export const multiTenantRouter = router({
   getRLSStatus: protectedProcedure
     .query(async ({ ctx }) => {
       // 只有系统管理员可以查看 RLS 状态
-      if (ctx.user.role !== 'admin' || (ctx.user as any).organizationId !== 1) {
+      if (ctx.user.role !== 'admin' || (ctx.user as Record<string, unknown>).organizationId !== 1) {
         return { initialized: false, viewCount: 0, auditLogCount: 0, recentViolations: 0, error: '无权访问' };
       }
       const { getRLSStatus } = await import('../utils/dbRLS');
@@ -372,7 +372,7 @@ export const multiTenantRouter = router({
       limit: z.number().min(1).max(500).default(100),
     }))
     .query(async ({ ctx, input }) => {
-      if (ctx.user.role !== 'admin' || (ctx.user as any).organizationId !== 1) {
+      if (ctx.user.role !== 'admin' || (ctx.user as Record<string, unknown>).organizationId !== 1) {
         return { logs: [], error: '无权访问' };
       }
       const { getRLSAuditLog } = await import('../utils/dbRLS');
@@ -415,7 +415,7 @@ async function getOrganizationMembers(organizationId: number) {
   ];
 }
 
-async function createInvitation(data: Record<string, any>) {
+async function createInvitation(data: Record<string, unknown>) {
   // 实际实现需要插入invitations表
   return {
     id: 1,
@@ -425,7 +425,7 @@ async function createInvitation(data: Record<string, any>) {
   };
 }
 
-async function sendInvitationEmail(invitation: any) {
+async function sendInvitationEmail(invitation: unknown) {
   // 实际实现需要发送邮件
   log.info('Sending invitation email to:', invitation.email);
 }
@@ -486,10 +486,10 @@ async function getSubscriptionPlans() {
 
 async function getSubscriptionPlanBySlug(slug: string) {
   const plans = await getSubscriptionPlans();
-  return plans.find((p: any) => p.slug === slug);
+  return plans.find((p: unknown) => p.slug === slug);
 }
 
-async function createPaymentSession(data: Record<string, any>) {
+async function createPaymentSession(data: Record<string, unknown>) {
   // 实际实现需要集成Stripe等支付网关
   return {
     id: 'session_123',
@@ -523,7 +523,7 @@ async function getApiKeys(organizationId: number) {
   ];
 }
 
-async function createApiKey(data: Record<string, any>) {
+async function createApiKey(data: Record<string, unknown>) {
   // 实际实现需要插入api_keys表并生成密钥
   return {
     id: 1,

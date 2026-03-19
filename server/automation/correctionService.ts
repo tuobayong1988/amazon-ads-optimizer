@@ -342,8 +342,8 @@ export function generateRecommendations(corrections: CorrectionAnalysis[]): stri
     recommendations.push(`有${highConfidenceCorrections.length}个高置信度的纠错建议，建议优先处理`);
   }
 
-  const totalLostRevenue = corrections.reduce((sum: any, c: any) => sum + c.impactAnalysis.estimatedLostRevenue, 0);
-  const totalWastedSpend = corrections.reduce((sum: any, c: any) => sum + c.impactAnalysis.estimatedWastedSpend, 0);
+  const totalLostRevenue = corrections.reduce((sum: number, c: Record<string, unknown>) => sum + c.impactAnalysis.estimatedLostRevenue, 0);
+  const totalWastedSpend = corrections.reduce((sum: number, c: Record<string, unknown>) => sum + c.impactAnalysis.estimatedWastedSpend, 0);
   
   if (totalLostRevenue > 1000) {
     recommendations.push(`预估因过度降价损失收入$${totalLostRevenue.toFixed(2)}，建议及时纠正`);

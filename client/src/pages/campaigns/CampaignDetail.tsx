@@ -48,7 +48,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { safeToLocaleString, safeToLocaleDateString } from '../../lib/safeDate';
 
 // 广告活动类型图标映射
-const campaignTypeIcons: Record<string, any> = {
+const campaignTypeIcons: Record<string, unknown> = {
   sp_auto: Zap,
   sp_manual: Target,
   sb: Megaphone,
@@ -128,10 +128,10 @@ export default function CampaignDetail() {
   
   const [activeTab, setActiveTab] = useState("adgroups");
   const [aiSummary, setAiSummary] = useState<string | null>(null);
-  const [summaryMetrics, setSummaryMetrics] = useState<any>(null);
+  const [summaryMetrics, setSummaryMetrics] = useState<unknown>(null);
   
   // AI分析结果状态
-  const [aiAnalysisResult, setAiAnalysisResult] = useState<any>(null);
+  const [aiAnalysisResult, setAiAnalysisResult] = useState<unknown>(null);
   const [selectedSuggestions, setSelectedSuggestions] = useState<Set<number>>(new Set());
   const [showExecuteDialog, setShowExecuteDialog] = useState(false);
   const [showPredictions, setShowPredictions] = useState(false);
@@ -172,7 +172,7 @@ export default function CampaignDetail() {
       setAiAnalysisResult(data);
       setAiSummary(data.summary);
       setSummaryMetrics(data.metrics);
-      setSelectedSuggestions(new Set(data.suggestions.map((_: any, i: number) => i)));
+      setSelectedSuggestions(new Set(data.suggestions.map((_: unknown, i: number) => i)));
       toast.success(`AI分析完成，识别出${data.suggestions.length}条优化建议`);
     },
     onError: (error) => {
@@ -207,7 +207,7 @@ export default function CampaignDetail() {
   const handleExecuteOptimization = () => {
     if (!aiAnalysisResult || !campaignId) return;
     
-    const selectedSuggestionsList = aiAnalysisResult.suggestions.filter((_: any, i: number) => selectedSuggestions.has(i));
+    const selectedSuggestionsList = aiAnalysisResult.suggestions.filter((_: unknown, i: number) => selectedSuggestions.has(i));
     
     executeAIOptimizationMutation.mutate({
       campaignId,
@@ -229,7 +229,7 @@ export default function CampaignDetail() {
   
   const selectAllSuggestions = () => {
     if (aiAnalysisResult) {
-      setSelectedSuggestions(new Set(aiAnalysisResult.suggestions.map((_: any, i: number) => i)));
+      setSelectedSuggestions(new Set(aiAnalysisResult.suggestions.map((_: unknown, i: number) => i)));
     }
   };
   
@@ -430,7 +430,7 @@ export default function CampaignDetail() {
                           执行后效果预估
                         </h5>
                         <div className="grid grid-cols-3 gap-4">
-                          {aiAnalysisResult.predictions.map((pred: any) => (
+                          {aiAnalysisResult.predictions.map((pred: unknown) => (
                             <div key={pred.period} className="p-3 bg-background rounded border">
                               <div className="text-sm font-medium mb-2">
                                 {pred.period === "7_days" ? "7天后" : pred.period === "14_days" ? "14天后" : "30天后"}
@@ -473,7 +473,7 @@ export default function CampaignDetail() {
                     
                     {/* 建议列表 */}
                     <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                      {aiAnalysisResult.suggestions.map((suggestion: any, index: number) => (
+                      {aiAnalysisResult.suggestions.map((suggestion: unknown, index: number) => (
                         <div 
                           key={index}
                           className={`p-3 rounded-lg border cursor-pointer transition-colors ${
@@ -537,8 +537,8 @@ export default function CampaignDetail() {
             <div className="py-4">
               <div className="space-y-2 max-h-[300px] overflow-y-auto">
                 {aiAnalysisResult?.suggestions
-                  .filter((_: any, i: number) => selectedSuggestions.has(i))
-                  .map((suggestion: any, index: number) => (
+                  .filter((_: unknown, i: number) => selectedSuggestions.has(i))
+                  .map((suggestion: unknown, index: number) => (
                     <div key={index} className="p-2 bg-muted rounded text-sm">
                       <span className="font-medium">{suggestion.targetText}</span>
                       <span className="text-muted-foreground"> - {suggestion.reason}</span>
@@ -734,29 +734,29 @@ export default function CampaignDetail() {
                       <p className="text-sm text-muted-foreground">计费方式</p>
                       <p className="font-medium">{campaign.costType === "vcpm" ? "VCPM (可见千次曝光)" : campaign.costType === "cpm" ? "CPM (千次曝光)" : "CPC (按点击)"}</p>
                     </div>
-                    {(campaign as any).campaignGoal && (
+                    {(campaign as Record<string, unknown>).campaignGoal && (
                       <div>
                         <p className="text-sm text-muted-foreground">广告目标</p>
                         <p className="font-medium">{
-                          (campaign as any).campaignGoal === 'DRIVE_PAGE_VISITS' || (campaign as any).campaignGoal === 'drivePageVisits' ? '驱动页面访问' :
-                          (campaign as any).campaignGoal === 'GROW_BRAND_IMPRESSION_SHARE' || (campaign as any).campaignGoal === 'growBrandImpressionShare' ? '增长品牌展示份额' :
-                          (campaign as any).campaignGoal === 'PROMOTE_PRODUCTS' || (campaign as any).campaignGoal === 'promoteProducts' ? '推广产品' :
-                          (campaign as any).campaignGoal === 'reach' ? '触达用户' :
-                          (campaign as any).campaignGoal === 'pageVisits' || (campaign as any).campaignGoal === 'page_visits' ? '驱动页面访问' :
-                          (campaign as any).campaignGoal === 'conversions' ? '促进转化' :
-                          (campaign as any).campaignGoal
+                          (campaign as Record<string, unknown>).campaignGoal === 'DRIVE_PAGE_VISITS' || (campaign as Record<string, unknown>).campaignGoal === 'drivePageVisits' ? '驱动页面访问' :
+                          (campaign as Record<string, unknown>).campaignGoal === 'GROW_BRAND_IMPRESSION_SHARE' || (campaign as Record<string, unknown>).campaignGoal === 'growBrandImpressionShare' ? '增长品牌展示份额' :
+                          (campaign as Record<string, unknown>).campaignGoal === 'PROMOTE_PRODUCTS' || (campaign as Record<string, unknown>).campaignGoal === 'promoteProducts' ? '推广产品' :
+                          (campaign as Record<string, unknown>).campaignGoal === 'reach' ? '触达用户' :
+                          (campaign as Record<string, unknown>).campaignGoal === 'pageVisits' || (campaign as Record<string, unknown>).campaignGoal === 'page_visits' ? '驱动页面访问' :
+                          (campaign as Record<string, unknown>).campaignGoal === 'conversions' ? '促进转化' :
+                          (campaign as Record<string, unknown>).campaignGoal
                         }</p>
                       </div>
                     )}
-                    {(campaign as any).adFormat && (
+                    {(campaign as Record<string, unknown>).adFormat && (
                       <div>
                         <p className="text-sm text-muted-foreground">广告格式</p>
                         <p className="font-medium">{
-                          (campaign as any).adFormat === 'productCollection' ? '商品集' :
-                          (campaign as any).adFormat === 'video' ? '视频广告' :
-                          (campaign as any).adFormat === 'storeSpotlight' ? '旗舰店聚焦' :
-                          (campaign as any).adFormat === 'brandVideo' ? '品牌视频' :
-                          (campaign as any).adFormat
+                          (campaign as Record<string, unknown>).adFormat === 'productCollection' ? '商品集' :
+                          (campaign as Record<string, unknown>).adFormat === 'video' ? '视频广告' :
+                          (campaign as Record<string, unknown>).adFormat === 'storeSpotlight' ? '旗舰店聚焦' :
+                          (campaign as Record<string, unknown>).adFormat === 'brandVideo' ? '品牌视频' :
+                          (campaign as Record<string, unknown>).adFormat
                         }</p>
                       </div>
                     )}
@@ -1161,7 +1161,7 @@ export default function CampaignDetail() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {adGroups.map((adGroup: any) => {
+                          {adGroups.map((adGroup: unknown) => {
                             const agSpend = parseFloat(adGroup.spend || "0");
                             const agSales = parseFloat(adGroup.sales || "0");
                             const agImpressions = adGroup.impressions || 0;
@@ -1205,7 +1205,7 @@ export default function CampaignDetail() {
                     </div>
 
                     {/* SB品牌广告素材信息 */}
-                    {campaign.campaignType === "sb" && adGroups.some((ag: any) => ag.headline || ag.videoAssetId || ag.brandLogoAssetId || ag.customImageAssetId || ag.videoUrl || ag.brandLogoUrl || ag.customImageUrl) && (
+                    {campaign.campaignType === "sb" && adGroups.some((ag: unknown) => ag.headline || ag.videoAssetId || ag.brandLogoAssetId || ag.customImageAssetId || ag.videoUrl || ag.brandLogoUrl || ag.customImageUrl) && (
                       <Card className="border-blue-200 bg-blue-50/30">
                         <CardHeader className="pb-3">
                           <CardTitle className="text-base">品牌广告素材信息</CardTitle>
@@ -1213,7 +1213,7 @@ export default function CampaignDetail() {
                         </CardHeader>
                         <CardContent>
                           <div className="space-y-4">
-                            {adGroups.filter((ag: any) => ag.headline || ag.videoAssetId || ag.brandLogoAssetId || ag.customImageAssetId || ag.videoUrl || ag.brandLogoUrl || ag.customImageUrl).map((adGroup: any) => (
+                            {adGroups.filter((ag: unknown) => ag.headline || ag.videoAssetId || ag.brandLogoAssetId || ag.customImageAssetId || ag.videoUrl || ag.brandLogoUrl || ag.customImageUrl).map((adGroup: unknown) => (
                               <div key={adGroup.id} className="border rounded-lg p-4 bg-white">
                                 <h4 className="font-medium text-sm mb-3">{adGroup.adGroupName}</h4>
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -1420,7 +1420,7 @@ export default function CampaignDetail() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {changeHistory.records.map((record: any) => (
+                        {changeHistory.records.map((record: unknown) => (
                           <TableRow key={record.id}>
                             <TableCell className="text-xs whitespace-nowrap">
                               {record.timestamp ? new Date(record.timestamp).toLocaleString('zh-CN') : '-'}

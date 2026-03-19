@@ -144,7 +144,7 @@ describe('MobileFilterPanel', () => {
   describe('桌面端模式', () => {
     it('桌面端应直接显示子内容', async () => {
       const { useIsMobile } = await import('@/hooks/useMobile');
-      (useIsMobile as any).mockReturnValue(false);
+      (useIsMobile as Record<string, unknown>).mockReturnValue(false);
 
       render(
         <MobileFilterPanel>

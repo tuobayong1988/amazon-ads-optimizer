@@ -25,8 +25,8 @@ export function calculateZScores(data: DataPoint[]): Array<{ date: string; value
   if (data.length < 2) return [];
 
   const values = data.map(d => d.value);
-  const mean = values.reduce((sum: any, v: any) => sum + v, 0) / values.length;
-  const variance = values.reduce((sum: any, v: any) => sum + Math.pow(v - mean, 2), 0) / values.length;
+  const mean = values.reduce((sum: number, v: Record<string, unknown>) => sum + v, 0) / values.length;
+  const variance = values.reduce((sum: number, v: Record<string, unknown>) => sum + Math.pow(v - mean, 2), 0) / values.length;
   const std = Math.sqrt(variance);
 
   if (std === 0) {
@@ -49,7 +49,7 @@ export function detectAnomaliesZScore(
   threshold: number = 2.5
 ): Anomaly[] {
   const zScores = calculateZScores(data);
-  const mean = data.reduce((sum: any, d: any) => sum + d.value, 0) / data.length;
+  const mean = data.reduce((sum: number, d: Record<string, unknown>) => sum + d.value, 0) / data.length;
 
   return zScores
     .filter(d => Math.abs(d.zScore) > threshold)
@@ -70,7 +70,7 @@ export function detectAnomaliesZScore(
 export function detectAnomaliesIQR(data: DataPoint[]): Anomaly[] {
   if (data.length < 4) return [];
 
-  const values = data.map(d => d.value).sort((a: any, b: any) => a - b);
+  const values = data.map(d => d.value).sort((a: unknown, b: unknown) => a - b);
   const q1Index = Math.floor(values.length * 0.25);
   const q3Index = Math.floor(values.length * 0.75);
   const q1 = values[q1Index];
@@ -110,10 +110,10 @@ export function detectAnomaliesMovingAverage(
   for (let i = windowSize; i < data.length; i++) {
     // 计算移动平均
     const window = data.slice(i - windowSize, i);
-    const ma = window.reduce((sum: any, d: any) => sum + d.value, 0) / windowSize;
+    const ma = window.reduce((sum: number, d: Record<string, unknown>) => sum + d.value, 0) / windowSize;
     
     // 计算移动标准差
-    const variance = window.reduce((sum: any, d: any) => sum + Math.pow(d.value - ma, 2), 0) / windowSize;
+    const variance = window.reduce((sum: number, d: Record<string, unknown>) => sum + Math.pow(d.value - ma, 2), 0) / windowSize;
     const std = Math.sqrt(variance);
 
     const current = data[i];
@@ -208,7 +208,7 @@ export function detectAnomaliesCombined(data: DataPoint[]): Anomaly[] {
   maAnomalies.forEach(addAnomaly);
   suddenChanges.forEach(addAnomaly);
 
-  return Array.from(anomalyMap.values()).sort((a: any, b: any) => {
+  return Array.from(anomalyMap.values()).sort((a: unknown, b: unknown) => {
     const dateA = new Date(a.date);
     const dateB = new Date(b.date);
     const timeA = isNaN(dateA.getTime()) ? 0 : dateA.getTime();
@@ -264,7 +264,7 @@ export function calculateAnomalyScore(data: DataPoint[]): {
   // 计算分数(考虑异常数量和严重程度)
   const severityWeights = { low: 1, medium: 2, high: 3 };
   // @ts-expect-error - array method type inference
-  const weightedAnomalies = anomalies.reduce((sum: any, a: any) => sum + severityWeights[a.severity], 0);
+  const weightedAnomalies = anomalies.reduce((sum: number, a: Record<string, unknown>) => sum + severityWeights[a.severity], 0);
   const maxPossibleScore = data.length * 3;
   const score = Math.max(0, Math.min(100, 100 - (weightedAnomalies / maxPossibleScore) * 100));
 

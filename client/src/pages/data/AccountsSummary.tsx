@@ -83,7 +83,7 @@ export default function AccountsSummary() {
   const [activeTab, setActiveTab] = useState("overview");
 
   // 获取汇总数据
-  const { data: summary, isLoading, refetch } = trpc.crossAccount.getSummary.useQuery() as any;
+  const { data: summary, isLoading, refetch } = trpc.crossAccount.getSummary.useQuery() as unknown;
 
   // 导出账号配置
   const exportMutation = trpc.crossAccount.exportAccounts.useMutation({
@@ -277,7 +277,7 @@ export default function AccountsSummary() {
                         <XAxis type="number" tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} />
                         <YAxis dataKey="name" type="category" width={100} tick={{ fontSize: 12 }} />
                         <Tooltip
-                          formatter={((value: number) => formatCurrency(value)) as any}
+                          formatter={((value: number) => formatCurrency(value)) as unknown}
                           contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333' }}
                         />
                         <Bar dataKey="sales" fill="#3B82F6" radius={[0, 4, 4, 0]} />
@@ -302,17 +302,17 @@ export default function AccountsSummary() {
                           cx="50%"
                           cy="50%"
                           labelLine={false}
-                          label={({ name, percent }: any) => `${name} ${((percent || 0) * 100).toFixed(0)}%`}
+                          label={({ name, percent }: unknown) => `${name} ${((percent || 0) * 100).toFixed(0)}%`}
                           outerRadius={100}
                           fill="#8884d8"
                           dataKey="value"
                         >
-                          {marketplaceChartData.map((entry: any, index: any) => (
+                          {marketplaceChartData.map((entry: unknown, index: unknown) => (
                             <Cell key={`cell-${index}`} fill={entry.color} />
                           ))}
                         </Pie>
                         <Tooltip
-                          formatter={((value: number) => formatCurrency(value)) as any}
+                          formatter={((value: number) => formatCurrency(value)) as unknown}
                           contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333' }}
                         />
                       </PieChart>
@@ -419,14 +419,14 @@ export default function AccountsSummary() {
                             return value.toFixed(2);
                           }
                           return formatNumber(value);
-                        }) as any}
+                        }) as unknown}
                         contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333' }}
                       />
                       <Bar
                         dataKey={selectedMetric}
                         radius={[4, 4, 0, 0]}
                       >
-                        {accountChartData.map((entry: any, index: any) => (
+                        {accountChartData.map((entry: unknown, index: unknown) => (
                           <Cell key={`cell-${index}`} fill={entry.color} />
                         ))}
                       </Bar>
@@ -440,7 +440,7 @@ export default function AccountsSummary() {
           <TabsContent value="marketplace" className="space-y-4">
             <div className="grid gap-4 md:grid-cols-2">
               {/* 市场统计卡片 */}
-              {marketplaceChartData.map((market: any, index: any) => (
+              {marketplaceChartData.map((market: unknown, index: unknown) => (
                 <Card key={market.name}>
                   <CardHeader className="pb-2">
                     <div className="flex items-center justify-between">
@@ -488,7 +488,7 @@ export default function AccountsSummary() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {summary?.accountsData?.map((account: any) => (
+                      {summary?.accountsData?.map((account: unknown) => (
                         <TableRow key={account.id}>
                           <TableCell>
                             <div className="flex items-center gap-2">

@@ -34,7 +34,7 @@ const log = createModuleLogger('negativeKeywordSync');
 /**
  * v426: 预加载否定关键词同步所需的所有关联数据
  */
-async function preloadNegativeKeywordMaps(db: any, accountId: number) {
+async function preloadNegativeKeywordMaps(db: unknown, accountId: number) {
   // 1. campaigns: amazonCampaignId -> campaign
   const allCampaigns = await db
     .select({ id: campaigns.id, campaignId: campaigns.campaignId })
@@ -94,7 +94,7 @@ export async function syncSpNegativeKeywords(service: SyncContext): Promise<{ sy
 
     // v426: 预加载所有关联数据
     const { campaignMap, adGroupMap, existingMap } = await preloadNegativeKeywordMaps(db, service.accountId);
-    const toInsert: any[] = [];
+    const toInsert: unknown[] = [];
 
     // 1. 同步活动级别否定关键词
     log.info(`开始同步SP活动级别否定关键词...`);
@@ -222,7 +222,7 @@ export async function syncSbNegativeKeywords(service: SyncContext): Promise<{ sy
 
     // v426: 预加载
     const { campaignMap, adGroupMap, existingMap } = await preloadNegativeKeywordMaps(db, service.accountId);
-    const toInsert: any[] = [];
+    const toInsert: unknown[] = [];
 
     const sbNegatives = await service.client.listSbNegativeKeywords();
     log.debug(`获取到 ${sbNegatives.length} 个SB否定关键词`);
@@ -307,7 +307,7 @@ export async function syncSbNegativeTargets(service: SyncContext): Promise<{ syn
 
     // v426: 预加载
     const { campaignMap, adGroupMap, existingMap } = await preloadNegativeKeywordMaps(db, service.accountId);
-    const toInsert: any[] = [];
+    const toInsert: unknown[] = [];
 
     const sbNegTargets = await service.client.listSbNegativeTargets();
     log.debug(`获取到 ${sbNegTargets.length} 个SB否定商品定向`);
@@ -326,7 +326,7 @@ export async function syncSbNegativeTargets(service: SyncContext): Promise<{ syn
       }
 
       const expression = neg.expression || [];
-      const asinExpr = expression.find((e: Record<string, any>) => e.type?.toLowerCase().includes('asin'));
+      const asinExpr = expression.find((e: Record<string, unknown>) => e.type?.toLowerCase().includes('asin'));
       const negativeText = asinExpr?.value || JSON.stringify(expression);
       const amazonTargetId = String(neg.targetId || '');
       const negLevel = adGroupId ? 'ad_group' as const : 'campaign' as const;

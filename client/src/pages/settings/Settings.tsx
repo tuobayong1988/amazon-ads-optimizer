@@ -29,7 +29,7 @@ import {
 export default function Settings() {
   // v399: 使用全局店铺选择器替代本地状态
   const { accountId: selectedAccountId, accounts, isLoading: accountsLoading } = useGlobalAccountId();
-  const setSelectedAccountId = (_: any) => {}; // v399: 由全局选择器控制，本地setter为no-op
+  const setSelectedAccountId = (_: unknown) => {}; // v399: 由全局选择器控制，本地setter为no-op
 const { resetOnboarding, savedProgress } = useOnboarding();
 
   // Fetch accounts
@@ -100,7 +100,7 @@ const { resetOnboarding, savedProgress } = useOnboarding();
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {accounts.map((account: any) => (
+                    {accounts.map((account: unknown) => (
                       <SelectItem key={account.id} value={account.id.toString()}>
                         {account.accountName} ({account.marketplace})
                       </SelectItem>
@@ -275,8 +275,8 @@ function AccountSettingsForm({
   onSave, 
   isLoading 
 }: { 
-  account: any; 
-  onSave: (data: any) => void;
+  account: unknown; 
+  onSave: (data: unknown) => void;
   isLoading: boolean;
 }) {
   const [formData, setFormData] = useState({
@@ -360,8 +360,8 @@ function OptimizationSettingsForm({
   onSave, 
   isLoading 
 }: { 
-  account: any; 
-  onSave: (data: any) => void;
+  account: unknown; 
+  onSave: (data: unknown) => void;
   isLoading: boolean;
 }) {
   const [formData, setFormData] = useState({
@@ -479,8 +479,8 @@ function IntradayBiddingSettings({
   onSave, 
   isLoading 
 }: { 
-  account: any; 
-  onSave: (data: any) => void;
+  account: unknown; 
+  onSave: (data: unknown) => void;
   isLoading: boolean;
 }) {
   const [intradayEnabled, setIntradayEnabled] = useState(account?.intradayBiddingEnabled || false);

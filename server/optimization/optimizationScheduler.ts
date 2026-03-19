@@ -133,7 +133,7 @@ export async function triggerInitialOptimization(
     
     // 快速聚合分析
     let totalSpend = 0, totalSales = 0, totalClicks = 0, totalOrders = 0, totalImpressions = 0;
-    for (const c of (campaignsData as any[])) {
+    for (const c of (campaignsData as unknown[])) {
       totalSpend += parseFloat(c.spend || '0');
       totalSales += parseFloat(c.sales || '0');
       totalClicks += c.clicks || 0;

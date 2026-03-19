@@ -229,7 +229,7 @@ export function registerAmazonAuthCallbackRoutes(app: Express) {
               log.info(`[AmazonAuthCallback] v365: 本次授权涉及的sellerIds: [${[...authorizedSellerIds].join(',')}]`);
               
               // 只更新属于同一卖家(sellerId)但尚未更新的其他站点
-              for (const account of (allAccounts as any[])) {
+              for (const account of (allAccounts as unknown[])) {
                 if (updatedAccountIds.includes(account.id)) continue; // 跳过已更新的
                 if (!account.sellerId || !authorizedSellerIds.has(account.sellerId)) continue; // 跳过不同卖家
                 
@@ -295,8 +295,8 @@ export function registerAmazonAuthCallbackRoutes(app: Express) {
 
       res.redirect(302, redirectUrl);
     } catch (err: unknown) {
-      log.error("[AmazonAuthCallback] v342: Token exchange failed:", (err as any).response?.data || (err as Error).message);
-      const errorMsg = (err as any).response?.data?.error_description || (err as Error).message || "Token换取失败";
+      log.error("[AmazonAuthCallback] v342: Token exchange failed:", (err as Record<string, unknown>).response?.data || (err as Error).message);
+      const errorMsg = (err as Record<string, unknown>).response?.data?.error_description || (err as Error).message || "Token换取失败";
       const redirectUrl = `/amazon-api?auth_error=${encodeURIComponent(errorMsg)}`;
       res.redirect(302, redirectUrl);
     }

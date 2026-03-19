@@ -38,7 +38,7 @@ export interface ProductTargetRecord {
 export type GetAdGroupByIdFn = (id: number) => Promise<AdGroupRecord | null | undefined>;
 export type GetKeywordByIdFn = (id: number) => Promise<KeywordRecord | null | undefined>;
 export type GetProductTargetByIdFn = (id: number) => Promise<ProductTargetRecord | null | undefined>;
-export type GetDbFn = () => Promise<any>;
+export type GetDbFn = () => Promise<unknown>;
 
 // ==================== 注册表 ====================
 
@@ -96,7 +96,7 @@ export async function queryProductTargetById(id: number): Promise<ProductTargetR
   return _getProductTargetById!(id);
 }
 
-export async function queryDb(): Promise<any> {
+export async function queryDb(): Promise<unknown> {
   ensureRegistered('queryDb');
   return _getDb!();
 }

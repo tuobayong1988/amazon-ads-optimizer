@@ -37,25 +37,25 @@ describe('Database Schema ID Consistency', () => {
       const { keywords } = await import('../../drizzle/schema');
       expect(keywords.internalAdGroupId).toBeDefined();
       // 确认没有adGroupId字段（已在v418重构中移除）
-      expect((keywords as any).adGroupId).toBeUndefined();
+      expect((keywords as Record<string, unknown>).adGroupId).toBeUndefined();
     });
 
     it('productTargets table should have internalAdGroupId (int), not adGroupId', async () => {
       const { productTargets } = await import('../../drizzle/schema');
       expect(productTargets.internalAdGroupId).toBeDefined();
-      expect((productTargets as any).adGroupId).toBeUndefined();
+      expect((productTargets as Record<string, unknown>).adGroupId).toBeUndefined();
     });
 
     it('searchTerms table should have internalAdGroupId (int), not adGroupId', async () => {
       const { searchTerms } = await import('../../drizzle/schema');
       expect(searchTerms.internalAdGroupId).toBeDefined();
-      expect((searchTerms as any).adGroupId).toBeUndefined();
+      expect((searchTerms as Record<string, unknown>).adGroupId).toBeUndefined();
     });
 
     it('negativeKeywords table should have internalAdGroupId (int), not adGroupId', async () => {
       const { negativeKeywords } = await import('../../drizzle/schema');
       expect(negativeKeywords.internalAdGroupId).toBeDefined();
-      expect((negativeKeywords as any).adGroupId).toBeUndefined();
+      expect((negativeKeywords as Record<string, unknown>).adGroupId).toBeUndefined();
     });
   });
 

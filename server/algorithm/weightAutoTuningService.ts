@@ -142,11 +142,11 @@ export function calculateDimensionCorrelations(
   }
 
   const n = dimensionScores.length;
-  const meanOutcome = outcomes.reduce((s: any, v: any) => s + v, 0) / n;
+  const meanOutcome = outcomes.reduce((s: unknown, v: unknown) => s + v, 0) / n;
 
   return DIMENSION_NAMES.map(dimension => {
     const scores = dimensionScores.map(s => s[dimension] || 0);
-    const meanScore = scores.reduce((s: any, v: any) => s + v, 0) / n;
+    const meanScore = scores.reduce((s: unknown, v: unknown) => s + v, 0) / n;
 
     // 皮尔逊相关系数
     let numerator = 0;
@@ -230,11 +230,11 @@ export function adjustWeights(
   }
 
   // 第2步：归一化权重，确保所有权重不低于minWeightFloor
-  const totalWeight = Object.values(newWeights).reduce((s: any, w: any) => s + w, 0);
+  const totalWeight = Object.values(newWeights).reduce((s: unknown, w: unknown) => s + w, 0);
   if (totalWeight > 0) {
     // 迭代归一化 + floor保证（最多3轮确保收敛）
     for (let round = 0; round < 3; round++) {
-      const currentTotal = Object.values(newWeights).reduce((s: any, w: any) => s + w, 0);
+      const currentTotal = Object.values(newWeights).reduce((s: unknown, w: unknown) => s + w, 0);
       if (currentTotal <= 0) break;
       for (const key of Object.keys(newWeights)) {
         newWeights[key] = newWeights[key] / currentTotal;
@@ -242,7 +242,7 @@ export function adjustWeights(
       }
     }
     // 最终归一化（不再应用floor，确保总和精确为1）
-    const finalTotal = Object.values(newWeights).reduce((s: any, w: any) => s + w, 0);
+    const finalTotal = Object.values(newWeights).reduce((s: unknown, w: unknown) => s + w, 0);
     for (const key of Object.keys(newWeights)) {
       newWeights[key] = newWeights[key] / finalTotal;
     }

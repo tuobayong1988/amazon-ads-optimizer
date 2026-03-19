@@ -24,7 +24,7 @@ export const campaignRouter = router({
       marketplace: z.string().optional(),
       timeRange: z.enum(['today', 'yesterday', '7days', '14days', '30days', '60days', '90days', 'custom']).optional(),
     }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       // v361: 数据隔离修复 - 必须提供accountId，不允许查询全部广告活动
       if (!input.accountId) {
         return [];
@@ -58,7 +58,7 @@ export const campaignRouter = router({
       if (startDate && endDate) {
         // v386: 添加API缓存 - campaigns列表查询较重
         const cacheKey = apiCache.generateKey('campaign.list', ctx.user.id, { accountId: input.accountId, startDate, endDate, todayDate });
-        const cached = apiCache.get<any>(cacheKey);
+        const cached = apiCache.get<unknown>(cacheKey);
         if (cached) return cached;
         
         const result = await db.getCampaignsWithPerformance(input.accountId, startDate, endDate, todayDate);
@@ -91,7 +91,7 @@ export const campaignRouter = router({
       // 是否使用服务端分页
       serverPagination: z.boolean().optional().default(true),
     }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       if (!input.accountId) {
         return { data: [], total: 0, filteredTotal: 0, page: 1, pageSize: 25, totalPages: 0, statusCounts: { enabled: 0, paused: 0, archived: 0, managed: 0, unmanaged: 0 }, typeCounts: {} };
       }
@@ -129,7 +129,7 @@ export const campaignRouter = router({
         campaignStatus: input.campaignStatus, optimizationStatus: input.optimizationStatus,
         serverPagination: input.serverPagination,
       });
-      const cached = apiCache.get<any>(cacheKey);
+      const cached = apiCache.get<unknown>(cacheKey);
       if (cached) return cached;
       
       const result = await db.getCampaignsWithPerformancePaginated({
@@ -155,12 +155,12 @@ export const campaignRouter = router({
   // v426: 轻量级广告活动名称列表（仅返回id/name/type/status，用于下拉选择框）
   listNamesOnly: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       const { verifyAccountAccess } = await import('../utils/accessControl');
       await verifyAccountAccess(ctx.user.id, input.accountId);
       
       const cacheKey = apiCache.generateKey('campaign.listNamesOnly', ctx.user.id, { accountId: input.accountId });
-      const cached = apiCache.get<any>(cacheKey);
+      const cached = apiCache.get<unknown>(cacheKey);
       if (cached) return cached;
       
       const result = await db.getCampaignNamesOnly(input.accountId);
@@ -171,12 +171,12 @@ export const campaignRouter = router({
   // v426: 轻量级广告活动状态统计（替代全量加载）
   statusCounts: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       const { verifyAccountAccess } = await import('../utils/accessControl');
       await verifyAccountAccess(ctx.user.id, input.accountId);
       
       const cacheKey = apiCache.generateKey('campaign.statusCounts', ctx.user.id, { accountId: input.accountId });
-      const cached = apiCache.get<any>(cacheKey);
+      const cached = apiCache.get<unknown>(cacheKey);
       if (cached) return cached;
       
       const result = await db.getCampaignStatusCounts(input.accountId);
@@ -188,7 +188,7 @@ export const campaignRouter = router({
   // v361: 数据隔离修复 - accountId改为必填
   listUnassigned: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       // v376: P1数据隔离修复 - 验证当前用户有权访问该accountId
       const { verifyAccountAccess } = await import('../utils/accessControl');
       await verifyAccountAccess(ctx.user.id, input.accountId);
@@ -198,7 +198,7 @@ export const campaignRouter = router({
   // v370.4: 数据隔离 - 验证campaign归属
   get: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       const { verifyCampaignAccess } = await import('../utils/accessControl');
       await verifyCampaignAccess(ctx.user.id, input.id);
       return db.getCampaignById(input.id);
@@ -214,7 +214,7 @@ export const campaignRouter = router({
       performanceGroupId: z.number().optional(),
       maxBid: z.string().optional(),
     }))
-    .mutation(async ({ ctx, input }: any) => {
+    .mutation(async ({ ctx, input }: unknown) => {
       const id = await db.createCampaign(input);
       return { id };
     }),
@@ -252,7 +252,7 @@ export const campaignRouter = router({
       if (previousCampaign && previousCampaign.accountId && previousCampaign.campaignId) {
         const amazonCampaignId = String(previousCampaign.campaignId);
         // @ts-expect-error - dynamic property access
-        const campaignType = ((previousCampaign as unknown).campaignType || 'sp_manual').toLowerCase();
+        const campaignType = ((previousCampaign as Record<string, unknown>).campaignType || 'sp_manual').toLowerCase();
         
         // 同步状态变更到Amazon
         if (input.campaignStatus && input.campaignStatus !== previousCampaign.campaignStatus) {
@@ -275,7 +275,7 @@ export const campaignRouter = router({
         
         // 同步日预算变更到Amazon (SP类型)
         // @ts-expect-error - dynamic property access
-        if (input.dailyBudget && input.dailyBudget !== (previousCampaign as unknown).dailyBudget) {
+        if (input.dailyBudget && input.dailyBudget !== (previousCampaign as Record<string, unknown>).dailyBudget) {
           try {
             const { syncBudgetAdjustmentToAmazon } = await import('../services/amazonApiHelper');
             const success = await syncBudgetAdjustmentToAmazon(
@@ -297,9 +297,9 @@ export const campaignRouter = router({
           try {
             const { syncPlacementAdjustmentToAmazon } = await import('../services/amazonApiHelper');
             // @ts-expect-error - dynamic property access
-            const topPercent = input.placementTopSearchBidAdjustment ?? (previousCampaign as unknown).placementTopSearchBidAdjustment ?? 0;
+            const topPercent = input.placementTopSearchBidAdjustment ?? (previousCampaign as Record<string, unknown>).placementTopSearchBidAdjustment ?? 0;
             // @ts-expect-error - dynamic property access
-            const productPercent = input.placementProductPageBidAdjustment ?? (previousCampaign as unknown).placementProductPageBidAdjustment ?? 0;
+            const productPercent = input.placementProductPageBidAdjustment ?? (previousCampaign as Record<string, unknown>).placementProductPageBidAdjustment ?? 0;
             const success = await syncPlacementAdjustmentToAmazon(
               previousCampaign.accountId,
               amazonCampaignId,
@@ -371,7 +371,7 @@ export const campaignRouter = router({
   
   getAdGroups: protectedProcedure
     .input(z.object({ campaignId: z.number() }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       // v381: 修复致命ID混淆bug — 前端传入本地自增ID，需要先查campaign获取Amazon campaignId
       const campaign = await db.getCampaignById(input.campaignId);
       if (!campaign) return [];
@@ -381,7 +381,7 @@ export const campaignRouter = router({
   // 获取广告活动详情（包含广告组、关键词、搜索词等）
   getDetail: protectedProcedure
     .input(z.object({ campaignId: z.number() }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       // v381: 修复ID混淆 — getCampaignDetailWithStats内部需要Amazon campaignId
       const campaign = await db.getCampaignById(input.campaignId);
       if (!campaign) return null;
@@ -391,7 +391,7 @@ export const campaignRouter = router({
   // 获取广告位置表现数据
   getPlacementStats: protectedProcedure
     .input(z.object({ campaignId: z.number() }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       // v381: 修复ID混淆
       const campaign = await db.getCampaignById(input.campaignId);
       if (!campaign) return null;
@@ -401,7 +401,7 @@ export const campaignRouter = router({
   // 获取广告位置绩效数据（用于CampaignDetail页面）
   getPlacementPerformance: protectedProcedure
     .input(z.object({ campaignId: z.number() }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       // v381: 修复致命ID混淆bug — placement_performance.campaignId是Amazon ID
       const campaign = await db.getCampaignById(input.campaignId);
       if (!campaign) return [];
@@ -411,7 +411,7 @@ export const campaignRouter = router({
   // 获取广告活动所有投放词（关键词+商品定向）
   getTargets: protectedProcedure
     .input(z.object({ campaignId: z.number() }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       // v381: 修复致命ID混淆bug — getCampaignTargets内部通过adGroups.campaignId查询
       const campaign = await db.getCampaignById(input.campaignId);
       if (!campaign) return { keywords: [], productTargets: [] };
@@ -421,7 +421,7 @@ export const campaignRouter = router({
   // 获取搜索词报告
   getSearchTerms: protectedProcedure
     .input(z.object({ campaignId: z.number() }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       // v381: 修复致命ID混淆bug — search_terms.campaignId是Amazon ID
       const campaign = await db.getCampaignById(input.campaignId);
       if (!campaign) return [];
@@ -457,7 +457,7 @@ export const campaignRouter = router({
   // 获取否定关键词列表
   getNegativeKeywords: protectedProcedure
     .input(z.object({ campaignId: z.number() }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       // v381: 修复致命ID混淆bug — negative_keywords.campaignId是Amazon ID
       const campaign = await db.getCampaignById(input.campaignId);
       if (!campaign) return [];
@@ -467,7 +467,7 @@ export const campaignRouter = router({
   // AI摘要功能 - 生成广告活动表现摘要
   generateAISummary: protectedProcedure
     .input(z.object({ campaignId: z.number() }))
-    .mutation(async ({ ctx, input }: any) => {
+    .mutation(async ({ ctx, input }: unknown) => {
       const { invokeLLM } = await import("../_core/llm");
       
       // 获取广告活动详情
@@ -479,7 +479,7 @@ export const campaignRouter = router({
       // v381: 修复ID混淆 — 使用Amazon campaignId
       const adGroups = await db.getAdGroupsByCampaignId(campaign.campaignId);
       let totalKeywords = 0;
-      let topKeywords: any[] = [];
+      let topKeywords: unknown[] = [];
       
       for (const adGroup of adGroups) {
         const keywords = await db.getKeywordsByAdGroupId(adGroup.id);
@@ -489,7 +489,7 @@ export const campaignRouter = router({
       }
       
       // 按销售额排序取前5个
-      topKeywords.sort((a: any, b: any) => parseFloat(b.sales || "0") - parseFloat(a.sales || "0"));
+      topKeywords.sort((a: unknown, b: unknown) => parseFloat(b.sales || "0") - parseFloat(a.sales || "0"));
       topKeywords = topKeywords.slice(0, 5);
       
       // 计算核心指标
@@ -527,7 +527,7 @@ export const campaignRouter = router({
 关键词数量：${totalKeywords}
 
 表现最佳关键词（按销售额排序）：
-${topKeywords.map((k: any, i: any) => `${i + 1}. "${k.keywordText}" - 销售额: $${parseFloat(k.sales || "0").toFixed(2)}, ACoS: ${parseFloat(k.sales || "0") > 0 ? (parseFloat(k.spend || "0") / parseFloat(k.sales || "0") * 100).toFixed(2) : "N/A"}%`).join("\n")}
+${topKeywords.map((k: unknown, i: unknown) => `${i + 1}. "${k.keywordText}" - 销售额: $${parseFloat(k.sales || "0").toFixed(2)}, ACoS: ${parseFloat(k.sales || "0") > 0 ? (parseFloat(k.spend || "0") / parseFloat(k.sales || "0") * 100).toFixed(2) : "N/A"}%`).join("\n")}
 
 请提供：
 1. 整体表现评价（一句话总结）
@@ -581,7 +581,7 @@ ${topKeywords.map((k: any, i: any) => `${i + 1}. "${k.keywordText}" - 销售额:
   // AI智能分析（包含可执行建议和效果预估）
   generateAIAnalysis: protectedProcedure
     .input(z.object({ campaignId: z.number() }))
-    .mutation(async ({ ctx, input }: any) => {
+    .mutation(async ({ ctx, input }: unknown) => {
       const { generateAIAnalysisWithSuggestions } = await import("../optimization/aiOptimizationService");
       return generateAIAnalysisWithSuggestions(input.campaignId);
     }),
@@ -662,19 +662,19 @@ ${topKeywords.map((k: any, i: any) => `${i + 1}. "${k.keywordText}" - 销售额:
   // 获取AI优化执行历史
   getAIOptimizationHistory: protectedProcedure
     .input(z.object({ campaignId: z.number() }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       return db.getAiOptimizationExecutionsByCampaign(input.campaignId);
     }),
   
   // v370.4: 获取AI优化执行详情（executionId关联到campaign，需要验证）
   getAIOptimizationDetail: protectedProcedure
     .input(z.object({ executionId: z.number() }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       const detail = await db.getAiOptimizationExecutionDetail(input.executionId);
       // v370.4: 验证执行记录关联的campaign归属
-      if (detail && (detail as any).campaignId) {
+      if (detail && (detail as Record<string, unknown>).campaignId) {
         const { verifyCampaignAccess } = await import('../utils/accessControl');
-        await verifyCampaignAccess(ctx.user.id, (detail as any).campaignId);
+        await verifyCampaignAccess(ctx.user.id, (detail as Record<string, unknown>).campaignId);
       }
       return detail;
     }),
@@ -682,7 +682,7 @@ ${topKeywords.map((k: any, i: any) => `${i + 1}. "${k.keywordText}" - 销售额:
   // 更新广告活动的策略模板推荐
   updateStrategyRecommendations: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    .mutation(async ({ ctx, input }: any) => {
+    .mutation(async ({ ctx, input }: unknown) => {
       const { updateAllCampaignRecommendations } = await import('../analytics/strategyRecommendationService');
       const updated = await updateAllCampaignRecommendations(input.accountId);
       return { updated };
@@ -695,7 +695,7 @@ ${topKeywords.map((k: any, i: any) => `${i + 1}. "${k.keywordText}" - 销售额:
       page: z.number().optional().default(1),
       pageSize: z.number().optional().default(50),
     }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       try {
         // 获取campaign信息以确定 Amazon campaignId
         const campaign = await db.getCampaignById(input.campaignId);
@@ -732,7 +732,7 @@ ${topKeywords.map((k: any, i: any) => `${i + 1}. "${k.keywordText}" - 销售额:
         ]);
 
         // 合并并按时间排序
-        const allRecords: any[] = [];
+        const allRecords: unknown[] = [];
         
         // 出价调整记录
         for (const record of (bidHistory.records || [])) {
@@ -785,7 +785,7 @@ ${topKeywords.map((k: any, i: any) => `${i + 1}. "${k.keywordText}" - 销售额:
           page: input.page,
           pageSize: input.pageSize,
         };
-      } catch (error: any) {
+      } catch (error: unknown) {
         log.error('Failed to get campaign change history:', error);
         return { records: [], total: 0, page: input.page, pageSize: input.pageSize };
       }

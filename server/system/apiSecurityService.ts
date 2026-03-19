@@ -475,7 +475,7 @@ export async function getSpendAlertHistory(
   userId: number,
   accountId?: number,
   limit: number = 50
-): Promise<Record<string, any>[]> {
+): Promise<Record<string, unknown>[]> {
   const db = await getDb();
   if (!db) return [];
 
@@ -561,7 +561,7 @@ export async function createAnomalyRule(params: AnomalyRuleParams): Promise<numb
 /**
  * 获取用户的异常检测规则
  */
-export async function getAnomalyRules(userId: number, accountId?: number): Promise<Record<string, any>[]> {
+export async function getAnomalyRules(userId: number, accountId?: number): Promise<Record<string, unknown>[]> {
   const db = await getDb();
   if (!db) return [];
 
@@ -694,7 +694,7 @@ export async function checkAnomalyRules(
 /**
  * 发送异常告警通知
  */
-async function sendAnomalyAlert(rule: any, value: number, operationType: string): Promise<void> {
+async function sendAnomalyAlert(rule: unknown, value: number, operationType: string): Promise<void> {
   const actionEmojis: Record<string, string> = {
     'alert_only': '⚠️',
     'pause_and_alert': '⏸️',
@@ -853,7 +853,7 @@ export async function getAutoPauseRecords(
   userId: number,
   accountId?: number,
   includeResumed: boolean = false
-): Promise<Record<string, any>[]> {
+): Promise<Record<string, unknown>[]> {
   const db = await getDb();
   if (!db) return [];
 

@@ -310,7 +310,7 @@ describe('OperationConfirmDialog 交互测试', () => {
       'campaign_enable',
     ];
 
-    operationTypes.forEach((type: any) => {
+    operationTypes.forEach((type: unknown) => {
       it(`应正确渲染 ${type} 类型的弹窗`, () => {
         render(
           <OperationConfirmDialog

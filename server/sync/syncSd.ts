@@ -132,12 +132,12 @@ AmazonSyncService.prototype.syncSdCampaigns = async function(this: AmazonSyncSer
       }
 
       // 获取SD广告的计费类型
-      const sdCostType = (apiCampaign as Record<string, any>).costType?.toLowerCase() || 'cpc';
+      const sdCostType = (apiCampaign as Record<string, unknown>).costType?.toLowerCase() || 'cpc';
       const validCostTypes = ['cpc', 'vcpm', 'cpm'];
       const normalizedCostType = validCostTypes.includes(sdCostType) ? sdCostType : 'cpc';
 
       // 获取组合ID
-      const sdPortfolioId = (apiCampaign as Record<string, any>).portfolioId ? String((apiCampaign as Record<string, any>).portfolioId) : null;
+      const sdPortfolioId = (apiCampaign as Record<string, unknown>).portfolioId ? String((apiCampaign as Record<string, unknown>).portfolioId) : null;
 
       // ✅ 获取SD广告的Campaign Goal（广告目标）
       // SD API返回的goal/optimizationGoal字段决定广告目标:
@@ -145,14 +145,14 @@ AmazonSyncService.prototype.syncSdCampaigns = async function(this: AmazonSyncSer
       //   - page_visits / pageVisits → 驱动页面访问（通常配合CPC计费）
       //   - conversions → 促进转化（通常配合CPC计费）
       // 注意：SD的costType由API直接返回，不goal共同决定广告的计费和优化方式
-      const sdGoal = (apiCampaign as Record<string, any>).goal || 
-                     (apiCampaign as Record<string, any>).optimizationGoal || 
-                     (apiCampaign as Record<string, any>).bidOptimization || '';
+      const sdGoal = (apiCampaign as Record<string, unknown>).goal || 
+                     (apiCampaign as Record<string, unknown>).optimizationGoal || 
+                     (apiCampaign as Record<string, unknown>).bidOptimization || '';
       
       // 获取SD广告的tactic（定向策略）
       // T00020 = 受众定向(Audiences), T00030 = 商品定向(Contextual)
       // remarketing = 再营销, contextual = 上下文定向
-      const sdTactic = (apiCampaign as Record<string, any>).tactic || null;
+      const sdTactic = (apiCampaign as Record<string, unknown>).tactic || null;
       
       // 根据goal和costType的组合确定实际计费方式
       // SD的costType由API直接返回，但也可以通过goal推断
@@ -163,7 +163,7 @@ AmazonSyncService.prototype.syncSdCampaigns = async function(this: AmazonSyncSer
       }
 
       // 获取SD广告的竞价优化目标
-      const sdBidOptimization = (apiCampaign as Record<string, any>).bidOptimization || null;
+      const sdBidOptimization = (apiCampaign as Record<string, unknown>).bidOptimization || null;
       const validBidOpts = ['reach', 'pageVisits', 'conversions'];
       const normalizedBidOpt = validBidOpts.includes(sdBidOptimization) ? sdBidOptimization : null;
 
@@ -321,7 +321,7 @@ AmazonSyncService.prototype.syncSdProductTargets = async function(this: AmazonSy
       let targetMatchType: 'exact' | 'expanded' | 'category_exact' | 'brand_exact' | 'substitute' | 'accessory' | 'loose' | 'close' = 'exact';
       let categoryName: string | null = null;
       let categoryRefinements: string | null = null;
-      const refinements: Record<string, any> = {};
+      const refinements: Record<string, unknown> = {};
 
       const exprArray = apiTarget.expression || [];
       if (Array.isArray(exprArray) && exprArray.length > 0) {
@@ -441,7 +441,7 @@ AmazonSyncService.prototype.syncSdTargeting = async function(this: AmazonSyncSer
     log.info(`v339: 开始同步SD定向数据: 共${totalDays}天，分${batches}批请求 (站点: ${this.marketplace})`);
 
     // v413: 批量提交+统一轮询模式（替代串行循环）
-    let allReportData: any[] = [];
+    let allReportData: unknown[] = [];
     if (batches === 1) {
       try {
         const reportId = await this.client.requestSdTargetingReport(rangeStartDate, rangeEndDate);
@@ -486,7 +486,7 @@ AmazonSyncService.prototype.syncSdTargeting = async function(this: AmazonSyncSer
 
     // v422: 修复SD定向报告字段映射 - 报告中没有targetId字段，只有targetingText
     // 需要通过adGroupId+targetingText匹配已有记录（targetId由listSdTargets API同步）
-    const sdRptAdGroupIds = [...new Set((reportData as any[]).map(r => String(r.adGroupId)))];
+    const sdRptAdGroupIds = [...new Set((reportData as unknown[]).map(r => String(r.adGroupId)))];
     const sdRptAdGroupRows = sdRptAdGroupIds.length > 0
       ? await db.select().from(adGroups).where(and(eq(adGroups.accountId, this.accountId), inArray(adGroups.adGroupId, sdRptAdGroupIds)))
       : [];
@@ -512,7 +512,7 @@ AmazonSyncService.prototype.syncSdTargeting = async function(this: AmazonSyncSer
       }
     }
 
-    for (const row of (reportData as any[])) {
+    for (const row of (reportData as unknown[])) {
       const adGroup = sdRptAdGroupMap.get(String(row.adGroupId));
       if (!adGroup) continue;
 
@@ -647,7 +647,7 @@ AmazonSyncService.prototype.syncSdNegativeTargets = async function(this: AmazonS
       
       // 解析expression获取否定的ASIN或品牌
       const expression = neg.expression || [];
-      const asinExpr = expression.find((e: Record<string, any>) => 
+      const asinExpr = expression.find((e: Record<string, unknown>) => 
         e.type?.toLowerCase().includes('asin') || e.type?.toLowerCase().includes('brand')
       );
       const negativeText = asinExpr?.value || JSON.stringify(expression);

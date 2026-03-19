@@ -12,14 +12,14 @@ import { eq, and, gte, lte, desc } from 'drizzle-orm';
 
 
 // v452.8: 系统管理员判断 - 只有内部组织(orgId=1)的admin才是系统管理员
-function isSystemAdmin(user: any): boolean {
+function isSystemAdmin(user: unknown): boolean {
   return user.role === 'admin' && user.organizationId === 1;
 }
 
 // ==================== Ad Account Router ====================
 export const adAccountRouter = router({
   // v452.8: 安全修复 — 只有系统管理员可查看所有账户，其他用户仅查看自己的账户
-  list: protectedProcedure.query(async ({ ctx }: any) => {
+  list: protectedProcedure.query(async ({ ctx }: unknown) => {
     if (isSystemAdmin(ctx.user)) {
       return db.getAdAccounts();
     }
@@ -44,7 +44,7 @@ export const adAccountRouter = router({
   // v359: 安全修复 — 获取默认账号（需认证，按用户隔离）
   getDefault: protectedProcedure
     .input(z.object({ userId: z.number().optional() }).optional())
-    .query(async ({ ctx }: any) => {
+    .query(async ({ ctx }: unknown) => {
       // v359: 使用认证用户的ID获取其账户列表
       const accounts = isSystemAdmin(ctx.user)
         ? await db.getAdAccounts()
@@ -134,7 +134,7 @@ export const adAccountRouter = router({
       defaultMaxBid: z.string().optional(),
       status: z.enum(["active", "paused", "archived"]).optional(),
     }))
-    .mutation(async ({ ctx, input }: any) => {
+    .mutation(async ({ ctx, input }: unknown) => {
       const { id, intradayBiddingEnabled, ...rest } = input;
       const data = {
         ...rest,
@@ -206,7 +206,7 @@ export const adAccountRouter = router({
     .query(async ({ ctx, input }) => {
     // v268 性能优化: API响应缓存（TTL 2分钟）
     const cacheKey = apiCache.generateKey('listWithPerformance', ctx.user.id, input);
-    const cached = apiCache.get<any>(cacheKey);
+    const cached = apiCache.get<unknown>(cacheKey);
     if (cached) return cached;
 
     const timeRange = input?.timeRange || '7days';
@@ -363,7 +363,7 @@ export const adAccountRouter = router({
   }),
 
   // 获取账号统计信息
-  getStats: protectedProcedure.query(async ({ ctx }: any) => {
+  getStats: protectedProcedure.query(async ({ ctx }: unknown) => {
     // 管理员可以访问所有账户
     const accounts = isSystemAdmin(ctx.user) 
       ? await db.getAdAccounts() 
@@ -390,7 +390,7 @@ export const adAccountRouter = router({
       byMarketplace: {} as Record<string, number>,
     };
     
-    for (const account of (actualSites as any[])) {
+    for (const account of (actualSites as unknown[])) {
       if (account.marketplace) {
         stats.byMarketplace[account.marketplace] = (stats.byMarketplace[account.marketplace] || 0) + 1;
       }
@@ -410,7 +410,7 @@ export const adAccountRouter = router({
     .query(async ({ ctx, input }) => {
       // v268 性能优化: API响应缓存（TTL 2分钟）
       const cacheKey = apiCache.generateKey('getDailyTrend', ctx.user.id, input);
-      const cached = apiCache.get<any>(cacheKey);
+      const cached = apiCache.get<unknown>(cacheKey);
       if (cached) return cached;
 
       // 管理员可以访问所有账户
@@ -463,7 +463,7 @@ export const adAccountRouter = router({
     }),
   
   // 获取数据可用日期范围（用于自定义日期选择器的限制）
-  getDataDateRange: protectedProcedure.query(async ({ ctx }: any) => {
+  getDataDateRange: protectedProcedure.query(async ({ ctx }: unknown) => {
     // 管理员可以访问所有账户
     const accounts = isSystemAdmin(ctx.user) 
       ? await db.getAdAccounts() 

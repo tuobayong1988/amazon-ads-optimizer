@@ -140,11 +140,11 @@ class SDKServer {
       accessToken,
     } as ExchangeTokenResponse);
     const loginMethod = this.deriveLoginMethod(
-      (data as Record<string, any>)?.platforms,
-      (data as Record<string, any>)?.platform ?? data.platform ?? null
+      (data as Record<string, unknown>)?.platforms,
+      (data as Record<string, unknown>)?.platform ?? data.platform ?? null
     );
     return {
-      ...(data as Record<string, any>),
+      ...(data as Record<string, unknown>),
       platform: loginMethod,
       loginMethod,
     } as GetUserInfoResponse;
@@ -215,7 +215,7 @@ class SDKServer {
       const { payload } = await jwtVerify(cookieValue, secretKey, {
         algorithms: ["HS256"],
       });
-      const { openId, appId, name } = payload as Record<string, any>;
+      const { openId, appId, name } = payload as Record<string, unknown>;
 
       if (
         !isNonEmptyString(openId) ||
@@ -251,11 +251,11 @@ class SDKServer {
     );
 
     const loginMethod = this.deriveLoginMethod(
-      (data as Record<string, any>)?.platforms,
-      (data as Record<string, any>)?.platform ?? data.platform ?? null
+      (data as Record<string, unknown>)?.platforms,
+      (data as Record<string, unknown>)?.platform ?? data.platform ?? null
     );
     return {
-      ...(data as Record<string, any>),
+      ...(data as Record<string, unknown>),
       platform: loginMethod,
       loginMethod,
     } as GetUserInfoWithJwtResponse;
@@ -302,7 +302,7 @@ class SDKServer {
           
           try {
             const result = await dbQueryWithTimeout();
-            const rows = (result as Record<string, any>[][])[0];
+            const rows = (result as Record<string, unknown>[][])[0];
             if (rows && rows.length > 0) {
               const localUser = rows[0] as Record<string, unknown>;
               // @ts-expect-error - runtime type mismatch
@@ -315,7 +315,7 @@ class SDKServer {
                 lastSignedIn: localUser.last_login_at,
                 organizationId: localUser.organization_id,
                 role: localUser.role,
-              } as Record<string, any>;
+              } as Record<string, unknown>;
             }
           } catch (dbError: unknown) {
             log.error('[Auth] JWT DB query failed:', (dbError as Error).message);
@@ -336,7 +336,7 @@ class SDKServer {
               // v452.9: 降级时不能默认为内部组织(1)，防止外部租户获得系统管理员权限
               organizationId: decoded.organizationId || null,
               role: decoded.role || 'user',
-            } as Record<string, any>;
+            } as Record<string, unknown>;
           }
         }
       } catch (jwtError: unknown) {

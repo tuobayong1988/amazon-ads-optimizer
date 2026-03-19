@@ -15,7 +15,7 @@ export const daypartingRouter = router({
   // 获取账号的所有分时策略
   listStrategies: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    .query(async ({ input, ctx }: any) => {
+    .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       return daypartingService.getDaypartingStrategies(input.accountId);
     }),
@@ -23,7 +23,7 @@ export const daypartingRouter = router({
   // 获取单个策略详情
   getStrategy: protectedProcedure
     .input(z.object({ strategyId: z.number() }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       const strategy = await daypartingService.getDaypartingStrategy(input.strategyId);
       if (!strategy) {
         throw new TRPCError({ code: "NOT_FOUND", message: "策略不存在" });
@@ -39,7 +39,7 @@ export const daypartingRouter = router({
       campaignId: z.number(),
       lookbackDays: z.number().default(30),
     }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       return daypartingService.analyzeWeeklyPerformance(input.campaignId, input.lookbackDays);
     }),
 
@@ -49,7 +49,7 @@ export const daypartingRouter = router({
       campaignId: z.number(),
       lookbackDays: z.number().default(30),
     }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       return daypartingService.analyzeHourlyPerformance(input.campaignId, input.lookbackDays);
     }),
 
@@ -64,7 +64,7 @@ export const daypartingRouter = router({
       targetRoas: z.number().optional(),
       lookbackDays: z.number().default(30),
     }))
-    .mutation(async ({ input, ctx }: any) => {
+    .mutation(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       return daypartingService.generateOptimalStrategy(input.accountId, input.campaignId, {
         name: input.name,
@@ -92,7 +92,7 @@ export const daypartingRouter = router({
       maxBidMultiplier: z.number().default(2.0),
       minBidMultiplier: z.number().default(0.2),
     }))
-    .mutation(async ({ input, ctx }: any) => {
+    .mutation(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       const strategyId = await daypartingService.createDaypartingStrategy({
         accountId: input.accountId,
@@ -119,7 +119,7 @@ export const daypartingRouter = router({
       strategyId: z.number(),
       status: z.enum(["active", "paused", "draft"]),
     }))
-    .mutation(async ({ ctx, input }: any) => {
+    .mutation(async ({ ctx, input }: unknown) => {
       await daypartingService.updateDaypartingStrategy(input.strategyId, {
         daypartingStatus: input.status,
         lastAppliedAt: input.status === "active" ? new Date().toISOString() : undefined,
@@ -138,7 +138,7 @@ export const daypartingRouter = router({
         isEnabled: z.boolean().default(true),
       })),
     }))
-    .mutation(async ({ ctx, input }: any) => {
+    .mutation(async ({ ctx, input }: unknown) => {
       await daypartingService.saveBudgetRules(
         input.strategyId,
         // @ts-expect-error - array method type inference
@@ -163,7 +163,7 @@ export const daypartingRouter = router({
         isEnabled: z.boolean().default(true),
       })),
     }))
-    .mutation(async ({ ctx, input }: any) => {
+    .mutation(async ({ ctx, input }: unknown) => {
       await daypartingService.saveBidRules(
         input.strategyId,
         // @ts-expect-error - array method type inference
@@ -183,7 +183,7 @@ export const daypartingRouter = router({
       strategyId: z.number(),
       limit: z.number().default(50),
     }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       return daypartingService.getExecutionLogs(input.strategyId, input.limit);
     }),
 
@@ -196,7 +196,7 @@ export const daypartingRouter = router({
       targetRoas: z.number().optional(),
       lookbackDays: z.number().default(30),
     }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       const weeklyData = await daypartingService.analyzeWeeklyPerformance(
         input.campaignId,
         input.lookbackDays
@@ -218,7 +218,7 @@ export const daypartingRouter = router({
       targetRoas: z.number().optional(),
       lookbackDays: z.number().default(30),
     }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       const hourlyData = await daypartingService.analyzeHourlyPerformance(
         input.campaignId,
         input.lookbackDays

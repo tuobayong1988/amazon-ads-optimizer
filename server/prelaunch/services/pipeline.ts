@@ -148,7 +148,7 @@ export class PrelaunchPipelineOrchestrator {
           status: result.success ? 'completed' : 'failed',
           startedAt: status.modules[mod.name].startedAt,
           completedAt: new Date().toISOString(),
-          error: result.success ? undefined : (result as any).error,
+          error: result.success ? undefined : (result as Record<string, unknown>).error,
         };
       } catch (error: unknown) {
         status.modules[mod.name] = {

@@ -28,7 +28,7 @@ export function useDebounce<T>(value: T, delay: number): T {
  * @param delay 延迟时间（毫秒）
  * @returns 防抖后的回调函数
  */
-export function useDebouncedCallback<T extends (...args: any[]) => any>(
+export function useDebouncedCallback<T extends (...args: unknown[]) => unknown>(
   callback: T,
   delay: number
 ): T {
@@ -71,7 +71,7 @@ export function useDebouncedCallback<T extends (...args: any[]) => any>(
  * @param delay 最小间隔时间（毫秒）
  * @returns 节流后的回调函数
  */
-export function useThrottledCallback<T extends (...args: any[]) => any>(
+export function useThrottledCallback<T extends (...args: unknown[]) => unknown>(
   callback: T,
   delay: number
 ): T {

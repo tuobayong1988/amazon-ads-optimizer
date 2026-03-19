@@ -18,12 +18,12 @@ async function ensurePreferencesColumn(db: DbInstance) {
   
   try {
     // @ts-expect-error - Drizzle raw SQL execution
-    await db.execute(sql`SELECT preferences FROM team_members LIMIT 1`) as any;
+    await db.execute(sql`SELECT preferences FROM team_members LIMIT 1`) as unknown;
     columnEnsured = true;
   } catch (error: unknown) {
     try {
       // @ts-expect-error - Drizzle raw SQL execution
-      await db.execute(sql`ALTER TABLE team_members ADD COLUMN preferences JSON DEFAULT NULL`) as any;
+      await db.execute(sql`ALTER TABLE team_members ADD COLUMN preferences JSON DEFAULT NULL`) as unknown;
       log.info('[User] preferences column added to team_members table');
       columnEnsured = true;
     } catch (alterError: unknown) {
@@ -39,7 +39,7 @@ async function ensurePreferencesColumn(db: DbInstance) {
 
 export const userRouter = router({
   // 获取用户偏好设置
-  getPreferences: protectedProcedure.query(async ({ ctx }: any) => {
+  getPreferences: protectedProcedure.query(async ({ ctx }: unknown) => {
     const db = await getDb();
     if (!db) return {};
     
@@ -51,7 +51,7 @@ export const userRouter = router({
       
       // drizzle-orm/mysql2 返回 [rows, fields]
       // @ts-expect-error - any type assertion
-      const rows = result[0] as any;
+      const rows = result[0] as unknown;
       if (Array.isArray(rows) && rows.length > 0) {
         const prefs = rows[0].preferences;
         if (prefs) {
@@ -84,10 +84,10 @@ export const userRouter = router({
         const result = await db.execute() as unknown;
         
         // @ts-expect-error - any type assertion
-        const rows = result[0] as any;
+        const rows = result[0] as unknown;
         const row = Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
         
-        let currentPrefs: Record<string, any> = {};
+        let currentPrefs: Record<string, unknown> = {};
         if (row && row.preferences) {
           const prefs = row.preferences;
           currentPrefs = typeof prefs === 'string' ? JSON.parse(prefs) : prefs;

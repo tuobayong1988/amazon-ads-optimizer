@@ -663,7 +663,7 @@ export default function Campaigns() {
     { 
       accountId: accountId!, 
       marketplace: currentMarketplace || undefined,
-      timeRange: (timeRangeValue.preset === 'custom' ? 'custom' : timeRangeValue.preset) as any,
+      timeRange: (timeRangeValue.preset === 'custom' ? 'custom' : timeRangeValue.preset) as unknown,
       startDate: timeRangeValue.preset === 'custom' ? dateRange.startDate : undefined,
       endDate: timeRangeValue.preset === 'custom' ? dateRange.endDate : undefined,
       // v402: 分页参数
@@ -828,7 +828,7 @@ export default function Campaigns() {
     
     const searchLower = debouncedSearchTerm.toLowerCase();
     
-    return campaigns.filter((campaign: any) => {
+    return campaigns.filter((campaign: unknown) => {
       // 搜索匹配 - 使用防抖后的搜索词
       const matchesSearch = !searchLower || campaign.campaignName.toLowerCase().includes(searchLower);
       
@@ -839,16 +839,16 @@ export default function Campaigns() {
       const matchesType = typeFilter === "all" || campaign.campaignType === typeFilter;
       
       // 计费方式匹配
-      const matchesBillingType = billingTypeFilter === "all" || (campaign as any).billingType === billingTypeFilter;
+      const matchesBillingType = billingTypeFilter === "all" || (campaign as Record<string, unknown>).billingType === billingTypeFilter;
       
       // 运行状态匹配
       const matchesRunningStatus = runningStatusFilter === "all" || campaign.campaignStatus === runningStatusFilter;
       
       // 优化状态匹配
       const matchesOptimizationStatus = optimizationStatusFilter === "all" || 
-        (campaign as any).optimizationStatus === optimizationStatusFilter ||
-        (optimizationStatusFilter === "managed" && (campaign as any).performanceGroupId) ||
-        (optimizationStatusFilter === "unmanaged" && !(campaign as any).performanceGroupId);
+        (campaign as Record<string, unknown>).optimizationStatus === optimizationStatusFilter ||
+        (optimizationStatusFilter === "managed" && (campaign as Record<string, unknown>).performanceGroupId) ||
+        (optimizationStatusFilter === "unmanaged" && !(campaign as Record<string, unknown>).performanceGroupId);
       
       // 高级筛选 - 曝光
       const impressions = Number(campaign.impressions) || 0;
@@ -861,32 +861,32 @@ export default function Campaigns() {
       const matchesClickMax = !filters.clickMax || clicks <= Number(filters.clickMax);
       
       // 高级筛选 - 花费
-      const spend = Number((campaign as any).totalSpend) || Number((campaign as any).spendConverted) || 0;
+      const spend = Number((campaign as Record<string, unknown>).totalSpend) || Number((campaign as Record<string, unknown>).spendConverted) || 0;
       const matchesSpendMin = !filters.spendMin || spend >= Number(filters.spendMin);
       const matchesSpendMax = !filters.spendMax || spend <= Number(filters.spendMax);
       
       // 高级筛选 - 订单数
-      const orders = Number((campaign as any).orders) || 0;
+      const orders = Number((campaign as Record<string, unknown>).orders) || 0;
       const matchesOrderMin = !filters.orderMin || orders >= Number(filters.orderMin);
       const matchesOrderMax = !filters.orderMax || orders <= Number(filters.orderMax);
       
       // 高级筛选 - ACoS
-      const acos = Number((campaign as any).acos) || 0;
+      const acos = Number((campaign as Record<string, unknown>).acos) || 0;
       const matchesAcosMin = !filters.acosMin || acos >= Number(filters.acosMin);
       const matchesAcosMax = !filters.acosMax || acos <= Number(filters.acosMax);
       
       // 高级筛选 - ROAS
-      const roas = Number((campaign as any).roas) || 0;
+      const roas = Number((campaign as Record<string, unknown>).roas) || 0;
       const matchesRoasMin = !filters.roasMin || roas >= Number(filters.roasMin);
       const matchesRoasMax = !filters.roasMax || roas <= Number(filters.roasMax);
       
       // 高级筛选 - CPC
-      const cpc = Number((campaign as any).cpc) || Number((campaign as any).cpcConverted) || 0;
+      const cpc = Number((campaign as Record<string, unknown>).cpc) || Number((campaign as Record<string, unknown>).cpcConverted) || 0;
       const matchesCpcMin = !filters.cpcMin || cpc >= Number(filters.cpcMin);
       const matchesCpcMax = !filters.cpcMax || cpc <= Number(filters.cpcMax);
       
       // 高级筛选 - 日预算
-      const budget = Number((campaign as any).dailyBudget) || 0;
+      const budget = Number((campaign as Record<string, unknown>).dailyBudget) || 0;
       const matchesBudgetMin = !filters.budgetMin || budget >= Number(filters.budgetMin);
       const matchesBudgetMax = !filters.budgetMax || budget <= Number(filters.budgetMax);
       
@@ -910,10 +910,10 @@ export default function Campaigns() {
     }
     // 回退：从当前数据计算
     if (!campaigns) return { enabled: 0, paused: 0, managed: 0, unmanaged: 0 };
-    return campaigns.reduce((acc: any, campaign: any) => {
+    return campaigns.reduce((acc: unknown, campaign: unknown) => {
       if (campaign.campaignStatus === 'enabled') acc.enabled++;
       if (campaign.campaignStatus === 'paused') acc.paused++;
-      if ((campaign as any).performanceGroupId) acc.managed++;
+      if ((campaign as Record<string, unknown>).performanceGroupId) acc.managed++;
       else acc.unmanaged++;
       return acc;
     }, { enabled: 0, paused: 0, managed: 0, unmanaged: 0 });
@@ -995,9 +995,9 @@ export default function Campaigns() {
     if (!filteredCampaigns) return [];
     if (!sortField) return filteredCampaigns;
     
-    return [...filteredCampaigns].sort((a: any, b: any) => {
-      let aValue: any;
-      let bValue: any;
+    return [...filteredCampaigns].sort((a: unknown, b: unknown) => {
+      let aValue: unknown;
+      let bValue: unknown;
       
       switch (sortField) {
         case 'campaignName':
@@ -1009,32 +1009,32 @@ export default function Campaigns() {
           bValue = b.campaignType;
           break;
         case 'costType':
-          aValue = (a as any).costType || 'cpc';
-          bValue = (b as any).costType || 'cpc';
+          aValue = (a as Record<string, unknown>).costType || 'cpc';
+          bValue = (b as Record<string, unknown>).costType || 'cpc';
           break;
         case 'campaignGoal':
-          aValue = (a as any).campaignGoal || '';
-          bValue = (b as any).campaignGoal || '';
+          aValue = (a as Record<string, unknown>).campaignGoal || '';
+          bValue = (b as Record<string, unknown>).campaignGoal || '';
           break;
         case 'adFormat':
-          aValue = (a as any).adFormat || '';
-          bValue = (b as any).adFormat || '';
+          aValue = (a as Record<string, unknown>).adFormat || '';
+          bValue = (b as Record<string, unknown>).adFormat || '';
           break;
         case 'startDate':
-          aValue = safeGetTime((a as any).startDate || 0);
-          bValue = safeGetTime((b as any).startDate || 0);
+          aValue = safeGetTime((a as Record<string, unknown>).startDate || 0);
+          bValue = safeGetTime((b as Record<string, unknown>).startDate || 0);
           break;
         case 'status':
           aValue = a.campaignStatus || '';
           bValue = b.campaignStatus || '';
           break;
         case 'dailyBudget':
-          aValue = parseFloat((a as any).dailyBudget || '0');
-          bValue = parseFloat((b as any).dailyBudget || '0');
+          aValue = parseFloat((a as Record<string, unknown>).dailyBudget || '0');
+          bValue = parseFloat((b as Record<string, unknown>).dailyBudget || '0');
           break;
         case 'dailySpend':
-          aValue = parseFloat((a as any).dailySpend || '0');
-          bValue = parseFloat((b as any).dailySpend || '0');
+          aValue = parseFloat((a as Record<string, unknown>).dailySpend || '0');
+          bValue = parseFloat((b as Record<string, unknown>).dailySpend || '0');
           break;
         case 'impressions':
           aValue = a.impressions || 0;
@@ -1053,8 +1053,8 @@ export default function Campaigns() {
           bValue = parseFloat(b.spend || '0');
           break;
         case 'dailySales':
-          aValue = parseFloat((a as any).dailySales || '0');
-          bValue = parseFloat((b as any).dailySales || '0');
+          aValue = parseFloat((a as Record<string, unknown>).dailySales || '0');
+          bValue = parseFloat((b as Record<string, unknown>).dailySales || '0');
           break;
         case 'totalSales':
           aValue = parseFloat(a.sales || '0');
@@ -1069,8 +1069,8 @@ export default function Campaigns() {
           bValue = parseFloat(b.roas || '0');
           break;
         case 'performanceGroup':
-          aValue = getPerformanceGroupName((a as any).performanceGroupId);
-          bValue = getPerformanceGroupName((b as any).performanceGroupId);
+          aValue = getPerformanceGroupName((a as Record<string, unknown>).performanceGroupId);
+          bValue = getPerformanceGroupName((b as Record<string, unknown>).performanceGroupId);
           break;
         default:
           return 0;
@@ -1123,7 +1123,7 @@ export default function Campaigns() {
   const typeCounts = useMemo(() => {
     if (serverTypeCounts) return serverTypeCounts;
     // 回退：从当前数据计算
-    return campaigns?.reduce((acc: any, campaign: any) => {
+    return campaigns?.reduce((acc: unknown, campaign: unknown) => {
       acc[campaign.campaignType] = (acc[campaign.campaignType] || 0) + 1;
       return acc;
     }, {} as Record<string, number>) || {};
@@ -1206,7 +1206,7 @@ export default function Campaigns() {
       
       // 准备导出数据
       const exportData = sortedCampaigns.map(campaign => {
-        const row: Record<string, any> = {};
+        const row: Record<string, unknown> = {};
         exportColumns.forEach(col => {
           switch (col.key) {
             case 'campaignName':
@@ -1217,58 +1217,58 @@ export default function Campaigns() {
               row[col.key] = typeConfig?.label || campaign.campaignType;
               break;
             case 'costType':
-              row[col.key] = billingTypeLabels[(campaign as any).costType || 'cpc'] || (campaign as any).costType || 'CPC';
+              row[col.key] = billingTypeLabels[(campaign as Record<string, unknown>).costType || 'cpc'] || (campaign as Record<string, unknown>).costType || 'CPC';
               break;
             case 'campaignGoal':
-              row[col.key] = campaignGoalLabels[(campaign as any).campaignGoal] || (campaign as any).campaignGoal || '-';
+              row[col.key] = campaignGoalLabels[(campaign as Record<string, unknown>).campaignGoal] || (campaign as Record<string, unknown>).campaignGoal || '-';
               break;
             case 'adFormat':
-              row[col.key] = adFormatLabels[(campaign as any).adFormat] || (campaign as any).adFormat || '-';
+              row[col.key] = adFormatLabels[(campaign as Record<string, unknown>).adFormat] || (campaign as Record<string, unknown>).adFormat || '-';
               break;
             case 'startDate':
-              row[col.key] = (campaign as any).startDate ? safeToLocaleDateString((campaign as any).startDate, 'zh-CN') : '';
+              row[col.key] = (campaign as Record<string, unknown>).startDate ? safeToLocaleDateString((campaign as Record<string, unknown>).startDate, 'zh-CN') : '';
               break;
             case 'status':
               row[col.key] = campaign.campaignStatus === 'enabled' ? '投放中' : '已暂停';
               break;
             case 'dailyBudget':
-              row[col.key] = `${currencySymbol}${parseFloat((campaign as any).dailyBudget || '0').toFixed(2)}`;
+              row[col.key] = `${currencySymbol}${parseFloat((campaign as Record<string, unknown>).dailyBudget || '0').toFixed(2)}`;
               break;
             case 'dailySpend':
-              row[col.key] = `${currencySymbol}${((campaign as any).performance?.spend || 0).toFixed(2)}`;
+              row[col.key] = `${currencySymbol}${((campaign as Record<string, unknown>).performance?.spend || 0).toFixed(2)}`;
               break;
             case 'impressions':
-              row[col.key] = (campaign as any).performance?.impressions || 0;
+              row[col.key] = (campaign as Record<string, unknown>).performance?.impressions || 0;
               break;
             case 'clicks':
-              row[col.key] = (campaign as any).performance?.clicks || 0;
+              row[col.key] = (campaign as Record<string, unknown>).performance?.clicks || 0;
               break;
             case 'ctr':
-              const impressions = (campaign as any).performance?.impressions || 0;
-              const clicks = (campaign as any).performance?.clicks || 0;
+              const impressions = (campaign as Record<string, unknown>).performance?.impressions || 0;
+              const clicks = (campaign as Record<string, unknown>).performance?.clicks || 0;
               row[col.key] = impressions > 0 ? `${((clicks / impressions) * 100).toFixed(2)}%` : '-';
               break;
             case 'totalSpend':
-              row[col.key] = `${currencySymbol}${((campaign as any).performance?.totalSpend || 0).toFixed(2)}`;
+              row[col.key] = `${currencySymbol}${((campaign as Record<string, unknown>).performance?.totalSpend || 0).toFixed(2)}`;
               break;
             case 'dailySales':
-              row[col.key] = `${currencySymbol}${((campaign as any).performance?.sales || 0).toFixed(2)}`;
+              row[col.key] = `${currencySymbol}${((campaign as Record<string, unknown>).performance?.sales || 0).toFixed(2)}`;
               break;
             case 'totalSales':
-              row[col.key] = `${currencySymbol}${((campaign as any).performance?.totalSales || 0).toFixed(2)}`;
+              row[col.key] = `${currencySymbol}${((campaign as Record<string, unknown>).performance?.totalSales || 0).toFixed(2)}`;
               break;
             case 'acos':
-              row[col.key] = `${((campaign as any).performance?.acos || 0).toFixed(1)}%`;
+              row[col.key] = `${((campaign as Record<string, unknown>).performance?.acos || 0).toFixed(1)}%`;
               break;
             case 'roas':
-              row[col.key] = ((campaign as any).performance?.roas || 0).toFixed(2);
+              row[col.key] = ((campaign as Record<string, unknown>).performance?.roas || 0).toFixed(2);
               break;
             case 'performanceGroup':
               const group = performanceGroups?.find(g => g.id === campaign.performanceGroupId);
               row[col.key] = group?.name || '';
               break;
             default:
-              row[col.key] = (campaign as any)[col.key] || '';
+              row[col.key] = (campaign as Record<string, unknown>)[col.key] || '';
           }
         });
         return row;
@@ -1330,7 +1330,7 @@ export default function Campaigns() {
   }, [deletePreset]);
 
   // 处理暂停/启用操作
-  const handleToggleStatus = (campaign: any) => {
+  const handleToggleStatus = (campaign: unknown) => {
     const newStatus = campaign.campaignStatus === "enabled" ? "paused" : "enabled";
     const isHighRisk = campaign.campaignStatus === "enabled";
     
@@ -1359,13 +1359,13 @@ export default function Campaigns() {
   };
 
   // 处理编辑预算
-  const handleEditBudget = (campaign: any) => {
+  const handleEditBudget = (campaign: unknown) => {
     setEditBudgetDialog({
       open: true,
       campaignId: campaign.id,
       campaignName: campaign.campaignName,
-      currentBudget: parseFloat((campaign as any).dailyBudget || '0'),
-      newBudget: (campaign as any).dailyBudget || '0',
+      currentBudget: parseFloat((campaign as Record<string, unknown>).dailyBudget || '0'),
+      newBudget: (campaign as Record<string, unknown>).dailyBudget || '0',
     });
   };
 
@@ -1403,13 +1403,13 @@ export default function Campaigns() {
   };
 
   // 渲染单元格内容
-  const renderCell = (campaign: any, columnKey: ColumnKey) => {
+  const renderCell = (campaign: unknown, columnKey: ColumnKey) => {
     const typeConfig = getCampaignTypeConfig(campaign.campaignType);
-    const dailySpend = parseFloat((campaign as any).dailySpend || "0");
+    const dailySpend = parseFloat((campaign as Record<string, unknown>).dailySpend || "0");
     const totalSpend = parseFloat(campaign.spend || "0");
-    const dailySales = parseFloat((campaign as any).dailySales || "0");
+    const dailySales = parseFloat((campaign as Record<string, unknown>).dailySales || "0");
     const totalSales = parseFloat(campaign.sales || "0");
-    const dailyBudget = parseFloat((campaign as any).dailyBudget || "0");
+    const dailyBudget = parseFloat((campaign as Record<string, unknown>).dailyBudget || "0");
     const impressions = Number(campaign.impressions) || 0;
     const clicks = Number(campaign.clicks) || 0;
 
@@ -1447,7 +1447,7 @@ export default function Campaigns() {
             </a>
             {tags.length > 0 && (
               <div className="flex items-center gap-1 mt-0.5 flex-wrap">
-                {tags.map((tag: any, i: any) => (
+                {tags.map((tag: unknown, i: unknown) => (
                   <span key={i} className={`text-[10px] px-1.5 py-0 rounded-sm font-medium ${tag.color}`}>
                     {tag.label}
                   </span>
@@ -1466,11 +1466,11 @@ export default function Campaigns() {
       case 'costType':
         return (
           <span className="text-sm text-muted-foreground">
-            {billingTypeLabels[(campaign as any).costType] || "CPC (按点击)"}
+            {billingTypeLabels[(campaign as Record<string, unknown>).costType] || "CPC (按点击)"}
           </span>
         );
       case 'campaignGoal': {
-        const goal = (campaign as any).campaignGoal;
+        const goal = (campaign as Record<string, unknown>).campaignGoal;
         if (!goal) {
           // SP广告没有goal字段，显示“-”
           return <span className="text-sm text-muted-foreground">-</span>;
@@ -1485,7 +1485,7 @@ export default function Campaigns() {
         );
       }
       case 'adFormat': {
-        const format = (campaign as any).adFormat;
+        const format = (campaign as Record<string, unknown>).adFormat;
         if (!format) {
           return <span className="text-sm text-muted-foreground">-</span>;
         }
@@ -1498,43 +1498,43 @@ export default function Campaigns() {
       case 'startDate':
         return (
           <span className="text-sm text-muted-foreground">
-            {formatDate((campaign as any).startDate)}
+            {formatDate((campaign as Record<string, unknown>).startDate)}
           </span>
         );
       case 'endDate':
         return (
           <span className="text-sm text-muted-foreground">
-            {(campaign as any).endDate ? formatDate((campaign as any).endDate) : '-'}
+            {(campaign as Record<string, unknown>).endDate ? formatDate((campaign as Record<string, unknown>).endDate) : '-'}
           </span>
         );
       case 'state':
         return (
           <span className="text-sm text-muted-foreground capitalize">
-            {(campaign as any).state || campaign.campaignStatus || '-'}
+            {(campaign as Record<string, unknown>).state || campaign.campaignStatus || '-'}
           </span>
         );
       case 'countryCode':
         return (
           <span className="text-sm font-medium">
-            {(campaign as any).countryCode || '-'}
+            {(campaign as Record<string, unknown>).countryCode || '-'}
           </span>
         );
       case 'targetingType':
         return (
           <span className="text-sm text-muted-foreground capitalize">
-            {(campaign as any).targetingType || '-'}
+            {(campaign as Record<string, unknown>).targetingType || '-'}
           </span>
         );
       case 'retailer':
         return (
           <span className="text-sm text-muted-foreground">
-            {(campaign as any).retailer || '-'}
+            {(campaign as Record<string, unknown>).retailer || '-'}
           </span>
         );
       case 'portfolioName':
         return (
           <span className="text-sm text-muted-foreground">
-            {(campaign as any).portfolioName || '-'}
+            {(campaign as Record<string, unknown>).portfolioName || '-'}
           </span>
         );
       case 'biddingStrategy':
@@ -1546,217 +1546,217 @@ export default function Campaigns() {
         };
         return (
           <span className="text-sm text-muted-foreground">
-            {strategyLabels[(campaign as any).biddingStrategy] || (campaign as any).biddingStrategy || '-'}
+            {strategyLabels[(campaign as Record<string, unknown>).biddingStrategy] || (campaign as Record<string, unknown>).biddingStrategy || '-'}
           </span>
         );
       case 'avgTimeInBudget':
         return (
           <span className="text-sm tabular-nums">
-            {(campaign as any).avgTimeInBudget ? `${parseFloat((campaign as any).avgTimeInBudget).toFixed(1)}%` : '-'}
+            {(campaign as Record<string, unknown>).avgTimeInBudget ? `${parseFloat((campaign as Record<string, unknown>).avgTimeInBudget).toFixed(1)}%` : '-'}
           </span>
         );
       case 'budgetConverted':
         return (
           <span className="text-sm tabular-nums">
-            {(campaign as any).budgetConverted ? `${currencySymbol}${parseFloat((campaign as any).budgetConverted).toFixed(2)}` : '-'}
+            {(campaign as Record<string, unknown>).budgetConverted ? `${currencySymbol}${parseFloat((campaign as Record<string, unknown>).budgetConverted).toFixed(2)}` : '-'}
           </span>
         );
       case 'topOfSearchImpressionShare':
         return (
           <span className="text-sm tabular-nums">
-            {(campaign as any).topOfSearchImpressionShare ? `${parseFloat((campaign as any).topOfSearchImpressionShare).toFixed(1)}%` : '-'}
+            {(campaign as Record<string, unknown>).topOfSearchImpressionShare ? `${parseFloat((campaign as Record<string, unknown>).topOfSearchImpressionShare).toFixed(1)}%` : '-'}
           </span>
         );
       case 'topOfSearchBidAdjustment':
         return (
           <span className="text-sm tabular-nums">
-            {(campaign as any).placementTopSearchBidAdjustment ? `${(campaign as any).placementTopSearchBidAdjustment}%` : '-'}
+            {(campaign as Record<string, unknown>).placementTopSearchBidAdjustment ? `${(campaign as Record<string, unknown>).placementTopSearchBidAdjustment}%` : '-'}
           </span>
         );
       case 'productPageBidAdjustment':
         return (
           <span className="text-sm tabular-nums">
-            {(campaign as any).placementProductPageBidAdjustment ? `${(campaign as any).placementProductPageBidAdjustment}%` : '-'}
+            {(campaign as Record<string, unknown>).placementProductPageBidAdjustment ? `${(campaign as Record<string, unknown>).placementProductPageBidAdjustment}%` : '-'}
           </span>
         );
       case 'restBidAdjustment':
         return (
           <span className="text-sm tabular-nums">
-            {(campaign as any).placementRestBidAdjustment ? `${(campaign as any).placementRestBidAdjustment}%` : '-'}
+            {(campaign as Record<string, unknown>).placementRestBidAdjustment ? `${(campaign as Record<string, unknown>).placementRestBidAdjustment}%` : '-'}
           </span>
         );
       case 'spendConverted':
         return (
           <span className="text-sm tabular-nums">
-            {(campaign as any).spendConverted ? `${currencySymbol}${parseFloat((campaign as any).spendConverted).toFixed(2)}` : '-'}
+            {(campaign as Record<string, unknown>).spendConverted ? `${currencySymbol}${parseFloat((campaign as Record<string, unknown>).spendConverted).toFixed(2)}` : '-'}
           </span>
         );
       case 'cpcConverted':
         return (
           <span className="text-sm tabular-nums">
-            {(campaign as any).cpcConverted ? `${currencySymbol}${parseFloat((campaign as any).cpcConverted).toFixed(2)}` : '-'}
+            {(campaign as Record<string, unknown>).cpcConverted ? `${currencySymbol}${parseFloat((campaign as Record<string, unknown>).cpcConverted).toFixed(2)}` : '-'}
           </span>
         );
       case 'cpc':
         return (
           <span className="text-sm tabular-nums">
-            {(campaign as any).cpc ? `${currencySymbol}${parseFloat((campaign as any).cpc).toFixed(2)}` : '-'}
+            {(campaign as Record<string, unknown>).cpc ? `${currencySymbol}${parseFloat((campaign as Record<string, unknown>).cpc).toFixed(2)}` : '-'}
           </span>
         );
       case 'detailPageViews':
         return (
           <span className="text-sm tabular-nums">
-            {((campaign as any).detailPageViews || 0).toLocaleString()}
+            {((campaign as Record<string, unknown>).detailPageViews || 0).toLocaleString()}
           </span>
         );
       case 'brandStorePageViews':
         return (
           <span className="text-sm tabular-nums">
-            {((campaign as any).brandStorePageViews || 0).toLocaleString()}
+            {((campaign as Record<string, unknown>).brandStorePageViews || 0).toLocaleString()}
           </span>
         );
       case 'orders':
         return (
           <span className="text-sm tabular-nums">
-            {((campaign as any).orders || 0).toLocaleString()}
+            {((campaign as Record<string, unknown>).orders || 0).toLocaleString()}
           </span>
         );
       case 'salesConverted':
         return (
           <span className="text-sm tabular-nums text-green-600">
-            {(campaign as any).salesConverted ? `${currencySymbol}${parseFloat((campaign as any).salesConverted).toFixed(2)}` : '-'}
+            {(campaign as Record<string, unknown>).salesConverted ? `${currencySymbol}${parseFloat((campaign as Record<string, unknown>).salesConverted).toFixed(2)}` : '-'}
           </span>
         );
       case 'ntbOrders':
         return (
           <span className="text-sm tabular-nums">
-            {((campaign as any).ntbOrders || 0).toLocaleString()}
+            {((campaign as Record<string, unknown>).ntbOrders || 0).toLocaleString()}
           </span>
         );
       case 'ntbOrdersPercent':
         return (
           <span className="text-sm tabular-nums">
-            {(campaign as any).ntbOrdersPercent ? `${parseFloat((campaign as any).ntbOrdersPercent).toFixed(1)}%` : '-'}
+            {(campaign as Record<string, unknown>).ntbOrdersPercent ? `${parseFloat((campaign as Record<string, unknown>).ntbOrdersPercent).toFixed(1)}%` : '-'}
           </span>
         );
       case 'ntbSalesConverted':
         return (
           <span className="text-sm tabular-nums text-green-600">
-            {(campaign as any).ntbSalesConverted ? `${currencySymbol}${parseFloat((campaign as any).ntbSalesConverted).toFixed(2)}` : '-'}
+            {(campaign as Record<string, unknown>).ntbSalesConverted ? `${currencySymbol}${parseFloat((campaign as Record<string, unknown>).ntbSalesConverted).toFixed(2)}` : '-'}
           </span>
         );
       case 'ntbSales':
         return (
           <span className="text-sm tabular-nums text-green-600">
-            {(campaign as any).ntbSales ? `${currencySymbol}${parseFloat((campaign as any).ntbSales).toFixed(2)}` : '-'}
+            {(campaign as Record<string, unknown>).ntbSales ? `${currencySymbol}${parseFloat((campaign as Record<string, unknown>).ntbSales).toFixed(2)}` : '-'}
           </span>
         );
       case 'ntbSalesPercent':
         return (
           <span className="text-sm tabular-nums">
-            {(campaign as any).ntbSalesPercent ? `${parseFloat((campaign as any).ntbSalesPercent).toFixed(1)}%` : '-'}
+            {(campaign as Record<string, unknown>).ntbSalesPercent ? `${parseFloat((campaign as Record<string, unknown>).ntbSalesPercent).toFixed(1)}%` : '-'}
           </span>
         );
       case 'longTermSalesConverted':
         return (
           <span className="text-sm tabular-nums text-green-600">
-            {(campaign as any).longTermSalesConverted ? `${currencySymbol}${parseFloat((campaign as any).longTermSalesConverted).toFixed(2)}` : '-'}
+            {(campaign as Record<string, unknown>).longTermSalesConverted ? `${currencySymbol}${parseFloat((campaign as Record<string, unknown>).longTermSalesConverted).toFixed(2)}` : '-'}
           </span>
         );
       case 'longTermSales':
         return (
           <span className="text-sm tabular-nums text-green-600">
-            {(campaign as any).longTermSales ? `${currencySymbol}${parseFloat((campaign as any).longTermSales).toFixed(2)}` : '-'}
+            {(campaign as Record<string, unknown>).longTermSales ? `${currencySymbol}${parseFloat((campaign as Record<string, unknown>).longTermSales).toFixed(2)}` : '-'}
           </span>
         );
       case 'longTermRoas':
         return (
           <span className="text-sm tabular-nums">
-            {(campaign as any).longTermRoas ? parseFloat((campaign as any).longTermRoas).toFixed(2) : '-'}
+            {(campaign as Record<string, unknown>).longTermRoas ? parseFloat((campaign as Record<string, unknown>).longTermRoas).toFixed(2) : '-'}
           </span>
         );
       case 'cumulativeReach':
         return (
           <span className="text-sm tabular-nums">
-            {((campaign as any).cumulativeReach || 0).toLocaleString()}
+            {((campaign as Record<string, unknown>).cumulativeReach || 0).toLocaleString()}
           </span>
         );
       case 'householdReach':
         return (
           <span className="text-sm tabular-nums">
-            {((campaign as any).householdReach || 0).toLocaleString()}
+            {((campaign as Record<string, unknown>).householdReach || 0).toLocaleString()}
           </span>
         );
       case 'viewableImpressions':
         return (
           <span className="text-sm tabular-nums">
-            {((campaign as any).viewableImpressions || 0).toLocaleString()}
+            {((campaign as Record<string, unknown>).viewableImpressions || 0).toLocaleString()}
           </span>
         );
       case 'cpmConverted':
         return (
           <span className="text-sm tabular-nums">
-            {(campaign as any).cpmConverted ? `${currencySymbol}${parseFloat((campaign as any).cpmConverted).toFixed(2)}` : '-'}
+            {(campaign as Record<string, unknown>).cpmConverted ? `${currencySymbol}${parseFloat((campaign as Record<string, unknown>).cpmConverted).toFixed(2)}` : '-'}
           </span>
         );
       case 'cpm':
         return (
           <span className="text-sm tabular-nums">
-            {(campaign as any).cpm ? `${currencySymbol}${parseFloat((campaign as any).cpm).toFixed(2)}` : '-'}
+            {(campaign as Record<string, unknown>).cpm ? `${currencySymbol}${parseFloat((campaign as Record<string, unknown>).cpm).toFixed(2)}` : '-'}
           </span>
         );
       case 'vcpmConverted':
         return (
           <span className="text-sm tabular-nums">
-            {(campaign as any).vcpmConverted ? `${currencySymbol}${parseFloat((campaign as any).vcpmConverted).toFixed(2)}` : '-'}
+            {(campaign as Record<string, unknown>).vcpmConverted ? `${currencySymbol}${parseFloat((campaign as Record<string, unknown>).vcpmConverted).toFixed(2)}` : '-'}
           </span>
         );
       case 'vcpm':
         return (
           <span className="text-sm tabular-nums">
-            {(campaign as any).vcpm ? `${currencySymbol}${parseFloat((campaign as any).vcpm).toFixed(2)}` : '-'}
+            {(campaign as Record<string, unknown>).vcpm ? `${currencySymbol}${parseFloat((campaign as Record<string, unknown>).vcpm).toFixed(2)}` : '-'}
           </span>
         );
       case 'videoFirstQuartile':
         return (
           <span className="text-sm tabular-nums">
-            {((campaign as any).videoFirstQuartile || 0).toLocaleString()}
+            {((campaign as Record<string, unknown>).videoFirstQuartile || 0).toLocaleString()}
           </span>
         );
       case 'videoMidpoint':
         return (
           <span className="text-sm tabular-nums">
-            {((campaign as any).videoMidpoint || 0).toLocaleString()}
+            {((campaign as Record<string, unknown>).videoMidpoint || 0).toLocaleString()}
           </span>
         );
       case 'videoThirdQuartile':
         return (
           <span className="text-sm tabular-nums">
-            {((campaign as any).videoThirdQuartile || 0).toLocaleString()}
+            {((campaign as Record<string, unknown>).videoThirdQuartile || 0).toLocaleString()}
           </span>
         );
       case 'videoComplete':
         return (
           <span className="text-sm tabular-nums">
-            {((campaign as any).videoComplete || 0).toLocaleString()}
+            {((campaign as Record<string, unknown>).videoComplete || 0).toLocaleString()}
           </span>
         );
       case 'videoUnmute':
         return (
           <span className="text-sm tabular-nums">
-            {((campaign as any).videoUnmute || 0).toLocaleString()}
+            {((campaign as Record<string, unknown>).videoUnmute || 0).toLocaleString()}
           </span>
         );
       case 'vtr':
         return (
           <span className="text-sm tabular-nums">
-            {(campaign as any).vtr ? `${(parseFloat((campaign as any).vtr) * 100).toFixed(2)}%` : '-'}
+            {(campaign as Record<string, unknown>).vtr ? `${(parseFloat((campaign as Record<string, unknown>).vtr) * 100).toFixed(2)}%` : '-'}
           </span>
         );
       case 'vctr':
         return (
           <span className="text-sm tabular-nums">
-            {(campaign as any).vctr ? `${(parseFloat((campaign as any).vctr) * 100).toFixed(2)}%` : '-'}
+            {(campaign as Record<string, unknown>).vctr ? `${(parseFloat((campaign as Record<string, unknown>).vctr) * 100).toFixed(2)}%` : '-'}
           </span>
         );
       case 'status':
@@ -1796,8 +1796,8 @@ export default function Campaigns() {
           </span>
         );
       case 'performanceGroup':
-        const pgName = (campaign as any).performanceGroupName;
-        const pgStrategy = (campaign as any).performanceGroupStrategyTemplate;
+        const pgName = (campaign as Record<string, unknown>).performanceGroupName;
+        const pgStrategy = (campaign as Record<string, unknown>).performanceGroupStrategyTemplate;
         if (pgName) {
           return (
             <div className="flex flex-col gap-0.5">
@@ -1815,7 +1815,7 @@ export default function Campaigns() {
         }
         return (
           <Select
-            value={(campaign as any).performanceGroupId?.toString() || ""}
+            value={(campaign as Record<string, unknown>).performanceGroupId?.toString() || ""}
             onValueChange={(value) => {
               assignToGroup.mutate({
                 campaignId: campaign.id,
@@ -1827,7 +1827,7 @@ export default function Campaigns() {
               <SelectValue placeholder="选择优化目标" />
             </SelectTrigger>
             <SelectContent>
-              {performanceGroups?.map((group: any) => (
+              {performanceGroups?.map((group: unknown) => (
                 <SelectItem key={group.id} value={group.id.toString()}>
                   {group.name}
                 </SelectItem>
@@ -1836,9 +1836,9 @@ export default function Campaigns() {
           </Select>
         );
       case 'recommendedStrategy':
-        const recTemplateId = (campaign as any).recommendedStrategyTemplateId;
-        const recTemplateName = (campaign as any).recommendedStrategyTemplateName;
-        const recReason = (campaign as any).recommendationReason;
+        const recTemplateId = (campaign as Record<string, unknown>).recommendedStrategyTemplateId;
+        const recTemplateName = (campaign as Record<string, unknown>).recommendedStrategyTemplateName;
+        const recReason = (campaign as Record<string, unknown>).recommendationReason;
         if (!recTemplateName) {
           return <span className="text-xs text-muted-foreground">待分析</span>;
         }
@@ -1863,7 +1863,7 @@ export default function Campaigns() {
           </div>
         );
       case 'amazonCreatedDate':
-        const amazonDate = (campaign as any).amazonCreatedDate;
+        const amazonDate = (campaign as Record<string, unknown>).amazonCreatedDate;
         return amazonDate ? (
           <span className="text-sm">{amazonDate}</span>
         ) : (
@@ -1970,7 +1970,7 @@ export default function Campaigns() {
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuLabel>显示列</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                {columns.filter(c => c.key !== 'campaignName').map((column: any) => (
+                {columns.filter(c => c.key !== 'campaignName').map((column: unknown) => (
                   <DropdownMenuCheckboxItem
                     key={column.key}
                     checked={visibleColumns.has(column.key)}
@@ -2038,7 +2038,7 @@ export default function Campaigns() {
                     暂无保存的预设
                   </div>
                 ) : (
-                  presets.map((preset: any) => (
+                  presets.map((preset: unknown) => (
                     <DropdownMenuItem
                       key={preset.id}
                       className="flex items-center justify-between group"
@@ -2108,7 +2108,7 @@ export default function Campaigns() {
               {/* 第三行：广告类型筛选 */}
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-sm text-muted-foreground">广告类型:</span>
-                {campaignTypes.map((type: any) => {
+                {campaignTypes.map((type: unknown) => {
                   const count = type.value === "all" 
                     ? serverTotal || 0 
                     : typeCounts[type.value] || 0;
@@ -2153,7 +2153,7 @@ export default function Campaigns() {
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-muted-foreground">运行状态:</span>
                   <div className="flex gap-1">
-                    {runningStatusOptions.map((option: any) => {
+                    {runningStatusOptions.map((option: unknown) => {
                       const count = option.value === "all" 
                         ? serverTotal || 0 
                         : option.value === "enabled" ? statusCounts.enabled : statusCounts.paused;
@@ -2177,7 +2177,7 @@ export default function Campaigns() {
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-muted-foreground">优化状态:</span>
                   <div className="flex gap-1">
-                    {optimizationStatusOptions.map((option: any) => {
+                    {optimizationStatusOptions.map((option: unknown) => {
                       const count = option.value === "all" 
                         ? serverTotal || 0 
                         : option.value === "managed" ? statusCounts.managed : statusCounts.unmanaged;
@@ -2505,7 +2505,7 @@ export default function Campaigns() {
                       <SelectValue placeholder="加入绩效组" />
                     </SelectTrigger>
                     <SelectContent>
-                      {performanceGroups?.map((group: any) => (
+                      {performanceGroups?.map((group: unknown) => (
                         <SelectItem key={group.id} value={group.id.toString()}>
                           {group.name}
                         </SelectItem>
@@ -2580,7 +2580,7 @@ export default function Campaigns() {
                             onCheckedChange={toggleSelectAll}
                           />
                         </TableHead>
-                        {columns.filter(col => mobileVisibleColumns.has(col.key)).map((column: any, colIndex: any) => {
+                        {columns.filter(col => mobileVisibleColumns.has(col.key)).map((column: unknown, colIndex: unknown) => {
                           const colWidth = getWidth(column.key);
                           const colIsPinned = isPinned(column.key);
                           const pinnedOffset = colIsPinned ? getPinnedOffset(column.key) + 40 : 0; // 40 for checkbox column
@@ -2626,7 +2626,7 @@ export default function Campaigns() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {rowVirtualizer.getVirtualItems().map((virtualRow: any) => {
+                      {rowVirtualizer.getVirtualItems().map((virtualRow: unknown) => {
                         const campaign = paginatedCampaigns[virtualRow.index];
                         if (!campaign) return null;
                         return (
@@ -2646,7 +2646,7 @@ export default function Campaigns() {
                                 onCheckedChange={() => toggleSelectCampaign(campaign.id)}
                               />
                             </TableCell>
-                            {columns.filter(col => mobileVisibleColumns.has(col.key)).map((column: any) => {
+                            {columns.filter(col => mobileVisibleColumns.has(col.key)).map((column: unknown) => {
                               const colWidth = getWidth(column.key);
                               const colIsPinned = isPinned(column.key);
                               const pinnedOffset = colIsPinned ? getPinnedOffset(column.key) + 40 : 0;

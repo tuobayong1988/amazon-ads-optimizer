@@ -160,7 +160,7 @@ const [statusFilter, setStatusFilter] = useState<TrackingStatus | "all">("all");
                   {(() => {
                     const completed = trackingsData?.trackings.filter(t => t.status === "completed") || [];
                     if (completed.length === 0) return "N/A";
-                    const avg = completed.reduce((sum: any, t: any) => sum + Number(t.roasChange || 0), 0) / completed.length;
+                    const avg = completed.reduce((sum: number, t: Record<string, unknown>) => sum + Number(t.roasChange || 0), 0) / completed.length;
                     return formatPercent(avg);
                   })()}
                 </p>
@@ -180,7 +180,7 @@ const [statusFilter, setStatusFilter] = useState<TrackingStatus | "all">("all");
                   {(() => {
                     const completed = trackingsData?.trackings.filter(t => t.status === "completed") || [];
                     if (completed.length === 0) return "N/A";
-                    const avg = completed.reduce((sum: any, t: any) => sum + Number(t.acosChange || 0), 0) / completed.length;
+                    const avg = completed.reduce((sum: number, t: Record<string, unknown>) => sum + Number(t.acosChange || 0), 0) / completed.length;
                     return formatPercent(avg);
                   })()}
                 </p>
@@ -207,7 +207,7 @@ const [statusFilter, setStatusFilter] = useState<TrackingStatus | "all">("all");
             </div>
           ) : (
             <div className="space-y-4">
-              {trackingsData?.trackings.map((tracking: any) => (
+              {trackingsData?.trackings.map((tracking: unknown) => (
                 <div
                   key={tracking.id}
                   className="border rounded-lg p-4 hover:bg-accent/50 transition-colors"

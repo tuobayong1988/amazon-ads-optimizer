@@ -333,7 +333,7 @@ async function getTimeWeightedCampaignMetrics(
   const decayRate = dataPoints < 7 ? 0.02 : dataPoints < 14 ? 0.04 : 0.06; // 数据越多衰减越快
   
   // 计算数据波动性（用于调整衰减强度）
-  const spendValues = dailyData.map((d: Record<string, any>) => Number(d.spend) || 0);
+  const spendValues = dailyData.map((d: Record<string, unknown>) => Number(d.spend) || 0);
   const avgSpendRaw = spendValues.length > 0 ? spendValues.reduce((a: number, b: number) => a + b, 0) / spendValues.length : 0;
   const variance = spendValues.length > 1 
     ? spendValues.reduce((sum: number, v: number) => sum + Math.pow(v - avgSpendRaw, 2), 0) / spendValues.length 
@@ -511,7 +511,7 @@ export async function updateLearningFromAssessments(
     const negativeCount = assessments.filter(a => a.effectScore < -10).length;
     const totalCount = assessments.length;
     const successRate = totalCount > 0 ? positiveCount / totalCount : 0.5;
-    const avgScore = assessments.reduce((sum: any, a: any) => sum + a.effectScore, 0) / totalCount;
+    const avgScore = assessments.reduce((sum: number, a: Record<string, unknown>) => sum + a.effectScore, 0) / totalCount;
     
     // 根据成功率动态调整最大调整幅度
     // 成功率高 → 允许更大调整幅度
@@ -737,7 +737,7 @@ export async function executeAutoCorrections(
         reason: `[自动纠错] ${correction.reason}`,
         apiSyncStatus: 'pending',
         createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
-      } as Record<string, any>);
+      } as Record<string, unknown>);
       
       // 标记原始日志为已纠正
       await db.update(optimizationLogs)
@@ -814,7 +814,7 @@ export async function runEvolutionCycle(
   
   // 计算整体趋势
   const avgEffectScore = assessments.length > 0 
-    ? assessments.reduce((sum: any, a: any) => sum + a.effectScore, 0) / assessments.length 
+    ? assessments.reduce((sum: number, a: Record<string, unknown>) => sum + a.effectScore, 0) / assessments.length 
     : 0;
   
   let improvementTrend: 'improving' | 'stable' | 'declining';
@@ -966,7 +966,7 @@ export async function getKeywordOptimizationHistory(
     let rolledBackCount = 0;
     let correctedCount = 0;
     
-    for (const log of (logs as any[])) {
+    for (const log of (logs as unknown[])) {
       if (log.apiSyncStatus === 'rolled_back') rolledBackCount++;
       if (log.apiSyncStatus === 'corrected') correctedCount++;
     }

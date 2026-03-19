@@ -18,7 +18,7 @@ export async function saveAmazonApiCredentials(data: InsertAmazonApiCredential) 
   const { safeEncrypt } = await import('../utils/cryptoService');
   
   // v342: 保护性更新 - 不用空值覆盖已有的有效值
-  const updateSet: Record<string, any> = {
+  const updateSet: Record<string, unknown> = {
     updatedAt: new Date().toISOString(),
   };
   // 只在新值非空时才更新对应字段
@@ -79,7 +79,7 @@ export async function updateAmazonApiCredentials(accountId: number, data: Partia
   
   // v345: 加密敏感字段
   const { safeEncrypt } = await import('../utils/cryptoService');
-  const encryptedData: Record<string, any> = { ...data, updatedAt: new Date().toISOString() };
+  const encryptedData: Record<string, unknown> = { ...data, updatedAt: new Date().toISOString() };
   if (encryptedData.clientSecret) {
     encryptedData.clientSecret = safeEncrypt(encryptedData.clientSecret);
   }

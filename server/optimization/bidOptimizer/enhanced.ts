@@ -408,7 +408,7 @@ export function calculateAlgorithmEffectStats(
     positiveCount: number;
   }> = {};
   
-  for (const record of (records as any[])) {
+  for (const record of (records as unknown[])) {
     if (record.effectScore === undefined) continue;
     
     if (!stats[record.algorithmUsed]) {

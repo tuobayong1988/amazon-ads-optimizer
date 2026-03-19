@@ -85,9 +85,9 @@ async function getLastSyncTimeForAccount(accountId: number): Promise<Date | null
   try {
     const account = await db.getAdAccountById(accountId);
     // @ts-expect-error - dynamic property access
-    if (account && (account as unknown).lastSyncAt) {
+    if (account && (account as Record<string, unknown>).lastSyncAt) {
       // @ts-expect-error - dynamic property access
-      return new Date((account as unknown).lastSyncAt);
+      return new Date((account as Record<string, unknown>).lastSyncAt);
     }
     // 备用：从同步日志表查询
     const { getEngineStatus } = await import('../sync/unifiedSyncEngine');
@@ -95,7 +95,7 @@ async function getLastSyncTimeForAccount(accountId: number): Promise<Date | null
     // @ts-expect-error - string type assertion
     if ((status as string).lastSyncResults) {
       // @ts-expect-error - string type assertion
-      const accountResult = ((status as string).lastSyncResults as any[])?.find((r: Record<string, any>) => r.accountId === accountId);
+      const accountResult = ((status as string).lastSyncResults as unknown[])?.find((r: Record<string, unknown>) => r.accountId === accountId);
       if (accountResult?.completedAt) {
         return new Date(accountResult.completedAt);
       }
@@ -118,46 +118,46 @@ export interface OptimizationExecutionResult {
   bidOptimization: {
     executed: boolean;
     adjustmentsCount: number;
-    details: Record<string, any>[];
+    details: Record<string, unknown>[];
   };
   
   placementOptimization: {
     executed: boolean;
     adjustmentsCount: number;
-    details: Record<string, any>[];
+    details: Record<string, unknown>[];
   };
   
   daypartingOptimization: {
     executed: boolean;
     adjustmentsCount: number;
-    details: Record<string, any>[];
+    details: Record<string, unknown>[];
   };
   
   // v179: 分时预算优化
   daypartingBudgetOptimization: {
     executed: boolean;
     adjustmentsCount: number;
-    details: Record<string, any>[];
+    details: Record<string, unknown>[];
   };
   
   searchTermAnalysis: {
     executed: boolean;
     negativeKeywordsAdded: number;
     newKeywordsAdded: number;
-    details: Record<string, any>[];
+    details: Record<string, unknown>[];
   };
   
   budgetAllocation: {
     executed: boolean;
     adjustmentsCount: number;
-    details: Record<string, any>[];
+    details: Record<string, unknown>[];
   };
   
   keywordStatusChanges: {
     executed: boolean;
     pausedCount: number;
     enabledCount: number;
-    details: Record<string, any>[];
+    details: Record<string, unknown>[];
   };
   
   // v135: 广告活动状态变更
@@ -165,7 +165,7 @@ export interface OptimizationExecutionResult {
     executed: boolean;
     pausedCount: number;
     enabledCount: number;
-    details: Record<string, any>[];
+    details: Record<string, unknown>[];
   };
   
   // v135: 广告组状态变更
@@ -173,7 +173,7 @@ export interface OptimizationExecutionResult {
     executed: boolean;
     pausedCount: number;
     enabledCount: number;
-    details: Record<string, any>[];
+    details: Record<string, unknown>[];
   };
   
   // 多维度智能优化结果
@@ -181,7 +181,7 @@ export interface OptimizationExecutionResult {
     executed: boolean;
     campaignsAnalyzed: number;
     rulesGenerated: number;
-    details: Record<string, any>[];
+    details: Record<string, unknown>[];
   };
   
   // 中央竞价协调器执行结果
@@ -189,7 +189,7 @@ export interface OptimizationExecutionResult {
     executed: boolean;
     campaignsCoordinated: number;
     circuitBreakerTriggered: number;
-    details: Record<string, any>[];
+    details: Record<string, unknown>[];
   };
   
   errors: string[];
@@ -286,7 +286,7 @@ export async function getOptimizationTargetConfig(targetId: number): Promise<Opt
     executionFrequency: 'daily',
     // v156: 从数据库恢复上次执行时间
     // @ts-expect-error - dynamic property access
-    lastExecutionTime: (group as unknown).lastOptimizationAt ? new Date((group as unknown).lastOptimizationAt) : undefined,
+    lastExecutionTime: (group as Record<string, unknown>).lastOptimizationAt ? new Date((group as Record<string, unknown>).lastOptimizationAt) : undefined,
     nextExecutionTime: undefined,
     
     maxDailyBidChanges: 100,
@@ -296,9 +296,9 @@ export async function getOptimizationTargetConfig(targetId: number): Promise<Opt
     
     // v164: 自我进化所需字段
     // @ts-expect-error - dynamic property access
-    userId: (group as unknown).userId || 0,
+    userId: (group as Record<string, unknown>).userId || 0,
     // @ts-expect-error - dynamic property access
-    strategyTemplateId: (group as unknown).strategyTemplateId || undefined,
+    strategyTemplateId: (group as Record<string, unknown>).strategyTemplateId || undefined,
   };
   
   // v143: 查询生命周期阶段并注入配置
@@ -436,8 +436,8 @@ export async function executeOptimizationTarget(
   }
   
   // v164: 自我进化周期 - 在每次优化执行前自动评估上一轮优化效果并学习
-  let evolutionReport: any = null;
-  let adaptiveParams: any = null;
+  let evolutionReport: unknown = null;
+  let adaptiveParams: unknown = null;
   try {
     // 运行进化周期：评估效果→学习→自动纠错
     evolutionReport = await selfEvolution.runEvolutionCycle(
@@ -475,7 +475,7 @@ export async function executeOptimizationTarget(
   // v156: 只对enabled状态的campaign执行优化
   // paused/archived的campaign在Amazon端不会投放广告，对其做出价调整是无效的
   // @ts-expect-error - dynamic property assignment
-  const campaigns = allCampaigns.filter(c => (c as unknown).campaignStatus === 'enabled');
+  const campaigns = allCampaigns.filter(c => (c as Record<string, unknown>).campaignStatus === 'enabled');
   const skippedCampaigns = allCampaigns.length - campaigns.length;
   if (skippedCampaigns > 0) {
     log.info(`[OptimizationTarget] v156: 跳过${skippedCampaigns}个非enabled状态的campaign (总${allCampaigns.length}个, enabled=${campaigns.length}个)`);
@@ -489,7 +489,7 @@ export async function executeOptimizationTarget(
     if (allCampaigns.length > 0 && campaigns.length === 0) {
       const allPausedOrArchived = allCampaigns.every(c => 
         // @ts-expect-error - dynamic property access
-        ['paused', 'archived'].includes((c as unknown).campaignStatus || '')
+        ['paused', 'archived'].includes((c as Record<string, unknown>).campaignStatus || '')
       );
       if (allPausedOrArchived) {
         try {
@@ -641,7 +641,7 @@ export async function executeOptimizationTarget(
         // 将组合分析结果注入到多维度优化结果中
         if (result.multiDimensionOptimization) {
           // @ts-expect-error - dynamic property assignment
-          (result.multiDimensionOptimization as unknown).comboAnalysis = {
+          (result.multiDimensionOptimization as Record<string, unknown>).comboAnalysis = {
             goldenCount: comboResults.goldenCount,
             leadenCount: comboResults.leadenCount,
             potentialCount: comboResults.potentialCount,
@@ -689,7 +689,7 @@ export async function executeOptimizationTarget(
   if (config.enableSearchTermAnalysis && shouldExecute('searchterm')) {
     try {
       const ngramResults = await executeAutoNgramNegation(config, campaigns, dryRun);
-      (result as any).ngramAnalysis = ngramResults;
+      (result as Record<string, unknown>).ngramAnalysis = ngramResults;
       if (ngramResults.negativeKeywordsAdded > 0) {
         log.info(`[NgramAutoNegation] v337.3: Ngram自动否定完成: 添加${ngramResults.negativeKeywordsAdded}个否定词`);
       }
@@ -808,7 +808,7 @@ export async function executeOptimizationTarget(
     try {
       const { enqueueTasks } = await import('../sync/optimizationSyncEngine');
       const { randomUUID } = await import('crypto');
-      const failedTasks: any[] = [];
+      const failedTasks: unknown[] = [];
       const batchId = randomUUID();
       
       // 收集出价调整中失败的任务
@@ -917,7 +917,7 @@ export async function executeOptimizationTarget(
             if (detail.action === 'add_negative') {
               // v201: 否定关键词创建失败 → 入队 negative_keyword 类型
               // 修复: detail.campaignId是本地ID，需要查找Amazon campaignId
-              const negCampaign = campaigns.find((c: Record<string, any>) => c.id === detail.localCampaignId);
+              const negCampaign = campaigns.find((c: Record<string, unknown>) => c.id === detail.localCampaignId);
               const negAmazonCampaignId = negCampaign?.campaignId || null;
               failedTasks.push({
                 batchId,
@@ -967,7 +967,7 @@ export async function executeOptimizationTarget(
       if (result.budgetAllocation?.details) {
         for (const detail of result.budgetAllocation.details) {
           if (detail.apiSyncStatus === 'failed') {
-            const campaign = campaigns.find((c: Record<string, any>) => c.id === detail.localCampaignId);
+            const campaign = campaigns.find((c: Record<string, unknown>) => c.id === detail.localCampaignId);
             failedTasks.push({
               batchId,
               optimizationTargetId: config.id,
@@ -993,7 +993,7 @@ export async function executeOptimizationTarget(
       if (result.placementOptimization?.details) {
         for (const detail of result.placementOptimization.details) {
           if (detail.apiSyncStatus === 'failed') {
-            const campaign = campaigns.find((c: Record<string, any>) => c.id === detail.localCampaignId);
+            const campaign = campaigns.find((c: Record<string, unknown>) => c.id === detail.localCampaignId);
             failedTasks.push({
               batchId,
               optimizationTargetId: config.id,
@@ -1019,7 +1019,7 @@ export async function executeOptimizationTarget(
       if (result.daypartingBudgetOptimization?.details) {
         for (const detail of result.daypartingBudgetOptimization.details) {
           if (detail.apiSyncStatus === 'failed') {
-            const campaign = campaigns.find((c: Record<string, any>) => c.id === detail.localCampaignId);
+            const campaign = campaigns.find((c: Record<string, unknown>) => c.id === detail.localCampaignId);
             failedTasks.push({
               batchId,
               optimizationTargetId: config.id,
@@ -1130,7 +1130,7 @@ export async function getEnabledOptimizationTargets(accountId?: number): Promise
   for (const group of groups) {
     // 只执行 status='active' 且 autoOptimize 开启的优化目标
     // @ts-expect-error - dynamic property access
-    if (group.status === 'active' && (group as unknown).autoOptimize !== 0) {
+    if (group.status === 'active' && (group as Record<string, unknown>).autoOptimize !== 0) {
       const config = await getOptimizationTargetConfig(group.id);
       if (config) {
         configs.push(config);
@@ -1233,7 +1233,7 @@ export async function getOptimizationTargetSummary(targetId: number): Promise<{
   // v451.1: 深度优化 - 先快速返回基本信息，dry-run结果通过超时保护获取
   // 并行获取关键词数量（每个campaign并行查询）
   const keywordCounts = await Promise.all(
-    (campaigns as any[]).map(async (campaign) => {
+    (campaigns as unknown[]).map(async (campaign) => {
       try {
         const campaignAmazonId = getCampaignAmazonId(campaign);
         const keywords = await db.getKeywordsByCampaignId(campaignAmazonId);

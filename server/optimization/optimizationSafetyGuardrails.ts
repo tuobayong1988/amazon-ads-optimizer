@@ -332,19 +332,19 @@ export async function checkEmergencyBrake(
     let recentSpend = 0, recentSales = 0, recentOrders = 0;
     let previousSpend = 0, previousSales = 0, previousOrders = 0;
     
-    for (const campaign of (campaigns as any[])) {
+    for (const campaign of (campaigns as unknown[])) {
       try {
         // v206: getDailyPerformanceByDateRange需要Amazon campaignId（varchar）
         const recentData = await db.getDailyPerformanceByDateRange(accountId, recentStart, recentEnd, campaign.campaignId);
         const previousData = await db.getDailyPerformanceByDateRange(accountId, previousStart, previousEnd, campaign.campaignId);
         
-        for (const d of (recentData as any[])) {
+        for (const d of (recentData as unknown[])) {
           recentSpend += Number(d.spend) || 0;
           recentSales += Number(d.sales) || 0;
           recentOrders += d.orders || 0;
         }
         
-        for (const d of (previousData as any[])) {
+        for (const d of (previousData as unknown[])) {
           previousSpend += Number(d.spend) || 0;
           previousSales += Number(d.sales) || 0;
           previousOrders += d.orders || 0;
@@ -486,16 +486,16 @@ export async function assessRiskLevel(
     let recentSpend = 0, recentSales = 0, recentClicks = 0;
     let previousSpend = 0, previousSales = 0, previousClicks = 0;
 
-    for (const campaign of (campaigns as any[])) {
+    for (const campaign of (campaigns as unknown[])) {
       try {
         const recentData = await db.getDailyPerformanceByDateRange(accountId, recentStart, now, campaign.campaignId);
         const previousData = await db.getDailyPerformanceByDateRange(accountId, previousStart, recentStart, campaign.campaignId);
-        for (const d of (recentData as any[])) {
+        for (const d of (recentData as unknown[])) {
           recentSpend += Number(d.spend) || 0;
           recentSales += Number(d.sales) || 0;
           recentClicks += d.clicks || 0;
         }
-        for (const d of (previousData as any[])) {
+        for (const d of (previousData as unknown[])) {
           previousSpend += Number(d.spend) || 0;
           previousSales += Number(d.sales) || 0;
           previousClicks += d.clicks || 0;

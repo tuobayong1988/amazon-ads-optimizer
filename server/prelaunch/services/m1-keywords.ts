@@ -174,7 +174,7 @@ export class M1KeywordService {
   }
 
   /** 使用Gemini扩展种子词 */
-  private async expandKeywords(seedKeywords: string[], marketplace: string): Promise<Record<string, any>[]> {
+  private async expandKeywords(seedKeywords: string[], marketplace: string): Promise<Record<string, unknown>[]> {
     const prompt = `You are an Amazon keyword research expert. Given these seed keywords for the ${marketplace} marketplace:
 ${seedKeywords.join(', ')}
 
@@ -188,13 +188,13 @@ Include: core product keywords, long-tail variations, problem/pain-point keyword
 
 Return as JSON array: [{"keyword":"...","searchVolume":...,"competitorDensity":...,"avgPrice":...}]`;
 
-    return geminiStructuredOutput<Record<string, any>[]>('', prompt, { temperature: 0.4 });
+    return geminiStructuredOutput<Record<string, unknown>[]>('', prompt, { temperature: 0.4 });
   }
 
   /** 四维分类 */
-  private async classifyKeywords(keywords: any[], seedKeywords: string[]): Promise<Record<string, any>[]> {
+  private async classifyKeywords(keywords: unknown[], seedKeywords: string[]): Promise<Record<string, unknown>[]> {
     const batchSize = 30;
-    const results: any[] = [];
+    const results: unknown[] = [];
 
     for (let i = 0; i < keywords.length; i += batchSize) {
       const batch = keywords.slice(i, i + batchSize);
@@ -207,15 +207,15 @@ For each keyword, determine:
 4. intentTag: "informational", "navigational", "commercial", "transactional"
 
 Keywords to classify:
-${batch.map((k: Record<string, any>) => k.keyword).join('\n')}
+${batch.map((k: Record<string, unknown>) => k.keyword).join('\n')}
 
 Return JSON array: [{"keyword":"...","relevanceLayer":"...","dimensionType":"...","scenarioCode":"...","intentTag":"..."}]`;
 
-      const classified = await geminiStructuredOutput<Record<string, any>[]>('', prompt, { temperature: 0.1 });
+      const classified = await geminiStructuredOutput<Record<string, unknown>[]>('', prompt, { temperature: 0.1 });
 
       // 合并分类结果与原始数据
       for (const cls of classified) {
-        const original = batch.find((k: Record<string, any>) => k.keyword === cls.keyword);
+        const original = batch.find((k: Record<string, unknown>) => k.keyword === cls.keyword);
         if (original) {
           results.push({ ...original, ...cls });
         }
@@ -226,7 +226,7 @@ Return JSON array: [{"keyword":"...","relevanceLayer":"...","dimensionType":"...
   }
 
   /** 计算KVI评分 */
-  private calculateKVI(kw: any): number {
+  private calculateKVI(kw: unknown): number {
     const volumeScore = Math.min(1, Math.log10(Math.max(1, kw.searchVolume || 1)) / 5);
     const relevanceScore = kw.relevanceLayer === 'core' ? 1.0
       : kw.relevanceLayer === 'extended' ? 0.7
@@ -249,7 +249,7 @@ Return JSON array: [{"keyword":"...","relevanceLayer":"...","dimensionType":"...
 
     if (allKeywords.length === 0) return;
 
-    const kwList = allKeywords.map((k: Record<string, any>) => k.keyword).join('\n');
+    const kwList = allKeywords.map((k: Record<string, unknown>) => k.keyword).join('\n');
     const prompt = `Group these Amazon keywords into semantic clusters based on user intent. Each cluster should represent a distinct search intent or product need.
 
 Keywords:
@@ -258,7 +258,7 @@ ${kwList}
 Return JSON: [{"clusterLabel":"descriptive label","intentSummary":"what users in this cluster want","members":["keyword1","keyword2",...]}]
 Create 5-15 clusters. Every keyword must belong to exactly one cluster.`;
 
-    const clusters = await geminiStructuredOutput<Record<string, any>[]>('', prompt, { temperature: 0.2 });
+    const clusters = await geminiStructuredOutput<Record<string, unknown>[]>('', prompt, { temperature: 0.2 });
 
     for (const cluster of clusters) {
       // @ts-expect-error - Drizzle query builder type
@@ -290,7 +290,7 @@ Create 5-15 clusters. Every keyword must belong to exactly one cluster.`;
   }
 
   /** 生成COSMO因果链三元组 */
-  private async generateCosmoTriples(db: DbInstance, projectId: number, keywords: any[]) {
+  private async generateCosmoTriples(db: DbInstance, projectId: number, keywords: unknown[]) {
     const coreKeywords = keywords
       .filter(k => k.relevanceLayer === 'core' || k.relevanceLayer === 'extended')
       .slice(0, 50);
@@ -311,7 +311,7 @@ For each triple:
 Generate 10-30 high-quality triples. Return JSON array:
 [{"causeNode":"...","effectNode":"...","outcomeNode":"...","relationLabel":"...","confidence":0.85}]`;
 
-    const triples = await geminiStructuredOutput<Record<string, any>[]>('', prompt, { temperature: 0.3 });
+    const triples = await geminiStructuredOutput<Record<string, unknown>[]>('', prompt, { temperature: 0.3 });
 
     for (const triple of triples) {
       // @ts-expect-error - Drizzle query builder type

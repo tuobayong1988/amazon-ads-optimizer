@@ -139,7 +139,7 @@ export function OptimizationVisualizer({ type, currentValue, suggestedValue, dat
                 label={{ value: metric, angle: -90, position: 'insideLeft' }}
               />
               <Tooltip 
-                formatter={((value: number) => formatValue(value, metric)) as any}
+                formatter={((value: number) => formatValue(value, metric)) as unknown}
                 labelFormatter={(label) => `${type === 'bid-optimization' ? '出价' : '预算'}: $${label}`}
               />
               <Legend />

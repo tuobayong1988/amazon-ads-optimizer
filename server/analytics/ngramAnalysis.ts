@@ -106,7 +106,7 @@ export async function getCoreKeywordRoots(
   if (!db) return new Set();
   
   // v361: 重构为Drizzle参数化查询
-  const conditions: any[] = [eq(keywords.accountId, accountId)];
+  const conditions: unknown[] = [eq(keywords.accountId, accountId)];
   if (campaignIds && campaignIds.length > 0) {
     conditions.push(inArray(keywords.campaignId, campaignIds.map(String)));
   }
@@ -144,7 +144,7 @@ export async function analyzeSearchTermNgrams(
   
   // 查询搜索词数据
   // v361: 重构为Drizzle参数化查询
-  const stConditions: any[] = [
+  const stConditions: unknown[] = [
     eq(searchTerms.accountId, accountId),
     gte(searchTerms.reportStartDate, startDateStr),
   ];
@@ -174,7 +174,7 @@ export async function analyzeSearchTermNgrams(
     searchTerms: Set<string>;
   }>();
   
-  for (const row of (searchTermData as any[])) {
+  for (const row of (searchTermData as unknown[])) {
     const tokens = tokenize(row.searchTerm || row.search_term || '');
     
     // 生成1-gram, 2-gram, 3-gram
@@ -318,7 +318,7 @@ export async function generateNegativeKeywordSuggestions(
   }
   
   // 按优先级和花费排序
-  suggestions.sort((a: any, b: any) => {
+  suggestions.sort((a: unknown, b: unknown) => {
     const priorityOrder = { high: 0, medium: 1, low: 2 };
     // @ts-expect-error - runtime type mismatch
     if (priorityOrder[a.priority] !== priorityOrder[b.priority]) {
@@ -359,7 +359,7 @@ export async function executeNegativeKeywords(
         negativeMatchType: negative.matchType === 'phrase' ? 'negative_phrase' : 'negative_exact',
         negativeSource: 'ngram_analysis',
         negativeStatus: 'active',
-      } as Record<string, any>);
+      } as Record<string, unknown>);
       addedCount++;
     } catch (error: unknown) {
       if (!(error as Error).message?.includes('Duplicate')) {
@@ -449,7 +449,7 @@ export async function generateNgramAnalysisReport(
   // 获取花费最高的N-Gram（无论是否为否定候选）
   const topWastefulNgrams = Array.from(analysisResults.values())
     .filter(r => r.totalOrders === 0 || r.acos > 50)
-    .sort((a: any, b: any) => b.totalSpend - a.totalSpend)
+    .sort((a: unknown, b: unknown) => b.totalSpend - a.totalSpend)
     .slice(0, 20);
   
   return {

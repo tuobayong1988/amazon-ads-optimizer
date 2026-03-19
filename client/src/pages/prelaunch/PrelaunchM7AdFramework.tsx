@@ -22,8 +22,8 @@ export default function PrelaunchM7AdFramework() {
   const [activeTab, setActiveTab] = useState("frameworks");
   const [selectedFramework, setSelectedFramework] = useState<number | null>(null);
 
-  const projectsQuery = trpc.prelaunch.listProjects.useQuery() as any;
-  const projects = (() => { const d = projectsQuery.data; return (d && 'data' in (d as any) ? (d as any).data : d) || []; })();
+  const projectsQuery = trpc.prelaunch.listProjects.useQuery() as unknown;
+  const projects = (() => { const d = projectsQuery.data; return (d && 'data' in (d as unknown) ? (d as Record<string, unknown>).data : d) || []; })();
   if (!projectId && projects.length > 0) setProjectId(projects[0].id);
 
   const frameworksQuery = trpc.prelaunch.getAdFrameworks.useQuery(
@@ -51,11 +51,11 @@ export default function PrelaunchM7AdFramework() {
     onError: (err) => toast.error("部署失败: " + err.message),
   });
 
-  const frameworksData = (frameworksQuery.data as any)?.data || [];
-  const previewData = (previewQuery.data as any)?.data;
-  const logsData = (deployLogsQuery.data as any)?.data || [];
+  const frameworksData = (frameworksQuery.data as unknown)?.data || [];
+  const previewData = (previewQuery.data as unknown)?.data;
+  const logsData = (deployLogsQuery.data as unknown)?.data || [];
 
-  const statusIcons: Record<string, any> = {
+  const statusIcons: Record<string, unknown> = {
     compiled: <CheckCircle2 className="w-3 h-3 text-green-400" />,
     draft: <Clock className="w-3 h-3 text-gray-400" />,
     deployed: <Rocket className="w-3 h-3 text-blue-400" />,
@@ -84,7 +84,7 @@ export default function PrelaunchM7AdFramework() {
             <select className="h-8 rounded-md border border-input bg-transparent px-2 text-xs"
               value={projectId || ''} onChange={(e) => setProjectId(Number(e.target.value))}>
               <option value="">选择项目</option>
-              {projects.map((p: any) => <option key={p.id} value={p.id}>{p.projectName}</option>)}
+              {projects.map((p: unknown) => <option key={p.id} value={p.id}>{p.projectName}</option>)}
             </select>
             <Button variant="outline" size="sm" onClick={() => frameworksQuery.refetch()} disabled={frameworksQuery.isFetching}>
               <RefreshCw className={`w-3 h-3 mr-1 ${frameworksQuery.isFetching ? 'animate-spin' : ''}`} />刷新
@@ -105,7 +105,7 @@ export default function PrelaunchM7AdFramework() {
             {/* 左侧：框架列表 */}
             <div className="space-y-3">
               <h3 className="text-sm font-medium text-muted-foreground">广告框架列表</h3>
-              {frameworksData.map((fw: any) => (
+              {frameworksData.map((fw: unknown) => (
                 <Card
                   key={fw.id}
                   className={`cursor-pointer transition-colors ${selectedFramework === fw.id ? 'border-indigo-500/50 bg-indigo-500/5' : 'hover:border-indigo-500/20'}`}
@@ -162,7 +162,7 @@ export default function PrelaunchM7AdFramework() {
                     <Card>
                       <CardContent className="py-6">
                         {(() => {
-                          const fw = frameworksData.find((f: any) => f.id === selectedFramework);
+                          const fw = frameworksData.find((f: unknown) => f.id === selectedFramework);
                           if (!fw) return <p className="text-muted-foreground text-sm">未找到框架详情</p>;
                           return (
                             <div className="space-y-4">
@@ -225,7 +225,7 @@ export default function PrelaunchM7AdFramework() {
                                 </tr>
                               </thead>
                               <tbody>
-                                {logsData.map((log: any, i: number) => (
+                                {logsData.map((log: unknown, i: number) => (
                                   <tr key={i} className="border-b border-border/30">
                                     <td className="px-4 py-2.5 text-xs">{log.createdAt || log.timestamp || '-'}</td>
                                     <td className="px-3 py-2.5 text-center">

@@ -28,10 +28,10 @@ export default function PrelaunchM1Keywords() {
   const [sortBy, setSortBy] = useState<'kviScore' | 'searchVolume' | 'drAmScore'>('kviScore');
 
   // 获取项目列表
-  const projectsQuery = trpc.prelaunch.listProjects.useQuery() as any;
+  const projectsQuery = trpc.prelaunch.listProjects.useQuery() as unknown;
   const projects = (() => {
     const d = projectsQuery.data;
-    return (d && 'data' in (d as any) ? (d as any).data : d) || [];
+    return (d && 'data' in (d as unknown) ? (d as Record<string, unknown>).data : d) || [];
   })();
 
   // 自动选择第一个项目
@@ -43,7 +43,7 @@ export default function PrelaunchM1Keywords() {
   const keywordsQuery = trpc.prelaunch.getKeywords.useQuery(
     {
       projectId: projectId!,
-      relevanceLayer: relevanceFilter as any || undefined,
+      relevanceLayer: relevanceFilter as unknown || undefined,
       sortBy,
       page,
       pageSize: 30,
@@ -72,10 +72,10 @@ export default function PrelaunchM1Keywords() {
     onError: (err) => toast.error("启动失败: " + err.message),
   });
 
-  const keywordsData = (keywordsQuery.data as any)?.data || [];
-  const totalKeywords = (keywordsQuery.data as any)?.total || 0;
-  const clustersData = (clustersQuery.data as any)?.data || [];
-  const cosmoData = (cosmoQuery.data as any)?.data || [];
+  const keywordsData = (keywordsQuery.data as unknown)?.data || [];
+  const totalKeywords = (keywordsQuery.data as unknown)?.total || 0;
+  const clustersData = (clustersQuery.data as unknown)?.data || [];
+  const cosmoData = (cosmoQuery.data as unknown)?.data || [];
 
   const relevanceLayers = [
     { key: '', label: '全部', color: '' },
@@ -113,7 +113,7 @@ export default function PrelaunchM1Keywords() {
               onChange={(e) => { setProjectId(Number(e.target.value)); setPage(1); }}
             >
               <option value="">选择项目</option>
-              {projects.map((p: any) => (
+              {projects.map((p: unknown) => (
                 <option key={p.id} value={p.id}>{p.projectName}</option>
               ))}
             </select>
@@ -180,7 +180,7 @@ export default function PrelaunchM1Keywords() {
                   <p className="text-xs text-muted-foreground">平均KVI分</p>
                   <p className="text-2xl font-bold">
                     {keywordsData.length > 0
-                      ? (keywordsData.reduce((s: number, k: any) => s + Number(k.kviScore || 0), 0) / keywordsData.length).toFixed(2)
+                      ? (keywordsData.reduce((s: number, k: unknown) => s + Number(k.kviScore || 0), 0) / keywordsData.length).toFixed(2)
                       : '-'}
                   </p>
                 </div>
@@ -205,7 +205,7 @@ export default function PrelaunchM1Keywords() {
                 <Filter className="w-3 h-3 text-muted-foreground" />
                 <span className="text-xs text-muted-foreground">分类:</span>
               </div>
-              {relevanceLayers.map((layer: any) => (
+              {relevanceLayers.map((layer: unknown) => (
                 <Button
                   key={layer.key}
                   variant={relevanceFilter === layer.key ? "default" : "outline"}
@@ -221,7 +221,7 @@ export default function PrelaunchM1Keywords() {
                 <select
                   className="h-7 rounded border border-input bg-transparent px-2 text-xs"
                   value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value as any)}
+                  onChange={(e) => setSortBy(e.target.value as unknown)}
                 >
                   <option value="kviScore">KVI评分</option>
                   <option value="searchVolume">搜索量</option>
@@ -263,7 +263,7 @@ export default function PrelaunchM1Keywords() {
                         </tr>
                       </thead>
                       <tbody>
-                        {keywordsData.map((kw: any) => (
+                        {keywordsData.map((kw: unknown) => (
                           <tr key={kw.id} className="border-b border-border/30 hover:bg-muted/20 transition-colors">
                             <td className="px-4 py-2.5 font-medium">{kw.keyword}</td>
                             <td className="px-3 py-2.5 text-center">
@@ -330,7 +330,7 @@ export default function PrelaunchM1Keywords() {
               </Card>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {clustersData.map((cluster: any) => (
+                {clustersData.map((cluster: unknown) => (
                   <Card key={cluster.clusterId || cluster.id} className="hover:border-blue-500/30 transition-colors">
                     <CardHeader className="pb-2">
                       <div className="flex items-center justify-between">
@@ -375,7 +375,7 @@ export default function PrelaunchM1Keywords() {
                         </tr>
                       </thead>
                       <tbody>
-                        {cosmoData.map((triple: any, i: number) => (
+                        {cosmoData.map((triple: unknown, i: number) => (
                           <tr key={i} className="border-b border-border/30 hover:bg-muted/20">
                             <td className="px-4 py-2.5 font-medium">{triple.subject}</td>
                             <td className="px-3 py-2.5 text-center">

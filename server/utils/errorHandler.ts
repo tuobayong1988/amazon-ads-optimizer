@@ -220,7 +220,7 @@ function normalizeError(error: unknown): Error {
   if (error instanceof Error) return error;
   if (typeof error === 'string') return new Error(error);
   if (typeof error === 'object' && error !== null) {
-    const msg = (error as any).message || (error as any).msg || JSON.stringify(error);
+    const msg = (error as Record<string, unknown>).message || (error as Record<string, unknown>).msg || JSON.stringify(error);
     return new Error(msg);
   }
   return new Error(String(error));

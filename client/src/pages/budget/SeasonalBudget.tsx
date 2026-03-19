@@ -50,11 +50,11 @@ const [activeTab, setActiveTab] = useState("recommendations");
     eventType: selectedEventType,
   });
   const eventComparisonData = eventComparisonDataRaw as {
-    events: any[];
-    comparison: any[];
-    groupedByType?: Record<string, any[]>;
-    yearOverYearComparison?: any[];
-    avgByType?: Record<string, any>;
+    events: unknown[];
+    comparison: unknown[];
+    groupedByType?: Record<string, unknown[]>;
+    yearOverYearComparison?: unknown[];
+    avgByType?: Record<string, unknown>;
   } | undefined;
 
   // 生成建议
@@ -138,7 +138,7 @@ const [activeTab, setActiveTab] = useState("recommendations");
     return Math.ceil((target.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
   };
 
-  const getEventStatusBadge = (event: any) => {
+  const getEventStatusBadge = (event: unknown) => {
     const daysUntil = getDaysUntil(event.startDate);
     if (daysUntil < 0) {
       return <Badge className="bg-green-500">进行中</Badge>;
@@ -264,7 +264,7 @@ const [activeTab, setActiveTab] = useState("recommendations");
                       {(() => {
                         const pending = recommendationsData?.recommendations.filter(r => r.status === "pending") || [];
                         if (pending.length === 0) return "N/A";
-                        const avg = pending.reduce((sum: any, r: any) => sum + Number(r.budgetMultiplier || 1), 0) / pending.length;
+                        const avg = pending.reduce((sum: number, r: Record<string, unknown>) => sum + Number(r.budgetMultiplier || 1), 0) / pending.length;
                         return `${avg.toFixed(2)}x`;
                       })()}
                     </p>
@@ -291,7 +291,7 @@ const [activeTab, setActiveTab] = useState("recommendations");
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {recommendationsData?.recommendations.map((rec: any) => (
+                  {recommendationsData?.recommendations.map((rec: unknown) => (
                     <div
                       key={rec.id}
                       className="border rounded-lg p-4 hover:bg-accent/50 transition-colors"
@@ -385,7 +385,7 @@ const [activeTab, setActiveTab] = useState("recommendations");
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {upcomingEvents.map((event: any, index: number) => (
+                  {upcomingEvents.map((event: unknown, index: number) => (
                     <div
                       key={index}
                       className="border rounded-lg p-4 hover:bg-accent/50 transition-colors"
@@ -455,7 +455,7 @@ const [activeTab, setActiveTab] = useState("recommendations");
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {historicalTrends.map((trend: any, index: number) => (
+                  {historicalTrends.map((trend: unknown, index: number) => (
                     <div
                       key={index}
                       className="border rounded-lg p-4"
@@ -536,7 +536,7 @@ const [activeTab, setActiveTab] = useState("recommendations");
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {eventComparisonData.yearOverYearComparison.map((yoy: any, index: number) => (
+                  {eventComparisonData.yearOverYearComparison.map((yoy: unknown, index: number) => (
                     <div key={index} className="border rounded-lg p-4">
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-3">
@@ -634,7 +634,7 @@ const [activeTab, setActiveTab] = useState("recommendations");
                       </tr>
                     </thead>
                     <tbody>
-                      {eventComparisonData.comparison.map((item: any, index: number) => (
+                      {eventComparisonData.comparison.map((item: unknown, index: number) => (
                         <tr key={index} className="border-b hover:bg-muted/50">
                           <td className="p-3">
                             <div className="flex items-center gap-2">
@@ -684,7 +684,7 @@ const [activeTab, setActiveTab] = useState("recommendations");
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                  {Object.entries(eventComparisonData.avgByType).map(([type, stats]: [string, any]) => (
+                  {Object.entries(eventComparisonData.avgByType).map(([type, stats]: [string, unknown]) => (
                     <div key={type} className="border rounded-lg p-4">
                       <div className="flex items-center gap-2 mb-3">
                         <Gift className="h-5 w-5 text-red-500" />

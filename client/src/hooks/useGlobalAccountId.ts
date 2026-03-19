@@ -17,7 +17,7 @@ export interface GlobalAccountIdResult {
   /** 账户列表是否正在加载 */
   isLoading: boolean;
   /** 账户列表 */
-  accounts: any[] | undefined;
+  accounts: unknown[] | undefined;
   /** 当前选中的店铺名 */
   currentStore: string | null;
   /** 当前选中的站点 */
@@ -27,7 +27,7 @@ export interface GlobalAccountIdResult {
 export function useGlobalAccountId(): GlobalAccountIdResult {
   const currentStore = useCurrentStore();
   const currentMarketplace = useCurrentMarketplace();
-  const { data: accounts, isLoading } = trpc.adAccount.list.useQuery() as any;
+  const { data: accounts, isLoading } = trpc.adAccount.list.useQuery() as unknown;
 
   // 根据全局选择器的店铺+站点查找对应的 accountId
   const accountId = useMemo(() => {
@@ -35,7 +35,7 @@ export function useGlobalAccountId(): GlobalAccountIdResult {
 
     // 1. 精确匹配：店铺 + 站点
     if (currentStore && currentMarketplace) {
-      const account = accounts.find((a: any) =>
+      const account = accounts.find((a: unknown) =>
         (a.storeName || a.accountName || '').trim() === currentStore &&
         a.marketplace === currentMarketplace
       );
@@ -44,7 +44,7 @@ export function useGlobalAccountId(): GlobalAccountIdResult {
 
     // 2. 模糊匹配：仅店铺
     if (currentStore) {
-      const account = accounts.find((a: any) =>
+      const account = accounts.find((a: unknown) =>
         (a.storeName || a.accountName || '').trim() === currentStore
       );
       if (account) return account.id;
@@ -57,7 +57,7 @@ export function useGlobalAccountId(): GlobalAccountIdResult {
   // 当账号列表加载完成但 localStorage 中没有选中的店铺时，自动选择第一个账号
   useEffect(() => {
     if (accounts && accounts.length > 0 && !currentStore) {
-      const firstAccount = accounts[0] as any;
+      const firstAccount = accounts[0] as unknown;
       const storeName = (firstAccount.storeName || firstAccount.accountName || '').trim();
       if (storeName) {
         setCurrentSelection(storeName, firstAccount.marketplace || null);

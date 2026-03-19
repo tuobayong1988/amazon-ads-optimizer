@@ -177,7 +177,7 @@ async function checkBidRatio(
 
     let raiseCount = 0;
     let lowerCount = 0;
-    for (const row of (result as any[])) {
+    for (const row of (result as unknown[])) {
       if (row.actionType === 'bid_increase') raiseCount = Number(row.count);
       if (row.actionType === 'bid_decrease') lowerCount = Number(row.count);
     }
@@ -232,7 +232,7 @@ async function checkAcosOverrun(
 
     // v263: 修复 — optimizationLogs没有actualAcos/targetAcos字段
     // 改为从actionDetail JSON中提取ACoS数据，或从performanceGroups获取目标ACoS
-    for (const account of (accounts as any[])) {
+    for (const account of (accounts as unknown[])) {
       // 从optimization_logs的actionDetail中提取最近的ACoS数据
       // @ts-expect-error - runtime type mismatch
       const latestLog = await db.select({
@@ -320,7 +320,7 @@ async function checkSyncHealth(
 
     let synced = 0;
     let total = 0;
-    for (const row of (result as any[])) {
+    for (const row of (result as unknown[])) {
       const count = Number(row.count);
       total += count;
       if (row.status === 'synced') synced += count;
@@ -529,7 +529,7 @@ async function checkUnassignedCampaigns(
     );
 
     if (unassigned.length > 0) {
-      const totalBudget = unassigned.reduce((sum: number, c: Record<string, any>) => sum + (Number(c.dailyBudget) || 0), 0);
+      const totalBudget = unassigned.reduce((sum: number, c: Record<string, unknown>) => sum + (Number(c.dailyBudget) || 0), 0);
       const severity: AlertSeverity = unassigned.length > 50 ? 'critical' : unassigned.length > 10 ? 'warning' : 'info';
       
       alerts.push({
@@ -569,7 +569,7 @@ async function checkProactiveRiskWarning(
     .from(adAccounts)
     .where(eq(adAccounts.userId, teamId));
 
-    for (const account of (accounts as any[])) {
+    for (const account of (accounts as unknown[])) {
       try {
         // 查询最近7天和前14天的ACoS
         // @ts-expect-error - Drizzle raw SQL execution

@@ -105,9 +105,9 @@ export async function getRecentlyOptimizedKeywordIds(
                 AND created_at >= ${cutoff}
                 AND JSON_EXTRACT(action_detail, '$.keywordId') IS NOT NULL`
         );
-        const fallbackRows = (fallbackResults as unknown as any[][])[0] || [];
+        const fallbackRows = (fallbackResults as unknown as unknown[][])[0] || [];
         if (fallbackRows && fallbackRows.length > 0) {
-          const fallbackKeywordIds = new Set(fallbackRows.map((r: Record<string, any>) => Number(r.kw_id)).filter((id: number) => id > 0 && keywordIds.includes(id)));
+          const fallbackKeywordIds = new Set(fallbackRows.map((r: Record<string, unknown>) => Number(r.kw_id)).filter((id: number) => id > 0 && keywordIds.includes(id)));
           if (fallbackKeywordIds.size > 0) {
             log.debug(`v212: Fallback查询optimization_logs找到${fallbackKeywordIds.size}个需要保护的关键词`);
             for (const id of fallbackKeywordIds) protectedSet.add(id);
@@ -193,13 +193,13 @@ export function logSyncProtectionSummary(functionName: string, stats: SyncProtec
  * 注意：空值（空字符串、"0"、null、undefined）被视为"无数据"，不与远程数据产生冲突
  */
 export function detectConflict(
-  existing: Record<string, any>,
-  newData: Record<string, any>,
+  existing: Record<string, unknown>,
+  newData: Record<string, unknown>,
   fieldsToCheck: string[]
 ): { hasConflict: boolean; conflictFields: string[] } {
   const conflictFields: string[] = [];
   
-  const isEmptyValue = (value: Record<string, any>): boolean => {
+  const isEmptyValue = (value: Record<string, unknown>): boolean => {
     if (value === undefined || value === null) return true;
     const strValue = String(value).trim();
     return strValue === '' || strValue === '0' || strValue === '0.00' || strValue === '0.0';

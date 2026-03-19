@@ -6,5 +6,5 @@ import 'recharts';
 
 declare module 'recharts' {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  export type Formatter<TValue, TName> = (...args: any[]) => any;
+  export type Formatter<TValue, TName> = (...args: unknown[]) => unknown;
 }

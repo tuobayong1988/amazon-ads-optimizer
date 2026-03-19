@@ -27,7 +27,7 @@ export const correctionRouter = router({
   // v370.4: 数据隔离 - Get correction review session details
   getSession: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       const session = await db.getCorrectionReviewSession(input.id);
       if (!session) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Session not found' });
@@ -140,8 +140,8 @@ export const correctionRouter = router({
           originalBid: change.oldBid,
           adjustedBid: change.newBid,
           adjustmentReason: change.changeReason,
-          metricsAtAdjustment: metricsAtAdjustment as unknown as Record<string, any>,
-          metricsAfterAttribution: metricsAfterAttribution as unknown as Record<string, any>,
+          metricsAtAdjustment: metricsAtAdjustment as unknown as Record<string, unknown>,
+          metricsAfterAttribution: metricsAfterAttribution as unknown as Record<string, unknown>,
           wasIncorrect: analysis.wasIncorrect,
           correctionType: analysis.correctionType,
           suggestedBid: analysis.suggestedBid,
@@ -176,7 +176,7 @@ export const correctionRouter = router({
   // v370.4: 数据隔离 - Get correction records for a session
   getCorrections: protectedProcedure
     .input(z.object({ sessionId: z.number() }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       const session = await db.getCorrectionReviewSession(input.sessionId);
       if (!session || session.userId !== ctx.user.id) {
         throw new TRPCError({ code: 'FORBIDDEN', message: 'Access denied' });
@@ -255,7 +255,7 @@ export const correctionRouter = router({
     .input(z.object({
       correctionIds: z.array(z.number()),
     }))
-    .mutation(async ({ ctx, input }: any) => {
+    .mutation(async ({ ctx, input }: unknown) => {
       for (const id of input.correctionIds) {
         await db.updateAttributionCorrectionStatus(id, {
           status: 'dismissed',
@@ -267,7 +267,7 @@ export const correctionRouter = router({
   // v370.4: 数据隔离 - Get recommendations
   getRecommendations: protectedProcedure
     .input(z.object({ sessionId: z.number() }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       const session = await db.getCorrectionReviewSession(input.sessionId);
       if (!session || session.userId !== ctx.user.id) {
         throw new TRPCError({ code: 'FORBIDDEN', message: 'Access denied' });
@@ -301,7 +301,7 @@ export const correctionRouter = router({
           potentialRecovery: 0,
         },
         explanation: '',
-      } as Record<string, any>));
+      } as Record<string, unknown>));
 
       return correctionService.generateRecommendations(analyses);
     }),
@@ -312,7 +312,7 @@ export const autoCorrectionRouter = router({
   // 运行自动纠错扫描
   runScan: protectedProcedure
     .input(z.object({ accountId: z.number().optional() }))
-    .mutation(async ({ ctx, input }: any) => {
+    .mutation(async ({ ctx, input }: unknown) => {
       return runAutoCorrection(input.accountId);
     }),
   
@@ -351,13 +351,13 @@ export const autoCorrectionRouter = router({
     if (!isAdmin) {
       const userAccounts = await dbInstance.execute(
         sql`SELECT id FROM ad_accounts WHERE userId = ${ctx.user.id}`
-      ) as any;
-      accountIds = (userAccounts?.[0] || []).map((a: any) => a.id);
+      ) as unknown;
+      accountIds = (userAccounts?.[0] || []).map((a: unknown) => a.id);
     }
     
     // v399: 缓存按用户隔离，避免跨租户数据泄露
     const cacheKey = `correction.getDashboard:user:${ctx.user.id}`;
-    const cached = apiCache.get<any>(cacheKey);
+    const cached = apiCache.get<unknown>(cacheKey);
     if (cached) return cached;
     
     // v399: admin用户不加过滤条件，普通用户按accountId过滤
@@ -384,7 +384,7 @@ export const autoCorrectionRouter = router({
       // 2. 获取事件状态统计
       dbInstance.execute(
         sql`SELECT api_sync_status, COUNT(*) as count FROM optimization_events WHERE ${accountFilter} GROUP BY api_sync_status`
-      ) as any,
+      ) as unknown,
       // 3. 获取按操作类型的统计
       dbInstance.execute(
         sql`SELECT action_type, api_sync_status, COUNT(*) as count 
@@ -392,7 +392,7 @@ export const autoCorrectionRouter = router({
             WHERE ${accountFilter}
             GROUP BY action_type, api_sync_status 
             ORDER BY action_type, api_sync_status`
-      ) as any,
+      ) as unknown,
       // 4. 获取最近7天的纠错活动趋势
       dbInstance.execute(
         sql`SELECT DATE(api_synced_at) as date, COUNT(*) as corrections,
@@ -402,7 +402,7 @@ export const autoCorrectionRouter = router({
             WHERE ${accountFilter} AND api_synced_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
             GROUP BY DATE(api_synced_at)
             ORDER BY date DESC`
-      ) as any,
+      ) as unknown,
       // 5. 获取待处理的关键词创建重试统计
       dbInstance.execute(
         sql`SELECT COUNT(*) as total,
@@ -412,14 +412,14 @@ export const autoCorrectionRouter = router({
               AND action_type = 'keyword_create' 
               AND api_sync_status = 'not_applicable'
               AND keyword_id IS NULL`
-      ) as any,
+      ) as unknown,
       // 6. 获取否定关键词状态统计
       dbInstance.execute(
         sql`SELECT api_sync_status, COUNT(*) as count 
             FROM optimization_events 
             WHERE ${accountFilter} AND action_type = 'negative_keyword_add'
             GROUP BY api_sync_status`
-      ) as any,
+      ) as unknown,
       // 7. 获取最近的纠错活动日志（最近20条）
       dbInstance.execute(
         sql`SELECT id, action_type, api_sync_status, action_detail,
@@ -430,7 +430,7 @@ export const autoCorrectionRouter = router({
             WHERE ${accountFilter} AND api_sync_status IN ('synced', 'failed', 'permanently_failed')
             ORDER BY created_at DESC
             LIMIT 20`
-      ) as any,
+      ) as unknown,
     ]);
     
     const result = {
@@ -475,7 +475,7 @@ export const autoRollbackRouter = router({
   // 获取单个回滚规则
   getRule: protectedProcedure
     .input(z.object({ ruleId: z.string() }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       return autoRollbackService.getRollbackRule(input.ruleId);
     }),
   
@@ -497,7 +497,7 @@ export const autoRollbackRouter = router({
         notificationPriority: z.enum(['low', 'medium', 'high'])
       })
     }))
-    .mutation(async ({ ctx, input }: any) => {
+    .mutation(async ({ ctx, input }: unknown) => {
       return autoRollbackService.createRollbackRule(input);
     }),
   
@@ -520,7 +520,7 @@ export const autoRollbackRouter = router({
         notificationPriority: z.enum(['low', 'medium', 'high'])
       }).optional()
     }))
-    .mutation(async ({ ctx, input }: any) => {
+    .mutation(async ({ ctx, input }: unknown) => {
       const { ruleId, ...updates } = input;
       return autoRollbackService.updateRollbackRule(ruleId, updates);
     }),
@@ -528,14 +528,14 @@ export const autoRollbackRouter = router({
   // 删除回滚规则
   deleteRule: protectedProcedure
     .input(z.object({ ruleId: z.string() }))
-    .mutation(async ({ ctx, input }: any) => {
+    .mutation(async ({ ctx, input }: unknown) => {
       return autoRollbackService.deleteRollbackRule(input.ruleId);
     }),
   
   // 运行回滚评估
   runEvaluation: protectedProcedure
     .input(z.object({ accountId: z.number().optional() }))
-    .mutation(async ({ ctx, input }: any) => {
+    .mutation(async ({ ctx, input }: unknown) => {
       return autoRollbackService.runRollbackEvaluation(input.accountId);
     }),
   
@@ -546,14 +546,14 @@ export const autoRollbackRouter = router({
       priority: z.enum(['low', 'medium', 'high']).optional(),
       ruleId: z.string().optional()
     }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       return autoRollbackService.getRollbackSuggestions(input);
     }),
   
   // 获取单个回滚建议
   getSuggestion: protectedProcedure
     .input(z.object({ suggestionId: z.string() }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       return autoRollbackService.getRollbackSuggestion(input.suggestionId);
     }),
   
@@ -564,7 +564,7 @@ export const autoRollbackRouter = router({
       action: z.enum(['approve', 'reject']),
       reviewNote: z.string().optional()
     }))
-    .mutation(async ({ input, ctx }: any) => {
+    .mutation(async ({ input, ctx }: unknown) => {
       return autoRollbackService.reviewRollbackSuggestion(
         input.suggestionId,
         input.action,
@@ -576,7 +576,7 @@ export const autoRollbackRouter = router({
   // 执行回滚建议
   executeSuggestion: protectedProcedure
     .input(z.object({ suggestionId: z.string() }))
-    .mutation(async ({ ctx, input }: any) => {
+    .mutation(async ({ ctx, input }: unknown) => {
       return autoRollbackService.executeRollbackSuggestion(input.suggestionId);
     }),
   
@@ -640,7 +640,7 @@ export const postDeployRouter = router({
       modules: z.array(z.string()).optional(),
       targetId: z.number().optional(),
     }))
-    .mutation(async ({ ctx, input }: any) => {
+    .mutation(async ({ ctx, input }: unknown) => {
       const { forceReoptimize } = await import('../postDeployOptimizer');
       return forceReoptimize(input.modules, input.targetId);
     }),

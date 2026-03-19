@@ -36,7 +36,7 @@ export class M6VideoService {
         .from(prelaunchVisualBriefs)
         .where(eq(prelaunchVisualBriefs.projectId, projectId));
       
-      const banners = (data as any[]).filter((d: Record<string, any>) => d.slotRole?.startsWith('SB_Banner'));
+      const banners = (data as unknown[]).filter((d: Record<string, unknown>) => d.slotRole?.startsWith('SB_Banner'));
       return { success: true, data: banners };
     } catch (error: unknown) {
       return { success: false, error: (error as Error).message, data: [] };
@@ -57,8 +57,8 @@ export class M6VideoService {
       const cosmoTriples = await db.select().from(prelaunchCosmoTriples)
         .where(eq(prelaunchCosmoTriples.projectId, projectId));
 
-      const coreKws = keywords.filter((k: Record<string, any>) => k.relevanceLayer === 'core').slice(0, 15);
-      const topPersona = personas[0] as any;
+      const coreKws = keywords.filter((k: Record<string, unknown>) => k.relevanceLayer === 'core').slice(0, 15);
+      const topPersona = personas[0] as unknown;
 
       // Step 1: 生成PAS视频脚本（3个变体：15s/30s/45s）
       const durations = [15, 30, 45];
@@ -67,10 +67,10 @@ export class M6VideoService {
 
 DURATION: ${duration} seconds
 TARGET PERSONA: ${topPersona?.personaName || 'General consumer'}
-CORE KEYWORDS: ${coreKws.map((k: Record<string, any>) => k.keyword).join(', ')}
+CORE KEYWORDS: ${coreKws.map((k: Record<string, unknown>) => k.keyword).join(', ')}
 
 COSMO CAUSAL CHAINS (use for narrative):
-${cosmoTriples.slice(0, 5).map((t: Record<string, any>) => `${t.causeNode} → ${t.effectNode} → ${t.outcomeNode}`).join('\n')}
+${cosmoTriples.slice(0, 5).map((t: Record<string, unknown>) => `${t.causeNode} → ${t.effectNode} → ${t.outcomeNode}`).join('\n')}
 
 Generate:
 1. hook: opening 3-second hook (attention grabber)
@@ -119,7 +119,7 @@ Return JSON with all fields above.`;
 
 BANNER TYPE: ${banner.name}
 DIMENSIONS: ${banner.width}x${banner.height}px
-PRODUCT KEYWORDS: ${coreKws.slice(0, 5).map((k: Record<string, any>) => k.keyword).join(', ')}
+PRODUCT KEYWORDS: ${coreKws.slice(0, 5).map((k: Record<string, unknown>) => k.keyword).join(', ')}
 TARGET PERSONA: ${topPersona?.personaName || 'General consumer'}
 
 Generate:
@@ -176,7 +176,7 @@ Return JSON: {"headline":"...","visualDescription":"...","keyElements":["..."],"
 
       const generatedFrames: string[] = [];
 
-      for (const frame of (storyboard as any[]).slice(0, 8)) {
+      for (const frame of (storyboard as unknown[]).slice(0, 8)) {
         const emotionColorMap: Record<string, string> = {
           tension: 'dramatic lighting, dark tones, high contrast',
           curiosity: 'warm golden light, soft focus background',

@@ -106,10 +106,10 @@ export async function runV345PerformanceIndexMigration(): Promise<{
       log.info(`[v345-indexes] ${idx.name} 创建成功`);
       result.created++;
     } catch (error: unknown) {
-      if ((error as Error).message?.includes('Duplicate key name') || (error as any).code === 'ER_DUP_KEYNAME') {
+      if ((error as Error).message?.includes('Duplicate key name') || (error as Record<string, unknown>).code === 'ER_DUP_KEYNAME') {
         log.info(`[v345-indexes] ${idx.name} 已存在（不同检测方式），跳过`);
         result.skipped++;
-      } else if ((error as Error).message?.includes("doesn't exist") || (error as any).code === 'ER_NO_SUCH_TABLE') {
+      } else if ((error as Error).message?.includes("doesn't exist") || (error as Record<string, unknown>).code === 'ER_NO_SUCH_TABLE') {
         log.info(`[v345-indexes] 表 ${idx.table} 不存在，跳过索引 ${idx.name}`);
         result.skipped++;
       } else {

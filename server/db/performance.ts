@@ -240,7 +240,7 @@ export async function upsertDailyPerformanceFromAms(data: {
         INSERT IGNORE INTO ams_processed_messages (idempotency_id, dataset_id)
         VALUES (${data.idempotencyId}, ${data.datasetId || null})
       `);
-      if ((result as any)[0]?.affectedRows === 0) {
+      if ((result as Record<string, unknown>)[0]?.affectedRows === 0) {
         // 已处理过的消息，跳过
         log.debug(`[AMS DB] 跳过重复消息: idempotencyId=${data.idempotencyId}`);
         return;
@@ -297,7 +297,7 @@ export async function upsertDailyPerformanceFromAms(data: {
         conversions: 0,
         dataSource: 'ams',
         isFinalized: 0,
-      } as Record<string, any>);
+      } as Record<string, unknown>);
     }
   }
   
@@ -369,7 +369,7 @@ export async function updateDailyPerformanceConversion(data: {
         INSERT IGNORE INTO ams_processed_messages (idempotency_id, dataset_id)
         VALUES (${data.idempotencyId}, ${data.datasetId || null})
       `);
-      if ((result as any)[0]?.affectedRows === 0) {
+      if ((result as Record<string, unknown>)[0]?.affectedRows === 0) {
         log.debug(`[AMS DB] 跳过重复转化消息: idempotencyId=${data.idempotencyId}`);
         return;
       }
@@ -490,7 +490,7 @@ export async function deleteDailyPerformanceByDateRange(
     ));
   
   // @ts-expect-error - MySQL affectedRows
-  return (result as Record<string, any>[][])[0]?.affectedRows || 0;
+  return (result as Record<string, unknown>[][])[0]?.affectedRows || 0;
 }
 
 // ==================== Market Curve Data Functions ====================

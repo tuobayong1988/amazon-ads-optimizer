@@ -191,7 +191,7 @@ export async function getDirectConnection(timeoutMs: number = 30_000): Promise<m
     // v350: 设置会话级查询超时，防止单个慢查询无限期占用连接
     const queryTimeoutSec = Math.ceil(timeoutMs / 1000);
     const timeoutValue = Math.max(1000, Math.min(queryTimeoutSec * 1000, 300000));
-    await conn.query(`SET SESSION max_execution_time = ${timeoutValue}`) as any;
+    await conn.query(`SET SESSION max_execution_time = ${timeoutValue}`) as unknown;
     
     // v394: 包装release方法以跟踪归还 + 泄露追踪
     const originalRelease = conn.release.bind(conn);

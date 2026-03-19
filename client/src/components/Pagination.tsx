@@ -82,7 +82,7 @@ export function Pagination({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {pageSizeOptions.map((size: any) => (
+                {pageSizeOptions.map((size: unknown) => (
                   <SelectItem key={size} value={size.toString()}>
                     {size}
                   </SelectItem>
@@ -132,7 +132,7 @@ export function Pagination({
         
         {/* 页码按钮 */}
         <div className="flex items-center gap-1">
-          {getPageNumbers().map((page: any, index: any) => (
+          {getPageNumbers().map((page: unknown, index: unknown) => (
             typeof page === 'number' ? (
               <Button
                 key={index}

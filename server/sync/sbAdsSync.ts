@@ -74,7 +74,7 @@ export async function syncSbAds(service: SyncContext,): Promise<{ synced: number
       const creativeType = ad.creativeType || creative.type || null;
       
       // 更新广告组的素材字段
-      const updateData: Record<string, any> = {
+      const updateData: Record<string, unknown> = {
         updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
       };
       if (headline) updateData.headline = headline;
@@ -130,7 +130,7 @@ export async function syncAssetUrls(service: SyncContext,): Promise<number> {
 
     // 收集所有需要解析的assetId
     const assetIdsToResolve = new Set<string>();
-    for (const row of (adGroupsNeedingUrls as any[])) {
+    for (const row of (adGroupsNeedingUrls as unknown[])) {
       if (row.ad_groups.videoAssetId && !row.ad_groups.videoUrl) {
         assetIdsToResolve.add(row.ad_groups.videoAssetId);
       }
@@ -150,8 +150,8 @@ export async function syncAssetUrls(service: SyncContext,): Promise<number> {
 
     // 更新数据库
     let updated = 0;
-    for (const row of (adGroupsNeedingUrls as any[])) {
-      const updates: Record<string, any> = {};
+    for (const row of (adGroupsNeedingUrls as unknown[])) {
+      const updates: Record<string, unknown> = {};
       let needsUpdate = false;
 
       if (row.ad_groups.videoAssetId && !row.ad_groups.videoUrl) {

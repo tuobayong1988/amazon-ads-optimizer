@@ -59,7 +59,7 @@ export interface ExperimentVariantConfig {
   /** 出价调整幅度 */
   bidAdjustmentFactor?: number;
   /** 其他自定义参数 */
-  customParams?: Record<string, any>;
+  customParams?: Record<string, unknown>;
 }
 
 export interface ActiveExperiment {
@@ -100,8 +100,8 @@ export async function createAlgorithmExperiment(
     testType: 'bid_strategy',
     targetMetric: config.targetMetric,
     durationDays: config.durationDays || 14,
-    controlConfig: config.controlConfig as Record<string, any>,
-    treatmentConfig: config.treatmentConfig as Record<string, any>,
+    controlConfig: config.controlConfig as Record<string, unknown>,
+    treatmentConfig: config.treatmentConfig as Record<string, unknown>,
     trafficSplit: config.trafficSplit || 0.5,
   }, userId);
 
@@ -166,8 +166,8 @@ async function getActiveExperiments(accountId: number): Promise<ActiveExperiment
       const variants = await db.select().from(abTestVariants)
         .where(eq(abTestVariants.testId, test.id));
       
-      const controlVariant = variants.find((v: Record<string, any>) => v.variantType === 'control');
-      const treatmentVariant = variants.find((v: Record<string, any>) => v.variantType === 'treatment');
+      const controlVariant = variants.find((v: Record<string, unknown>) => v.variantType === 'control');
+      const treatmentVariant = variants.find((v: Record<string, unknown>) => v.variantType === 'treatment');
       
       if (!controlVariant || !treatmentVariant) continue;
       
@@ -186,9 +186,9 @@ async function getActiveExperiments(accountId: number): Promise<ActiveExperiment
         testId: test.id,
         experimentType: test.testType || 'bid_strategy',
         // @ts-expect-error - dynamic property access
-        controlConfig: ((controlVariant as unknown).config as ExperimentVariantConfig) || {},
+        controlConfig: ((controlVariant as Record<string, unknown>).config as ExperimentVariantConfig) || {},
         // @ts-expect-error - dynamic property access
-        treatmentConfig: ((treatmentVariant as unknown).config as ExperimentVariantConfig) || {},
+        treatmentConfig: ((treatmentVariant as Record<string, unknown>).config as ExperimentVariantConfig) || {},
         controlCampaignIds,
         treatmentCampaignIds,
       });
@@ -242,7 +242,7 @@ export async function recordExperimentDailyMetrics(accountId: number): Promise<v
         `);
         
         // @ts-expect-error - type assertion
-        const metrics = (metricsQuery as unknown)[0]?.[0] || { impressions: 0, clicks: 0, spend: 0, sales: 0, orders: 0 };
+        const metrics = (metricsQuery as Record<string, unknown>)[0]?.[0] || { impressions: 0, clicks: 0, spend: 0, sales: 0, orders: 0 };
         
         await abTestService.recordDailyMetrics(
           exp.testId,

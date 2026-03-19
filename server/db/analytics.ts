@@ -51,20 +51,20 @@ interface DataDateRange {
 // ==================== 辅助函数 ====================
 
 /** 安全提取raw SQL查询结果的行数组 */
-function extractRows(rawResult: unknown): Record<string, any>[] {
+function extractRows(rawResult: unknown): Record<string, unknown>[] {
   if (!rawResult) return [];
   if (Array.isArray(rawResult)) {
     // mysql2 返回 [rows, fields] 格式
     if (rawResult.length > 0 && Array.isArray(rawResult[0])) {
-      return rawResult[0] as Record<string, any>[];
+      return rawResult[0] as Record<string, unknown>[];
     }
-    return rawResult as Record<string, any>[];
+    return rawResult as Record<string, unknown>[];
   }
   return [];
 }
 
 /** 安全提取单行结果 */
-function extractFirstRow(rawResult: unknown): Record<string, any> | null {
+function extractFirstRow(rawResult: unknown): Record<string, unknown> | null {
   const rows = extractRows(rawResult);
   return rows.length > 0 ? rows[0] : null;
 }
@@ -246,7 +246,7 @@ export async function getDailyTrendData(
     
     const rows = extractRows(results);
     
-    return rows.map((r: Record<string, any>) => {
+    return rows.map((r: Record<string, unknown>) => {
       const spend = Number(r.spend) || 0;
       const sales = Number(r.sales) || 0;
       const acos = spend > 0 && sales > 0 ? (spend / sales) * 100 : 0;
@@ -315,7 +315,7 @@ export async function getDataDateRange(accountIds: number[]): Promise<DataDateRa
       const syncRow = extractFirstRow(syncResults);
       
       // 格式化日期为YYYY-MM-DD字符串
-      const formatDate = (d: any): string => {
+      const formatDate = (d: unknown): string => {
         if (typeof d === 'string') return d.split('T')[0];
         if (d instanceof Date) return d.toISOString().split('T')[0];
         return String(d);
@@ -341,7 +341,7 @@ export async function getDataDateRange(accountIds: number[]): Promise<DataDateRa
     const campaignRow = extractFirstRow(campaignResults);
     
     if (campaignRow && campaignRow.min_date && campaignRow.max_date) {
-      const formatDate = (d: any): string => {
+      const formatDate = (d: unknown): string => {
         if (typeof d === 'string') return d.split('T')[0];
         if (d instanceof Date) return d.toISOString().split('T')[0];
         return String(d);

@@ -94,10 +94,10 @@ export interface OxylabsProductDetail {
   is_prime_eligible?: boolean;
   stock?: string;
   category?: { ladder: { name: string; url: string }[] }[];
-  variation?: any[];
+  variation?: unknown[];
   product_overview?: { key: string; value: string }[];
   featured_merchant?: { name: string; link: string; id: string };
-  buybox?: any;
+  buybox?: unknown;
   rating_stars_distribution?: { rating: number; percentage: number }[];
   currency?: string;
   url?: string;
@@ -147,7 +147,7 @@ function delay(ms: number): Promise<void> {
  * @param payload - Oxylabs API 请求体
  * @returns 解析后的内容，或在所有重试失败后返回 null
  */
-async function oxylabsRequest<T>(payload: Record<string, any>): Promise<T | null> {
+async function oxylabsRequest<T>(payload: Record<string, unknown>): Promise<T | null> {
   ensureCredentials();
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
@@ -180,7 +180,7 @@ async function oxylabsRequest<T>(payload: Record<string, any>): Promise<T | null
 
       return result.content as T;
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       const isAxiosError = error instanceof AxiosError;
       const statusCode = isAxiosError ? error.response?.status : undefined;
       const isRetryable = !statusCode || statusCode >= 500 || statusCode === 429;
@@ -237,7 +237,7 @@ export async function fetchSearchResults(
     sortBy?: 'most_recent' | 'price_low_to_high' | 'price_high_to_low' | 'featured' | 'average_review' | 'bestsellers';
   } = {}
 ): Promise<{ organic: OxylabsSearchItem[]; paid: OxylabsSearchItem[]; totalResults: number }> {
-  const payload: Record<string, any> = {
+  const payload: Record<string, unknown> = {
     source: 'amazon_search',
     domain: options.domain || 'com',
     query: keyword,
@@ -248,7 +248,7 @@ export async function fetchSearchResults(
   if (options.startPage) payload.start_page = options.startPage;
   if (options.geoLocation) payload.geo_location = options.geoLocation;
 
-  const context: any[] = [];
+  const context: unknown[] = [];
   if (options.currency) context.push({ key: 'currency', value: options.currency });
   if (options.sortBy) context.push({ key: 'sort_by', value: options.sortBy });
   if (context.length > 0) payload.context = context;
@@ -287,7 +287,7 @@ export async function fetchProductDetails(
     autoselectVariant?: boolean;
   } = {}
 ): Promise<OxylabsProductDetail | null> {
-  const payload: Record<string, any> = {
+  const payload: Record<string, unknown> = {
     source: 'amazon_product',
     domain: options.domain || 'com',
     query: asin,
@@ -296,7 +296,7 @@ export async function fetchProductDetails(
 
   if (options.geoLocation) payload.geo_location = options.geoLocation;
 
-  const context: any[] = [];
+  const context: unknown[] = [];
   if (options.autoselectVariant !== false) {
     context.push({ key: 'autoselect_variant', value: true });
   }
@@ -481,7 +481,7 @@ export async function checkServiceHealth(): Promise<{
       credentialsConfigured: true,
       message: `Oxylabs service is operational. Response status: ${response.status}`,
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     const statusCode = error.response?.status;
     return {
       available: false,

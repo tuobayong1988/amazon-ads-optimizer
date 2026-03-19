@@ -89,7 +89,7 @@ const activeTasks = new Map<string, {
 }>();
 
 let heartbeatTimer: NodeJS.Timeout | null = null;
-let httpServer: any = null;
+let httpServer: unknown = null;
 
 // ==================== 优雅关闭 ====================
 
@@ -97,7 +97,7 @@ let httpServer: any = null;
  * 注册优雅关闭处理器
  * 应在服务器启动后立即调用
  */
-export function registerGracefulShutdown(server: any): void {
+export function registerGracefulShutdown(server: unknown): void {
   httpServer = server;
   
   // 注册信号处理器
@@ -113,7 +113,7 @@ export function registerGracefulShutdown(server: any): void {
   });
   
   // v359: 添加未处理的Promise拒绝全局捕获，防止进程意外退出
-  process.on('unhandledRejection', (reason: any, promise: Promise<any>) => {
+  process.on('unhandledRejection', (reason: unknown, promise: Promise<unknown>) => {
     const errorMessage = reason instanceof Error ? reason.message : String(reason);
     const errorStack = reason instanceof Error ? reason.stack : undefined;
     log.error(`[LifecycleManager] 未处理的Promise拒绝: ${errorMessage}`);
@@ -288,7 +288,7 @@ async function persistShutdownState(): Promise<void> {
             error_message = CONCAT(COALESCE(error_message, ''), ${shutdownNote})
         WHERE status = 'processing'
       `);
-      const affectedRows = (resetResult as Record<string, any>[])?.[0]?.affectedRows || 0;
+      const affectedRows = (resetResult as Record<string, unknown>[])?.[0]?.affectedRows || 0;
       if (affectedRows > 0) {
         log.debug(`[LifecycleManager]   ✓ 已将 ${affectedRows} 个processing任务重置为pending`);
       } else {
@@ -308,7 +308,7 @@ async function persistShutdownState(): Promise<void> {
       const runningJobs = await database.execute(sql`
         SELECT id, account_id as accountId, current_step FROM data_sync_jobs WHERE status = 'running'
       `);
-      const runningCount = (runningJobs as any[])?.[0]?.length || (Array.isArray(runningJobs) ? (runningJobs as any[]).filter((r: any) => r.id).length : 0);
+      const runningCount = (runningJobs as unknown[])?.[0]?.length || (Array.isArray(runningJobs) ? (runningJobs as unknown[]).filter((r: unknown) => r.id).length : 0);
       if (runningCount > 0) {
         log.info(`[LifecycleManager] v409: shutdown时发现 ${runningCount} 个running同步任务，不再无条件标记为failed，由startup cleanup基于updated_at阈值处理`);
       } else {
@@ -323,7 +323,7 @@ async function persistShutdownState(): Promise<void> {
             errorMessage = CONCAT(COALESCE(errorMessage, ''), ' [', ${syncResetNote}, ']')
         WHERE status = 'pending'
       `);
-      const syncCancelled = (syncCancelResult as Record<string, any>[])?.[0]?.affectedRows || 0;
+      const syncCancelled = (syncCancelResult as Record<string, unknown>[])?.[0]?.affectedRows || 0;
       if (syncCancelled > 0) {
         log.info(`[LifecycleManager]   ✓ 已取消 ${syncCancelled} 个pending的数据同步任务（部署后将重新调度）`);
       }
@@ -546,7 +546,7 @@ export async function runStartupDiagnostics(): Promise<StartupDiagnostics> {
       .limit(5);
     
     if (shutdownEvents.length > 0) {
-      const lastEvent = shutdownEvents[0] as any;
+      const lastEvent = shutdownEvents[0] as unknown;
       try {
         const detail = JSON.parse(lastEvent.actionDetail || '{}');
         if (detail.type === 'system_shutdown' && detail.shutdownType === 'graceful') {
@@ -576,7 +576,7 @@ export async function runStartupDiagnostics(): Promise<StartupDiagnostics> {
       const interruptedResult = await database.execute(sql`
         SELECT COUNT(*) as cnt FROM optimization_tasks WHERE status = 'processing'
       `);
-      diagnostics.interruptedTasks = (interruptedResult as Record<string, any>[])?.[0]?.[0]?.cnt || 0;
+      diagnostics.interruptedTasks = (interruptedResult as Record<string, unknown>[])?.[0]?.[0]?.cnt || 0;
     } catch {
       // optimization_tasks表可能不存在
     }
@@ -586,7 +586,7 @@ export async function runStartupDiagnostics(): Promise<StartupDiagnostics> {
       const pendingResult = await database.execute(sql`
         SELECT COUNT(*) as cnt FROM optimization_tasks WHERE status IN ('pending', 'retry')
       `);
-      diagnostics.pendingTasks = (pendingResult as Record<string, any>[])?.[0]?.[0]?.cnt || 0;
+      diagnostics.pendingTasks = (pendingResult as Record<string, unknown>[])?.[0]?.[0]?.cnt || 0;
     } catch {
       // optimization_tasks表可能不存在
     }
@@ -627,7 +627,7 @@ export async function recoverInterruptedTasks(): Promise<number> {
       WHERE status = 'processing'
     `);
     
-    const recovered = (result as Record<string, any>[])?.[0]?.affectedRows || 0;
+    const recovered = (result as Record<string, unknown>[])?.[0]?.affectedRows || 0;
     
     if (recovered > 0) {
       log.debug(`[LifecycleManager] ✓ 已恢复 ${recovered} 个被中断的任务 (processing → pending)`);
@@ -680,7 +680,7 @@ export async function flushPendingTasks(): Promise<void> {
  * 系统启动协调器 — 在HTTP服务器启动后调用
  * 按正确顺序执行所有启动任务
  */
-export async function orchestrateStartup(server: any): Promise<void> {
+export async function orchestrateStartup(server: unknown): Promise<void> {
   log.debug(`\n[LifecycleManager] ========================================`);
   log.info(`[LifecycleManager] v${SYSTEM_VERSION}: 系统启动协调开始`);
   log.debug(`[LifecycleManager] ========================================\n`);
@@ -719,7 +719,7 @@ export async function orchestrateStartup(server: any): Promise<void> {
           AND updated_at < DATE_SUB(NOW(), INTERVAL ${staleThresholdMinutes} MINUTE)
       `);
       // Drizzle mysql2返回 [rows, fields]，取第一个元素
-      const interruptedRows = Array.isArray(interruptedJobsResult) ? (interruptedJobsResult as any[])[0] : ((interruptedJobsResult as any).rows || interruptedJobsResult);
+      const interruptedRows = Array.isArray(interruptedJobsResult) ? (interruptedJobsResult as Record<string, unknown>[])[0] : ((interruptedJobsResult as Record<string, unknown>).rows || interruptedJobsResult);
       const interruptedJobs: Array<{id: number, accountId: number, syncType: string, currentStep: string, currentStepIndex: number, totalSteps: number}> = [];
       if (Array.isArray(interruptedRows)) {
         for (const row of interruptedRows) {
@@ -745,11 +745,11 @@ export async function orchestrateStartup(server: any): Promise<void> {
         WHERE status = 'running'
           AND updated_at < DATE_SUB(NOW(), INTERVAL ${staleThresholdMinutes} MINUTE)
       `);
-      const staleCleaned = (staleResult as Record<string, any>[])?.[0]?.affectedRows || 0;
+      const staleCleaned = (staleResult as Record<string, unknown>[])?.[0]?.affectedRows || 0;
       
       // v411: 将断点信息存入全局变量，供调度器启动后读取
       if (interruptedJobs.length > 0) {
-        (global as any).__interrupted_sync_jobs = interruptedJobs;
+        (global as Record<string, unknown>).__interrupted_sync_jobs = interruptedJobs;
         log.info(`[LifecycleManager] v411:   ℹ 记录了 ${interruptedJobs.length} 个中断任务的断点信息: ${interruptedJobs.map(j => `Job${j.id}(账户${j.accountId},步骤${j.currentStepIndex}/${j.totalSteps})`).join(', ')}`);
       }
       
@@ -759,7 +759,7 @@ export async function orchestrateStartup(server: any): Promise<void> {
         WHERE status = 'running'
           AND updated_at >= DATE_SUB(NOW(), INTERVAL ${staleThresholdMinutes} MINUTE)
       `);
-      const activeCount = (activeJobs as any[])?.[0]?.length || (Array.isArray(activeJobs) ? (activeJobs as any[]).filter((r: any) => r.id).length : 0);
+      const activeCount = (activeJobs as unknown[])?.[0]?.length || (Array.isArray(activeJobs) ? (activeJobs as unknown[]).filter((r: unknown) => r.id).length : 0);
       
       if (staleCleaned > 0) {
         log.info(`[LifecycleManager] v411:   ✓ 清理了 ${staleCleaned} 个卡死的数据同步任务（updated_at超过${staleThresholdMinutes}分钟未更新）`);
@@ -775,10 +775,10 @@ export async function orchestrateStartup(server: any): Promise<void> {
         WHERE status = 'completed' 
         GROUP BY accountId
       `);
-      const lastSyncs = (lastSyncResult as Record<string, any>[])?.[0] || [];
+      const lastSyncs = (lastSyncResult as Record<string, unknown>[])?.[0] || [];
       const now = Date.now();
       const staleAccounts: number[] = [];
-      for (const row of (lastSyncs as any[])) {
+      for (const row of (lastSyncs as unknown[])) {
         if (row.last_sync) {
           const lastSyncTime = new Date(row.last_sync).getTime();
           const hoursSinceSync = (now - lastSyncTime) / (1000 * 60 * 60);
@@ -815,7 +815,7 @@ export async function orchestrateStartup(server: any): Promise<void> {
       setTimeout(async () => {
         try {
           const { syncAllAccounts } = await import('./sync/unifiedSyncEngine');
-          const syncResult: any = await syncAllAccounts('high');
+          const syncResult: unknown = await syncAllAccounts('high');
           log.info(`[LifecycleManager] v405: 部署后轻量级同步完成 - 成功: ${syncResult.successfulAccounts}/${syncResult.totalAccounts}, 失败: ${syncResult.failedAccounts}, 耗时: ${syncResult.durationMs}ms`);
           
           // 同步完成后触发优化
@@ -868,7 +868,7 @@ export async function orchestrateStartup(server: any): Promise<void> {
       // 理由: 先用新算法重优化所有目标，再用纠错器确保API同步一致性，最后验证效果
       
       // 步骤4b: 运行部署后重优化（独立错误隔离）
-      let deployResult: Record<string, any> = { triggered: false, reason: 'not_executed', targetsProcessed: 0, targetsSucceeded: 0, targetsFailed: 0, totalOptimizationActions: 0 };
+      let deployResult: Record<string, unknown> = { triggered: false, reason: 'not_executed', targetsProcessed: 0, targetsSucceeded: 0, targetsFailed: 0, totalOptimizationActions: 0 };
       try {
         log.info('[LifecycleManager] v329: 运行部署后重优化（新算法优先）...');
         const { runPostDeployOptimization } = await import('./postDeployOptimizer');
@@ -883,7 +883,7 @@ export async function orchestrateStartup(server: any): Promise<void> {
       }
       
       // 步骤4c: 运行API执行级纠错（独立错误隔离）
-      let corrResult: Record<string, any> = { totalIssuesFound: 0, totalCorrected: 0, totalFailed: 0 };
+      let corrResult: Record<string, unknown> = { totalIssuesFound: 0, totalCorrected: 0, totalFailed: 0 };
       try {
         log.info('[LifecycleManager] v329: 运行API执行级纠错（确保同步一致性）...');
         const { runAutoCorrection } = await import('./optimization/optimizationAutoCorrector');

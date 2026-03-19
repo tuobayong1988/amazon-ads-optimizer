@@ -16,7 +16,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 // ==================== 使用 vi.hoisted 定义可在 vi.mock 中引用的变量 ====================
 
 const { mockDb, mockGetDb } = vi.hoisted(() => {
-  const db: any = {
+  const db: unknown = {
     select: vi.fn().mockReturnThis(),
     from: vi.fn().mockReturnThis(),
     where: vi.fn().mockReturnThis(),
@@ -56,12 +56,12 @@ vi.mock('../../drizzle/schema', () => ({
 }));
 
 vi.mock('drizzle-orm', () => ({
-  eq: vi.fn((...args: any[]) => ({ type: 'eq', args })),
-  and: vi.fn((...args: any[]) => ({ type: 'and', args })),
+  eq: vi.fn((...args: unknown[]) => ({ type: 'eq', args })),
+  and: vi.fn((...args: unknown[]) => ({ type: 'and', args })),
   sql: vi.fn(),
-  gte: vi.fn((...args: any[]) => ({ type: 'gte', args })),
-  lte: vi.fn((...args: any[]) => ({ type: 'lte', args })),
-  inArray: vi.fn((...args: any[]) => ({ type: 'inArray', args })),
+  gte: vi.fn((...args: unknown[]) => ({ type: 'gte', args })),
+  lte: vi.fn((...args: unknown[]) => ({ type: 'lte', args })),
+  inArray: vi.fn((...args: unknown[]) => ({ type: 'inArray', args })),
   desc: vi.fn(),
   asc: vi.fn(),
   isNull: vi.fn(),
@@ -110,7 +110,7 @@ vi.mock('../sync/syncHelpers', () => ({
 
 // ==================== 测试数据工厂 ====================
 
-function createMockSpCampaign(overrides: Partial<any> = {}): any {
+function createMockSpCampaign(overrides: Partial<unknown> = {}): unknown {
   return {
     campaignId: 100001,
     name: 'Test SP Campaign',
@@ -131,7 +131,7 @@ function createMockSpCampaign(overrides: Partial<any> = {}): any {
   };
 }
 
-function createMockSpAdGroup(overrides: Partial<any> = {}): any {
+function createMockSpAdGroup(overrides: Partial<unknown> = {}): unknown {
   return {
     adGroupId: 200001,
     campaignId: 100001,
@@ -142,7 +142,7 @@ function createMockSpAdGroup(overrides: Partial<any> = {}): any {
   };
 }
 
-function createMockSpKeyword(overrides: Partial<any> = {}): any {
+function createMockSpKeyword(overrides: Partial<unknown> = {}): unknown {
   return {
     keywordId: 300001,
     adGroupId: 200001,
@@ -155,7 +155,7 @@ function createMockSpKeyword(overrides: Partial<any> = {}): any {
   };
 }
 
-function createMockSpProductTarget(overrides: Partial<any> = {}): any {
+function createMockSpProductTarget(overrides: Partial<unknown> = {}): unknown {
   return {
     targetId: 400001,
     adGroupId: 200001,
@@ -178,7 +178,7 @@ import '../sync/syncBidOperations';
 
 describe('syncSp 集成测试（纯 Mock，不触及真实数据）', () => {
   let syncService: AmazonSyncService;
-  let mockClient: any;
+  let mockClient: unknown;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -279,7 +279,7 @@ describe('syncSp 集成测试（纯 Mock，不触及真实数据）', () => {
 
     it('应在预算保护生效时保留本地预算', async () => {
       const { getRecentlyOptimizedCampaignIds } = await import('../sync/syncHelpers');
-      (getRecentlyOptimizedCampaignIds as any).mockResolvedValue(new Set([1]));
+      (getRecentlyOptimizedCampaignIds as Record<string, unknown>).mockResolvedValue(new Set([1]));
 
       const mockCampaign = createMockSpCampaign({ dailyBudget: 30 });
       mockClient.listSpCampaigns.mockResolvedValue([mockCampaign]);
@@ -405,7 +405,7 @@ describe('syncSp 集成测试（纯 Mock，不触及真实数据）', () => {
 
     it('应在出价保护生效时保留本地出价', async () => {
       const { getRecentlyOptimizedKeywordIds } = await import('../sync/syncHelpers');
-      (getRecentlyOptimizedKeywordIds as any).mockResolvedValue(new Set([10]));
+      (getRecentlyOptimizedKeywordIds as Record<string, unknown>).mockResolvedValue(new Set([10]));
 
       const mockKeyword = createMockSpKeyword({ bid: 0.80 });
       mockClient.listSpKeywords.mockResolvedValue([mockKeyword]);
@@ -523,7 +523,7 @@ describe('syncSp 集成测试（纯 Mock，不触及真实数据）', () => {
 
   describe('getPlacementMultiplier', () => {
     it('应正确提取 placementTop 调整系数', () => {
-      const campaign: any = {
+      const campaign: unknown = {
         bidding: {
           adjustments: [
             { predicate: 'placementTop', percentage: 80 },
@@ -535,7 +535,7 @@ describe('syncSp 集成测试（纯 Mock，不触及真实数据）', () => {
     });
 
     it('应正确提取 placementProductPage 调整系数', () => {
-      const campaign: any = {
+      const campaign: unknown = {
         bidding: {
           adjustments: [
             { predicate: 'placementTop', percentage: 50 },
@@ -547,22 +547,22 @@ describe('syncSp 集成测试（纯 Mock，不触及真实数据）', () => {
     });
 
     it('应在没有调整时返回 0', () => {
-      const campaign: any = { bidding: {} };
+      const campaign: unknown = { bidding: {} };
       expect(syncService.getPlacementMultiplier(campaign, 'placementTop')).toBe(0);
     });
 
     it('应在 bidding 为 undefined 时返回 0', () => {
-      const campaign: any = {};
+      const campaign: unknown = {};
       expect(syncService.getPlacementMultiplier(campaign, 'placementTop')).toBe(0);
     });
 
     it('应在 adjustments 为空数组时返回 0', () => {
-      const campaign: any = { bidding: { adjustments: [] } };
+      const campaign: unknown = { bidding: { adjustments: [] } };
       expect(syncService.getPlacementMultiplier(campaign, 'placementTop')).toBe(0);
     });
 
     it('应正确处理 percentage 为字符串的情况', () => {
-      const campaign: any = {
+      const campaign: unknown = {
         bidding: { adjustments: [{ predicate: 'placementTop', percentage: '75' }] },
       };
       expect(syncService.getPlacementMultiplier(campaign, 'placementTop')).toBe(75);

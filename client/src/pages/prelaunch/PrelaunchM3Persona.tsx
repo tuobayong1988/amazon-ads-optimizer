@@ -15,8 +15,8 @@ export default function PrelaunchM3Persona() {
   const [, setLocation] = useLocation();
   const [projectId, setProjectId] = useState<number | null>(null);
 
-  const projectsQuery = trpc.prelaunch.listProjects.useQuery() as any;
-  const projects = (() => { const d = projectsQuery.data; return (d && 'data' in (d as any) ? (d as any).data : d) || []; })();
+  const projectsQuery = trpc.prelaunch.listProjects.useQuery() as unknown;
+  const projects = (() => { const d = projectsQuery.data; return (d && 'data' in (d as unknown) ? (d as Record<string, unknown>).data : d) || []; })();
   if (!projectId && projects.length > 0) setProjectId(projects[0].id);
 
   const personasQuery = trpc.prelaunch.getPersonas.useQuery(
@@ -29,7 +29,7 @@ export default function PrelaunchM3Persona() {
     onError: (err) => toast.error("启动失败: " + err.message),
   });
 
-  const personasData = (personasQuery.data as any)?.data || [];
+  const personasData = (personasQuery.data as unknown)?.data || [];
 
   return (
     <DashboardLayout>
@@ -53,7 +53,7 @@ export default function PrelaunchM3Persona() {
             <select className="h-8 rounded-md border border-input bg-transparent px-2 text-xs"
               value={projectId || ''} onChange={(e) => setProjectId(Number(e.target.value))}>
               <option value="">选择项目</option>
-              {projects.map((p: any) => <option key={p.id} value={p.id}>{p.projectName}</option>)}
+              {projects.map((p: unknown) => <option key={p.id} value={p.id}>{p.projectName}</option>)}
             </select>
             <Button variant="outline" size="sm" onClick={() => personasQuery.refetch()} disabled={personasQuery.isFetching}>
               <RefreshCw className={`w-3 h-3 mr-1 ${personasQuery.isFetching ? 'animate-spin' : ''}`} />刷新
@@ -80,7 +80,7 @@ export default function PrelaunchM3Persona() {
           </Card>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {personasData.map((persona: any) => (
+            {personasData.map((persona: unknown) => (
               <Card key={persona.id} className="hover:border-green-500/30 transition-colors overflow-hidden">
                 <div className="h-2 bg-gradient-to-r from-green-500 to-emerald-500" />
                 <CardHeader className="pb-3">

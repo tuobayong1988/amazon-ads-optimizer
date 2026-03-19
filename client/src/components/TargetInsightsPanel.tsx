@@ -70,10 +70,10 @@ export function TargetInsightsPanel({ groupId, accountId }: TargetInsightsPanelP
     if (!attribution?.results) return null;
     const results = attribution.results;
     const total = results.length;
-    const excellent = results.filter((r: any) => r.effectRating === 'excellent').length;
-    const good = results.filter((r: any) => r.effectRating === 'good').length;
-    const poor = results.filter((r: any) => r.effectRating === 'poor' || r.effectRating === 'harmful').length;
-    const avgScore = total > 0 ? results.reduce((sum: number, r: any) => sum + (r.effectScore || 0), 0) / total : 0;
+    const excellent = results.filter((r: unknown) => r.effectRating === 'excellent').length;
+    const good = results.filter((r: unknown) => r.effectRating === 'good').length;
+    const poor = results.filter((r: unknown) => r.effectRating === 'poor' || r.effectRating === 'harmful').length;
+    const avgScore = total > 0 ? results.reduce((sum: number, r: unknown) => sum + (r.effectScore || 0), 0) / total : 0;
     return { total, excellent, good, poor, avgScore };
   }, [attribution]);
 
@@ -158,7 +158,7 @@ export function TargetInsightsPanel({ groupId, accountId }: TargetInsightsPanelP
             </div>
           ) : attribution?.results?.length ? (
             <div className="space-y-3">
-              {attribution.results.map((item: any, idx: number) => (
+              {attribution.results.map((item: unknown, idx: number) => (
                 <Card key={idx} className="hover:shadow-sm transition-shadow">
                   <CardContent className="py-3 px-4">
                     <div className="flex items-start justify-between">
@@ -230,7 +230,7 @@ export function TargetInsightsPanel({ groupId, accountId }: TargetInsightsPanelP
             <>
               {/* 趋势概要卡片 */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                {trends.slice(0, 4).map((trend: any, idx: number) => (
+                {trends.slice(0, 4).map((trend: unknown, idx: number) => (
                   <Card key={idx}>
                     <CardContent className="pt-3 pb-2 px-4">
                       <p className="text-xs text-muted-foreground">{trend.metricLabel}</p>
@@ -258,7 +258,7 @@ export function TargetInsightsPanel({ groupId, accountId }: TargetInsightsPanelP
               </div>
 
               {/* 趋势图表 */}
-              {trends.slice(0, 2).map((trend: any, idx: number) => (
+              {trends.slice(0, 2).map((trend: unknown, idx: number) => (
                 <Card key={idx}>
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm">{trend.metricLabel}趋势</CardTitle>
@@ -306,7 +306,7 @@ export function TargetInsightsPanel({ groupId, accountId }: TargetInsightsPanelP
             </div>
           ) : anomalies && anomalies.length > 0 ? (
             <div className="space-y-3">
-              {anomalies.map((anomaly: any, idx: number) => (
+              {anomalies.map((anomaly: unknown, idx: number) => (
                 <Card key={idx} className={`border-l-4 ${
                   anomaly.severity === 'critical' ? 'border-l-red-500' :
                   anomaly.severity === 'warning' ? 'border-l-orange-500' :
@@ -388,7 +388,7 @@ export function TargetInsightsPanel({ groupId, accountId }: TargetInsightsPanelP
               </Card>
 
               <div className="space-y-2">
-                {strategyROI.map((strategy: any, idx: number) => (
+                {strategyROI.map((strategy: unknown, idx: number) => (
                   <Card key={idx}>
                     <CardContent className="py-3 px-4">
                       <div className="flex items-center justify-between">

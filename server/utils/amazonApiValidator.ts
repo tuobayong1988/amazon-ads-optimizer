@@ -20,7 +20,7 @@
  */
 
 import { createModuleLogger } from './logger';
-// isValidAmazonId from idTypes accepts Record<string, any> but works with string/number at runtime
+// isValidAmazonId from idTypes accepts Record<string, unknown> but works with string/number at runtime
 import { isValidAmazonId } from './idTypes';
 
 const log = createModuleLogger('ApiValidator');
@@ -324,7 +324,7 @@ export type EntityUpdateType =
  */
 export function validateEntityUpdate(
   updateType: EntityUpdateType,
-  params: Record<string, any>
+  params: Record<string, unknown>
 ): ValidationResult {
   const result: ValidationResult = { valid: true, errors: [], warnings: [] };
 
@@ -445,7 +445,7 @@ export function validateEntityUpdate(
  */
 export function validateBatchEntityUpdates(
   updateType: EntityUpdateType,
-  updates: Record<string, any>[]
+  updates: Record<string, unknown>[]
 ): ValidationResult {
   const result: ValidationResult = { valid: true, errors: [], warnings: [] };
 
@@ -507,7 +507,7 @@ export function preflightValidateReport(config: ReportRequestConfig, callerName?
  */
 export function preflightValidateEntityUpdate(
   updateType: EntityUpdateType,
-  params: Record<string, any>,
+  params: Record<string, unknown>,
   callerName?: string
 ): void {
   if (validationMode === 'silent') return;

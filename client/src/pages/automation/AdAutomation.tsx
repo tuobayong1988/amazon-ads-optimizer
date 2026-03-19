@@ -227,7 +227,7 @@ export default function AdAutomation() {
   });
   
   // Fetch accounts
-  const { data: accounts } = trpc.adAccount.list.useQuery() as any;
+  const { data: accounts } = trpc.adAccount.list.useQuery() as unknown;
   
   // N-Gram Analysis
   const ngramQuery = trpc.adAutomation.analyzeNgrams.useQuery({
@@ -383,7 +383,7 @@ export default function AdAutomation() {
                 <SelectValue placeholder="选择广告账号" />
               </SelectTrigger>
               <SelectContent>
-                {accounts?.map((account: any) => (
+                {accounts?.map((account: unknown) => (
                   <SelectItem key={account.id} value={account.id.toString()}>
                     {account.accountName}
                   </SelectItem>
@@ -707,7 +707,7 @@ export default function AdAutomation() {
                                 </tr>
                               </thead>
                               <tbody>
-                                {conflict.campaigns.map((campaign: any, i: any) => (
+                                {conflict.campaigns.map((campaign: unknown, i: unknown) => (
                                   <tr 
                                     key={i} 
                                     className={`border-b border-border/30 ${
@@ -752,7 +752,7 @@ export default function AdAutomation() {
                                 {Array.isArray(conflict.recommendation.loserCampaigns) && 
                                  conflict.recommendation.loserCampaigns.length > 0 && (
                                   <div className="mt-2 space-y-1">
-                                    {conflict.recommendation.loserCampaigns.map((loser: any, i: any) => {
+                                    {conflict.recommendation.loserCampaigns.map((loser: unknown, i: unknown) => {
                                       const loserInfo = typeof loser === 'string' 
                                         ? { name: loser, negativeLevel: 'ad_group' as const }
                                         : loser;

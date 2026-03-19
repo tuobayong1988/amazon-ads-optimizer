@@ -150,15 +150,15 @@ export async function queryAuditLogs(query: AuditLogQuery): Promise<{ logs: Audi
     }
     
     const countResult = await db.execute(sql`SELECT COUNT(*) as total FROM audit_logs ${whereClause}`);
-    const total = (countResult as Record<string, any>[])[0]?.[0]?.total || 0;
+    const total = (countResult as Record<string, unknown>[])[0]?.[0]?.total || 0;
     
     const result = await db.execute(sql`
       SELECT * FROM audit_logs ${whereClause}
       ORDER BY created_at DESC LIMIT ${limit} OFFSET ${offset}
     `);
     
-    const rows = (result as Record<string, any>[][])[0] || [];
-    const logs: AuditLog[] = rows.map((row: Record<string, any>) => ({
+    const rows = (result as Record<string, unknown>[][])[0] || [];
+    const logs: AuditLog[] = rows.map((row: Record<string, unknown>) => ({
       id: row.id,
       organizationId: row.organization_id,
       userId: row.user_id,
@@ -196,7 +196,7 @@ export async function logLogin(userId: number, userName: string, organizationId:
   });
 }
 
-export async function logSync(userId: number, userName: string, organizationId: number, accountId: number, accountName: string, syncType: string, success: boolean = true, details?: any, errorMessage?: string): Promise<void> {
+export async function logSync(userId: number, userName: string, organizationId: number, accountId: number, accountName: string, syncType: string, success: boolean = true, details?: unknown, errorMessage?: string): Promise<void> {
   await createAuditLog({
     organizationId, userId, userName,
     actionType: 'sync', actionCategory: 'sync',
@@ -216,7 +216,7 @@ export async function logBidAdjust(userId: number, userName: string, organizatio
   });
 }
 
-export async function logStrategy(userId: number, userName: string, organizationId: number, actionType: 'strategy_create' | 'strategy_update' | 'strategy_delete' | 'strategy_execute', strategyId: string, strategyName: string, details?: any): Promise<void> {
+export async function logStrategy(userId: number, userName: string, organizationId: number, actionType: 'strategy_create' | 'strategy_update' | 'strategy_delete' | 'strategy_execute', strategyId: string, strategyName: string, details?: unknown): Promise<void> {
   const descriptions: Record<string, string> = {
     'strategy_create': '创建优化策略', 'strategy_update': '更新优化策略',
     'strategy_delete': '删除优化策略', 'strategy_execute': '执行优化策略',
@@ -228,7 +228,7 @@ export async function logStrategy(userId: number, userName: string, organization
   });
 }
 
-export async function logInviteCode(userId: number, userName: string, organizationId: number, actionType: 'invite_create' | 'invite_use', inviteCode: string, details?: any): Promise<void> {
+export async function logInviteCode(userId: number, userName: string, organizationId: number, actionType: 'invite_create' | 'invite_use', inviteCode: string, details?: unknown): Promise<void> {
   await createAuditLog({
     organizationId, userId, userName, actionType, actionCategory: 'invite',
     resourceType: 'invite_code', resourceId: inviteCode, resourceName: inviteCode,

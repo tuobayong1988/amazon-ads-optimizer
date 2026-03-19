@@ -144,7 +144,7 @@ export async function createOptimizationLog(data: InsertOptimizationLog): Promis
         try {
           if (!data.actionDetail) return undefined;
           const detail = typeof data.actionDetail === 'string' ? JSON.parse(data.actionDetail) : data.actionDetail;
-          const meta: Record<string, any> = {};
+          const meta: Record<string, unknown> = {};
           if (detail.gtoModifier) {
             meta.gto = {
               composite: detail.gtoModifier.compositeModifier,
@@ -620,7 +620,7 @@ export async function migrateFromBiddingLogs(accountId: number): Promise<number>
     sourceTable: 'bidding_logs',
     sourceId: log.id,
     createdAt: log.createdAt,
-  } as Record<string, any>));
+  } as Record<string, unknown>));
   
   // @ts-expect-error - events mapped from legacy biddingLogs schema
   await db.insert(optimizationEvents).values(events);
@@ -812,7 +812,7 @@ export async function runAutoMigration(): Promise<{ success: boolean; migrated: 
       try {
         const accounts = await getAdAccounts();
         let totalBiddingLogs = 0;
-        for (const account of (accounts as any[])) {
+        for (const account of (accounts as unknown[])) {
           totalBiddingLogs += await migrateFromBiddingLogs(account.id);
         }
         migrated.biddingLogs = totalBiddingLogs;
@@ -829,7 +829,7 @@ export async function runAutoMigration(): Promise<{ success: boolean; migrated: 
       try {
         const accounts = await getAdAccounts();
         let totalBidHistory = 0;
-        for (const account of (accounts as any[])) {
+        for (const account of (accounts as unknown[])) {
           totalBidHistory += await migrateFromBidAdjustmentHistory(account.id);
         }
         migrated.bidAdjustmentHistory = totalBidHistory;
@@ -846,7 +846,7 @@ export async function runAutoMigration(): Promise<{ success: boolean; migrated: 
       try {
         const accounts = await getAdAccounts();
         let totalOptLogs = 0;
-        for (const account of (accounts as any[])) {
+        for (const account of (accounts as unknown[])) {
           const groups = await getPerformanceGroupsByAccountId(account.id);
           for (const group of groups) {
             totalOptLogs += await migrateFromOptimizationLogs(group.id);
@@ -859,7 +859,7 @@ export async function runAutoMigration(): Promise<{ success: boolean; migrated: 
       }
     }
     
-    const totalMigrated = Object.values(migrated).reduce((a: any, b: any) => a + b, 0);
+    const totalMigrated = Object.values(migrated).reduce((a: unknown, b: unknown) => a + b, 0);
     log.info(`[AutoMigration] 完成: 共迁移 ${totalMigrated} 条记录`, { migrated, skipped });
     
     return { success: true, migrated, skipped };

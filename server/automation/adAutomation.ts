@@ -308,7 +308,7 @@ export function analyzeNgrams(searchTerms: SearchTermData[]): NgramAnalysisResul
   }
   
   // 按频率降序排序
-  return results.sort((a: any, b: any) => b.frequency - a.frequency);
+  return results.sort((a: unknown, b: unknown) => b.frequency - a.frequency);
 }
 
 // ============================================
@@ -408,7 +408,7 @@ export function analyzeFunnelMigration(
   }
   
   // 按优先级和转化数排序
-  return suggestions.sort((a: any, b: any) => {
+  return suggestions.sort((a: unknown, b: unknown) => {
     if (a.priority !== b.priority) {
       return a.priority === 'high' ? -1 : 1;
     }
@@ -472,12 +472,12 @@ export function detectTrafficConflicts(
       });
       
       // 找出表现最好的活动
-      campaignScores.sort((a: any, b: any) => b.score - a.score);
-      const winner = campaignScores[0] as any;
+      campaignScores.sort((a: unknown, b: unknown) => b.score - a.score);
+      const winner = campaignScores[0] as unknown;
       const losers = campaignScores.slice(1);
       
       // 计算浪费的花费（表现差的活动的花费）
-      const wastedSpend = losers.reduce((sum: any, l: any) => sum + l.spend, 0);
+      const wastedSpend = losers.reduce((sum: number, l: Record<string, unknown>) => sum + l.spend, 0);
       
       // 为每个失败活动决定否定层级
       const loserCampaigns = losers.map(l => ({
@@ -517,7 +517,7 @@ export function detectTrafficConflicts(
   }
   
   // 按浪费花费降序排序
-  return conflicts.sort((a: any, b: any) => b.totalWastedSpend - a.totalWastedSpend);
+  return conflicts.sort((a: unknown, b: unknown) => b.totalWastedSpend - a.totalWastedSpend);
 }
 
 // ============================================
@@ -642,7 +642,7 @@ export function analyzeBidAdjustments(
   // 按优先级排序
   const priorityOrder = { urgent: 0, high: 1, medium: 2, low: 3 };
   // @ts-expect-error - runtime type mismatch
-  return suggestions.sort((a: any, b: any) => priorityOrder[a.priority] - priorityOrder[b.priority]);
+  return suggestions.sort((a: unknown, b: unknown) => priorityOrder[a.priority] - priorityOrder[b.priority]);
 }
 
 // ============================================
@@ -1049,7 +1049,7 @@ export function analyzeBidCorrections(
   
   // 按优先级和置信度排序
   const priorityOrder = { urgent: 0, high: 1, medium: 2, low: 3 };
-  suggestions.sort((a: any, b: any) => {
+  suggestions.sort((a: unknown, b: unknown) => {
     // @ts-expect-error - runtime type mismatch
     const priorityDiff = priorityOrder[a.priority] - priorityOrder[b.priority];
     if (priorityDiff !== 0) return priorityDiff;
@@ -1162,7 +1162,7 @@ export function analyzeCampaignHealth(
 ): CampaignHealthScore[] {
   const results: CampaignHealthScore[] = [];
   
-  for (const campaign of (campaigns as any[])) {
+  for (const campaign of (campaigns as unknown[])) {
     const alerts: HealthAlert[] = [];
     const recommendations: string[] = [];
     const now = new Date();
@@ -1344,7 +1344,7 @@ export function analyzeCampaignHealth(
   }
   
   // 按健康分数排序（低分在前）
-  results.sort((a: any, b: any) => a.overallScore - b.overallScore);
+  results.sort((a: unknown, b: unknown) => a.overallScore - b.overallScore);
   
   return results;
 }
@@ -1451,7 +1451,7 @@ export interface BatchOperationItem {
   targetName: string;
   targetType: 'keyword' | 'product' | 'campaign' | 'ad_group';
   action: string;
-  params: Record<string, any>;
+  params: Record<string, unknown>;
   status: 'pending' | 'success' | 'failed';
   error?: string;
 }

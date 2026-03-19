@@ -16,9 +16,9 @@ export const dataHealthRouter = router({
    * 聚合所有子系统的健康状态
    */
   getOverview: protectedProcedure
-    .query(async ({ ctx }: any) => {
+    .query(async ({ ctx }: unknown) => {
       try {
-        const results: Record<string, any> = {};
+        const results: Record<string, unknown> = {};
         
         // 1. 获取限流服务指标
         try {
@@ -86,7 +86,7 @@ export const dataHealthRouter = router({
             // v370.4: 多租户数据隔离 - 只查询当前用户的账户数据
             const { adAccounts } = await import('../../drizzle/schema');
             const userAccountRows = await db.select({ id: adAccounts.id }).from(adAccounts).where(sql`${adAccounts.userId} = ${ctx.user?.id || 0}`);
-            const userAccountIds = userAccountRows.map((r: any) => r.id);
+            const userAccountIds = userAccountRows.map((r: unknown) => r.id);
             const accountFilter = userAccountIds.length > 0 
               ? sql`${dataSyncJobs.accountId} IN (${sql.raw(userAccountIds.join(','))})` 
               : sql`1=0`;
@@ -139,20 +139,20 @@ export const dataHealthRouter = router({
         const issues: string[] = [];
         
         // 限流健康
-        if ((results.rateLimiting as any)?.status !== 'active') {
+        if ((results.rateLimiting as unknown)?.status !== 'active') {
           healthScore -= 10;
           issues.push('限流服务未激活');
         }
         
         // 自愈健康 - v373: 兼容running_on_leader状态
-        const selfHealingStatus = (results.selfHealing as any)?.status;
+        const selfHealingStatus = (results.selfHealing as unknown)?.status;
         if (selfHealingStatus !== 'running' && selfHealingStatus !== 'running_on_leader' && selfHealingStatus !== 'initializing') {
           healthScore -= 15;
           issues.push('自愈调度器未运行');
         }
         
         // 同步健康
-        const syncStats = (results.syncJobs as any)?.stats24h;
+        const syncStats = (results.syncJobs as unknown)?.stats24h;
         if (syncStats) {
           if (syncStats.successRate < 90) {
             healthScore -= 20;
@@ -183,7 +183,7 @@ export const dataHealthRouter = router({
    */
   getRateLimitMetrics: protectedProcedure
     .input(z.object({ accountId: z.number().optional() }).optional())
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       try {
         const { getApiRateLimitService } = await import('../services/apiRateLimitService');
         const service = getApiRateLimitService();

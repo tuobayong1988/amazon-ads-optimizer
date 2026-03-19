@@ -79,12 +79,12 @@ function formatCurrency(value: number): string {
 export default function PlacementOptimization() {
   // v399: 使用全局店铺选择器替代本地状态
   const { accountId: selectedAccountId, accounts, isLoading: accountsLoading } = useGlobalAccountId();
-  const setSelectedAccountId = (_: any) => {}; // v399: 由全局选择器控制，本地setter为no-op
+  const setSelectedAccountId = (_: unknown) => {}; // v399: 由全局选择器控制，本地setter为no-op
 const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
   const [analysisDialogOpen, setAnalysisDialogOpen] = useState(false);
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
-  const [pendingSuggestions, setPendingSuggestions] = useState<any[]>([]);
+  const [pendingSuggestions, setPendingSuggestions] = useState<unknown[]>([]);
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [applyLoading, setApplyLoading] = useState(false);
   
@@ -232,17 +232,17 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null
       };
     }
 
-    const totalSpend = performanceData.reduce((sum: any, p: any) => sum + (p.metrics?.spend || 0), 0);
-    const totalSales = performanceData.reduce((sum: any, p: any) => sum + (p.metrics?.sales || 0), 0);
+    const totalSpend = performanceData.reduce((sum: number, p: Record<string, unknown>) => sum + (p.metrics?.spend || 0), 0);
+    const totalSales = performanceData.reduce((sum: number, p: Record<string, unknown>) => sum + (p.metrics?.sales || 0), 0);
     const avgRoas = totalSpend > 0 ? totalSales / totalSpend : 0;
     const avgAcos = totalSales > 0 ? (totalSpend / totalSales) * 100 : 0;
     
-    const bestPlacement = performanceData.reduce((best: any, current: any) => {
+    const bestPlacement = performanceData.reduce((best: unknown, current: unknown) => {
       if (!best || (current.metrics?.roas || 0) > (best.metrics?.roas || 0)) {
         return current;
       }
       return best;
-    }, null as any);
+    }, null as unknown);
 
     return { totalSpend, totalSales, avgRoas, avgAcos, bestPlacement };
   }, [performanceData]);
@@ -292,7 +292,7 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null
                     <SelectValue placeholder="选择账号" />
                   </SelectTrigger>
                   <SelectContent>
-                    {accounts?.map((account: any) => (
+                    {accounts?.map((account: unknown) => (
                       <SelectItem key={account.id} value={account.id.toString()}>
                         {account.storeName || account.accountName}
                       </SelectItem>
@@ -311,7 +311,7 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null
                     <SelectValue placeholder="选择广告活动" />
                   </SelectTrigger>
                   <SelectContent>
-                    {campaigns?.map((campaign: any) => (
+                    {campaigns?.map((campaign: unknown) => (
                       <SelectItem key={campaign.campaignId} value={campaign.campaignId}>
                         {campaign.campaignName}
                       </SelectItem>
@@ -484,7 +484,7 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {performanceData.map((placement: any) => {
+                  {performanceData.map((placement: unknown) => {
                     const metrics = placement.metrics;
                     const placementInfo = PLACEMENT_LABELS[placement.placementType];
                     const currentAdjustment = currentSettings?.[placement.placementType as keyof typeof currentSettings] || 0;
@@ -613,7 +613,7 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null
             </DialogHeader>
             
             <div className="space-y-4">
-              {pendingSuggestions.map((suggestion: any, index: any) => {
+              {pendingSuggestions.map((suggestion: unknown, index: unknown) => {
                 const placementInfo = PLACEMENT_LABELS[suggestion.placementType];
                 const confidenceInfo = getConfidenceLevel(suggestion.confidence);
                 const isIncrease = suggestion.adjustmentDelta > 0;
@@ -693,7 +693,7 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null
               <AlertTitle>调整说明</AlertTitle>
               <AlertDescription>
                 <ul className="list-disc list-inside text-sm mt-2 space-y-1">
-                  {pendingSuggestions.map((s: any, i: any) => (
+                  {pendingSuggestions.map((s: unknown, i: unknown) => (
                     <li key={i}>
                       {PLACEMENT_LABELS[s.placementType]?.name}: {formatPercent(s.currentAdjustment)} → {formatPercent(s.suggestedAdjustment)}
                     </li>

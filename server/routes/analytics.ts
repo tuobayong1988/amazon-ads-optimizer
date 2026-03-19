@@ -16,7 +16,7 @@ const log = createModuleLogger('Route_analytics');
 
 // ==================== 趋势数据辅助函数 ====================
 // 生成模拟的趋势数据（当没有真实历史数据时使用）
-function generateSimulatedTrendData(target: Record<string, any>, days: number) {
+function generateSimulatedTrendData(target: Record<string, unknown>, days: number) {
   const data = [];
   const now = new Date();
   
@@ -66,7 +66,7 @@ function generateSimulatedTrendData(target: Record<string, any>, days: number) {
 }
 
 // 计算趋势摘要数据
-function calculateTrendSummary(data: any[]) {
+function calculateTrendSummary(data: unknown[]) {
   if (!data || data.length === 0) {
     return {
       totalImpressions: 0,
@@ -90,11 +90,11 @@ function calculateTrendSummary(data: any[]) {
     };
   }
   
-  const totalImpressions = data.reduce((sum: any, d: any) => sum + d.impressions, 0);
-  const totalClicks = data.reduce((sum: any, d: any) => sum + d.clicks, 0);
-  const totalSpend = data.reduce((sum: any, d: any) => sum + d.spend, 0);
-  const totalSales = data.reduce((sum: any, d: any) => sum + d.sales, 0);
-  const totalOrders = data.reduce((sum: any, d: any) => sum + d.orders, 0);
+  const totalImpressions = data.reduce((sum: number, d: Record<string, unknown>) => sum + d.impressions, 0);
+  const totalClicks = data.reduce((sum: number, d: Record<string, unknown>) => sum + d.clicks, 0);
+  const totalSpend = data.reduce((sum: number, d: Record<string, unknown>) => sum + d.spend, 0);
+  const totalSales = data.reduce((sum: number, d: Record<string, unknown>) => sum + d.sales, 0);
+  const totalOrders = data.reduce((sum: number, d: Record<string, unknown>) => sum + d.orders, 0);
   
   const avgCtr = totalImpressions > 0 ? (totalClicks / totalImpressions * 100) : 0;
   const avgCvr = totalClicks > 0 ? (totalOrders / totalClicks * 100) : 0;
@@ -108,8 +108,8 @@ function calculateTrendSummary(data: any[]) {
   const secondHalf = data.slice(midPoint);
   
   const calcTrend = (metric: string) => {
-    const firstAvg = firstHalf.reduce((sum: any, d: any) => sum + (d[metric] || 0), 0) / (firstHalf.length || 1);
-    const secondAvg = secondHalf.reduce((sum: any, d: any) => sum + (d[metric] || 0), 0) / (secondHalf.length || 1);
+    const firstAvg = firstHalf.reduce((sum: number, d: Record<string, unknown>) => sum + (d[metric] || 0), 0) / (firstHalf.length || 1);
+    const secondAvg = secondHalf.reduce((sum: number, d: Record<string, unknown>) => sum + (d[metric] || 0), 0) / (secondHalf.length || 1);
     const change = firstAvg > 0 ? ((secondAvg - firstAvg) / firstAvg * 100) : 0;
     
     if (change > 10) return 'up';
@@ -183,7 +183,7 @@ export const analyticsRouter = router({
       endDate: z.string(),
       campaignId: z.number().optional(),
     }))
-    .query(async ({ input, ctx }: any) => {
+    .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       return db.getDailyPerformanceByDateRange(
         input.accountId,
@@ -199,7 +199,7 @@ export const analyticsRouter = router({
       startDate: z.string(),
       endDate: z.string(),
     }))
-    .query(async ({ input, ctx }: any) => {
+    .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       return db.getPerformanceSummary(
         input.accountId,
@@ -219,11 +219,11 @@ export const analyticsRouter = router({
       startDate: z.string().optional(),  // YYYY-MM-DD
       endDate: z.string().optional(),    // YYYY-MM-DD
     }))
-    .query(async ({ input, ctx }: any) => {
+    .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       
       const cacheKey = apiCache.generateKey('analytics.getTrendData', ctx.user.id, input);
-      const cached = apiCache.get<any>(cacheKey);
+      const cached = apiCache.get<unknown>(cacheKey);
       if (cached) return cached;
       
       // ✅ 支持自定义日期范围，默认近N天
@@ -279,11 +279,11 @@ export const analyticsRouter = router({
    */
   getWeeklyComparison: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    .query(async ({ input, ctx }: any) => {
+    .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       
       const cacheKey = apiCache.generateKey('analytics.getWeeklyComparison', ctx.user.id, input);
-      const cached = apiCache.get<any>(cacheKey);
+      const cached = apiCache.get<unknown>(cacheKey);
       if (cached) return cached;
       
       const today = new Date();
@@ -311,7 +311,7 @@ export const analyticsRouter = router({
       const weekDays = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
       
       // 按周几分组数据
-      const result = weekDays.map((name: any, index: any) => {
+      const result = weekDays.map((name: unknown, index: unknown) => {
         const thisWeekDay = thisWeekData?.find(d => {
           const date = new Date(d.date);
           const dow = date.getDay();
@@ -345,11 +345,11 @@ export const analyticsRouter = router({
       startDate: z.string().optional(),  // YYYY-MM-DD
       endDate: z.string().optional(),    // YYYY-MM-DD
     }))
-    .query(async ({ input, ctx }: any) => {
+    .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       
       const cacheKey = apiCache.generateKey('analytics.getKPIs', ctx.user.id, input);
-      const cached = apiCache.get<any>(cacheKey);
+      const cached = apiCache.get<unknown>(cacheKey);
       if (cached) return cached;
       
       // ✅ 支持前端传入日期范围，默认近30天
@@ -451,9 +451,9 @@ export const analyticsRouter = router({
       startDate: z.string().optional(),
       endDate: z.string().optional(),
     }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       const cacheKey = apiCache.generateKey('analytics.getRegionComparison', ctx.user.id, input);
-      const cached = apiCache.get<any>(cacheKey);
+      const cached = apiCache.get<unknown>(cacheKey);
       if (cached) return cached;
       
       // 定义区域映射
@@ -509,8 +509,8 @@ export const analyticsRouter = router({
       }
       
       // v385: 批量查询所有账户的绩效数据（消除N+1查询问题）
-      const accountIds = (accounts as any[]).map((a: any) => a.id);
-      const summaryMap = new Map<number, any>();
+      const accountIds = (accounts as unknown[]).map((a: unknown) => a.id);
+      const summaryMap = new Map<number, unknown>();
       
       if (accountIds.length > 0) {
         // v386: 并行查询所有账户（提高并行度到10个）
@@ -530,7 +530,7 @@ export const analyticsRouter = router({
       }
       
       // 汇总每个账号的数据到对应区域
-      for (const account of (accounts as any[])) {
+      for (const account of (accounts as unknown[])) {
         let accountRegion = 'NA';
         for (const [regionId, regionInfo] of Object.entries(REGIONS)) {
           if (regionInfo.marketplaces.includes(account.marketplace)) {
@@ -586,7 +586,7 @@ export const advancedAnalyticsRouter = router({
       performanceGroupId: z.number().optional(),
       days: z.number().optional().default(30),
     }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       return advancedAnalyticsService.getAdvancedAnalyticsSummary(input);
     }),
   
@@ -600,7 +600,7 @@ export const advancedAnalyticsRouter = router({
       offset: z.number().optional().default(0),
       eventCategory: z.string().optional(),
     }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       return advancedAnalyticsService.getAttributionAnalysis(input);
     }),
   
@@ -612,7 +612,7 @@ export const advancedAnalyticsRouter = router({
       days: z.number().optional().default(30),
       metrics: z.array(z.string()).optional(),
     }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       return advancedAnalyticsService.getTrendAnalysis(input);
     }),
   
@@ -624,7 +624,7 @@ export const advancedAnalyticsRouter = router({
       days: z.number().optional().default(30),
       sensitivity: z.number().optional().default(2),
     }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       return advancedAnalyticsService.detectAnomalies(input);
     }),
   
@@ -636,7 +636,7 @@ export const advancedAnalyticsRouter = router({
       days: z.number().optional().default(30),
       groupBy: z.enum(['strategy', 'actionType', 'eventCategory']).optional().default('strategy'),
     }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       return advancedAnalyticsService.getStrategyROIComparison(input);
     }),
   

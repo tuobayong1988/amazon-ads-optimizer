@@ -47,12 +47,12 @@ export function TargetAlgorithmEffectPanel({ accountId, groupId }: TargetAlgorit
   );
 
   // 从effectStats数组中计算汇总
-  const totalRecords = effectStats?.reduce((sum: number, s: any) => sum + s.count, 0) || 0;
+  const totalRecords = effectStats?.reduce((sum: number, s: unknown) => sum + s.count, 0) || 0;
   const avgEffectScore = effectStats && effectStats.length > 0
-    ? effectStats.reduce((sum: number, s: any) => sum + s.avgEffectScore * s.count, 0) / totalRecords
+    ? effectStats.reduce((sum: number, s: unknown) => sum + s.avgEffectScore * s.count, 0) / totalRecords
     : 0;
   const avgPositiveRate = effectStats && effectStats.length > 0
-    ? effectStats.reduce((sum: number, s: any) => sum + s.positiveRate * s.count, 0) / totalRecords
+    ? effectStats.reduce((sum: number, s: unknown) => sum + s.positiveRate * s.count, 0) / totalRecords
     : 0;
 
   return (
@@ -139,7 +139,7 @@ export function TargetAlgorithmEffectPanel({ accountId, groupId }: TargetAlgorit
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              {effectStats.map((stat: any, idx: number) => (
+              {effectStats.map((stat: unknown, idx: number) => (
                 <div key={idx} className="flex items-center justify-between p-2 rounded-lg border text-sm">
                   <div>
                     <p className="font-medium">{stat.algorithm}</p>
@@ -173,7 +173,7 @@ export function TargetAlgorithmEffectPanel({ accountId, groupId }: TargetAlgorit
             </div>
           ) : bidHistory?.records?.length ? (
             <div className="space-y-2 max-h-[400px] overflow-y-auto">
-              {bidHistory.records.map((record: any, idx: number) => (
+              {bidHistory.records.map((record: unknown, idx: number) => (
                 <div key={idx} className="flex items-center justify-between p-2 rounded-lg border text-sm">
                   <div className="flex-1">
                     <p className="font-medium text-xs">{record.keywordText || record.targetText || '未知'}</p>

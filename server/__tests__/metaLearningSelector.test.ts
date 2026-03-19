@@ -74,8 +74,8 @@ describe('MetaLearningSelector - Pure Logic Tests', () => {
         { bid: 1.20, confidence: 0.80, algorithm: 'ucb' },
         { bid: 1.10, confidence: 0.60, algorithm: 'linucb' },
       ];
-      const totalConf = fusionBids.reduce((s: any, b: any) => s + b.confidence, 0);
-      const fusedBid = fusionBids.reduce((s: any, b: any) => s + b.bid * b.confidence, 0) / totalConf;
+      const totalConf = fusionBids.reduce((s: unknown, b: unknown) => s + b.confidence, 0);
+      const fusedBid = fusionBids.reduce((s: unknown, b: unknown) => s + b.bid * b.confidence, 0) / totalConf;
       
       // 加权平均: (1.20*0.80 + 1.10*0.60) / (0.80+0.60) = (0.96+0.66)/1.40 = 1.157
       expect(fusedBid).toBeCloseTo(1.157, 2);
@@ -117,7 +117,7 @@ describe('MetaLearningSelector - Pure Logic Tests', () => {
         { bid: 1.20, confidence: 0.92, algorithm: 'ucb' },
         { bid: 1.19, confidence: 0.91, algorithm: 'linucb' },
       ];
-      const totalConf = fusionBids.reduce((s: any, b: any) => s + b.confidence, 0);
+      const totalConf = fusionBids.reduce((s: unknown, b: unknown) => s + b.confidence, 0);
       const bidDivergence = Math.abs(fusionBids[0].bid - fusionBids[1].bid) / Math.max(fusionBids[0].bid, fusionBids[1].bid, 0.01);
       const consensusBonus = bidDivergence < 0.10 ? 0.10 : bidDivergence < 0.20 ? 0.05 : 0;
       const fusedConfidence = Math.min(0.95, (totalConf / fusionBids.length) + consensusBonus);
@@ -280,7 +280,7 @@ describe('MetaLearningSelector - Algorithm Scoring', () => {
       { algorithm: 'linucb', score: 0.72, eligible: true, reason: '' },
       { algorithm: 'cql', score: 0.55, eligible: true, reason: '' },
     ];
-    const sorted = [...scores].sort((a: any, b: any) => b.score - a.score);
+    const sorted = [...scores].sort((a: unknown, b: unknown) => b.score - a.score);
     expect(sorted[0].algorithm).toBe('linucb');
     expect(sorted[1].algorithm).toBe('ucb');
     expect(sorted[sorted.length - 1].algorithm).toBe('rule_based');

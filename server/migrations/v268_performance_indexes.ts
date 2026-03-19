@@ -50,7 +50,7 @@ export async function runV268PerformanceIndexMigration(): Promise<void> {
 
   } catch (error: unknown) {
     // 索引可能已存在（不同名称），忽略重复索引错误
-    if ((error as Error).message?.includes('Duplicate key name') || (error as any).code === 'ER_DUP_KEYNAME') {
+    if ((error as Error).message?.includes('Duplicate key name') || (error as Record<string, unknown>).code === 'ER_DUP_KEYNAME') {
       log.info('[v268-migration] Index already exists (different name), skipping');
     } else {
       console.error('[v268-migration] Error creating indexes:', (error as Error).message);

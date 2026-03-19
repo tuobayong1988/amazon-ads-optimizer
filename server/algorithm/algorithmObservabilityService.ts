@@ -55,7 +55,7 @@ export interface AlgorithmDecisionTrace {
   abTestDetail?: {
     testId: number;
     variantType: 'control' | 'treatment';
-    configOverrides: Record<string, any>;
+    configOverrides: Record<string, unknown>;
   };
   
   // 探索决策详情
@@ -260,11 +260,11 @@ export function generateDashboardMetrics(period: '1h' | '24h' | '7d' = '24h'): A
   }
   
   const n = recentTraces.length;
-  const sortedLatencies = [...latencies].sort((a: any, b: any) => a - b);
+  const sortedLatencies = [...latencies].sort((a: unknown, b: unknown) => a - b);
   
   const avgConfidenceByAlgorithm: Record<string, number> = {};
   for (const [algo, confs] of Object.entries(confidenceByAlgorithm)) {
-    avgConfidenceByAlgorithm[algo] = confs.reduce((s: any, c: any) => s + c, 0) / confs.length;
+    avgConfidenceByAlgorithm[algo] = confs.reduce((s: unknown, c: unknown) => s + c, 0) / confs.length;
   }
   
   return {
@@ -272,14 +272,14 @@ export function generateDashboardMetrics(period: '1h' | '24h' | '7d' = '24h'): A
     period,
     algorithmDistribution,
     fusionModeDistribution: { single: singleCount, cascade_ensemble: ensembleCount },
-    avgConfidence: confidences.reduce((s: any, c: any) => s + c, 0) / n,
+    avgConfidence: confidences.reduce((s: unknown, c: unknown) => s + c, 0) / n,
     avgConfidenceByAlgorithm,
     explorationRate: explorationCount / n,
     explorationCount,
     abTestCoverage: abTestCount / n,
     bidChangeDistribution: { increase: increaseCount, decrease: decreaseCount, hold: holdCount },
     avgBidChangePercent: totalBidChange / n,
-    avgDecisionLatencyMs: latencies.reduce((s: any, l: any) => s + l, 0) / n,
+    avgDecisionLatencyMs: latencies.reduce((s: unknown, l: unknown) => s + l, 0) / n,
     p95DecisionLatencyMs: sortedLatencies[Math.floor(n * 0.95)] || 0,
   };
 }
@@ -337,7 +337,7 @@ export function cleanupOldTraces(maxAgeDays: number = 7): number {
 // ==================== v272 P0-1: 通用指标记录 ====================
 
 /** 通用指标缓冲区 */
-const metricBuffer: Array<{ type: string; data: Record<string, any>; timestamp: Date }> = [];
+const metricBuffer: Array<{ type: string; data: Record<string, unknown>; timestamp: Date }> = [];
 const MAX_METRIC_BUFFER = 1000; // v329: 从5000降至1000，减少内存占用约80%
 
 /**
@@ -346,7 +346,7 @@ const MAX_METRIC_BUFFER = 1000; // v329: 从5000降至1000，减少内存占用�
  * 用于核心业务流程中记录关键操作指标，
  * 支持后续聚合分析和仪表板展示。
  */
-export function recordMetric(type: string, data: Record<string, any>): void {
+export function recordMetric(type: string, data: Record<string, unknown>): void {
   metricBuffer.push({
     type,
     data,
@@ -363,7 +363,7 @@ export function recordMetric(type: string, data: Record<string, any>): void {
 /**
  * v272 P0-1: 获取指标缓冲区数据
  */
-export function getMetrics(type?: string, limit: number = 100): Array<{ type: string; data: Record<string, any>; timestamp: Date }> {
+export function getMetrics(type?: string, limit: number = 100): Array<{ type: string; data: Record<string, unknown>; timestamp: Date }> {
   const filtered = type ? metricBuffer.filter(m => m.type === type) : metricBuffer;
   return filtered.slice(-limit);
 }

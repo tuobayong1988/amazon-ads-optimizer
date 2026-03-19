@@ -93,7 +93,7 @@ export async function createEffectRecordsBatch(
 
   const insertResult = await db.insert(algorithmEffectRecords).values(records);
   const startId = insertResult[0].insertId;
-  return records.map((_: any, index: any) => startId + index);
+  return records.map((_: unknown, index: unknown) => startId + index);
 }
 
 /**
@@ -387,7 +387,7 @@ export async function getAlgorithmEffectStats(
     if (bidLogs.length > 0) {
       const algorithmMap = new Map<string, { count: number; positive: number; totalBidChange: number }>();
       
-      for (const log of (bidLogs as any[])) {
+      for (const log of (bidLogs as unknown[])) {
         const algorithm = parseAlgorithmFromDetail(log.actionDetail, log.changeReason);
         const isPositive = isPositiveAction(log.actionDetail, log.actionType);
         const prevBid = Number(log.previousValue) || 0;
@@ -512,7 +512,7 @@ export async function getEffectTrend(
       .groupBy(sql`DATE(${optimizationEvents.createdAt})`)
       .orderBy(sql`DATE(${optimizationEvents.createdAt})`);
     
-    return results.map((row: Record<string, any>) => ({
+    return results.map((row: Record<string, unknown>) => ({
       date: String(row.date),
       avgEffectScore: row.count > 0 ? Math.round((Number(row.positiveCount) / Number(row.count)) * 100) / 100 : 0,
       avgROASChange: 0,
@@ -545,7 +545,7 @@ export async function getEffectTrend(
       .groupBy(sql`DATE(${algorithmEffectRecords.optimizationDate})`)
       .orderBy(sql`DATE(${algorithmEffectRecords.optimizationDate})`);
 
-    return results.map((row: Record<string, any>) => ({
+    return results.map((row: Record<string, unknown>) => ({
       date: String(row.date),
       avgEffectScore: Number(row.avgEffectScore) || 0,
       avgROASChange: Number(row.avgROASChange) || 0,

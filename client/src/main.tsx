@@ -33,7 +33,7 @@ const queryClient = new QueryClient({
   },
 });
 
-const redirectToLoginIfUnauthorized = (error: any) => {
+const redirectToLoginIfUnauthorized = (error: unknown) => {
   if (!(error instanceof TRPCClientError)) return;
   if (typeof window === "undefined") return;
 
@@ -69,7 +69,7 @@ queryClient.getMutationCache().subscribe(event => {
  */
 const authenticatedFetch: typeof globalThis.fetch = (input, init) => {
   const token = localStorage.getItem('authToken');
-  const headers = new Headers((init as any)?.headers);
+  const headers = new Headers((init as unknown)?.headers);
   if (token) {
     headers.set('Authorization', `Bearer ${token}`);
   }

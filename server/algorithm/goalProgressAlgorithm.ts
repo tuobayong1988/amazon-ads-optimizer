@@ -184,7 +184,7 @@ function getWeights(strategyTemplateId: string | null): WeightConfig {
   
   // v272 P0-1: 集成weightAutoTuningService，优先使用自学习权重
   // v358.1: 使用延迟加载模式避免循环依赖，保持同步调用确保兼容性
-  let weightModule: Record<string, any> | null = null;
+  let weightModule: Record<string, unknown> | null = null;
   try {
     if (strategyTemplateId) {
       if (!weightModule) {
@@ -489,7 +489,7 @@ function calculateMultiWindowTrendScore(
   
   // 短期 vs 长期ACoS对比（权重40%）
   maxPoints += 40;
-  const shortWindow = windows[0] as any; // 最短时间窗口
+  const shortWindow = windows[0] as unknown; // 最短时间窗口
   const longWindow = windows[windows.length - 1]; // 最长时间窗口
   
   if (shortWindow.data && longWindow.data && shortWindow.data.totalSales > 0 && longWindow.data.totalSales > 0) {
@@ -650,7 +650,7 @@ function calculateConversionEfficiencyScore(
     'grocery': 18, 'luxury': 3, 'default': 8,
   };
   // @ts-expect-error - dynamic property access
-  const productCategory = (config as unknown).productCategory || 'default';
+  const productCategory = (config as Record<string, unknown>).productCategory || 'default';
   const categoryCvrBenchmark = CATEGORY_CVR_BENCHMARK[productCategory] || CATEGORY_CVR_BENCHMARK['default'];
   
   maxPoints += 30;
@@ -1079,7 +1079,7 @@ export function calculateGoalProgress(
   ];
   
   // 计算加权总分
-  let totalScore = dimensions.reduce((sum: any, d: any) => sum + d.weighted, 0);
+  let totalScore = dimensions.reduce((sum: number, d: Record<string, unknown>) => sum + d.weighted, 0);
   
   // v385: 核心指标严重偏离惩罚机制
   // 当核心指标达成度很低时，其他维度不应过度补偿总分
@@ -1104,8 +1104,8 @@ export function calculateGoalProgress(
   
   // 生成总结
   const levelLabels = { excellent: '优秀', good: '良好', fair: '一般', poor: '待改善' };
-  const topDimension = dimensions.reduce((a: any, b: any) => a.score > b.score ? a : b);
-  const weakDimension = dimensions.reduce((a: any, b: any) => a.score < b.score ? a : b);
+  const topDimension = dimensions.reduce((a: unknown, b: unknown) => a.score > b.score ? a : b);
+  const weakDimension = dimensions.reduce((a: unknown, b: unknown) => a.score < b.score ? a : b);
   
   let summary = `综合评分${totalScore}分（${levelLabels[level]}）`;
   if (topDimension.score > 70) {

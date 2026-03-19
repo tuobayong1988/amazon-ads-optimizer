@@ -554,7 +554,7 @@ export function calculateIntradayAdjustment(
   }[],
   currentHour: number
 ): number {
-  const totalSales = hourlyPerformance.reduce((s: any, h: any) => s + h.sales, 0);
+  const totalSales = hourlyPerformance.reduce((s: unknown, h: unknown) => s + h.sales, 0);
   const avgHourlySales = totalSales / hourlyPerformance.length;
   
   const currentHourData = hourlyPerformance.find(h => h.hour === currentHour);

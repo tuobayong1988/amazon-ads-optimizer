@@ -63,7 +63,7 @@ import {
 export default function SpecialScenarioAnalysis() {
   // v399: 使用全局店铺选择器替代本地状态
   const { accountId: selectedAccountId, accounts, isLoading: accountsLoading } = useGlobalAccountId();
-  const setSelectedAccountId = (_: any) => {}; // v399: 由全局选择器控制，本地setter为no-op
+  const setSelectedAccountId = (_: unknown) => {}; // v399: 由全局选择器控制，本地setter为no-op
 const [activeTab, setActiveTab] = useState("overview");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [targetAcos, setTargetAcos] = useState("25");
@@ -127,7 +127,7 @@ const [activeTab, setActiveTab] = useState("overview");
       refetchBidEfficiency();
     },
     onError: (error) => {
-      toast.error("应用失败: " + (error as any).message);
+      toast.error("应用失败: " + (error as Record<string, unknown>).message);
     },
   });
 
@@ -213,7 +213,7 @@ const [activeTab, setActiveTab] = useState("overview");
                 <SelectValue placeholder="选择账号" />
               </SelectTrigger>
               <SelectContent>
-                {accounts?.map((account: any) => (
+                {accounts?.map((account: unknown) => (
                   <SelectItem key={account.id} value={account.id.toString()}>
                     {account.accountName}
                   </SelectItem>
@@ -247,7 +247,7 @@ const [activeTab, setActiveTab] = useState("overview");
                   <h4 className="font-medium mb-2 text-sm text-muted-foreground">发现的问题</h4>
                   {analysisResult.summary.criticalIssues.length > 0 ? (
                     <ul className="space-y-2">
-                      {analysisResult.summary.criticalIssues.map((issue: any, idx: any) => (
+                      {analysisResult.summary.criticalIssues.map((issue: unknown, idx: unknown) => (
                         <li key={idx} className="flex items-start gap-2 text-sm">
                           <XCircle className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
                           <span>{issue}</span>
@@ -267,7 +267,7 @@ const [activeTab, setActiveTab] = useState("overview");
                   <h4 className="font-medium mb-2 text-sm text-muted-foreground">优化建议</h4>
                   {analysisResult.summary.recommendations.length > 0 ? (
                     <ul className="space-y-2">
-                      {analysisResult.summary.recommendations.slice(0, 4).map((rec: any, idx: any) => (
+                      {analysisResult.summary.recommendations.slice(0, 4).map((rec: unknown, idx: unknown) => (
                         <li key={idx} className="flex items-start gap-2 text-sm">
                           <ChevronRight className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" />
                           <span>{rec}</span>
@@ -414,7 +414,7 @@ const [activeTab, setActiveTab] = useState("overview");
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    {upcomingEvents.slice(0, 3).map((event: any, idx: any) => (
+                    {upcomingEvents.slice(0, 3).map((event: unknown, idx: unknown) => (
                       <div key={idx} className="p-4 rounded-lg border bg-card">
                         <div className="flex items-center justify-between mb-2">
                           <span className="font-semibold">{event.event.name}</span>
@@ -460,7 +460,7 @@ const [activeTab, setActiveTab] = useState("overview");
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {budgetRisks.map((risk: any) => (
+                      {budgetRisks.map((risk: unknown) => (
                         <TableRow key={risk.campaignId}>
                           <TableCell className="font-medium">{risk.campaignName}</TableCell>
                           <TableCell>${risk.dailyBudget.toFixed(2)}</TableCell>
@@ -539,7 +539,7 @@ const [activeTab, setActiveTab] = useState("overview");
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {attributionData.map((day: any) => (
+                      {attributionData.map((day: unknown) => (
                         <TableRow key={day.date}>
                           <TableCell className="font-medium">{day.date}</TableCell>
                           <TableCell>{day.adjusted.dataAge}天</TableCell>
@@ -694,7 +694,7 @@ const [activeTab, setActiveTab] = useState("overview");
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {bidEfficiency.topOverbidding.map((item: any) => (
+                      {bidEfficiency.topOverbidding.map((item: unknown) => (
                         <TableRow key={item.targetId}>
                           <TableCell>
                             <Checkbox
@@ -737,7 +737,7 @@ const [activeTab, setActiveTab] = useState("overview");
                           <TableCell className="max-w-xs">
                             {item.overbiddingReasons.length > 0 ? (
                               <ul className="text-xs text-muted-foreground">
-                                {item.overbiddingReasons.slice(0, 2).map((reason: any, idx: any) => (
+                                {item.overbiddingReasons.slice(0, 2).map((reason: unknown, idx: unknown) => (
                                   <li key={idx}>• {reason}</li>
                                 ))}
                               </ul>
@@ -812,7 +812,7 @@ const [activeTab, setActiveTab] = useState("overview");
               <CardContent>
                 {upcomingEvents && upcomingEvents.length > 0 ? (
                   <div className="space-y-4">
-                    {upcomingEvents.map((event: any, idx: any) => (
+                    {upcomingEvents.map((event: unknown, idx: unknown) => (
                       <div key={idx} className="p-4 rounded-lg border bg-card">
                         <div className="flex items-center justify-between mb-2">
                           <div className="flex items-center gap-3">
@@ -883,7 +883,7 @@ const [activeTab, setActiveTab] = useState("overview");
                   <span className="font-bold text-green-500">
                     ${bidEfficiency?.topOverbidding
                       .filter(k => selectedKeywords.includes(k.targetId))
-                      .reduce((sum: any, k: any) => sum + k.expectedSavings, 0)
+                      .reduce((sum: number, k: Record<string, unknown>) => sum + k.expectedSavings, 0)
                       .toFixed(2) || '0.00'}
                   </span>
                 </div>

@@ -59,10 +59,10 @@ import type { OptimizationExecutionResult, OptimizationTargetConfig } from './ty
 
 export async function executeKeywordStatusChanges(
   config: OptimizationTargetConfig,
-  campaigns: any[],
+  campaigns: unknown[],
   dryRun: boolean
-): Promise<{ executed: boolean; pausedCount: number; enabledCount: number; details: Record<string, any>[] }> {
-  const details: Record<string, any>[] = [];
+): Promise<{ executed: boolean; pausedCount: number; enabledCount: number; details: Record<string, unknown>[] }> {
+  const details: Record<string, unknown>[] = [];
   let pausedCount = 0;
   let enabledCount = 0;
   
@@ -93,7 +93,7 @@ export async function executeKeywordStatusChanges(
   
   // v122g: 计算组平均AOV，用于动态调整花费阈值
   let totalSalesForAov = 0, totalOrdersForAov = 0;
-  for (const c of (campaigns as any[])) {
+  for (const c of (campaigns as unknown[])) {
     totalSalesForAov += parseFloat(c.sales || '0');
     totalOrdersForAov += (c.orders || 0);
   }
@@ -101,7 +101,7 @@ export async function executeKeywordStatusChanges(
   // 花费阈值至少为1.5倍AOV，确保有足够数据判断
   pauseSpendThreshold = Math.max(pauseSpendThreshold, groupAov * 1.5);
   
-  for (const campaign of (campaigns as any[])) {
+  for (const campaign of (campaigns as unknown[])) {
     const campaignLocalId = getCampaignLocalId(campaign);
     const campaignAmazonId = getCampaignAmazonId(campaign);
     try {
@@ -252,7 +252,7 @@ export async function executeKeywordStatusChanges(
         }
         
         if (shouldPause) {
-          const action: Record<string, any> = {
+          const action: Record<string, unknown> = {
             accountId: config.accountId,
             localCampaignId: campaignLocalId,
             amazonCampaignId: campaignAmazonId,
@@ -272,7 +272,7 @@ export async function executeKeywordStatusChanges(
           if (!dryRun) {
             // v148: 先调Amazon API确认成功，再更新本地数据库（先API后DB原则）
             try {
-              const syncResult: any = await amazonApiHelper.syncKeywordStatusToAmazon(
+              const syncResult: unknown = await amazonApiHelper.syncKeywordStatusToAmazon(
                 config.accountId,
                 [{
                   keywordId: keyword.id,
@@ -311,7 +311,7 @@ export async function executeKeywordStatusChanges(
             }
           }
         } else if (shouldEnable) {
-          const action: Record<string, any> = {
+          const action: Record<string, unknown> = {
             accountId: config.accountId,
             localCampaignId: campaignLocalId,
             amazonCampaignId: campaignAmazonId,
@@ -331,7 +331,7 @@ export async function executeKeywordStatusChanges(
           if (!dryRun) {
             // v148: 先调Amazon API确认成功，再更新本地数据库（先API后DB原则）
             try {
-              const syncResult: any = await amazonApiHelper.syncKeywordStatusToAmazon(
+              const syncResult: unknown = await amazonApiHelper.syncKeywordStatusToAmazon(
                 config.accountId,
                 [{
                   keywordId: keyword.id,
@@ -390,10 +390,10 @@ export async function executeKeywordStatusChanges(
  */
 export async function executeCampaignStatusChanges(
   config: OptimizationTargetConfig,
-  campaigns: any[],
+  campaigns: unknown[],
   dryRun: boolean
-): Promise<{ executed: boolean; pausedCount: number; enabledCount: number; details: Record<string, any>[] }> {
-  const details: Record<string, any>[] = [];
+): Promise<{ executed: boolean; pausedCount: number; enabledCount: number; details: Record<string, unknown>[] }> {
+  const details: Record<string, unknown>[] = [];
   let pausedCount = 0;
   let enabledCount = 0;
   
@@ -412,7 +412,7 @@ export async function executeCampaignStatusChanges(
     campaignMaxAcosThreshold = targetAcos * 2.5;
   }
   
-  for (const campaign of (campaigns as any[])) {
+  for (const campaign of (campaigns as unknown[])) {
     const campaignLocalId = getCampaignLocalId(campaign);
     const campaignAmazonId = getCampaignAmazonId(campaign);
     try {
@@ -485,7 +485,7 @@ export async function executeCampaignStatusChanges(
       }
       
       if (shouldPause) {
-        const action: Record<string, any> = {
+        const action: Record<string, unknown> = {
           accountId: config.accountId,
           entityType: 'campaign',
           localCampaignId: campaignLocalId,
@@ -508,7 +508,7 @@ export async function executeCampaignStatusChanges(
         if (!dryRun) {
           // v148: 先调Amazon API确认成功，再更新本地数据库（先API后DB原则）
           try {
-            const syncResult: any = await amazonApiHelper.syncCampaignStatusToAmazon(
+            const syncResult: unknown = await amazonApiHelper.syncCampaignStatusToAmazon(
               config.accountId,
               [{
                 localCampaignId: campaignLocalId,
@@ -536,7 +536,7 @@ export async function executeCampaignStatusChanges(
           }
         }
       } else if (shouldEnable) {
-        const action: Record<string, any> = {
+        const action: Record<string, unknown> = {
           accountId: config.accountId,
           entityType: 'campaign',
           localCampaignId: campaignLocalId,
@@ -559,7 +559,7 @@ export async function executeCampaignStatusChanges(
         if (!dryRun) {
           // v148: 先调Amazon API确认成功，再更新本地数据库（先API后DB原则）
           try {
-            const syncResult: any = await amazonApiHelper.syncCampaignStatusToAmazon(
+            const syncResult: unknown = await amazonApiHelper.syncCampaignStatusToAmazon(
               config.accountId,
               [{
                 localCampaignId: campaignLocalId,
@@ -607,10 +607,10 @@ export async function executeCampaignStatusChanges(
  */
 export async function executeAdGroupStatusChanges(
   config: OptimizationTargetConfig,
-  campaigns: any[],
+  campaigns: unknown[],
   dryRun: boolean
-): Promise<{ executed: boolean; pausedCount: number; enabledCount: number; details: Record<string, any>[] }> {
-  const details: Record<string, any>[] = [];
+): Promise<{ executed: boolean; pausedCount: number; enabledCount: number; details: Record<string, unknown>[] }> {
+  const details: Record<string, unknown>[] = [];
   let pausedCount = 0;
   let enabledCount = 0;
   
@@ -621,7 +621,7 @@ export async function executeAdGroupStatusChanges(
   let adGroupPauseClickThreshold = 50;
   let adGroupMaxAcosThreshold = targetAcos * 2.8;
   
-  for (const campaign of (campaigns as any[])) {
+  for (const campaign of (campaigns as unknown[])) {
     const campaignLocalId = getCampaignLocalId(campaign);
     const campaignAmazonId = getCampaignAmazonId(campaign);
     try {
@@ -669,7 +669,7 @@ export async function executeAdGroupStatusChanges(
                   AND created_at > DATE_SUB(NOW(), INTERVAL 7 DAY)
               `);
               // @ts-expect-error - type assertion
-              const failCount = ((failHistory as unknown)[0]?.[0]?.fail_count) || 0;
+              const failCount = ((failHistory as Record<string, unknown>)[0]?.[0]?.fail_count) || 0;
               if (failCount >= 3) {
                 log.warn(`[AdGroupStatus] v328: 跳过广告组"${adGroup.adGroupName}" — 已连续失败${failCount}次，等待人工处理`);
                 continue;
@@ -679,7 +679,7 @@ export async function executeAdGroupStatusChanges(
             log.warn(`[AdGroupStatus] v328: 失败历史检查异常: ${(failCheckErr as Error).message}`);
           }
           
-          const action: Record<string, any> = {
+          const action: Record<string, unknown> = {
             accountId: config.accountId,
             entityType: 'adGroup',
             localCampaignId: campaignLocalId,
@@ -707,7 +707,7 @@ export async function executeAdGroupStatusChanges(
             pausedCount++;
             
             try {
-              const syncResult: any = await amazonApiHelper.syncAdGroupStatusToAmazon(
+              const syncResult: unknown = await amazonApiHelper.syncAdGroupStatusToAmazon(
                 config.accountId,
                 [{
                   adGroupId: adGroup.id,
@@ -716,7 +716,7 @@ export async function executeAdGroupStatusChanges(
                   adGroupName: adGroup.adGroupName || '',
                   campaignName: campaign.campaignName || '',
                   reason: pauseReason,
-                  campaignType: (campaign as Record<string, any>).campaignType || '', // v310-fix: 传递广告类型以选择正确的API端点
+                  campaignType: (campaign as Record<string, unknown>).campaignType || '', // v310-fix: 传递广告类型以选择正确的API端点
                 }]
               );
               action.apiSyncStatus = syncResult.success > 0 ? 'synced' : 'failed';
@@ -729,7 +729,7 @@ export async function executeAdGroupStatusChanges(
             }
           }
         } else if (shouldEnable) {
-          const action: Record<string, any> = {
+          const action: Record<string, unknown> = {
             accountId: config.accountId,
             entityType: 'adGroup',
             localCampaignId: campaignLocalId,
@@ -757,7 +757,7 @@ export async function executeAdGroupStatusChanges(
             enabledCount++;
             
             try {
-              const syncResult: any = await amazonApiHelper.syncAdGroupStatusToAmazon(
+              const syncResult: unknown = await amazonApiHelper.syncAdGroupStatusToAmazon(
                 config.accountId,
                 [{
                   adGroupId: adGroup.id,
@@ -766,7 +766,7 @@ export async function executeAdGroupStatusChanges(
                   adGroupName: adGroup.adGroupName || '',
                   campaignName: campaign.campaignName || '',
                   reason: enableReason,
-                  campaignType: (campaign as Record<string, any>).campaignType || '', // v310-fix: 传递广告类型以选择正确的API端点
+                  campaignType: (campaign as Record<string, unknown>).campaignType || '', // v310-fix: 传递广告类型以选择正确的API端点
                 }]
               );
               action.apiSyncStatus = syncResult.success > 0 ? 'synced' : 'failed';

@@ -33,7 +33,7 @@ export default function AutoCorrectionDashboard() {
   });
   
   // 获取扫描历史
-  const historyQuery = trpc.autoCorrection.getScanHistory.useQuery() as any;
+  const historyQuery = trpc.autoCorrection.getScanHistory.useQuery() as unknown;
   
   // 手动触发扫描
   const runScanMutation = trpc.autoCorrection.runScan.useMutation({
@@ -53,11 +53,11 @@ export default function AutoCorrectionDashboard() {
   // 计算状态分布
   const statusMap = new Map<string, number>();
   if (dashboard?.statusDistribution) {
-    for (const s of dashboard.statusDistribution as any[]) {
+    for (const s of dashboard.statusDistribution as unknown[]) {
       statusMap.set(s.api_sync_status, Number(s.count));
     }
   }
-  const totalEvents = Array.from(statusMap.values()).reduce((a: any, b: any) => a + b, 0);
+  const totalEvents = Array.from(statusMap.values()).reduce((a: unknown, b: unknown) => a + b, 0);
   const syncedCount = statusMap.get('synced') || 0;
   const failedCount = statusMap.get('failed') || 0;
   const notApplicableCount = (statusMap.get('not_applicable') || 0) + (statusMap.get('invalid_legacy') || 0);
@@ -69,7 +69,7 @@ export default function AutoCorrectionDashboard() {
   // 按操作类型分组统计
   const actionBreakdown = new Map<string, { synced: number; failed: number; pending: number; total: number; notApplicable: number }>();
   if (dashboard?.actionTypeBreakdown) {
-    for (const a of dashboard.actionTypeBreakdown as any[]) {
+    for (const a of dashboard.actionTypeBreakdown as unknown[]) {
       const type = a.action_type;
       if (!actionBreakdown.has(type)) actionBreakdown.set(type, { synced: 0, failed: 0, pending: 0, total: 0, notApplicable: 0 });
       const entry = actionBreakdown.get(type)!;
@@ -103,7 +103,7 @@ export default function AutoCorrectionDashboard() {
     'campaign_enable': '启用活动',
   };
   
-  const formatDate = (d: any) => {
+  const formatDate = (d: unknown) => {
     if (!d) return '-';
     const date = new Date(d);
     return date.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
@@ -218,7 +218,7 @@ export default function AutoCorrectionDashboard() {
                 <Clock className="h-10 w-10 text-blue-400 opacity-50" />
               </div>
               <p className="text-xs text-gray-500 mt-2">
-                {dashboard?.harvestRetryStats ? `搜索词收割待重试: ${(dashboard.harvestRetryStats as any).retryable || 0}` : '加载中...'}
+                {dashboard?.harvestRetryStats ? `搜索词收割待重试: ${(dashboard.harvestRetryStats as Record<string, unknown>).retryable || 0}` : '加载中...'}
               </p>
             </CardContent>
           </Card>
@@ -269,37 +269,37 @@ export default function AutoCorrectionDashboard() {
                     <div className="space-y-3">
                       <div className="flex justify-between text-sm">
                         <span className="text-gray-400">扫描ID</span>
-                        <span className="text-gray-300 font-mono text-xs">{(dashboard.lastScan as any).scanId}</span>
+                        <span className="text-gray-300 font-mono text-xs">{(dashboard.lastScan as Record<string, unknown>).scanId}</span>
                       </div>
                       <div className="flex justify-between text-sm">
                         <span className="text-gray-400">扫描时间</span>
-                        <span className="text-gray-300">{formatDate((dashboard.lastScan as any).completedAt)}</span>
+                        <span className="text-gray-300">{formatDate((dashboard.lastScan as Record<string, unknown>).completedAt)}</span>
                       </div>
                       <div className="flex justify-between text-sm">
                         <span className="text-gray-400">账户数</span>
-                        <span className="text-gray-300">{(dashboard.lastScan as any).accountsScanned}</span>
+                        <span className="text-gray-300">{(dashboard.lastScan as Record<string, unknown>).accountsScanned}</span>
                       </div>
                       <div className="border-t border-gray-800 pt-3 mt-3">
                         <div className="grid grid-cols-3 gap-4 text-center">
                           <div>
-                            <p className="text-2xl font-bold text-white">{(dashboard.lastScan as any).totalIssuesFound}</p>
+                            <p className="text-2xl font-bold text-white">{(dashboard.lastScan as Record<string, unknown>).totalIssuesFound}</p>
                             <p className="text-xs text-gray-500">发现问题</p>
                           </div>
                           <div>
-                            <p className="text-2xl font-bold text-green-400">{(dashboard.lastScan as any).totalCorrected}</p>
+                            <p className="text-2xl font-bold text-green-400">{(dashboard.lastScan as Record<string, unknown>).totalCorrected}</p>
                             <p className="text-xs text-gray-500">已纠正</p>
                           </div>
                           <div>
-                            <p className="text-2xl font-bold text-red-400">{(dashboard.lastScan as any).totalFailed}</p>
+                            <p className="text-2xl font-bold text-red-400">{(dashboard.lastScan as Record<string, unknown>).totalFailed}</p>
                             <p className="text-xs text-gray-500">失败</p>
                           </div>
                         </div>
                       </div>
                       {/* 详细分类 */}
-                      {(dashboard.lastScan as any).details && (
+                      {(dashboard.lastScan as Record<string, unknown>).details && (
                         <div className="border-t border-gray-800 pt-3 mt-3 space-y-2">
                           <p className="text-xs text-gray-500 font-medium">分类详情</p>
-                          {Object.entries((dashboard.lastScan as any).details).map(([key, val]: [string, any]) => {
+                          {Object.entries((dashboard.lastScan as Record<string, unknown>).details).map(([key, val]: [string, unknown]) => {
                             if (val.found === 0) return null;
                             const labels: Record<string, string> = {
                               bidRetries: '出价重试',
@@ -380,31 +380,31 @@ export default function AutoCorrectionDashboard() {
                         </div>
                         <div className="flex justify-between text-xs">
                           <span className="text-gray-400">最大出价纠正/次</span>
-                          <span className="text-gray-300">{(dashboard.config as any).maxBidCorrectionsPerRun}</span>
+                          <span className="text-gray-300">{(dashboard.config as Record<string, unknown>).maxBidCorrectionsPerRun}</span>
                         </div>
                         <div className="flex justify-between text-xs">
                           <span className="text-gray-400">最大预算纠正/次</span>
-                          <span className="text-gray-300">{(dashboard.config as any).maxBudgetCorrectionsPerRun}</span>
+                          <span className="text-gray-300">{(dashboard.config as Record<string, unknown>).maxBudgetCorrectionsPerRun}</span>
                         </div>
                         <div className="flex justify-between text-xs">
                           <span className="text-gray-400">最大重试次数</span>
-                          <span className="text-gray-300">{(dashboard.config as any).maxRetryAttempts}</span>
+                          <span className="text-gray-300">{(dashboard.config as Record<string, unknown>).maxRetryAttempts}</span>
                         </div>
                         <div className="flex justify-between text-xs">
                           <span className="text-gray-400">重试过期天数</span>
-                          <span className="text-gray-300">{(dashboard.config as any).retryExpiryDays}天</span>
+                          <span className="text-gray-300">{(dashboard.config as Record<string, unknown>).retryExpiryDays}天</span>
                         </div>
                         <div className="flex justify-between text-xs">
                           <span className="text-gray-400">出价容差</span>
-                          <span className="text-gray-300">${(dashboard.config as any).bidToleranceBaseUSD ?? '0.01'}</span>
+                          <span className="text-gray-300">${(dashboard.config as Record<string, unknown>).bidToleranceBaseUSD ?? '0.01'}</span>
                         </div>
                         <div className="flex justify-between text-xs">
                           <span className="text-gray-400">预算容差</span>
-                          <span className="text-gray-300">${(dashboard.config as any).budgetToleranceBaseUSD ?? '2.00'}</span>
+                          <span className="text-gray-300">${(dashboard.config as Record<string, unknown>).budgetToleranceBaseUSD ?? '2.00'}</span>
                         </div>
                         <div className="flex justify-between text-xs">
                           <span className="text-gray-400">扫描间隔</span>
-                          <span className="text-gray-300">{(dashboard.config as any).scanIntervalHours}小时</span>
+                          <span className="text-gray-300">{(dashboard.config as Record<string, unknown>).scanIntervalHours}小时</span>
                         </div>
                       </>
                     )}
@@ -417,11 +417,11 @@ export default function AutoCorrectionDashboard() {
                         </div>
                         <div className="flex justify-between text-xs">
                           <span className="text-gray-400">待处理总数</span>
-                          <span className="text-gray-300">{Number((dashboard.harvestRetryStats as any).total || 0).toLocaleString()}</span>
+                          <span className="text-gray-300">{Number((dashboard.harvestRetryStats as Record<string, unknown>).total || 0).toLocaleString()}</span>
                         </div>
                         <div className="flex justify-between text-xs">
                           <span className="text-gray-400">可重试数</span>
-                          <span className="text-amber-400 font-medium">{Number((dashboard.harvestRetryStats as any).retryable || 0).toLocaleString()}</span>
+                          <span className="text-amber-400 font-medium">{Number((dashboard.harvestRetryStats as Record<string, unknown>).retryable || 0).toLocaleString()}</span>
                         </div>
                       </>
                     )}
@@ -432,7 +432,7 @@ export default function AutoCorrectionDashboard() {
             )}
             
             {/* 7天趋势 */}
-            {dashboard?.trendData && (dashboard.trendData as any[]).length > 0 && (
+            {dashboard?.trendData && (dashboard.trendData as unknown[]).length > 0 && (
               <Card className="bg-gray-900 border-gray-800">
                 <CardHeader>
                   <CardTitle className="text-white text-lg flex items-center gap-2">
@@ -453,7 +453,7 @@ export default function AutoCorrectionDashboard() {
                         </tr>
                       </thead>
                       <tbody>
-                        {(dashboard.trendData as any[]).map((t: any, i: number) => {
+                        {(dashboard.trendData as unknown[]).map((t: unknown, i: number) => {
                           const total = Number(t.corrections);
                           const synced = Number(t.synced);
                           const failed = Number(t.failed);
@@ -502,7 +502,7 @@ export default function AutoCorrectionDashboard() {
                     </thead>
                     <tbody>
                       {Array.from(actionBreakdown.entries())
-                        .sort((a: any, b: any) => b[1].total - a[1].total)
+                        .sort((a: unknown, b: unknown) => b[1].total - a[1].total)
                         .map(([type, stats]) => {
                           const applicableTotal = stats.total - stats.notApplicable;
                           const rate = applicableTotal > 0 ? (stats.synced / applicableTotal * 100) : (stats.notApplicable > 0 ? 100 : 0);
@@ -534,7 +534,7 @@ export default function AutoCorrectionDashboard() {
             </Card>
             
             {/* 否定关键词状态 */}
-            {dashboard?.negKeywordStats && (dashboard.negKeywordStats as any[]).length > 0 && (
+            {dashboard?.negKeywordStats && (dashboard.negKeywordStats as unknown[]).length > 0 && (
               <Card className="bg-gray-900 border-gray-800">
                 <CardHeader>
                   <CardTitle className="text-white text-lg flex items-center gap-2">
@@ -544,7 +544,7 @@ export default function AutoCorrectionDashboard() {
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    {(dashboard.negKeywordStats as any[]).map((s: any, i: number) => (
+                    {(dashboard.negKeywordStats as unknown[]).map((s: unknown, i: number) => (
                       <div key={i} className="text-center p-3 bg-gray-800/50 rounded-lg">
                         <p className="text-2xl font-bold text-white">{Number(s.count).toLocaleString()}</p>
                         <p className="text-xs text-gray-400 mt-1">
@@ -585,7 +585,7 @@ export default function AutoCorrectionDashboard() {
                         </tr>
                       </thead>
                       <tbody>
-                        {history.map((scan: any, i: number) => (
+                        {history.map((scan: unknown, i: number) => (
                           <tr key={i} className="border-b border-gray-800/50 hover:bg-gray-800/30">
                             <td className="py-2 px-3 text-gray-400 font-mono text-xs">{scan.scanId?.substring(0, 20)}</td>
                             <td className="py-2 px-3 text-gray-300">{formatDate(scan.completedAt)}</td>
@@ -621,10 +621,10 @@ export default function AutoCorrectionDashboard() {
                 <CardDescription>AutoCorrector 最近处理的纠错事件</CardDescription>
               </CardHeader>
               <CardContent>
-                {dashboard?.recentCorrections && (dashboard.recentCorrections as any[]).length > 0 ? (
+                {dashboard?.recentCorrections && (dashboard.recentCorrections as unknown[]).length > 0 ? (
                   <div className="space-y-3">
-                    {(dashboard.recentCorrections as any[]).map((c: any, i: number) => {
-                      let detail: any = {};
+                    {(dashboard.recentCorrections as unknown[]).map((c: unknown, i: number) => {
+                      let detail: unknown = {};
                       try { detail = typeof c.api_sync_detail === 'string' ? JSON.parse(c.api_sync_detail) : (c.api_sync_detail || {}); } catch { detail = {}; }
                       
                       return (

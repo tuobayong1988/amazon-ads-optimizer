@@ -169,7 +169,7 @@ export async function updateBatchOperationStatus(id: number, data: {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
-  const updateData: Record<string, any> = { batchStatus: data.status };
+  const updateData: Record<string, unknown> = { batchStatus: data.status };
   if (data.processedItems !== undefined) updateData.processedItems = data.processedItems;
   if (data.successItems !== undefined) updateData.successItems = data.successItems;
   if (data.failedItems !== undefined) updateData.failedItems = data.failedItems;

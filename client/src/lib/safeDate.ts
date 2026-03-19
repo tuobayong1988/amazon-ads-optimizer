@@ -15,7 +15,7 @@
  * @param fallback - 解析失败时的回退值，默认为当前时间
  * @returns 有效的Date对象
  */
-export function safeParseDate(value: any, fallback?: Date): Date {
+export function safeParseDate(value: unknown, fallback?: Date): Date {
   if (!value && value !== 0) {
     return fallback || new Date();
   }
@@ -77,7 +77,7 @@ export function safeParseDate(value: any, fallback?: Date): Date {
  * @param fallback - 解析失败时的回退字符串
  * @returns ISO日期字符串
  */
-export function safeToISODateString(value: any, fallback?: string): string {
+export function safeToISODateString(value: unknown, fallback?: string): string {
   const date = safeParseDate(value);
   try {
     return date.toISOString().split('T')[0];
@@ -91,7 +91,7 @@ export function safeToISODateString(value: any, fallback?: string): string {
  * @param value - 任意日期值
  * @returns ISO完整字符串
  */
-export function safeToISOString(value: any): string {
+export function safeToISOString(value: unknown): string {
   const date = safeParseDate(value);
   try {
     return date.toISOString();
@@ -109,7 +109,7 @@ export function safeToISOString(value: any): string {
  * @returns 格式化后的日期字符串
  */
 export function safeToLocaleDateString(
-  value: any,
+  value: unknown,
   locale: string = 'zh-CN',
   options?: Intl.DateTimeFormatOptions,
   fallback: string = '-'
@@ -131,7 +131,7 @@ export function safeToLocaleDateString(
  * @returns 格式化后的日期时间字符串
  */
 export function safeToLocaleString(
-  value: any,
+  value: unknown,
   locale: string = 'zh-CN',
   options?: Intl.DateTimeFormatOptions,
   fallback: string = '-'
@@ -153,7 +153,7 @@ export function safeToLocaleString(
  * @returns 格式化后的时间字符串
  */
 export function safeToLocaleTimeString(
-  value: any,
+  value: unknown,
   locale: string = 'zh-CN',
   options?: Intl.DateTimeFormatOptions,
   fallback: string = '-'
@@ -171,7 +171,7 @@ export function safeToLocaleTimeString(
  * @param value - 任意日期值
  * @returns 时间戳（毫秒），无效时返回0
  */
-export function safeGetTime(value: any): number {
+export function safeGetTime(value: unknown): number {
   try {
     const date = safeParseDate(value);
     const time = date.getTime();
@@ -187,7 +187,7 @@ export function safeGetTime(value: any): number {
  * @param b - 第二个日期值
  * @returns 排序比较结果
  */
-export function safeDateCompare(a: any, b: any): number {
+export function safeDateCompare(a: unknown, b: unknown): number {
   return safeGetTime(a) - safeGetTime(b);
 }
 
@@ -196,7 +196,7 @@ export function safeDateCompare(a: any, b: any): number {
  * @param value - 任意日期值
  * @returns 是否为有效日期
  */
-export function isValidDate(value: any): boolean {
+export function isValidDate(value: unknown): boolean {
   if (!value && value !== 0) return false;
   try {
     const date = value instanceof Date ? value : new Date(value);

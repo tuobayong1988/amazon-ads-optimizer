@@ -29,7 +29,7 @@ type ScheduleFrequency = "hourly" | "daily" | "weekly" | "monthly";
 export default function DataSync() {
   // v399: 使用全局店铺选择器替代本地状态
   const { accountId: selectedAccountId, accounts, isLoading: accountsLoading } = useGlobalAccountId();
-  const setSelectedAccountId = (_: any) => {}; // v399: 由全局选择器控制，本地setter为no-op
+  const setSelectedAccountId = (_: unknown) => {}; // v399: 由全局选择器控制，本地setter为no-op
 const [activeTab, setActiveTab] = useState("tiered");
   const [syncType, setSyncType] = useState<SyncType>("all");
   const [statusFilter, setStatusFilter] = useState<SyncStatus | "all">("all");
@@ -46,7 +46,7 @@ const [activeTab, setActiveTab] = useState("tiered");
   });
 
   // 获取限流状态
-  const { data: rateLimitStatus, refetch: refetchRateLimit } = trpc.dataSync.getRateLimitStatus.useQuery() as any;
+  const { data: rateLimitStatus, refetch: refetchRateLimit } = trpc.dataSync.getRateLimitStatus.useQuery() as unknown;
 
   // 获取调度配置列表
   const { data: schedules, isLoading: schedulesLoading, refetch: refetchSchedules } = trpc.dataSync.getSchedules.useQuery({
@@ -300,7 +300,7 @@ const [activeTab, setActiveTab] = useState("tiered");
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">全部账号</SelectItem>
-              {accounts?.map((account: any) => (
+              {accounts?.map((account: unknown) => (
                 <SelectItem key={account.id} value={account.id.toString()}>
                   {account.accountName}
                 </SelectItem>
@@ -457,7 +457,7 @@ const [activeTab, setActiveTab] = useState("tiered");
                   <div>
                     <p className="text-sm text-muted-foreground">总同步记录</p>
                     <p className="text-2xl font-bold">
-                      {jobsData?.jobs.reduce((sum: any, j: any) => sum + (j.recordsSynced || 0), 0).toLocaleString() || 0}
+                      {jobsData?.jobs.reduce((sum: number, j: Record<string, unknown>) => sum + (j.recordsSynced || 0), 0).toLocaleString() || 0}
                     </p>
                   </div>
                 </div>
@@ -505,7 +505,7 @@ const [activeTab, setActiveTab] = useState("tiered");
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {jobsData?.jobs.map((job: any) => (
+                  {jobsData?.jobs.map((job: unknown) => (
                     <div
                       key={job.id}
                       className="border rounded-lg p-4 hover:bg-accent/50 transition-colors"
@@ -799,7 +799,7 @@ const [activeTab, setActiveTab] = useState("tiered");
             <CardContent>
               {schedulesLoading ? (
                 <div className="text-center py-8 text-muted-foreground">加载中...</div>
-              ) : !schedules || (schedules as any[]).length === 0 ? (
+              ) : !schedules || (schedules as unknown[]).length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <Calendar className="h-12 w-12 mx-auto mb-4 opacity-50" />
                   <p>暂无调度配置</p>
@@ -807,7 +807,7 @@ const [activeTab, setActiveTab] = useState("tiered");
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {(schedules as any[]).map((schedule: any) => (
+                  {(schedules as unknown[]).map((schedule: unknown) => (
                     <div key={schedule.id} className="border rounded-lg p-4">
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-3">
@@ -948,7 +948,7 @@ const [activeTab, setActiveTab] = useState("tiered");
           {/* 执行历史列表 */}
           <div className="space-y-2">
             <h4 className="font-medium mb-3">执行记录</h4>
-            {!executionHistory || (executionHistory as any[]).length === 0 ? (
+            {!executionHistory || (executionHistory as unknown[]).length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 <History className="h-12 w-12 mx-auto mb-4 opacity-50" />
                 <p>暂无执行记录</p>
@@ -968,7 +968,7 @@ const [activeTab, setActiveTab] = useState("tiered");
                     </tr>
                   </thead>
                   <tbody>
-                    {(executionHistory as any[]).map((record: any, index: number) => (
+                    {(executionHistory as unknown[]).map((record: unknown, index: number) => (
                       <tr key={index} className="border-b hover:bg-muted/50">
                         <td className="p-2">
                           <Badge className={record.status === 'success' ? 'bg-green-500' : record.status === 'retrying' ? 'bg-yellow-500' : 'bg-red-500'}>

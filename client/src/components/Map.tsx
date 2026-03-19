@@ -75,7 +75,7 @@
  */
 
 // google.maps types loaded at runtime via Google Maps script
-declare const google: any;
+declare const google: unknown;
 
 import { useEffect, useRef } from "react";
 import { usePersistFn } from "@/hooks/usePersistFn";
@@ -114,7 +114,7 @@ interface MapViewProps {
   className?: string;
   initialCenter?: { lat: number; lng: number };
   initialZoom?: number;
-  onMapReady?: (map: any) => void;
+  onMapReady?: (map: unknown) => void;
 }
 
 export function MapView({
@@ -124,7 +124,7 @@ export function MapView({
   onMapReady,
 }: MapViewProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
-  const map = useRef<any>(null);
+  const map = useRef<unknown>(null);
 
   const init = usePersistFn(async () => {
     await loadMapScript();

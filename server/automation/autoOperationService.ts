@@ -42,7 +42,7 @@ export interface AutoOperationLog {
   startedAt: Date;
   completedAt: Date | null;
   duration: number | null;
-  details: Record<string, any>;
+  details: Record<string, unknown>;
   errorMessage: string | null;
 }
 
@@ -51,7 +51,7 @@ interface StepResult {
   step: string;
   status: 'success' | 'failed' | 'skipped';
   duration: number;
-  details: Record<string, any>;
+  details: Record<string, unknown>;
   error?: string;
 }
 
@@ -517,7 +517,7 @@ export const autoOperationService = {
   async getLogs(accountId: number, limit: number = 50): Promise<AutoOperationLog[]> {
     return logStore
       .filter(log => log.accountId === accountId)
-      .sort((a: any, b: any) => b.startedAt.getTime() - a.startedAt.getTime())
+      .sort((a: unknown, b: unknown) => b.startedAt.getTime() - a.startedAt.getTime())
       .slice(0, limit);
   },
 
@@ -528,7 +528,7 @@ export const autoOperationService = {
     const now = new Date();
     const dueAccounts: number[] = [];
     
-    configStore.forEach((config: any, accountId: any) => {
+    configStore.forEach((config: unknown, accountId: unknown) => {
       if (config.enabled && config.nextRunAt && config.nextRunAt <= now) {
         dueAccounts.push(accountId);
       }

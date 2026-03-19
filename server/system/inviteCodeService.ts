@@ -45,7 +45,7 @@ async function dropInviteCodesForeignKeys(db: Awaited<ReturnType<typeof import("
       SELECT CONSTRAINT_NAME FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS 
       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'invite_codes' AND CONSTRAINT_TYPE = 'FOREIGN KEY'
     `);
-    const fkRows = (fkResult as Record<string, any>[][])[0] || [];
+    const fkRows = (fkResult as Record<string, unknown>[][])[0] || [];
     log.info(`[InviteCode] 发现 ${fkRows.length} 个FK约束需要移除`);
     for (const fk of fkRows) {
       const fkName = fk.CONSTRAINT_NAME || fk.constraint_name;
@@ -173,7 +173,7 @@ export async function createInviteCode(input: CreateInviteCodeInput): Promise<{ 
     `);
     
     const result = await db.execute(sql`SELECT * FROM invite_codes WHERE code = ${code}`);
-    const rows = (result as Record<string, any>[][])[0];
+    const rows = (result as Record<string, unknown>[][])[0];
     
     if (rows && rows.length > 0) {
       const row = rows[0] as Record<string, unknown>;
@@ -234,7 +234,7 @@ export async function validateInviteCode(code: string): Promise<{ valid: boolean
       WHERE ic.code = ${code}
     `);
     
-    const rows = (result as Record<string, any>[][])[0];
+    const rows = (result as Record<string, unknown>[][])[0];
     if (!rows || rows.length === 0) {
       return { valid: false, error: '邀请码不存在' };
     }
@@ -328,8 +328,8 @@ export async function getInviteCodes(createdBy?: number): Promise<InviteCode[]> 
       `);
     }
     
-    const rows = (result as Record<string, any>[][])[0] || [];
-    return rows.map((row: Record<string, any>) => ({
+    const rows = (result as Record<string, unknown>[][])[0] || [];
+    return rows.map((row: Record<string, unknown>) => ({
       id: row.id,
       code: row.code,
       createdBy: row.created_by,
@@ -414,7 +414,7 @@ export async function getInviteCodeStats(createdBy?: number): Promise<{
       FROM invite_codes ${whereClause}
     `);
     
-    const rows = (result as Record<string, any>[][])[0];
+    const rows = (result as Record<string, unknown>[][])[0];
     if (rows && rows.length > 0) {
       const row = rows[0] as Record<string, unknown>;
       return {

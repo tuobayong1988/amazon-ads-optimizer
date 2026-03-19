@@ -72,21 +72,21 @@ export function AiAttributionAnalysis({
     const bidIncreaseActions = actions.filter(a => a.type === "bid_increase");
 
     if (negativeActions.length > 0) {
-      const totalKeywords = negativeActions.reduce((sum: any, a: any) => sum + (a.count || 0), 0);
+      const totalKeywords = negativeActions.reduce((sum: number, a: Record<string, unknown>) => sum + (a.count || 0), 0);
       if (totalKeywords > 0) {
         parts.push(`自动否决了 ${totalKeywords} 个低效词`);
       }
     }
 
     if (bidDecreaseActions.length > 0) {
-      const totalCampaigns = bidDecreaseActions.reduce((sum: any, a: any) => sum + (a.count || 0), 0);
+      const totalCampaigns = bidDecreaseActions.reduce((sum: number, a: Record<string, unknown>) => sum + (a.count || 0), 0);
       if (totalCampaigns > 0) {
         parts.push(`降低了 ${totalCampaigns} 个广告活动的竞价`);
       }
     }
 
     if (bidIncreaseActions.length > 0) {
-      const totalCampaigns = bidIncreaseActions.reduce((sum: any, a: any) => sum + (a.count || 0), 0);
+      const totalCampaigns = bidIncreaseActions.reduce((sum: number, a: Record<string, unknown>) => sum + (a.count || 0), 0);
       if (totalCampaigns > 0) {
         parts.push(`提高了 ${totalCampaigns} 个高效广告活动的竞价`);
       }
@@ -181,7 +181,7 @@ export function AiAttributionAnalysis({
           <div className="space-y-2">
             <div className="text-sm font-medium">优化操作详情</div>
             <div className="space-y-2">
-              {actions.map((action: any, index: any) => (
+              {actions.map((action: unknown, index: unknown) => (
                 <div key={index} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
                   <div className="flex items-center gap-3">
                     {actionIcons[action.type]}

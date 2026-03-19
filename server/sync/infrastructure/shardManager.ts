@@ -343,7 +343,7 @@ async function updateTaskProgress(taskId: string): Promise<void> {
       WHERE task_id = ${taskId}
     `);
 
-    const row = (stats as Record<string, any>[])?.[0]?.[0] || (stats as Record<string, any>[])?.[0];
+    const row = (stats as Record<string, unknown>[])?.[0]?.[0] || (stats as Record<string, unknown>[])?.[0];
     if (!row) return;
 
     const total = Number(row.total) || 0;
@@ -364,7 +364,7 @@ async function updateTaskProgress(taskId: string): Promise<void> {
       taskStatus = 'completed';
     }
 
-    const updates: Record<string, any> = {
+    const updates: Record<string, unknown> = {
       completedShards: completed,
       failedShards: failed,
       totalRecordsSynced: totalSynced,

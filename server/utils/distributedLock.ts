@@ -277,7 +277,7 @@ export async function getAllDistributedLockStatus(): Promise<Array<{
       ORDER BY acquired_at DESC
     `);
     const rows = extractRows(result);
-    return (rows as any[]).map(row => ({
+    return (rows as unknown[]).map(row => ({
       lockKey: row.lock_key,
       holderId: row.holder_id,
       acquiredAt: row.acquired_at,

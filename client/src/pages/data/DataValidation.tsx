@@ -39,7 +39,7 @@ export default function DataValidation() {
   const { user } = useAuth();
   // v399: 使用全局店铺选择器替代本地状态
   const { accountId: selectedAccountId, accounts, isLoading: accountsLoading } = useGlobalAccountId();
-  const setSelectedAccountId = (_: any) => {}; // v399: 由全局选择器控制，本地setter为no-op
+  const setSelectedAccountId = (_: unknown) => {}; // v399: 由全局选择器控制，本地setter为no-op
 const [validationStatus, setValidationStatus] = useState<ValidationStatus>('idle');
   const [validationResults, setValidationResults] = useState<ValidationResult[]>([]);
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -56,7 +56,7 @@ const [validationStatus, setValidationStatus] = useState<ValidationStatus>('idle
     onSuccess: (data) => {
       setValidationStatus('completed');
       if (data.results) {
-        setValidationResults(data.results.map((r: any) => ({
+        setValidationResults(data.results.map((r: unknown) => ({
           entityType: r.entityType,
           localCount: r.localCount,
           remoteCount: r.remoteCount,
@@ -94,7 +94,7 @@ const [validationStatus, setValidationStatus] = useState<ValidationStatus>('idle
     const matchCount = validationResults.filter(r => r.status === 'match').length;
     const mismatchCount = validationResults.filter(r => r.status === 'mismatch').length;
     const errorCount = validationResults.filter(r => r.status === 'error').length;
-    const totalDifference = validationResults.reduce((sum: any, r: any) => sum + Math.abs(r.difference), 0);
+    const totalDifference = validationResults.reduce((sum: number, r: Record<string, unknown>) => sum + Math.abs(r.difference), 0);
     
     return { matchCount, mismatchCount, errorCount, totalDifference };
   }, [validationResults]);
@@ -189,7 +189,7 @@ const [validationStatus, setValidationStatus] = useState<ValidationStatus>('idle
                   <SelectValue placeholder="选择账户" />
                 </SelectTrigger>
                 <SelectContent>
-                  {accounts?.map((account: any) => (
+                  {accounts?.map((account: unknown) => (
                     <SelectItem key={account.id} value={account.id.toString()}>
                       {account.accountName} ({account.marketplace})
                     </SelectItem>
@@ -338,7 +338,7 @@ const [validationStatus, setValidationStatus] = useState<ValidationStatus>('idle
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {validationResults.map((result: any, index: any) => {
+                {validationResults.map((result: unknown, index: unknown) => {
                   const diffDisplay = getDifferenceDisplay(result.difference);
                   return (
                     <div 

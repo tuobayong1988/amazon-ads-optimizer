@@ -91,7 +91,7 @@ export async function recordExecutionLog(result: OptimizationExecutionResult): P
               apiSyncStatus: 'not_applicable',
               createdAt: now,
               executedAt: now,
-            } as Record<string, any>);
+            } as Record<string, unknown>);
           } catch (safetyLogErr: unknown) {
             log.error(`[recordExecutionLog] v335: 安全检查日志写入失败: ${(safetyLogErr as Error).message}`);
           }
@@ -141,7 +141,7 @@ export async function recordExecutionLog(result: OptimizationExecutionResult): P
             // v258: 传递结构化归因和护栏信息
             reasonDetails: detail.reasonDetails ? JSON.stringify(detail.reasonDetails) : undefined,
             guardrailInfo: detail.guardrailInfo ? JSON.stringify(detail.guardrailInfo) : undefined,
-          } as Record<string, any>);
+          } as Record<string, unknown>);
         } catch (insertError: unknown) {
           log.error(`[recordExecutionLog] 出价日志写入失败: ${(insertError as Error).message}`, { keywordId: detail.keywordId, itemSyncStatus });
         }
@@ -383,7 +383,7 @@ export async function recordExecutionLog(result: OptimizationExecutionResult): P
       const { performanceGroups } = await import('../../drizzle/schema');
       const { eq: eqOp } = await import('drizzle-orm');
       await dbInstance!.update(performanceGroups)
-        .set({ lastOptimizationAt: new Date() } as Record<string, any>)
+        .set({ lastOptimizationAt: new Date() } as Record<string, unknown>)
         .where(eqOp(performanceGroups.id, result.targetId));
       log.info(`[OptimizationTargetEngine] 已更新 last_optimization_at: targetId=${result.targetId}`);
     } catch (updateErr: unknown) {

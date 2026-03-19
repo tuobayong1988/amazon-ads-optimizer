@@ -20,7 +20,7 @@ export const adAutomationRouter = router({
       accountId: z.number(),
       days: z.number().min(7).max(90).default(30),
     }))
-    .query(async ({ input, ctx }: any) => {
+    .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       // 获取搜索词数据
       const searchTerms = await db.getSearchTermsForAnalysis(input.accountId, input.days);
@@ -40,7 +40,7 @@ export const adAutomationRouter = router({
       phraseToExactMinConversions: z.number().default(10),
       phraseToExactMinRoas: z.number().default(5),
     }))
-    .query(async ({ input, ctx }: any) => {
+    .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       const searchTerms = await db.getCampaignSearchTerms(input.accountId);
       // @ts-expect-error - type assertion
@@ -59,14 +59,14 @@ export const adAutomationRouter = router({
   // 流量冲突检测
   detectTrafficConflicts: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    .query(async ({ input, ctx }: any) => {
+    .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       const searchTerms = await db.getCampaignSearchTerms(input.accountId);
       // @ts-expect-error - type assertion
       const conflicts = adAutomation.detectTrafficConflicts(searchTerms as unknown);
       return {
         totalConflicts: conflicts.length,
-        totalWastedSpend: conflicts.reduce((sum: any, c: any) => sum + c.totalWastedSpend, 0),
+        totalWastedSpend: conflicts.reduce((sum: number, c: Record<string, unknown>) => sum + c.totalWastedSpend, 0),
         conflicts: conflicts.slice(0, 50), // 返回前50个
       };
     }),
@@ -78,7 +78,7 @@ export const adAutomationRouter = router({
       targetAcos: z.number().default(30),
       targetRoas: z.number().default(3.33),
     }))
-    .query(async ({ input, ctx }: any) => {
+    .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       const targets = await db.getBidTargets(input.accountId);
       // @ts-expect-error - type assertion
@@ -108,7 +108,7 @@ export const adAutomationRouter = router({
       productColors: z.array(z.string()).optional(),
       productSizes: z.array(z.string()).optional(),
     }))
-    .query(async ({ input, ctx }: any) => {
+    .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       const searchTerms = await db.getUniqueSearchTerms(input.accountId);
       const classifications = adAutomation.classifySearchTerms(
@@ -135,7 +135,7 @@ export const adAutomationRouter = router({
     .input(z.object({
       productCategory: z.string(),
     }))
-    .query(({ input }: any) => {
+    .query(({ input }: unknown) => {
       const presets = adAutomation.getPresetNegativeKeywords(input.productCategory);
       return {
         totalPresets: presets.length,
@@ -153,7 +153,7 @@ export const adAutomationRouter = router({
         matchType: z.enum(['phrase', 'exact']),
       })),
     }))
-    .mutation(async ({ input, ctx }: any) => {
+    .mutation(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       // 这里可以调用Amazon API添加否定词
       // 目前先记录到数据库
@@ -180,7 +180,7 @@ export const adAutomationRouter = router({
         suggestedBid: z.number(),
       })),
     }))
-    .mutation(async ({ input, ctx }: any) => {
+    .mutation(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       // 记录迁移操作
       let migratedCount = 0;
@@ -206,7 +206,7 @@ export const adAutomationRouter = router({
       accountId: z.number(),
       attributionWindowDays: z.number().min(7).max(30).default(14),
     }))
-    .query(async ({ input, ctx }: any) => {
+    .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       // 获取过去30天的出价变更记录
       const bidChanges = await db.getBidChangeRecords(input.accountId, 30);
@@ -239,7 +239,7 @@ export const adAutomationRouter = router({
         reason: z.string(),
       })),
     }))
-    .mutation(async ({ input, ctx }: any) => {
+    .mutation(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       let appliedCount = 0;
       for (const correction of input.corrections) {
@@ -269,12 +269,12 @@ export const adAutomationRouter = router({
       cvrDropCritical: z.number().default(-50),
       roasMinimum: z.number().default(2),
     }))
-    .query(async ({ input, ctx }: any) => {
+    .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       
       // v390: 缓存健康分析结果 120秒
       const cacheKey = `health.analyze:${ctx.user.id}:${input.accountId}`;
-      const cached = apiCache.get<any>(cacheKey);
+      const cached = apiCache.get<unknown>(cacheKey);
       if (cached) return cached;
       
       const campaigns = await db.getCampaignHealthMetrics(input.accountId);
@@ -291,7 +291,7 @@ export const adAutomationRouter = router({
       const criticalCount = healthScores.filter(h => h.status === 'critical').length;
       const warningCount = healthScores.filter(h => h.status === 'warning').length;
       const healthyCount = healthScores.filter(h => h.status === 'healthy').length;
-      const totalAlerts = healthScores.reduce((sum: any, h: any) => sum + h.alerts.length, 0);
+      const totalAlerts = healthScores.reduce((sum: number, h: Record<string, unknown>) => sum + h.alerts.length, 0);
       
       const result = {
         totalCampaigns: healthScores.length,
@@ -300,7 +300,7 @@ export const adAutomationRouter = router({
         healthyCount,
         totalAlerts,
         avgHealthScore: healthScores.length > 0 
-          ? Math.round(healthScores.reduce((sum: any, h: any) => sum + h.overallScore, 0) / healthScores.length)
+          ? Math.round(healthScores.reduce((sum: number, h: Record<string, unknown>) => sum + h.overallScore, 0) / healthScores.length)
           : 0,
         campaigns: healthScores,
       };
@@ -314,12 +314,12 @@ export const adAutomationRouter = router({
       accountId: z.number(),
       severity: z.enum(['all', 'critical', 'warning', 'info']).default('all'),
     }))
-    .query(async ({ input, ctx }: any) => {
+    .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       
       // v390: 复用缓存的健康分析结果，避免重复查询和计算
       const healthCacheKey = `health.analyze:${ctx.user.id}:${input.accountId}`;
-      let healthResult = apiCache.get<any>(healthCacheKey);
+      let healthResult = apiCache.get<unknown>(healthCacheKey);
       
       if (!healthResult) {
         const campaigns = await db.getCampaignHealthMetrics(input.accountId);
@@ -327,21 +327,21 @@ export const adAutomationRouter = router({
         healthResult = { campaigns: healthScores };
       }
       
-      let allAlerts = (healthResult.campaigns || []).flatMap((h: any) => h.alerts || []);
+      let allAlerts = (healthResult.campaigns || []).flatMap((h: unknown) => h.alerts || []);
       
       if (input.severity !== 'all') {
-        allAlerts = allAlerts.filter((a: any) => a.severity === input.severity);
+        allAlerts = allAlerts.filter((a: unknown) => a.severity === input.severity);
       }
       
       // 按严重程度排序
       const severityOrder: Record<string, number> = { critical: 0, warning: 1, info: 2 };
-      allAlerts.sort((a: any, b: any) => (severityOrder[a.severity] ?? 3) - (severityOrder[b.severity] ?? 3));
+      allAlerts.sort((a: unknown, b: unknown) => (severityOrder[a.severity] ?? 3) - (severityOrder[b.severity] ?? 3));
       
       return {
         totalAlerts: allAlerts.length,
-        criticalCount: allAlerts.filter((a: any) => a.severity === 'critical').length,
-        warningCount: allAlerts.filter((a: any) => a.severity === 'warning').length,
-        infoCount: allAlerts.filter((a: any) => a.severity === 'info').length,
+        criticalCount: allAlerts.filter((a: unknown) => a.severity === 'critical').length,
+        warningCount: allAlerts.filter((a: unknown) => a.severity === 'warning').length,
+        infoCount: allAlerts.filter((a: unknown) => a.severity === 'info').length,
         alerts: allAlerts,
       };
     }),
@@ -358,7 +358,7 @@ export const adAutomationRouter = router({
         reason: z.string(),
       })),
     }))
-    .query(({ input }: any) => {
+    .query(({ input }: unknown) => {
       const result = adAutomation.validateNegativeKeywordBatch(input.items);
       return {
         validCount: result.valid.length,
@@ -384,7 +384,7 @@ export const adAutomationRouter = router({
       minBid: z.number().default(0.02),
       maxAdjustmentPercent: z.number().default(100),
     }))
-    .query(({ input }: any) => {
+    .query(({ input }: unknown) => {
       const result = adAutomation.validateBidAdjustmentBatch(
         input.items,
         input.maxBid,
@@ -411,7 +411,7 @@ export const adAutomationRouter = router({
         reason: z.string(),
       })),
     }))
-    .mutation(async ({ ctx, input }: any) => {
+    .mutation(async ({ ctx, input }: unknown) => {
       const validation = adAutomation.validateNegativeKeywordBatch(input.items);
       
       let successCount = 0;
@@ -454,7 +454,7 @@ export const adAutomationRouter = router({
         reason: z.string(),
       })),
     }))
-    .mutation(async ({ ctx, input }: any) => {
+    .mutation(async ({ ctx, input }: unknown) => {
       const validation = adAutomation.validateBidAdjustmentBatch(input.items);
       
       let successCount = 0;
@@ -505,7 +505,7 @@ export const adAutomationRouter = router({
         reason: z.string(),
       })),
     }))
-    .query(({ input }: any) => {
+    .query(({ input }: unknown) => {
       return adAutomation.generateBatchOperationSummary(input.negativeItems, input.bidItems);
     }),
 });

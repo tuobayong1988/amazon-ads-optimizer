@@ -39,7 +39,7 @@ describe("Budget Allocation Service", () => {
       };
       
       // 模拟优先级计算逻辑
-      const calculateScore = (metrics: any, prioritizeHighRoas: boolean) => {
+      const calculateScore = (metrics: unknown, prioritizeHighRoas: boolean) => {
         let score = 50;
         
         if (prioritizeHighRoas) {
@@ -88,7 +88,7 @@ describe("Budget Allocation Service", () => {
       ];
       
       const totalBudget = 300;
-      const totalScore = campaigns.reduce((sum: any, c: any) => sum + c.score, 0);
+      const totalScore = campaigns.reduce((sum: number, c: Record<string, unknown>) => sum + c.score, 0);
       
       const allocations = campaigns.map(c => ({
         ...c,
@@ -100,7 +100,7 @@ describe("Budget Allocation Service", () => {
       expect(allocations[1].recommendedBudget).toBeGreaterThan(allocations[2].recommendedBudget);
       
       // 总预算应该等于分配的预算
-      const totalAllocated = allocations.reduce((sum: any, a: any) => sum + a.recommendedBudget, 0);
+      const totalAllocated = allocations.reduce((sum: number, a: Record<string, unknown>) => sum + a.recommendedBudget, 0);
       expect(totalAllocated).toBeCloseTo(totalBudget, 2);
     });
 
@@ -124,7 +124,7 @@ describe("Budget Allocation Service", () => {
       ];
       
       const totalBudget = 200;
-      const totalScore = campaigns.reduce((sum: any, c: any) => sum + c.score, 0);
+      const totalScore = campaigns.reduce((sum: number, c: Record<string, unknown>) => sum + c.score, 0);
       
       // 当总分为0时，应该平均分配
       const allocations = campaigns.map(c => ({
@@ -141,7 +141,7 @@ describe("Budget Allocation Service", () => {
 
   describe("determineAllocationReason", () => {
     it("should identify high ROAS campaigns", () => {
-      const determineReason = (metrics: any) => {
+      const determineReason = (metrics: unknown) => {
         if (metrics.roas >= 3) return "high_roas";
         if (metrics.acos <= 25) return "low_acos";
         if (metrics.cvr >= 10) return "high_conversion";
@@ -216,7 +216,7 @@ describe("Budget Allocation Service", () => {
         { currentBudget: 100, recommendedBudget: 120, budgetChange: 20 },
       ];
       
-      const calculateSummary = (recs: any[]) => {
+      const calculateSummary = (recs: unknown[]) => {
         const increased = recs.filter(r => r.budgetChange > 0);
         const decreased = recs.filter(r => r.budgetChange < 0);
         const unchanged = recs.filter(r => r.budgetChange === 0);
@@ -225,8 +225,8 @@ describe("Budget Allocation Service", () => {
           increasedCount: increased.length,
           decreasedCount: decreased.length,
           unchangedCount: unchanged.length,
-          totalIncrease: increased.reduce((sum: any, r: any) => sum + r.budgetChange, 0),
-          totalDecrease: Math.abs(decreased.reduce((sum: any, r: any) => sum + r.budgetChange, 0)),
+          totalIncrease: increased.reduce((sum: number, r: Record<string, unknown>) => sum + r.budgetChange, 0),
+          totalDecrease: Math.abs(decreased.reduce((sum: number, r: Record<string, unknown>) => sum + r.budgetChange, 0)),
         };
       };
       

@@ -37,7 +37,7 @@ export default function AdvancedAnalyticsDashboard() {
   const [attributionPage, setAttributionPage] = useState(0);
   const [roiGroupBy, setRoiGroupBy] = useState<"strategy" | "actionType" | "eventCategory">("strategy");
 
-  const { data: accounts } = trpc.adAccount.list.useQuery() as any;
+  const { data: accounts } = trpc.adAccount.list.useQuery() as unknown;
   const accountId = selectedAccount === "all" ? undefined : parseInt(selectedAccount);
 
   // 高级分析汇总
@@ -105,7 +105,7 @@ export default function AdvancedAnalyticsDashboard() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">全部账户</SelectItem>
-                {accounts?.map((acc: any) => (
+                {accounts?.map((acc: unknown) => (
                   <SelectItem key={acc.id} value={String(acc.id)}>{acc.accountName || `账户 ${acc.id}`}</SelectItem>
                 ))}
               </SelectContent>
@@ -222,7 +222,7 @@ export default function AdvancedAnalyticsDashboard() {
                     {/* 归因效果分布图 */}
                     <div className="h-[200px]">
                       <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={attribution.results.map((r: any) => ({
+                        <BarChart data={attribution.results.map((r: unknown) => ({
                           name: r.keywordText?.slice(0, 15) || r.campaignName?.slice(0, 15) || `#${r.eventId}`,
                           score: r.effectScore,
                           deltaSales: r.deltaSales,
@@ -233,9 +233,9 @@ export default function AdvancedAnalyticsDashboard() {
                           <Tooltip formatter={((value: number, name: string) => [
                             name === 'score' ? `${value}分` : `$${value.toFixed(2)}`,
                             name === 'score' ? '效果评分' : '销售额变化'
-                          ]) as any} />
+                          ]) as unknown} />
                           <Bar dataKey="score" name="效果评分">
-                            {attribution.results.map((entry: any, index: number) => (
+                            {attribution.results.map((entry: unknown, index: number) => (
                               <Cell key={index} fill={entry.effectScore >= 10 ? '#10b981' : entry.effectScore >= -10 ? '#6b7280' : '#ef4444'} />
                             ))}
                           </Bar>
@@ -258,7 +258,7 @@ export default function AdvancedAnalyticsDashboard() {
                           </tr>
                         </thead>
                         <tbody>
-                          {attribution.results.map((r: any) => {
+                          {attribution.results.map((r: unknown) => {
                             const config = effectRatingConfig[r.effectRating as keyof typeof effectRatingConfig];
                             const Icon = config?.icon || Minus;
                             return (
@@ -348,7 +348,7 @@ export default function AdvancedAnalyticsDashboard() {
                   <div className="space-y-6">
                     {/* 趋势摘要卡片 */}
                     <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                      {trends.map((t: any) => (
+                      {trends.map((t: unknown) => (
                         <div key={t.metric} className="p-3 rounded-lg border">
                           <div className="flex items-center justify-between mb-1">
                             <span className="text-xs font-medium text-muted-foreground">{t.metricLabel}</span>
@@ -375,7 +375,7 @@ export default function AdvancedAnalyticsDashboard() {
                     </div>
 
                     {/* 趋势图表 */}
-                    {trends.map((t: any) => (
+                    {trends.map((t: unknown) => (
                       <div key={t.metric} className="border rounded-lg p-4">
                         <div className="flex items-center justify-between mb-3">
                           <h4 className="font-medium text-sm">{t.metricLabel} 趋势</h4>
@@ -427,7 +427,7 @@ export default function AdvancedAnalyticsDashboard() {
                   </div>
                 ) : anomalies && anomalies.length > 0 ? (
                   <div className="space-y-3">
-                    {anomalies.map((a: any) => (
+                    {anomalies.map((a: unknown) => (
                       <div key={a.id} className={`border rounded-lg p-4 ${
                         a.severity === 'critical' ? 'border-red-200 bg-red-50/50' :
                         a.severity === 'warning' ? 'border-amber-200 bg-amber-50/50' :
@@ -461,7 +461,7 @@ export default function AdvancedAnalyticsDashboard() {
                           <div className="mt-3 pl-7">
                             <p className="text-xs font-medium text-muted-foreground mb-1.5">可能原因：</p>
                             <div className="space-y-1.5">
-                              {a.possibleCauses.slice(0, 3).map((cause: any, idx: number) => (
+                              {a.possibleCauses.slice(0, 3).map((cause: unknown, idx: number) => (
                                 <div key={idx} className="flex items-center gap-2 text-xs">
                                   <div className="w-1.5 h-1.5 rounded-full bg-current shrink-0" style={{ opacity: cause.confidence / 100 }} />
                                   <span className="flex-1">{cause.description}</span>
@@ -496,7 +496,7 @@ export default function AdvancedAnalyticsDashboard() {
                       按不同维度对比各优化策略的投资回报率，帮助识别最有效的策略
                     </CardDescription>
                   </div>
-                  <Select value={roiGroupBy} onValueChange={(v: any) => setRoiGroupBy(v)}>
+                  <Select value={roiGroupBy} onValueChange={(v: unknown) => setRoiGroupBy(v)}>
                     <SelectTrigger className="w-[140px]">
                       <SelectValue />
                     </SelectTrigger>
@@ -518,7 +518,7 @@ export default function AdvancedAnalyticsDashboard() {
                     {/* ROI排行榜图表 */}
                     <div className="h-[250px]">
                       <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={strategyROI.slice(0, 10).map((s: any) => ({
+                        <BarChart data={strategyROI.slice(0, 10).map((s: unknown) => ({
                           name: s.strategyName.length > 12 ? s.strategyName.slice(0, 12) + '...' : s.strategyName,
                           events: s.totalEvents,
                           successRate: s.successRate,
@@ -530,7 +530,7 @@ export default function AdvancedAnalyticsDashboard() {
                           <Tooltip formatter={((value: number, name: string) => [
                             name === 'events' ? value : `${value.toFixed(1)}%`,
                             name === 'events' ? '事件数' : name === 'successRate' ? '成功率' : '7天ROI'
-                          ]) as any} />
+                          ]) as unknown} />
                           <Legend />
                           <Bar dataKey="events" name="事件数" fill="#3b82f6" />
                           <Bar dataKey="successRate" name="成功率%" fill="#10b981" />
@@ -554,7 +554,7 @@ export default function AdvancedAnalyticsDashboard() {
                           </tr>
                         </thead>
                         <tbody>
-                          {strategyROI.map((s: any, idx: number) => (
+                          {strategyROI.map((s: unknown, idx: number) => (
                             <tr key={idx} className="border-b hover:bg-muted/30">
                               <td className="p-2">
                                 <div className="font-medium text-xs">{s.strategyName}</div>

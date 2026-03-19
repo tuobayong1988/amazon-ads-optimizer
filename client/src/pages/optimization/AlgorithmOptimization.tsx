@@ -53,7 +53,7 @@ const priorityColors: Record<string, string> = {
 };
 
 // 类别图标映射
-const categoryIcons: Record<string, any> = {
+const categoryIcons: Record<string, unknown> = {
   parameter: Sliders,
   strategy: Target,
   targeting: TrendingUp,
@@ -66,22 +66,22 @@ export default function AlgorithmOptimization() {
   const [parametersDialogOpen, setParametersDialogOpen] = useState(false);
 
   // 获取算法参数
-  const { data: parameters, refetch: refetchParameters } = trpc.algorithmOptimization.getParameters.useQuery() as any;
+  const { data: parameters, refetch: refetchParameters } = trpc.algorithmOptimization.getParameters.useQuery() as unknown;
 
   // 获取性能指标
-  const { data: performance, isLoading: performanceLoading } = trpc.algorithmOptimization.getPerformance.useQuery({ days }) as any;
+  const { data: performance, isLoading: performanceLoading } = trpc.algorithmOptimization.getPerformance.useQuery({ days }) as unknown;
 
   // 获取按类型分析
-  const { data: byType, isLoading: byTypeLoading } = trpc.algorithmOptimization.analyzeByType.useQuery({ days }) as any;
+  const { data: byType, isLoading: byTypeLoading } = trpc.algorithmOptimization.analyzeByType.useQuery({ days }) as unknown;
 
   // 获取按幅度分析
-  const { data: byRange, isLoading: byRangeLoading } = trpc.algorithmOptimization.analyzeByRange.useQuery({ days }) as any;
+  const { data: byRange, isLoading: byRangeLoading } = trpc.algorithmOptimization.analyzeByRange.useQuery({ days }) as unknown;
 
   // 获取优化建议
-  const { data: suggestions, isLoading: suggestionsLoading } = trpc.algorithmOptimization.getSuggestions.useQuery({ days }) as any;
+  const { data: suggestions, isLoading: suggestionsLoading } = trpc.algorithmOptimization.getSuggestions.useQuery({ days }) as unknown;
 
   // 获取参数调优建议
-  const { data: parameterTuning } = trpc.algorithmOptimization.getParameterTuning.useQuery({ days }) as any;
+  const { data: parameterTuning } = trpc.algorithmOptimization.getParameterTuning.useQuery({ days }) as unknown;
 
   // 更新参数
   const updateParametersMutation = trpc.algorithmOptimization.updateParameters.useMutation({
@@ -107,7 +107,7 @@ export default function AlgorithmOptimization() {
   });
 
   // 参数表单状态
-  const [parameterForm, setParameterForm] = useState<any>(null);
+  const [parameterForm, setParameterForm] = useState<unknown>(null);
 
   const openParametersDialog = () => {
     setParameterForm(parameters ? { ...parameters } : null);
@@ -282,7 +282,7 @@ export default function AlgorithmOptimization() {
               </Card>
             ) : (
               <div className="space-y-4">
-                {suggestions?.map((suggestion: any) => {
+                {suggestions?.map((suggestion: unknown) => {
                   const CategoryIcon = categoryIcons[suggestion.category] || Lightbulb;
                   return (
                     <Card key={suggestion.id} className={`border-l-4 ${priorityColors[suggestion.priority]}`}>
@@ -365,7 +365,7 @@ export default function AlgorithmOptimization() {
                     </div>
                   ) : (
                     <div className="space-y-4">
-                      {byType?.map((item: any) => (
+                      {byType?.map((item: unknown) => (
                         <div key={item.value} className="space-y-2">
                           <div className="flex items-center justify-between">
                             <span className="text-sm font-medium">{item.value}</span>
@@ -402,7 +402,7 @@ export default function AlgorithmOptimization() {
                     </div>
                   ) : (
                     <div className="space-y-4">
-                      {byRange?.map((item: any) => (
+                      {byRange?.map((item: unknown) => (
                         <div key={item.value} className="space-y-2">
                           <div className="flex items-center justify-between">
                             <span className="text-sm font-medium">{item.value}</span>
@@ -536,7 +536,7 @@ export default function AlgorithmOptimization() {
                     </div>
                   ) : (
                     <div className="space-y-4">
-                      {parameterTuning?.map((item: any, index: number) => (
+                      {parameterTuning?.map((item: unknown, index: number) => (
                         <div key={index} className="bg-muted/30 rounded-lg p-3">
                           <div className="flex items-center gap-2 mb-2">
                             <Zap className="w-4 h-4 text-yellow-500" />

@@ -13,7 +13,7 @@ const log = createModuleLogger('Route_intelligentRecommendation');
 export const intelligentRecommendationRouter = router({
   scan: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    .query(async ({ input, ctx }: any) => {
+    .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       return await scanAccountHealth(input.accountId);
     }),
@@ -70,7 +70,7 @@ export const intelligentRecommendationRouter = router({
 
   getSummaryBadge: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    .query(async ({ input, ctx }: any) => {
+    .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       const result = await scanAccountHealth(input.accountId);
       return {

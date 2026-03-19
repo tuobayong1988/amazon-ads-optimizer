@@ -91,7 +91,7 @@ export async function identifyProductLifecycle(
     throw new Error('Campaign not found');
   }
 
-  const campaignData = campaign[0] as any;
+  const campaignData = campaign[0] as unknown;
   const createdAt = campaignData.createdAt ? new Date(campaignData.createdAt) : new Date();
   const daysActive = Math.floor((Date.now() - createdAt.getTime()) / (1000 * 60 * 60 * 24));
 
@@ -109,18 +109,18 @@ export async function identifyProductLifecycle(
     .orderBy(desc(dailyPerformance.date));
 
   // 计算关键指标
-  const totalImpressions = performanceData.reduce((sum: any, d: any) => sum + (d.impressions || 0), 0);
-  const totalOrders = performanceData.reduce((sum: any, d: any) => sum + (d.orders || 0), 0);
-  const totalSpend = performanceData.reduce((sum: any, d: any) => sum + parseFloat(String(d.spend || 0)), 0);
-  const totalSales = performanceData.reduce((sum: any, d: any) => sum + parseFloat(String(d.sales || 0)), 0);
+  const totalImpressions = performanceData.reduce((sum: number, d: Record<string, unknown>) => sum + (d.impressions || 0), 0);
+  const totalOrders = performanceData.reduce((sum: number, d: Record<string, unknown>) => sum + (d.orders || 0), 0);
+  const totalSpend = performanceData.reduce((sum: number, d: Record<string, unknown>) => sum + parseFloat(String(d.spend || 0)), 0);
+  const totalSales = performanceData.reduce((sum: number, d: Record<string, unknown>) => sum + parseFloat(String(d.sales || 0)), 0);
 
   const avgDailyImpressions = totalImpressions / Math.max(performanceData.length, 1);
   const avgDailyOrders = totalOrders / Math.max(performanceData.length, 1);
   const avgAcos = totalSales > 0 ? (totalSpend / totalSales) * 100 : 100;
 
   // 计算销量趋势
-  const firstHalfOrders = performanceData.slice(0, 15).reduce((sum: any, d: any) => sum + (d.orders || 0), 0);
-  const secondHalfOrders = performanceData.slice(15).reduce((sum: any, d: any) => sum + (d.orders || 0), 0);
+  const firstHalfOrders = performanceData.slice(0, 15).reduce((sum: number, d: Record<string, unknown>) => sum + (d.orders || 0), 0);
+  const secondHalfOrders = performanceData.slice(15).reduce((sum: number, d: Record<string, unknown>) => sum + (d.orders || 0), 0);
   const trendChange = secondHalfOrders - firstHalfOrders;
   const salesTrend: 'up' | 'down' | 'stable' = 
     trendChange > firstHalfOrders * 0.2 ? 'up' :
@@ -194,7 +194,7 @@ export function mergeStrategies(
   // 按优先级排序
   const sortedStrategies = strategies
     .filter(s => s.active)
-    .sort((a: any, b: any) => {
+    .sort((a: unknown, b: unknown) => {
       const priorityOrder = { primary: 0, secondary: 1, event: 2 };
       // @ts-expect-error - runtime type mismatch
       return priorityOrder[a.priority] - priorityOrder[b.priority];
@@ -268,7 +268,7 @@ export function mergeStrategies(
 /**
  * 计算策略的激进程度
  */
-function calculateAggressiveness(template: any): number {
+function calculateAggressiveness(template: unknown): number {
   // 基于目标ACoS和出价倍数计算
   const acosScore = (template.targetAcos - 15) / 35; // 归一化到0-1
   const bidScore = (template.bidMultiplier - 0.8) / 0.7; // 归一化到0-1

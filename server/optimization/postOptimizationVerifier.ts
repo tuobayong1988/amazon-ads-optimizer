@@ -417,7 +417,7 @@ function groupItemsByType(items: VerificationItem[]): Map<VerificationType, Veri
  * 根据类型执行验证
  */
 async function verifyByType(
-  syncService: Record<string, any>,
+  syncService: Record<string, unknown>,
   type: VerificationType,
   items: VerificationItem[]
 ): Promise<VerificationResult[]> {
@@ -445,7 +445,7 @@ async function verifyByType(
  * 通过Amazon API查询关键词当前出价，与期望值对比
  */
 async function verifyBidAdjustments(
-  syncService: Record<string, any>,
+  syncService: Record<string, unknown>,
   items: VerificationItem[]
 ): Promise<VerificationResult[]> {
   const results: VerificationResult[] = [];
@@ -466,9 +466,9 @@ async function verifyBidAdjustments(
       let amazonItems: unknown[];
       
       if (isProductTarget) {
-        amazonItems = await (syncService as any).client.listSpProductTargets(adGroupId || undefined);
+        amazonItems = await (syncService as Record<string, unknown>).client.listSpProductTargets(adGroupId || undefined);
       } else {
-        amazonItems = await (syncService as any).client.listSpKeywords(adGroupId || undefined);
+        amazonItems = await (syncService as Record<string, unknown>).client.listSpKeywords(adGroupId || undefined);
       }
       
       // 构建Amazon ID到出价的映射
@@ -519,18 +519,18 @@ async function verifyBidAdjustments(
  * 通过Amazon API查询广告活动当前预算，与期望值对比
  */
 async function verifyBudgetAdjustments(
-  syncService: Record<string, any>,
+  syncService: Record<string, unknown>,
   items: VerificationItem[]
 ): Promise<VerificationResult[]> {
   const results: VerificationResult[] = [];
   
   try {
     // 查询所有SP广告活动
-    const amazonCampaigns = await (syncService as any).client.listSpCampaigns();
+    const amazonCampaigns = await (syncService as Record<string, unknown>).client.listSpCampaigns();
     
     // 构建Amazon campaignId到budget的映射
     const amazonBudgetMap = new Map<string, number>();
-    for (const campaign of (amazonCampaigns as any[])) {
+    for (const campaign of (amazonCampaigns as unknown[])) {
       amazonBudgetMap.set(String(campaign.campaignId), campaign.dailyBudget);
     }
     
@@ -571,17 +571,17 @@ async function verifyBudgetAdjustments(
  * 通过Amazon API查询广告活动的bidding.adjustments，与期望值对比
  */
 async function verifyPlacementAdjustments(
-  syncService: Record<string, any>,
+  syncService: Record<string, unknown>,
   items: VerificationItem[]
 ): Promise<VerificationResult[]> {
   const results: VerificationResult[] = [];
   
   try {
-    const amazonCampaigns = await (syncService as any).client.listSpCampaigns();
+    const amazonCampaigns = await (syncService as Record<string, unknown>).client.listSpCampaigns();
     
     // v423: 构建Amazon campaignId到位置倾斜的映射，支持API v3的dynamicBidding.placementBidding结构
     const amazonPlacementMap = new Map<string, { topOfSearch: number; productPage: number; restOfSearch: number }>();
-    for (const campaign of (amazonCampaigns as any[])) {
+    for (const campaign of (amazonCampaigns as unknown[])) {
       let topOfSearch = 0, productPage = 0, restOfSearch = 0;
       // v423: 优先从API v3的dynamicBidding.placementBidding获取
       if (campaign.dynamicBidding?.placementBidding?.length > 0) {
@@ -652,7 +652,7 @@ async function verifyPlacementAdjustments(
  * 通过Amazon API查询否定关键词列表，确认新添加的否词是否存在
  */
 async function verifyNegativeKeywords(
-  syncService: Record<string, any>,
+  syncService: Record<string, unknown>,
   items: VerificationItem[]
 ): Promise<VerificationResult[]> {
   const results: VerificationResult[] = [];
@@ -669,10 +669,10 @@ async function verifyNegativeKeywords(
   for (const [campaignId, groupItems] of byCampaign.entries()) {
     try {
       // 查询该campaign下的所有否定关键词
-      const amazonNegatives = await (syncService as any).client.listSpCampaignNegativeKeywords(campaignId || undefined);
+      const amazonNegatives = await (syncService as Record<string, unknown>).client.listSpCampaignNegativeKeywords(campaignId || undefined);
       
       // 构建keywordText到记录的映射
-      const amazonNegMap = new Map<string, any>();
+      const amazonNegMap = new Map<string, unknown>();
       for (const neg of amazonNegatives) {
         const key = `${neg.keywordText}_${neg.matchType}`.toLowerCase();
         amazonNegMap.set(key, neg);
@@ -682,7 +682,7 @@ async function verifyNegativeKeywords(
       const adGroupIds = new Set(groupItems.map(i => i.context?.adGroupId).filter(Boolean));
       for (const adGroupId of adGroupIds) {
         try {
-          const adGroupNegatives = await (syncService as any).client.listSpNegativeKeywords(adGroupId);
+          const adGroupNegatives = await (syncService as Record<string, unknown>).client.listSpNegativeKeywords(adGroupId);
           for (const neg of adGroupNegatives) {
             const key = `${neg.keywordText}_${neg.matchType}`.toLowerCase();
             amazonNegMap.set(key, neg);
@@ -725,7 +725,7 @@ async function verifyNegativeKeywords(
  * 验证关键词状态变更
  */
 async function verifyKeywordStatus(
-  syncService: Record<string, any>,
+  syncService: Record<string, unknown>,
   items: VerificationItem[]
 ): Promise<VerificationResult[]> {
   const results: VerificationResult[] = [];
@@ -741,10 +741,10 @@ async function verifyKeywordStatus(
   
   for (const [adGroupId, groupItems] of byAdGroup.entries()) {
     try {
-      const amazonKeywords = await (syncService as any).client.listSpKeywords(adGroupId || undefined);
+      const amazonKeywords = await (syncService as Record<string, unknown>).client.listSpKeywords(adGroupId || undefined);
       
       const amazonStateMap = new Map<string, string>();
-      for (const kw of (amazonKeywords as any[])) {
+      for (const kw of (amazonKeywords as unknown[])) {
         amazonStateMap.set(String(kw.keywordId), kw.state);
       }
       
@@ -811,7 +811,7 @@ async function applyConfirmedResults(results: VerificationResult[]): Promise<voi
                   bid: String(result.actualValue),
                   pendingBid: null,
                   bidSyncStatus: 'synced',
-                } as Record<string, any>)
+                } as Record<string, unknown>)
                 .where(eq(keywords.id, item.localId));
               log.debug(`v166: ✅ 关键词 ${item.localId} 出价已确认: $${result.actualValue}`);
             }
@@ -825,14 +825,14 @@ async function applyConfirmedResults(results: VerificationResult[]): Promise<voi
                 pendingBudget: null,
                 budgetSyncStatus: 'synced',
                 lastSyncedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
-              } as Record<string, any>)
+              } as Record<string, unknown>)
               .where(eq(campaigns.id, item.localId));
             log.debug(`v166: ✅ 广告活动 ${item.localId} 预算已确认: $${result.actualValue}`);
             break;
           }
           
           case 'placement_adjustment': {
-            const updateData: Record<string, any> = {
+            const updateData: Record<string, unknown> = {
               placementSyncStatus: 'synced',
               pendingPlacementTop: null,
               pendingPlacementProduct: null,
@@ -905,7 +905,7 @@ async function handleConflicts(results: VerificationResult[]): Promise<void> {
                   bid: String(result.actualValue),
                   pendingBid: null,
                   bidSyncStatus: 'conflict',
-                } as Record<string, any>)
+                } as Record<string, unknown>)
                 .where(eq(keywords.id, item.localId));
             }
             log.warn(`v166: ⚠️ 出价冲突 keyword=${item.localId}: ${result.message}`);
@@ -919,14 +919,14 @@ async function handleConflicts(results: VerificationResult[]): Promise<void> {
                 pendingBudget: null,
                 budgetSyncStatus: 'conflict',
                 lastSyncedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
-              } as Record<string, any>)
+              } as Record<string, unknown>)
               .where(eq(campaigns.id, item.localId));
             log.warn(`v166: ⚠️ 预算冲突 campaign=${item.localId}: ${result.message}`);
             break;
           }
           
           case 'placement_adjustment': {
-            const updateData: Record<string, any> = {
+            const updateData: Record<string, unknown> = {
               placementSyncStatus: 'conflict',
               pendingPlacementTop: null,
               pendingPlacementProduct: null,
@@ -1093,7 +1093,7 @@ export async function autoResolveConflicts(accountId: number): Promise<{ resolve
             resolutionStatus: 'resolved',
             resolvedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
             resolutionNotes: 'v257: 自动解决 - 以亚马逊实际数据为准 (use_remote)',
-          } as Record<string, any>)
+          } as Record<string, unknown>)
           .where(inArray(syncConflicts.id, batch));
       }
       resolved = autoResolveIds.length;
@@ -1108,7 +1108,7 @@ export async function autoResolveConflicts(accountId: number): Promise<{ resolve
             resolutionStatus: 'ignored',
             resolvedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
             resolutionNotes: 'v257: 自动忽略 - 远程实体不存在',
-          } as Record<string, any>)
+          } as Record<string, unknown>)
           .where(inArray(syncConflicts.id, batch));
       }
       ignored = autoIgnoreIds.length;

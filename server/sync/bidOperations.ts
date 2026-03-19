@@ -268,7 +268,7 @@ export async function applyBidAdjustment(service: SyncContext,
 
     return true;
   } catch (error: unknown) {
-    const errorDetail = (error as any).response?.data ? JSON.stringify(error.response.data) : (error as Error).message;
+    const errorDetail = (error as Record<string, unknown>).response?.data ? JSON.stringify(error.response.data) : (error as Error).message;
     log.error(`[applyBidAdjustment] ❗ ${targetType} id=${targetId} 出价调整失败:`, errorDetail);
     log.error(`[applyBidAdjustment] 详细信息: newBid=${newBid}, campaignId=${campaignId}, HTTP状态=${(error as Error & { response?: unknown }).response?.status || 'N/A'}`);
     
@@ -333,7 +333,7 @@ export async function applyBatchBidAdjustments(service: SyncContext,
  *   'placementProductPage' -> 'PLACEMENT_PRODUCT_PAGE'
  *   'placementRestOfSearch' -> 'PLACEMENT_REST_OF_SEARCH'
  */
-export function getPlacementMultiplier(campaign: Record<string, any>, placement: string): number {
+export function getPlacementMultiplier(campaign: Record<string, unknown>, placement: string): number {
   // v423: 优先从API v3的dynamicBidding.placementBidding中获取
   if (campaign.dynamicBidding?.placementBidding?.length > 0) {
     // 将旧的predicate名称映射到API v3的placement名称
@@ -344,14 +344,14 @@ export function getPlacementMultiplier(campaign: Record<string, any>, placement:
     };
     const v3Placement = placementMap[placement] || placement;
     const adjustment = campaign.dynamicBidding.placementBidding.find(
-      (a: any) => a.placement === v3Placement
+      (a: unknown) => a.placement === v3Placement
     );
     return adjustment ? Number(adjustment.percentage) : 0;
   }
   
   // 兼容旧版API的bidding.adjustments结构
   const adjustment = campaign.bidding?.adjustments?.find(
-    (a: any) => a.predicate === placement
+    (a: unknown) => a.predicate === placement
   );
   return adjustment ? Number(adjustment.percentage) : 0;
 }

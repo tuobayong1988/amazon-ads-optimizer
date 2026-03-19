@@ -332,7 +332,7 @@ function DashboardLayoutContent({
   const searchResults = useMemo(() => {
     if (!searchQuery.trim()) return [];
     const q = searchQuery.toLowerCase();
-    const results: { label: string; path: string; group: string; icon: any }[] = [];
+    const results: { label: string; path: string; group: string; icon: unknown }[] = [];
     
     const allGroups = [...baseMenuGroups, prelaunchMenuGroup];
     for (const group of allGroups) {
@@ -464,7 +464,7 @@ function DashboardLayoutContent({
 
           <SidebarContent className="gap-0 overflow-y-auto">
             {/* 基础菜单分组（所有角色可见） */}
-            {baseMenuGroups.map((group: any, groupIndex: any) => (
+            {baseMenuGroups.map((group: unknown, groupIndex: unknown) => (
               <MenuGroup 
                 key={group.title} 
                 group={group} 
@@ -536,7 +536,7 @@ function DashboardLayoutContent({
             {/* 面包屑导航（PC端显示） */}
             {!isMobile && breadcrumbs.length > 1 && (
               <nav className="flex items-center gap-1 text-sm">
-                {breadcrumbs.map((crumb: any, idx: any) => (
+                {breadcrumbs.map((crumb: unknown, idx: unknown) => (
                   <span key={crumb.path} className="flex items-center gap-1">
                     {idx > 0 && <ChevronRight className="h-3 w-3 text-muted-foreground" />}
                     {idx === breadcrumbs.length - 1 ? (
@@ -596,7 +596,7 @@ function DashboardLayoutContent({
                     <button className="text-xs text-muted-foreground hover:text-foreground">全部已读</button>
                   </div>
                   <div className="max-h-[320px] overflow-y-auto">
-                    {notifications.map((n: any) => {
+                    {notifications.map((n: unknown) => {
                       const typeColors = {
                         warning: 'bg-red-500',
                         info: 'bg-blue-500',
@@ -648,7 +648,7 @@ function DashboardLayoutContent({
               </div>
               {searchResults.length > 0 && (
                 <div className="max-h-[300px] overflow-y-auto p-2">
-                  {searchResults.map((result: any) => {
+                  {searchResults.map((result: unknown) => {
                     const Icon = result.icon;
                     return (
                       <button

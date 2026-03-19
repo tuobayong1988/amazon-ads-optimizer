@@ -46,8 +46,8 @@ describe('syncServiceProvider', () => {
       const factory = vi.fn().mockResolvedValue(mockSyncService);
       registerSyncServiceFactory(factory);
 
-      vi.mocked(db.getAdAccountById).mockResolvedValue(mockAccount as any);
-      vi.mocked(db.getAmazonApiCredentials).mockResolvedValue(mockCredentials as any);
+      vi.mocked(db.getAdAccountById).mockResolvedValue(mockAccount as unknown);
+      vi.mocked(db.getAmazonApiCredentials).mockResolvedValue(mockCredentials as unknown);
 
       const result = await getAmazonSyncService(1);
 
@@ -70,7 +70,7 @@ describe('syncServiceProvider', () => {
       const factory = vi.fn();
       registerSyncServiceFactory(factory);
 
-      vi.mocked(db.getAdAccountById).mockResolvedValue(null as any);
+      vi.mocked(db.getAdAccountById).mockResolvedValue(null as unknown);
 
       const result = await getAmazonSyncService(999);
 
@@ -82,8 +82,8 @@ describe('syncServiceProvider', () => {
       const factory = vi.fn();
       registerSyncServiceFactory(factory);
 
-      vi.mocked(db.getAdAccountById).mockResolvedValue(mockAccount as any);
-      vi.mocked(db.getAmazonApiCredentials).mockResolvedValue(null as any);
+      vi.mocked(db.getAdAccountById).mockResolvedValue(mockAccount as unknown);
+      vi.mocked(db.getAmazonApiCredentials).mockResolvedValue(null as unknown);
 
       const result = await getAmazonSyncService(1);
 
@@ -95,13 +95,13 @@ describe('syncServiceProvider', () => {
       const factory = vi.fn();
       registerSyncServiceFactory(factory);
 
-      vi.mocked(db.getAdAccountById).mockResolvedValue(mockAccount as any);
+      vi.mocked(db.getAdAccountById).mockResolvedValue(mockAccount as unknown);
       vi.mocked(db.getAmazonApiCredentials).mockResolvedValue({
         clientId: '',
         clientSecret: '',
         refreshToken: '',
         region: 'NA',
-      } as any);
+      } as unknown);
 
       const result = await getAmazonSyncService(1);
 
@@ -115,8 +115,8 @@ describe('syncServiceProvider', () => {
       vi.mocked(db.getAdAccountById).mockResolvedValue({
         ...mockAccount,
         profileId: null,
-      } as any);
-      vi.mocked(db.getAmazonApiCredentials).mockResolvedValue(mockCredentials as any);
+      } as unknown);
+      vi.mocked(db.getAmazonApiCredentials).mockResolvedValue(mockCredentials as unknown);
 
       const result = await getAmazonSyncService(1);
 
@@ -128,12 +128,12 @@ describe('syncServiceProvider', () => {
       registerSyncServiceFactory(factory);
 
       const connectionError = new Error('Connection lost');
-      (connectionError as any).code = 'ECONNRESET';
+      (connectionError as Record<string, unknown>).code = 'ECONNRESET';
 
       vi.mocked(db.getAdAccountById)
         .mockRejectedValueOnce(connectionError)
-        .mockResolvedValue(mockAccount as any);
-      vi.mocked(db.getAmazonApiCredentials).mockResolvedValue(mockCredentials as any);
+        .mockResolvedValue(mockAccount as unknown);
+      vi.mocked(db.getAmazonApiCredentials).mockResolvedValue(mockCredentials as unknown);
 
       const mockSyncService = { client: {} };
       factory.mockResolvedValue(mockSyncService);

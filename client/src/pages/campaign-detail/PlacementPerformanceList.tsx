@@ -56,7 +56,7 @@ export function PlacementPerformanceList({ campaignId, campaignType }: { campaig
             : 'SP广告在搜索结果和商品详情页展示'}
         </p>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {placementTypes.map((placement: any) => (
+          {placementTypes.map((placement: unknown) => (
             <Card key={placement.type} className="border-dashed">
               <CardContent className="pt-6">
                 <div className="text-center">
@@ -89,7 +89,7 @@ export function PlacementPerformanceList({ campaignId, campaignType }: { campaig
           : 'SP广告在搜索结果和商品详情页展示'}
       </p>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {(placements as any[]).map((placement: any) => {
+        {(placements as unknown[]).map((placement: unknown) => {
           const spend = parseFloat(placement.spend || "0");
           const sales = parseFloat(placement.sales || "0");
           const acos = sales > 0 ? (spend / sales * 100) : 0;

@@ -198,7 +198,7 @@ function MarketCurveVisualization({
           <path
             d={`
               M 0 ${100}
-              ${curveData.map((p: any, i: any) => {
+              ${curveData.map((p: unknown, i: unknown) => {
                 const x = (p.bid / maxBid) * 100;
                 const y = 100 - ((p.profit - minProfit) / profitRange) * 100;
                 return `L ${x} ${y}`;
@@ -213,7 +213,7 @@ function MarketCurveVisualization({
           <path
             d={`
               M ${(curveData[0].bid / maxBid) * 100} ${100 - ((curveData[0].profit - minProfit) / profitRange) * 100}
-              ${curveData.slice(1).map((p: any) => {
+              ${curveData.slice(1).map((p: unknown) => {
                 const x = (p.bid / maxBid) * 100;
                 const y = 100 - ((p.profit - minProfit) / profitRange) * 100;
                 return `L ${x} ${y}`;
@@ -280,7 +280,7 @@ function DecisionTreeVisualization({
   treeData,
   depth = 0 
 }: { 
-  treeData: any;
+  treeData: unknown;
   depth?: number;
 }) {
   if (!treeData) {
@@ -365,7 +365,7 @@ function KeywordPredictionTable({
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
   const sortedPredictions = useMemo(() => {
-    return [...predictions].sort((a: any, b: any) => {
+    return [...predictions].sort((a: unknown, b: unknown) => {
       const aVal = a[sortBy];
       const bVal = b[sortBy];
       return sortOrder === 'desc' ? bVal - aVal : aVal - bVal;
@@ -422,7 +422,7 @@ function KeywordPredictionTable({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {sortedPredictions.slice(0, 20).map((pred: any) => {
+            {sortedPredictions.slice(0, 20).map((pred: unknown) => {
               const confidenceInfo = getConfidenceLevel(pred.confidence);
               return (
                 <TableRow key={pred.keywordId}>
@@ -604,7 +604,7 @@ function BidObjectProfitTable({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {profitData.map((item: any) => {
+            {profitData.map((item: unknown) => {
               const confidenceInfo = getConfidenceLevel(item.confidence);
               const profitChangePercent = item.currentProfit !== 0 
                 ? ((item.profitChange / Math.abs(item.currentProfit)) * 100)
@@ -664,7 +664,7 @@ function BidObjectProfitTable({
 export default function AdvancedPlacementOptimization() {
   // v399: 使用全局店铺选择器替代本地状态
   const { accountId: selectedAccountId, accounts, isLoading: accountsLoading } = useGlobalAccountId();
-  const setSelectedAccountId = (_: any) => {}; // v399: 由全局选择器控制，本地setter为no-op
+  const setSelectedAccountId = (_: unknown) => {}; // v399: 由全局选择器控制，本地setter为no-op
 const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("overview");
   const [applyingRecommendationId, setApplyingRecommendationId] = useState<number | null>(null);
@@ -685,11 +685,11 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null
 
   // 获取优化建议 - 使用generateSuggestions代替
   const generateSuggestionsMutation = trpc.placement.generateSuggestions.useMutation({
-    onSuccess: (data: any) => {
+    onSuccess: (data: unknown) => {
       toast.success(`分析完成，发现 ${data.suggestions?.length || 0} 条优化建议`);
       refetchPerformance();
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       toast.error(`分析失败: ${error.message}`);
     }
   });
@@ -774,8 +774,8 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null
       };
     }
 
-    const totalSpend = performanceData.reduce((sum: any, p: any) => sum + (p.metrics?.spend || 0), 0);
-    const totalSales = performanceData.reduce((sum: any, p: any) => sum + (p.metrics?.sales || 0), 0);
+    const totalSpend = performanceData.reduce((sum: number, p: Record<string, unknown>) => sum + (p.metrics?.spend || 0), 0);
+    const totalSales = performanceData.reduce((sum: number, p: Record<string, unknown>) => sum + (p.metrics?.sales || 0), 0);
     const totalProfit = totalSales - totalSpend;
     const avgRoas = totalSpend > 0 ? totalSales / totalSpend : 0;
     const avgAcos = totalSales > 0 ? (totalSpend / totalSales) * 100 : 0;
@@ -822,7 +822,7 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null
 
   const optimalPoint = useMemo(() => {
     if (mockMarketCurveData.length === 0) return undefined;
-    const maxProfitPoint = mockMarketCurveData.reduce((max: any, p: any) => p.profit > max.profit ? p : max);
+    const maxProfitPoint = mockMarketCurveData.reduce((max: unknown, p: unknown) => p.profit > max.profit ? p : max);
     return { bid: maxProfitPoint.bid, profit: maxProfitPoint.profit };
   }, [mockMarketCurveData]);
 
@@ -884,7 +884,7 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null
                     <SelectValue placeholder="选择账号" />
                   </SelectTrigger>
                   <SelectContent>
-                    {accounts?.map((account: any) => (
+                    {accounts?.map((account: unknown) => (
                       <SelectItem key={account.id} value={account.id.toString()}>
                         {account.storeName || account.accountName}
                       </SelectItem>
@@ -904,7 +904,7 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">全部广告活动</SelectItem>
-                    {campaigns?.map((campaign: any) => (
+                    {campaigns?.map((campaign: unknown) => (
                       <SelectItem key={campaign.id} value={campaign.campaignId}>
                         {campaign.campaignName}
                       </SelectItem>
@@ -1079,7 +1079,7 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null
                   </CardHeader>
                   <CardContent>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      {performanceData.map((placement: any) => {
+                      {performanceData.map((placement: unknown) => {
                         const placementInfo = PLACEMENT_LABELS[placement.placementType];
                         const profit = (placement.metrics?.sales || 0) - (placement.metrics?.spend || 0);
                         
@@ -1277,7 +1277,7 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null
                       { name: "关键词类型", importance: 0.20, color: "bg-purple-500" },
                       { name: "产品类别", importance: 0.12, color: "bg-orange-500" },
                       { name: "平均出价", importance: 0.08, color: "bg-pink-500" },
-                    ].map((feature: any) => (
+                    ].map((feature: unknown) => (
                       <div key={feature.name} className="space-y-1">
                         <div className="flex justify-between text-sm">
                           <span>{feature.name}</span>

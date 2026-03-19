@@ -41,10 +41,10 @@ export default function CollaborationNotifications() {
   });
 
   // 获取通知统计
-  const { data: stats } = trpc.collaboration.stats.useQuery() as any;
+  const { data: stats } = trpc.collaboration.stats.useQuery() as unknown;
 
   // 获取用户通知偏好
-  const { data: preferences, refetch: refetchPreferences } = trpc.collaboration.getPreferences.useQuery() as any;
+  const { data: preferences, refetch: refetchPreferences } = trpc.collaboration.getPreferences.useQuery() as unknown;
 
   // 标记通知为已读
   const markAsReadMutation = trpc.collaboration.markAsRead.useMutation({
@@ -221,7 +221,7 @@ export default function CollaborationNotifications() {
                   </div>
                 ) : notificationsData?.notifications && notificationsData.notifications.length > 0 ? (
                   <div className="divide-y">
-                    {notificationsData.notifications.map((notification: any) => (
+                    {notificationsData.notifications.map((notification: unknown) => (
                       <div
                         key={notification.id}
                         className={`p-4 hover:bg-muted/50 transition-colors ${

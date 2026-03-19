@@ -308,10 +308,10 @@ export class SmartDecisionEngine {
     campaigns: CampaignMetrics[],
     goal: OptimizationGoal
   ): Decision[] {
-    const decisions = campaigns.map((campaign: any) => this.makeDecision(campaign, goal));
+    const decisions = campaigns.map((campaign: unknown) => this.makeDecision(campaign, goal));
 
     // 按优先级和置信度排序
-    decisions.sort((a: any, b: any) => {
+    decisions.sort((a: unknown, b: unknown) => {
       const priorityScore = { high: 3, medium: 2, low: 1 };
       // @ts-expect-error - runtime type mismatch
       const scoreA = priorityScore[a.priority] * a.confidence;
@@ -336,8 +336,8 @@ export class SmartDecisionEngine {
     };
     recommendations: Decision[];
   } {
-    const actionableDecisions = decisions.filter((d: any) => d.action !== 'no_action');
-    const highPriorityDecisions = actionableDecisions.filter((d: any) => d.priority === 'high');
+    const actionableDecisions = decisions.filter((d: unknown) => d.action !== 'no_action');
+    const highPriorityDecisions = actionableDecisions.filter((d: unknown) => d.priority === 'high');
 
     const expectedSalesIncrease = actionableDecisions.reduce(
       (sum, d) => sum + d.expectedImpact.salesChange,

@@ -79,7 +79,7 @@ export function SmartInsights({ campaignId, accountId, compact = false }: SmartI
   useEffect(() => {
     if (!decisions) return;
     
-    const convertedInsights: Insight[] = (decisions.recommendations || []).map((decision: any) => ({
+    const convertedInsights: Insight[] = (decisions.recommendations || []).map((decision: unknown) => ({
       id: decision.campaignId.toString(),
       type: decision.priority === 'high' ? InsightType.CRITICAL : 
             decision.priority === 'medium' ? InsightType.WARNING : InsightType.INFO,
@@ -109,7 +109,7 @@ export function SmartInsights({ campaignId, accountId, compact = false }: SmartI
 
   const visibleInsights = insights
     .filter(insight => !dismissedIds.has(insight.id))
-    .sort((a: any, b: any) => b.priority - a.priority);
+    .sort((a: unknown, b: unknown) => b.priority - a.priority);
 
   const handleDismiss = (id: string) => {
     setDismissedIds(prev => new Set(prev).add(id));
@@ -147,7 +147,7 @@ export function SmartInsights({ campaignId, accountId, compact = false }: SmartI
 
   if (compact) {
     // 紧凑模式: 只显示最高优先级的一个洞察
-    const topInsight = visibleInsights[0] as any;
+    const topInsight = visibleInsights[0] as unknown;
     if (!topInsight) return null;
 
     return (

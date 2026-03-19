@@ -232,7 +232,7 @@ export async function calculateDynamicBenchmarks(
       return DEFAULT_BENCHMARKS;
     }
     
-    const data = performanceData[0] as any;
+    const data = performanceData[0] as unknown;
     
     // 使用历史平均值的1.5倍作为"优秀"基准
     // 但设置合理的上下限
@@ -573,7 +573,7 @@ export async function calculateOptimalAdjustment(
     let reason = '';
     if (cooldownStatus.inCooldown) {
       // @ts-expect-error - dynamic property access
-      reason = (cooldownStatus as unknown).reason || '在冷却期内，暂不调整';
+      reason = (cooldownStatus as Record<string, unknown>).reason || '在冷却期内，暂不调整';
     } else if (!score.isReliable) {
       reason = `${score.confidenceReason}，暂不调整`;
     } else if (adjustmentResult.delta > 5) {
@@ -648,7 +648,7 @@ export async function getCampaignPlacementPerformance(
     orders: number;
   }} = {};
 
-  for (const row of (performanceData as any[])) {
+  for (const row of (performanceData as unknown[])) {
     const placement = row.placement as PlacementType;
     if (!aggregatedData[placement]) {
       aggregatedData[placement] = {
@@ -671,7 +671,7 @@ export async function getCampaignPlacementPerformance(
     }
     placementDailyData[placement].push({
       // @ts-expect-error - dynamic property access
-      date: typeof row.date === 'string' ? row.date : new Date(row.date as unknown).toISOString(),
+      date: typeof row.date === 'string' ? row.date : new Date(row.date as Record<string, unknown>).toISOString(),
       impressions: row.impressions || 0,
       clicks: row.clicks || 0,
       spend: Number(row.spend) || 0,
@@ -697,9 +697,9 @@ export async function getCampaignPlacementPerformance(
         const totalDays = dailyData.length;
         weightedMetrics = {
           // @ts-expect-error - dynamic property access
-          impressions: Math.round((twMetrics as unknown).weightedDailyImpressions * totalDays),
+          impressions: Math.round((twMetrics as Record<string, unknown>).weightedDailyImpressions * totalDays),
           // @ts-expect-error - dynamic property access
-          clicks: Math.round((twMetrics as unknown).weightedDailyClicks * totalDays),
+          clicks: Math.round((twMetrics as Record<string, unknown>).weightedDailyClicks * totalDays),
           spend: twMetrics.weightedDailySpend * totalDays,
           sales: twMetrics.weightedDailySales * totalDays,
           orders: Math.round(twMetrics.weightedDailyOrders * totalDays),
@@ -758,12 +758,12 @@ export async function getCampaignPlacementSettings(
         eq(placementSettings.campaignId, String(campaignId)),
         eq(placementSettings.accountId, accountId)
       )
-    ) as any[];
+    ) as unknown[];
 
   const result: { [key in PlacementType]?: number } = {};
   
   if (settings.length > 0) {
-    const setting = settings[0] as any;
+    const setting = settings[0] as unknown;
     result.top_of_search = setting.topOfSearchAdjustment || 0;
     result.product_page = setting.productPageAdjustment || 0;
     result.rest_of_search = 0;
@@ -832,7 +832,7 @@ export async function updatePlacementSettings(
     )
     .limit(1);
 
-  const updateData: Record<string, any> = {
+  const updateData: Record<string, unknown> = {
     lastAdjustedAt: new Date()
   };
   
@@ -863,7 +863,7 @@ export async function updatePlacementSettings(
   
   // v165: 同步更新campaigns表的位置倾斜字段，确保前端展示与实际优化值一致
   try {
-    const campaignUpdateData: Record<string, any> = {};
+    const campaignUpdateData: Record<string, unknown> = {};
     for (const adj of validAdjustments) {
       if (adj.placementType === 'top_of_search') {
         campaignUpdateData.placementTopSearchBidAdjustment = adj.suggestedAdjustment;
@@ -1031,10 +1031,10 @@ export async function batchExecutePlacementOptimization(
           eq(campaigns.accountId, accountId),
           eq(campaigns.campaignStatus, 'enabled')
         )
-      ) as any[];
+      ) as unknown[];
     campaignsToOptimize = allCampaigns
-      .filter((c: Record<string, any>) => c.campaignId && c.campaignId !== '0' && c.campaignId !== '')
-      .map((c: Record<string, any>) => ({ amazonCampaignId: String(c.campaignId) }));
+      .filter((c: Record<string, unknown>) => c.campaignId && c.campaignId !== '0' && c.campaignId !== '')
+      .map((c: Record<string, unknown>) => ({ amazonCampaignId: String(c.campaignId) }));
   }
 
   const results: Array<{
@@ -1048,7 +1048,7 @@ export async function batchExecutePlacementOptimization(
   let failedCount = 0;
   let skippedCount = 0;
 
-  for (const campaign of (campaignsToOptimize as any[])) {
+  for (const campaign of (campaignsToOptimize as unknown[])) {
     if (!campaign.amazonCampaignId) continue;
     
     const result = await executeAutomaticPlacementOptimization(
@@ -1092,7 +1092,7 @@ export async function batchExecutePlacementOptimization(
 export async function analyzePlacementPerformance(
   campaignId: string,
   accountId: number
-): Promise<any> {
+): Promise<unknown> {
   const performance = await getCampaignPlacementPerformance(campaignId, accountId);
   if (!performance || performance.length === 0) return null;
   
@@ -1100,9 +1100,9 @@ export async function analyzePlacementPerformance(
     campaignId,
     placements: performance,
     analysis: {
-      bestPerforming: performance.reduce((best: any, p: Record<string, any>) => 
+      bestPerforming: performance.reduce((best: unknown, p: Record<string, unknown>) => 
         (p.metrics?.roas || 0) > (best?.metrics?.roas || 0) ? p : best, performance[0]),
-      worstPerforming: performance.reduce((worst: any, p: Record<string, any>) => 
+      worstPerforming: performance.reduce((worst: unknown, p: Record<string, unknown>) => 
         (p.metrics?.roas || Infinity) < (worst?.metrics?.roas || Infinity) ? p : worst, performance[0]),
       reliableDataCount: performance.filter(p => p.isReliable).length,
       totalPlacements: performance.length
@@ -1116,7 +1116,7 @@ export async function analyzePlacementPerformance(
 export async function generatePlacementSuggestions(
   campaignId: string,
   accountId: number
-): Promise<Record<string, any>[]> {
+): Promise<Record<string, unknown>[]> {
   const performance = await getCampaignPlacementPerformance(campaignId, accountId);
   if (!performance || performance.length === 0) return [];
   
@@ -1128,9 +1128,9 @@ export async function generatePlacementSuggestions(
     accountId
   );
   
-  const suggestions: any[] = [];
+  const suggestions: unknown[] = [];
   
-  for (const suggestion of (adjustmentSuggestions as any[])) {
+  for (const suggestion of (adjustmentSuggestions as unknown[])) {
     const adjustmentDelta = Math.abs(suggestion.suggestedAdjustment - suggestion.currentAdjustment);
     // v354: P1修复 — 将过滤阈值从 > 5 降低为 > 0
     // 原因: 当confidence=0.6时maxDeltaPercent=5，但过滤条件是严格大于5，导致中等置信度的建议永远被过滤
@@ -1206,7 +1206,7 @@ export async function getPlacementAdjustmentEffectAnalysis(
   if (!db) throw new Error('Database connection failed');
   
   // 获取调整记录
-  let adjustmentRecord: any = null;
+  let adjustmentRecord: unknown = null;
   
   if (adjustmentId) {
     const records = await db.select()

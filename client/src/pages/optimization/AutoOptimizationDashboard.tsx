@@ -118,9 +118,9 @@ export default function AutoOptimizationDashboard() {
     );
   }
 
-  const safeMetrics = metrics as any;
-  const safeActions = (recentActions || []) as any[];
-  const safeTrends = (trends || []) as any[];
+  const safeMetrics = metrics as unknown;
+  const safeActions = (recentActions || []) as unknown[];
+  const safeTrends = (trends || []) as unknown[];
 
   return (
     <DashboardLayout>
@@ -232,7 +232,7 @@ export default function AutoOptimizationDashboard() {
         <CardContent>
           <div className="space-y-4">
             {safeActions.length > 0 ? (
-              safeActions.map((action: any) => (
+              safeActions.map((action: unknown) => (
                 <div
                   key={action.id}
                   className="flex items-start justify-between p-4 border rounded-lg hover:bg-gray-50/5 transition"

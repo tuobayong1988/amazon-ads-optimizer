@@ -32,7 +32,7 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
 
           {/* 桌面端导航链接 */}
           <div className="hidden md:flex items-center gap-1">
-            {NAV_LINKS.map((link: any) => {
+            {NAV_LINKS.map((link: unknown) => {
               const isActive = location === link.href || (link.href !== "/" && location.startsWith(link.href));
               return (
                 <Link
@@ -73,7 +73,7 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
         {mobileMenuOpen && (
           <div className="md:hidden border-t border-border/50 bg-background/95 backdrop-blur-lg">
             <div className="container py-4 space-y-2">
-              {NAV_LINKS.map((link: any) => {
+              {NAV_LINKS.map((link: unknown) => {
                 const isActive = location === link.href || (link.href !== "/" && location.startsWith(link.href));
                 return (
                   <Link

@@ -127,7 +127,7 @@ export function MobileListCard({
         </div>
       ) : (
         <div className="divide-y divide-border/50">
-          {items.map((item: any) => (
+          {items.map((item: unknown) => (
             <button
               key={item.id}
               onClick={() => onItemClick?.(item.id)}

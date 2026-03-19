@@ -76,7 +76,7 @@ describe('SpCampaignSchema', () => {
       unknownField: 'extra data',
     };
     const result = SpCampaignSchema.parse(campaign);
-    expect((result as any).unknownField).toBe('extra data');
+    expect((result as Record<string, unknown>).unknownField).toBe('extra data');
   });
 
   it('should validate bidding strategy and adjustments', () => {

@@ -282,7 +282,7 @@ export async function harvestSearchTermAtomic(
       
       // 检查是否是"已存在"错误（幂等处理）
       // @ts-expect-error - runtime type mismatch
-      const isDuplicate = createResult.errors.some((e: Record<string, any>) => 
+      const isDuplicate = createResult.errors.some((e: Record<string, unknown>) => 
         String(e).includes('DUPLICATE') || String(e).includes('already exists')
       );
       
@@ -325,11 +325,11 @@ export async function harvestSearchTermAtomic(
     }]);
 
     // 检查否定词创建结果
-    const negativeErrors = negativeResult.filter((r: Record<string, any>) => r.code && r.code !== 'SUCCESS');
+    const negativeErrors = negativeResult.filter((r: Record<string, unknown>) => r.code && r.code !== 'SUCCESS');
     
     if (negativeErrors.length > 0) {
       // 检查是否是"已存在"错误（幂等处理）
-      const isDuplicate = negativeErrors.some((e: Record<string, any>) => 
+      const isDuplicate = negativeErrors.some((e: Record<string, unknown>) => 
         String(e.code).includes('DUPLICATE') || String(e.details).includes('already exists')
       );
       
@@ -345,7 +345,7 @@ export async function harvestSearchTermAtomic(
     }
 
     // 获取否定词ID
-    const successNeg = negativeResult.find((r: Record<string, any>) => !r.code || r.code === 'SUCCESS');
+    const successNeg = negativeResult.find((r: Record<string, unknown>) => !r.code || r.code === 'SUCCESS');
     if (successNeg) {
       result.createdNegativeKeywordId = successNeg.keywordId;
     }
@@ -612,10 +612,10 @@ async function findTargetAdGroup(
     c.campaignName?.includes('精确')
   );
   
-  for (const campaign of (exactCampaigns as any[])) {
+  for (const campaign of (exactCampaigns as unknown[])) {
     // v206: getAdGroupsByCampaignId需要Amazon campaignId
     const adGroupsList = await db.getAdGroupsByCampaignId(campaign.campaignId);
-    const enabledAdGroups = adGroupsList.filter((ag: Record<string, any>) => ag.adGroupStatus === 'enabled');
+    const enabledAdGroups = adGroupsList.filter((ag: Record<string, unknown>) => ag.adGroupStatus === 'enabled');
     
     for (const ag of enabledAdGroups) {
       // v194: 跳过已有product targets的广告组
@@ -634,10 +634,10 @@ async function findTargetAdGroup(
   }
   
   // 策由2: 查找任意手动Campaign的广告组（排除PT类型）
-  for (const campaign of (nonPTCampaigns as any[])) {
+  for (const campaign of (nonPTCampaigns as unknown[])) {
     // v206: getAdGroupsByCampaignId需要Amazon campaignId
     const adGroupsList = await db.getAdGroupsByCampaignId(campaign.campaignId);
-    const enabledAdGroups = adGroupsList.filter((ag: Record<string, any>) => ag.adGroupStatus === 'enabled');
+    const enabledAdGroups = adGroupsList.filter((ag: Record<string, unknown>) => ag.adGroupStatus === 'enabled');
     
     for (const ag of enabledAdGroups) {
       // v194: 跳过已有product targets的广告组

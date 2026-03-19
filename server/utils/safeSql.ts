@@ -63,7 +63,7 @@ export function safeColumnRef(columnName: string, allowedColumns: string[]): SQL
  * @param allowedColumns 允许更新的列名白名单
  */
 export function safeDynamicSet(
-  updates: Record<string, any>,
+  updates: Record<string, unknown>,
   allowedColumns: string[]
 ): SQL {
   const setClauses: SQL[] = [];

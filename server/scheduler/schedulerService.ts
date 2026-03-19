@@ -25,7 +25,7 @@ export interface TaskConfig {
   runTime: string; // HH:MM format
   dayOfWeek?: number; // 0-6 for weekly
   dayOfMonth?: number; // 1-31 for monthly
-  parameters?: Record<string, any>;
+  parameters?: Record<string, unknown>;
   autoApply: boolean;
   requireApproval: boolean;
 }
@@ -42,7 +42,7 @@ export interface TaskExecutionResult {
   suggestionsGenerated: number;
   suggestionsApplied: number;
   errorMessage?: string;
-  resultSummary: Record<string, any>;
+  resultSummary: Record<string, unknown>;
 }
 
 // Default task configurations

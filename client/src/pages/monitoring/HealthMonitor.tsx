@@ -46,7 +46,7 @@ export default function HealthMonitor() {
   // 获取健康度分析
   const resourcesQuery = trpc.monitoring.getSystemResources.useQuery(undefined, {
     refetchInterval: 30000, // 30秒自动刷新
-  }) as any;
+  }) as unknown;
 
   const healthQuery = trpc.adAutomation.analyzeCampaignHealth.useQuery({
     accountId: selectedAccountId,
@@ -119,7 +119,7 @@ export default function HealthMonitor() {
                 <SelectValue placeholder="选择广告账号" />
               </SelectTrigger>
               <SelectContent>
-                {accountsQuery.data?.map((account: any) => (
+                {accountsQuery.data?.map((account: unknown) => (
                   <SelectItem key={account.id} value={account.id.toString()}>
                     {account.accountName}
                   </SelectItem>
@@ -269,7 +269,7 @@ export default function HealthMonitor() {
                   <div className="text-center py-8 text-gray-400">暂无广告活动数据</div>
                 ) : (
                   <div className="space-y-4">
-                    {healthQuery.data?.campaigns?.map((campaign: any) => (
+                    {healthQuery.data?.campaigns?.map((campaign: unknown) => (
                       <div
                         key={campaign.campaignId}
                         className="p-4 bg-gray-800/50 rounded-lg border border-gray-700"
@@ -340,7 +340,7 @@ export default function HealthMonitor() {
                         {campaign.alerts?.length > 0 && (
                           <div className="mt-3 pt-3 border-t border-gray-700">
                             <div className="flex flex-wrap gap-2">
-                              {campaign.alerts.slice(0, 3).map((alert: any, idx: number) => (
+                              {campaign.alerts.slice(0, 3).map((alert: unknown, idx: number) => (
                                 <Badge 
                                   key={idx}
                                   variant="outline"
@@ -389,7 +389,7 @@ export default function HealthMonitor() {
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {alertsQuery.data?.alerts?.map((alert: any, idx: number) => (
+                    {alertsQuery.data?.alerts?.map((alert: unknown, idx: number) => (
                       <div
                         key={idx}
                         className={`p-4 rounded-lg border ${
@@ -471,7 +471,7 @@ export default function HealthMonitor() {
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {correctionsQuery.data?.corrections?.map((correction: any, idx: number) => (
+                    {correctionsQuery.data?.corrections?.map((correction: unknown, idx: number) => (
                       <div
                         key={idx}
                         className="p-4 bg-gray-800/50 rounded-lg border border-gray-700"

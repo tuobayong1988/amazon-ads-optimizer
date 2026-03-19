@@ -92,7 +92,7 @@ function CreateOptimizationTargetDialog({
   const [selectedCampaignIds, setSelectedCampaignIds] = useState<number[]>([]);
 
   // 获取账号列表
-  const { data: accounts } = trpc.adAccount.list.useQuery() as any;
+  const { data: accounts } = trpc.adAccount.list.useQuery() as unknown;
   
   // 获取广告活动列表
   const { data: campaignsData, isLoading: campaignsLoading } = trpc.campaign.list.useQuery(
@@ -315,7 +315,7 @@ function CreateOptimizationTargetDialog({
       accountId,
       name: name.trim(),
       description: description.trim() || undefined,
-      targetType: targetType as any,
+      targetType: targetType as unknown,
       targetValue: targetValue ? parseFloat(targetValue) : undefined,
       dailyBudget: dailyBudget ? parseFloat(dailyBudget) : undefined,
       maxBid: maxBid ? parseFloat(maxBid) : undefined,
@@ -368,7 +368,7 @@ function CreateOptimizationTargetDialog({
 
         {/* 步骤指示器 */}
         <div className="flex items-center justify-center gap-2 py-4">
-          {[1, 2, 3].map((s: any) => (
+          {[1, 2, 3].map((s: unknown) => (
             <div key={s} className="flex items-center">
               <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
                 s === step ? "bg-primary text-primary-foreground" : 
@@ -401,7 +401,7 @@ function CreateOptimizationTargetDialog({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">所有账号</SelectItem>
-                    {accounts?.map((account: any) => (
+                    {accounts?.map((account: unknown) => (
                       <SelectItem key={account.id} value={account.id.toString()}>
                         {account.accountName}
                       </SelectItem>
@@ -655,7 +655,7 @@ function CreateOptimizationTargetDialog({
                         position: 'relative',
                       }}
                     >
-                      {campaignVirtualizer.getVirtualItems().map((virtualRow: any) => {
+                      {campaignVirtualizer.getVirtualItems().map((virtualRow: unknown) => {
                         const campaign = filteredCampaigns[virtualRow.index];
                         if (!campaign) return null;
                         const isSelected = selectedCampaignIdSet.has(campaign.id);
@@ -828,7 +828,7 @@ function OptimizationTargetCard({
   onManage,
   onRefresh 
 }: { 
-  target: any; 
+  target: unknown; 
   onManage: () => void;
   onRefresh: () => void;
 }) {
@@ -999,7 +999,7 @@ function OptimizationTargetCard({
             {/* v164: 五维度得分小条 */}
             {target.goalProgressDetail?.dimensions && target.goalProgressDetail.dimensions.length > 0 && (
               <div className={`grid gap-1 ${target.goalProgressDetail.dimensions.length >= 5 ? 'grid-cols-5' : 'grid-cols-4'}`}>
-                {target.goalProgressDetail.dimensions.map((dim: any) => (
+                {target.goalProgressDetail.dimensions.map((dim: unknown) => (
                   <div key={dim.name} className="text-center" title={dim.detail}>
                     <div className="text-[9px] text-muted-foreground">{dim.nameZh}</div>
                     <div className={`text-[10px] font-semibold ${
@@ -1136,7 +1136,7 @@ export default function OptimizationTargets() {
   }, []);
 
   // 获取账号列表
-  const { data: accounts } = trpc.adAccount.list.useQuery() as any;
+  const { data: accounts } = trpc.adAccount.list.useQuery() as unknown;
   const currentStore = useCurrentStore();
   const currentMarketplace = useCurrentMarketplace();
   
@@ -1146,7 +1146,7 @@ export default function OptimizationTargets() {
     
     // 如果有选中的店铺和站点，精确匹配
     if (currentStore && currentMarketplace) {
-      const account = accounts.find((a: any) => 
+      const account = accounts.find((a: unknown) => 
         (a.storeName || a.accountName).trim() === currentStore && 
         a.marketplace === currentMarketplace
       );
@@ -1155,7 +1155,7 @@ export default function OptimizationTargets() {
     
     // 如果只有店铺，匹配第一个站点
     if (currentStore) {
-      const account = accounts.find((a: any) => 
+      const account = accounts.find((a: unknown) => 
         (a.storeName || a.accountName).trim() === currentStore
       );
       if (account) return account.id;
@@ -1173,7 +1173,7 @@ export default function OptimizationTargets() {
 
   // v426: 使用轻量级statusCounts API替代全量加载
   const { data: campaignCounts } = trpc.campaign.statusCounts.useQuery(
-    { accountId: currentAccountId as any},
+    { accountId: currentAccountId as unknown},
 
     { enabled: !!currentAccountId }
   );

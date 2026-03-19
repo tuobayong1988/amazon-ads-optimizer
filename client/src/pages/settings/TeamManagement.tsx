@@ -61,10 +61,10 @@ export default function TeamManagement() {
   const [permissions, setPermissions] = useState<Permission[]>([]);
 
   // 获取团队成员列表
-  const { data: members, isLoading, refetch } = trpc.team.list.useQuery() as any;
+  const { data: members, isLoading, refetch } = trpc.team.list.useQuery() as unknown;
   
   // 获取账号列表（用于权限分配）
-  const { data: accounts } = trpc.adAccount.list.useQuery() as any;
+  const { data: accounts } = trpc.adAccount.list.useQuery() as unknown;
 
   // 邀请成员
   const inviteMutation = trpc.team.invite.useMutation({
@@ -370,7 +370,7 @@ export default function TeamManagement() {
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4 max-h-96 overflow-y-auto">
-              {accounts?.map((account: any) => {
+              {accounts?.map((account: unknown) => {
                 const existingPerm = permissions.find(p => p.accountId === account.id);
                 return (
                   <div key={account.id} className="flex items-center justify-between p-4 border rounded-lg">
@@ -438,7 +438,7 @@ export default function TeamManagement() {
 
 // 成员表格组件
 interface MemberTableProps {
-  members: any[];
+  members: unknown[];
   isLoading: boolean;
   onOpenPermissions: (id: number) => void;
   onResendInvite: (id: number) => void;
@@ -492,7 +492,7 @@ function MemberTable({
         </TableRow>
       </TableHeader>
       <TableBody>
-        {members.map((member: any) => (
+        {members.map((member: unknown) => (
           <TableRow key={member.id}>
             <TableCell>
               <div className="flex items-center gap-3">
@@ -514,7 +514,7 @@ function MemberTable({
               {safeToLocaleDateString(member.createdAt, "zh-CN")}
             </TableCell>
             <TableCell className="text-right">
-              {(member as any).isOwner || member.role === 'owner' ? (
+              {(member as Record<string, unknown>).isOwner || member.role === 'owner' ? (
                 <span className="text-xs text-muted-foreground">账户所有者</span>
               ) : (
                 <DropdownMenu>

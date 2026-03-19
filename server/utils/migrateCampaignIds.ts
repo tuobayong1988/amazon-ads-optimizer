@@ -51,7 +51,7 @@ interface MigrationResult {
 /**
  * 安全提取COUNT结果
  */
-function extractCount(result: Record<string, any>): number {
+function extractCount(result: Record<string, unknown>): number {
   if (!result) return 0;
   const row = Array.isArray(result[0]) ? result[0][0] : result[0];
   return Number(row?.cnt || row?.count || 0);
@@ -103,7 +103,7 @@ async function findRecordsToMigrate(db: DbInstance, tableName: string): Promise<
     `));
     
     const rows = Array.isArray(directResult[0]) ? directResult[0] : directResult;
-    for (const row of (rows as any[])) {
+    for (const row of (rows as unknown[])) {
       if (row?.id && row?.correctCampaignId) {
         records.push({ id: Number(row.id), correctCampaignId: String(row.correctCampaignId) });
       }
@@ -128,7 +128,7 @@ async function findRecordsToMigrate(db: DbInstance, tableName: string): Promise<
       
       const existingIds = new Set(records.map(r => r.id));
       const rows = Array.isArray(adGroupResult[0]) ? adGroupResult[0] : adGroupResult;
-      for (const row of (rows as any[])) {
+      for (const row of (rows as unknown[])) {
         if (row?.id && row?.correctCampaignId && !existingIds.has(Number(row.id))) {
           records.push({ id: Number(row.id), correctCampaignId: String(row.correctCampaignId) });
         }
@@ -195,7 +195,7 @@ async function migrateTable(db: DbInstance, tableName: string): Promise<Migratio
   let failedCount = 0;
   
   // 逐条 UPDATE — 每条使用主键索引，毫秒级完成，不会造成锁冲突
-  for (const record of (recordsToMigrate as any[])) {
+  for (const record of (recordsToMigrate as unknown[])) {
     try {
       // @ts-expect-error - Drizzle raw SQL execution
       await db.execute(sql.raw(

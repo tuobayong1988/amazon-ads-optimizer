@@ -412,8 +412,8 @@ export class SQSConsumerService {
         await this.pollQueue(queue);
       } catch (error: unknown) {
         const errMsg = (error as Error).message || 'Unknown error';
-        const errName = (error as any).name || 'Error';
-        const statusCode = (error as any).$metadata?.httpStatusCode || (error as any).statusCode || '';
+        const errName = (error as Record<string, unknown>).name || 'Error';
+        const statusCode = (error as Record<string, unknown>).$metadata?.httpStatusCode || (error as Record<string, unknown>).statusCode || '';
         log.error(`[SQS Consumer] 队列 ${queue.name} 轮询错误: [${errName}${statusCode ? ` HTTP ${statusCode}` : ''}] ${errMsg}`);
         logSyncError('SQSConsumer', `队列${queue.name}轮询错误`, { queue: queue.name, errorName: errName, statusCode, error: errMsg });
         const status = this.consumerStatuses.get(queue.name);
@@ -484,13 +484,13 @@ export class SQSConsumerService {
   /**
    * 处理单条消息
    */
-  private async processMessage(queue: SQSQueueConfig, message: any): Promise<void> {
+  private async processMessage(queue: SQSQueueConfig, message: unknown): Promise<void> {
     if (!message.Body) {
       log.warn('[SQS Consumer] 消息体为空');
       return;
     }
 
-    let body: Record<string, any>;
+    let body: Record<string, unknown>;
     try {
       body = JSON.parse(message.Body);
     } catch (e) {
@@ -541,7 +541,7 @@ export class SQSConsumerService {
   /**
    * 处理SNS订阅确认消息
    */
-  private async handleSubscriptionConfirmation(body: Record<string, any>): Promise<void> {
+  private async handleSubscriptionConfirmation(body: Record<string, unknown>): Promise<void> {
     const subscribeUrl = body.SubscribeURL;
     const topicArn = body.TopicArn;
     
@@ -1006,7 +1006,7 @@ export class SQSConsumerService {
 
     if (existing.length > 0) {
       // 更新已有记录（覆盖写入）
-      const updateData: Record<string, any> = {};
+      const updateData: Record<string, unknown> = {};
       if (params.dataType === 'traffic') {
         updateData.impressions = params.impressions;
         updateData.clicks = params.clicks;
@@ -1016,7 +1016,7 @@ export class SQSConsumerService {
         updateData.orders = params.orders;
       }
       // 重新计算派生指标
-      const row = existing[0] as any;
+      const row = existing[0] as unknown;
       const totalSpend = params.dataType === 'traffic' ? params.spend : parseFloat(String(row.spend || '0'));
       const totalSales = params.dataType === 'conversion' ? params.sales : parseFloat(String(row.sales || '0'));
       const totalClicks = params.dataType === 'traffic' ? params.clicks : (row.clicks || 0);
@@ -1054,7 +1054,7 @@ export class SQSConsumerService {
         sales: String(params.sales),
         orders: params.orders,
         dataSource: 'ams',
-      } as Record<string, any>);
+      } as Record<string, unknown>);
     }
   }
 }

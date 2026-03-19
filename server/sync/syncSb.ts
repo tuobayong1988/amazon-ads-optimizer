@@ -136,11 +136,11 @@ AmazonSyncService.prototype.syncSbCampaigns = async function(this: AmazonSyncSer
       }
 
       // 获取SB广告的组合ID
-      const sbPortfolioId = (apiCampaign as Record<string, any>).portfolioId ? String((apiCampaign as Record<string, any>).portfolioId) : null;
+      const sbPortfolioId = (apiCampaign as Record<string, unknown>).portfolioId ? String((apiCampaign as Record<string, unknown>).portfolioId) : null;
 
       // 获取SB广告的竞价策略
-      const sbBiddingStrategy = (apiCampaign as Record<string, any>).bidding?.strategy || 
-                                (apiCampaign as Record<string, any>).biddingStrategy || 
+      const sbBiddingStrategy = (apiCampaign as Record<string, unknown>).bidding?.strategy || 
+                                (apiCampaign as Record<string, unknown>).biddingStrategy || 
                                 'legacyForSales';
 
       // ✅ 根据SB广告的Campaign Goal确定计费方式
@@ -150,25 +150,25 @@ AmazonSyncService.prototype.syncSbCampaigns = async function(this: AmazonSyncSer
       //   - PROMOTE_PRODUCTS → CPC计费（推广产品）
       // 注意：同一种SB广告格式（Video/Product Collection/Store Spotlight）
       //       既可以是CPC也可以是vCPM，完全取决于创建时选择的Goal
-      const sbGoal = (apiCampaign as Record<string, any>).goal || (apiCampaign as Record<string, any>).campaignGoal || '';
+      const sbGoal = (apiCampaign as Record<string, unknown>).goal || (apiCampaign as Record<string, unknown>).campaignGoal || '';
       let sbCostType: 'cpc' | 'vcpm' | 'cpm' = 'cpc'; // 默认CPC
       if (sbGoal === 'GROW_BRAND_IMPRESSION_SHARE' || sbGoal === 'growBrandImpressionShare') {
         sbCostType = 'vcpm';
       }
       // 也检查API是否直接返回了costType字段（某些API版本可能直接返回）
-      if ((apiCampaign as Record<string, any>).costType) {
-        const apiCostType = String((apiCampaign as Record<string, any>).costType).toLowerCase();
+      if ((apiCampaign as Record<string, unknown>).costType) {
+        const apiCostType = String((apiCampaign as Record<string, unknown>).costType).toLowerCase();
         if (apiCostType === 'vcpm' || apiCostType === 'cpm') {
           sbCostType = apiCostType as 'vcpm' | 'cpm';
         }
       }
 
       // v436: 增强SB广告格式获取逻辑 — 尝试多个字段路径和campaign名称推断
-      const rawAdFormat = (apiCampaign as Record<string, any>).adFormat 
-        || (apiCampaign as Record<string, any>).creative?.adFormat
-        || (apiCampaign as Record<string, any>).creativeType
-        || (apiCampaign as Record<string, any>).creative?.type
-        || (apiCampaign as Record<string, any>).format
+      const rawAdFormat = (apiCampaign as Record<string, unknown>).adFormat 
+        || (apiCampaign as Record<string, unknown>).creative?.adFormat
+        || (apiCampaign as Record<string, unknown>).creativeType
+        || (apiCampaign as Record<string, unknown>).creative?.type
+        || (apiCampaign as Record<string, unknown>).format
         || null;
       const validAdFormats = ['productCollection', 'video', 'storeSpotlight', 'brandVideo'];
       let normalizedAdFormat: string | null = validAdFormats.includes(rawAdFormat) ? rawAdFormat : null;
@@ -185,14 +185,14 @@ AmazonSyncService.prototype.syncSbCampaigns = async function(this: AmazonSyncSer
       log.debug(`v436: SB campaign ${apiCampaign.name} adFormat: raw=${rawAdFormat}, normalized=${normalizedAdFormat}`);
 
       // 获取SB广告的竞价优化目标
-      const sbBidOptimization = (apiCampaign as Record<string, any>).bidOptimization || null;
+      const sbBidOptimization = (apiCampaign as Record<string, unknown>).bidOptimization || null;
       const validBidOpts = ['reach', 'pageVisits', 'conversions'];
       const normalizedBidOpt = validBidOpts.includes(sbBidOptimization) ? sbBidOptimization : null;
 
       // 获取SB广告的landing page信息
-      const sbLandingPageType = (apiCampaign as Record<string, any>).landingPage?.pageType || (apiCampaign as Record<string, any>).landingPageType || null;
-      const sbLandingPageUrl = (apiCampaign as Record<string, any>).landingPage?.url || (apiCampaign as Record<string, any>).landingPageUrl || null;
-      const sbBrandEntityId = (apiCampaign as Record<string, any>).brandEntityId || null;
+      const sbLandingPageType = (apiCampaign as Record<string, unknown>).landingPage?.pageType || (apiCampaign as Record<string, unknown>).landingPageType || null;
+      const sbLandingPageUrl = (apiCampaign as Record<string, unknown>).landingPage?.url || (apiCampaign as Record<string, unknown>).landingPageUrl || null;
+      const sbBrandEntityId = (apiCampaign as Record<string, unknown>).brandEntityId || null;
 
       log.debug(`SB广告 ${apiCampaign.name}: goal=${sbGoal}, costType=${sbCostType}, adFormat=${normalizedAdFormat}`);
 
@@ -225,7 +225,7 @@ AmazonSyncService.prototype.syncSbCampaigns = async function(this: AmazonSyncSer
         const localBudgetSb = parseFloat(existing.dailyBudget || '0');
         if (dailyBudget === 0 && localBudgetSb > 0) {
           log.warn(`v168: SB零值预算防护生效 - campaign=${existing.campaignName}, local=$${localBudgetSb}, api=$${dailyBudget}, 保留本地预算`);
-          delete (campaignData as Record<string, any>[]).dailyBudget;
+          delete (campaignData as Record<string, unknown>[]).dailyBudget;
         }
         await db
           .update(campaigns)
@@ -434,7 +434,7 @@ AmazonSyncService.prototype.syncSbProductTargets = async function(this: AmazonSy
       let targetMatchType: 'exact' | 'expanded' | 'category_exact' | 'brand_exact' | 'substitute' | 'accessory' | 'loose' | 'close' = 'exact';
       let categoryName: string | null = null;
       let categoryRefinements: string | null = null;
-      const refinements: Record<string, any> = {};
+      const refinements: Record<string, unknown> = {};
 
       const exprArray = apiTarget.expression || apiTarget.expressions || [];
       if (Array.isArray(exprArray) && exprArray.length > 0) {
@@ -560,7 +560,7 @@ AmazonSyncService.prototype.syncSbSearchTerms = async function(this: AmazonSyncS
     log.info(`v339: 开始同步SB搜索词数据: 共${totalDays}天，分${batches}批请求 (站点: ${this.marketplace})`);
 
     // v413: 批量提交+统一轮询模式（替代串行循环）
-    let allReportData: any[] = [];
+    let allReportData: unknown[] = [];
     if (batches === 1) {
       try {
         const reportId = await this.client.requestSbSearchTermReport(rangeStartDate, rangeEndDate);
@@ -610,7 +610,7 @@ AmazonSyncService.prototype.syncSbSearchTerms = async function(this: AmazonSyncS
       .from(campaigns)
       .where(eq(campaigns.accountId, this.accountId));
     const campaignMap = new Map<string, { id: number; campaignId: string }>();
-    for (const c of (allCampaigns as any[])) {
+    for (const c of (allCampaigns as unknown[])) {
       campaignMap.set(String(c.campaignId), { id: c.id, campaignId: c.campaignId });
     }
 
@@ -618,7 +618,7 @@ AmazonSyncService.prototype.syncSbSearchTerms = async function(this: AmazonSyncS
       .select({ id: adGroups.id, adGroupId: adGroups.adGroupId })
       .from(adGroups)
       // @ts-expect-error - dynamic property access
-      .where(eq((adGroups as unknown).accountId, this.accountId));
+      .where(eq((adGroups as Record<string, unknown>).accountId, this.accountId));
     const adGroupMap = new Map<string, { id: number }>();
     for (const ag of allAdGroups) {
       adGroupMap.set(String(ag.adGroupId), { id: ag.id });
@@ -628,9 +628,9 @@ AmazonSyncService.prototype.syncSbSearchTerms = async function(this: AmazonSyncS
       .select({ id: keywords.id, adGroupId: keywords.internalAdGroupId, keywordText: keywords.keywordText, matchType: keywords.matchType })
       .from(keywords)
       // @ts-expect-error - dynamic property access
-      .where(eq((keywords as unknown).accountId, this.accountId));
+      .where(eq((keywords as Record<string, unknown>).accountId, this.accountId));
     const keywordMap = new Map<string, { id: number; matchType: string | null }>();
-    for (const kw of (allKeywords as any[])) {
+    for (const kw of (allKeywords as unknown[])) {
       const key = `${kw.adGroupId}:${(kw.keywordText || '').toLowerCase()}`;
       keywordMap.set(key, { id: kw.id, matchType: kw.matchType });
     }
@@ -639,7 +639,7 @@ AmazonSyncService.prototype.syncSbSearchTerms = async function(this: AmazonSyncS
       .select({ id: productTargets.id, adGroupId: productTargets.internalAdGroupId, targetValue: productTargets.targetValue, targetMatchType: productTargets.targetMatchType })
       .from(productTargets)
       // @ts-expect-error - dynamic property access
-      .where(eq((productTargets as unknown).accountId, this.accountId));
+      .where(eq((productTargets as Record<string, unknown>).accountId, this.accountId));
     const targetMap = new Map<string, { id: number; targetMatchType: string | null }>();
     for (const t of allTargets) {
       const key = `${t.adGroupId}:${(t.targetValue || '').toLowerCase()}`;
@@ -651,10 +651,10 @@ AmazonSyncService.prototype.syncSbSearchTerms = async function(this: AmazonSyncS
     let synced = 0;
     let skipped = 0;
     const BATCH_SIZE = 500;
-    let upsertBatch: any[] = [];
+    let upsertBatch: unknown[] = [];
     const nowStr = new Date().toISOString().slice(0, 19).replace('T', ' ');
 
-    for (const row of (reportData as any[])) {
+    for (const row of (reportData as unknown[])) {
       const campaign = campaignMap.get(String(row.campaignId));
       if (!campaign) { skipped++; continue; }
 
@@ -768,7 +768,7 @@ AmazonSyncService.prototype.syncSbTargeting = async function(this: AmazonSyncSer
     log.info(`v339: 开始同步SB定向数据: 共${totalDays}天，分${batches}批请求 (站点: ${this.marketplace})`);
 
     // v413: 批量提交+统一轮询模式（替代串行循环）
-    let allReportData: any[] = [];
+    let allReportData: unknown[] = [];
     if (batches === 1) {
       try {
         const reportId = await this.client.requestSbTargetingReport(rangeStartDate, rangeEndDate);
@@ -814,7 +814,7 @@ AmazonSyncService.prototype.syncSbTargeting = async function(this: AmazonSyncSer
     // v422: 修复SB定向报告字段映射 - 报告中没有keywordId字段，只有targetingText和matchType
     // 需要通过adGroupId+targetingText+matchType匹配已有关键词记录
     // 批量预查询所有相关adGroup和keywords（消除N+1查询）
-    const sbRptAdGroupIds = [...new Set((reportData as any[]).map(r => String(r.adGroupId)))];
+    const sbRptAdGroupIds = [...new Set((reportData as unknown[]).map(r => String(r.adGroupId)))];
     const sbRptAdGroupRows = sbRptAdGroupIds.length > 0
       ? await db.select().from(adGroups).where(and(eq(adGroups.accountId, this.accountId), inArray(adGroups.adGroupId, sbRptAdGroupIds)))
       : [];
@@ -840,7 +840,7 @@ AmazonSyncService.prototype.syncSbTargeting = async function(this: AmazonSyncSer
       }
     }
 
-    for (const row of (reportData as any[])) {
+    for (const row of (reportData as unknown[])) {
       const adGroup = sbRptAdGroupMap.get(String(row.adGroupId));
       if (!adGroup) continue;
 
@@ -955,7 +955,7 @@ AmazonSyncService.prototype.syncSbAds = async function(this: AmazonSyncService):
       const creativeType = ad.creativeType || creative.type || null;
       
       // 更新广告组的素材字段
-      const updateData: Record<string, any> = {
+      const updateData: Record<string, unknown> = {
         updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
       };
       if (headline) updateData.headline = headline;
@@ -1111,7 +1111,7 @@ AmazonSyncService.prototype.syncSbNegativeTargets = async function(this: AmazonS
       }
       
       const expression = neg.expression || [];
-      const asinExpr = expression.find((e: Record<string, any>) => e.type?.toLowerCase().includes('asin'));
+      const asinExpr = expression.find((e: Record<string, unknown>) => e.type?.toLowerCase().includes('asin'));
       const negativeText = asinExpr?.value || JSON.stringify(expression);
       const amazonTargetId = String(neg.targetId || '');
       const negLevel = internalAdGroupId ? 'ad_group' as const : 'campaign' as const;
@@ -1178,7 +1178,7 @@ AmazonSyncService.prototype.syncSbPlacementPerformance = async function(this: Am
     log.info(`v339: 开始同步SB广告位绩效: 共${totalDays}天，分${batches}批请求 (站点: ${this.marketplace})`);
 
     // v413: 批量提交+统一轮询模式（替代串行循环）
-    let allReportData: any[] = [];
+    let allReportData: unknown[] = [];
     if (batches === 1) {
       try {
         const reportId = await this.client.requestSbCampaignPlacementReport(rangeStartDate, rangeEndDate);
@@ -1220,7 +1220,7 @@ AmazonSyncService.prototype.syncSbPlacementPerformance = async function(this: Am
     }
     log.info(`v339: 共获取到 ${reportData.length} 条SB广告位数据（${batches}批合并）`);
     
-    for (const row of (reportData as any[])) {
+    for (const row of (reportData as unknown[])) {
       const campaignIdStr = String(row.campaignId);
       const [campaign] = await db
         .select()

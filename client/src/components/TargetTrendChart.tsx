@@ -120,7 +120,7 @@ export function TargetTrendChart({
         {/* 时间范围选择 */}
         <div className="flex items-center gap-2 mb-4">
           <span className="text-sm text-muted-foreground">时间范围：</span>
-          {[7, 14, 30, 60].map((d: any) => (
+          {[7, 14, 30, 60].map((d: unknown) => (
             <Button
               key={d}
               variant={days === d ? "default" : "outline"}
@@ -135,7 +135,7 @@ export function TargetTrendChart({
         {isLoading ? (
           <div className="space-y-4">
             <div className="grid grid-cols-5 gap-4">
-              {[1, 2, 3, 4, 5].map((i: any) => (
+              {[1, 2, 3, 4, 5].map((i: unknown) => (
                 <Skeleton key={i} className="h-24" />
               ))}
             </div>
@@ -215,7 +215,7 @@ export function TargetTrendChart({
             </div>
 
             {/* 图表切换 */}
-            <Tabs value={activeMetric} onValueChange={(v) => setActiveMetric(v as any)}>
+            <Tabs value={activeMetric} onValueChange={(v) => setActiveMetric(v as unknown)}>
               <TabsList className="mb-4">
                 <TabsTrigger value="performance" className="gap-2">
                   <MousePointer className="h-4 w-4" />
@@ -263,7 +263,7 @@ export function TargetTrendChart({
                             if (name === "点击") return [formatNumber(value), name];
                             if (name === "花费") return [formatCurrency(value), name];
                             return [value, name];
-                          }) as any}
+                          }) as unknown}
                           labelFormatter={(label) => `日期: ${label}`}
                         />
                         <Legend />
@@ -323,7 +323,7 @@ export function TargetTrendChart({
                             if (name === "销售额") return [formatCurrency(value), name];
                             if (name === "订单") return [formatNumber(value), name];
                             return [value, name];
-                          }) as any}
+                          }) as unknown}
                           labelFormatter={(label) => `日期: ${label}`}
                         />
                         <Legend />
@@ -375,7 +375,7 @@ export function TargetTrendChart({
                             if (name === "ACoS") return [formatPercent(value), name];
                             if (name === "ROAS") return [value.toFixed(2), name];
                             return [value, name];
-                          }) as any}
+                          }) as unknown}
                           labelFormatter={(label) => `日期: ${label}`}
                         />
                         <Legend />
@@ -422,7 +422,7 @@ export function TargetTrendChart({
                             border: "1px solid hsl(var(--border))",
                             borderRadius: "8px",
                           }}
-                          formatter={((value: number, name: string) => [formatPercent(value), name]) as any}
+                          formatter={((value: number, name: string) => [formatPercent(value), name]) as unknown}
                           labelFormatter={(label) => `日期: ${label}`}
                         />
                         <Legend />
@@ -473,7 +473,7 @@ export function TargetTrendChart({
                             border: "1px solid hsl(var(--border))",
                             borderRadius: "8px",
                           }}
-                          formatter={((value: number) => [formatCurrency(value), "CPC"]) as any}
+                          formatter={((value: number) => [formatCurrency(value), "CPC"]) as unknown}
                           labelFormatter={(label) => `日期: ${label}`}
                         />
                         <Area

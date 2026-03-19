@@ -59,10 +59,10 @@ import type { OptimizationExecutionResult, OptimizationTargetConfig } from './ty
 
 export async function executeSearchTermAnalysis(
   config: OptimizationTargetConfig,
-  campaigns: any[],
+  campaigns: unknown[],
   dryRun: boolean
-): Promise<{ executed: boolean; negativeKeywordsAdded: number; newKeywordsAdded: number; details: Record<string, any>[] }> {
-  const details: Record<string, any>[] = [];
+): Promise<{ executed: boolean; negativeKeywordsAdded: number; newKeywordsAdded: number; details: Record<string, unknown>[] }> {
+  const details: Record<string, unknown>[] = [];
   let negativeKeywordsAdded = 0;
   let newKeywordsAdded = 0;
   
@@ -84,7 +84,7 @@ export async function executeSearchTermAnalysis(
           AND action_detail IS NOT NULL AND JSON_VALID(action_detail)
       `);
       // @ts-expect-error - type assertion
-      for (const row of (recentLogs as unknown)[0] || []) {
+      for (const row of (recentLogs as Record<string, unknown>)[0] || []) {
         if (row.search_term && row.campaign_id) {
           recentlyProcessedSearchTerms.add(`${row.campaign_id}::${row.search_term}`);
         }
@@ -127,7 +127,7 @@ export async function executeSearchTermAnalysis(
         GROUP BY search_term
       `);
       // @ts-expect-error - type assertion
-      for (const row of (failedLogs as unknown)[0] || []) {
+      for (const row of (failedLogs as Record<string, unknown>)[0] || []) {
         if (row.search_term) {
           permanentlyFailedKeywords.add(row.search_term);
         }
@@ -160,18 +160,18 @@ export async function executeSearchTermAnalysis(
         LIMIT 50
       `);
       // @ts-expect-error - type assertion
-      const pendingKwRows = (pendingKeywords as unknown)[0] || [];
+      const pendingKwRows = (pendingKeywords as Record<string, unknown>)[0] || [];
       
       if (pendingKwRows.length > 0) {
         log.info(`[SearchTermAnalysis] v310: 发现${pendingKwRows.length}条pending的keyword_create，尝试重新同步`);
         let retrySuccess = 0;
         let retryFailed = 0;
         
-        for (const row of (pendingKwRows as any[])) {
+        for (const row of (pendingKwRows as unknown[])) {
           try {
             // v354: P2修复 — SB/SD广告活动不支持通过API创建关键词，直接标记为skipped_unsupported_campaign_type
             // @ts-expect-error - dynamic property access
-            const rowCampaignType = (row as unknown).campaign_type;
+            const rowCampaignType = (row as Record<string, unknown>).campaign_type;
             if (rowCampaignType === 'sb' || rowCampaignType === 'sd') {
               await dbInstance.execute(sql`
                 UPDATE optimization_logs SET api_sync_status = 'skipped_unsupported_campaign_type',
@@ -208,17 +208,17 @@ export async function executeSearchTermAnalysis(
                   SELECT campaignId FROM campaigns WHERE id = ${localCampaignId} LIMIT 1
                 `);
                 // @ts-expect-error - type assertion
-                const lookupRows = (campaignLookup as unknown)[0] || [];
+                const lookupRows = (campaignLookup as Record<string, unknown>)[0] || [];
                 if (lookupRows.length > 0 && lookupRows[0].campaignId) {
                   // 找到了Amazon Campaign ID，更新action_detail并继续
                   const foundAmazonCampaignId = lookupRows[0].campaignId;
                   const adGroups = await db.getAdGroupsByCampaignId(foundAmazonCampaignId);
                   if (adGroups.length > 0 && searchTerm) {
-                    const adGroup = adGroups[0] as any;
+                    const adGroup = adGroups[0] as unknown;
                     const amazonAdGroupId = Number(adGroup.adGroupId || 0);
                     if (amazonAdGroupId > 0) {
                       try {
-                        const apiResult: any = await amazonApiHelper.syncNewKeywordsToAmazon(
+                        const apiResult: unknown = await amazonApiHelper.syncNewKeywordsToAmazon(
                           config.accountId,
                           [{ adGroupId: amazonAdGroupId, campaignId: foundAmazonCampaignId, keywordText: searchTerm, matchType, bid }]
                         );
@@ -261,11 +261,11 @@ export async function executeSearchTermAnalysis(
               // 有Amazon Campaign ID，直接重试同步
               const adGroups = await db.getAdGroupsByCampaignId(amazonCampaignIdStr);
               if (adGroups.length > 0) {
-                const adGroup = adGroups[0] as any;
+                const adGroup = adGroups[0] as unknown;
                 const amazonAdGroupId = Number(adGroup.adGroupId || 0);
                 if (amazonAdGroupId > 0) {
                   try {
-                    const apiResult: any = await amazonApiHelper.syncNewKeywordsToAmazon(
+                    const apiResult: unknown = await amazonApiHelper.syncNewKeywordsToAmazon(
                       config.accountId,
                       [{ adGroupId: amazonAdGroupId, campaignId: amazonCampaignIdStr, keywordText: searchTerm, matchType, bid }]
                     );
@@ -326,7 +326,7 @@ export async function executeSearchTermAnalysis(
           AND api_sync_status = 'pending'
           AND created_at < DATE_SUB(NOW(), INTERVAL 72 HOUR)
       `);
-      const timeoutCount = (timeoutResult as Record<string, any>[])[0]?.affectedRows || 0;
+      const timeoutCount = (timeoutResult as Record<string, unknown>[])[0]?.affectedRows || 0;
       if (timeoutCount > 0) {
         log.warn(`[SearchTermAnalysis] v310: 标记${timeoutCount}条超过72小时的pending记录为timeout_failed`);
       }
@@ -335,13 +335,13 @@ export async function executeSearchTermAnalysis(
     log.warn(`[SearchTermAnalysis] v310: pending重试处理失败: ${(timeoutErr as Error).message}`, (timeoutErr as Error).stack?.slice(0, 300));
   }
   
-  for (const campaign of (campaigns as any[])) {
+  for (const campaign of (campaigns as unknown[])) {
     const campaignLocalId = getCampaignLocalId(campaign);
     const campaignAmazonId = getCampaignAmazonId(campaign);
     try {
       // v311+v2: Campaign级别的Product Targeting检查
       // v2修改: PT campaigns不再完全跳过，而是标记为PT类型，允许否定产品定向操作
-      const campaignNameStr = (campaign as Record<string, any>).campaignName || '';
+      const campaignNameStr = (campaign as Record<string, unknown>).campaignName || '';
       const isProductTargetingCamp = isProductTargetingCampaign(campaignNameStr);
       
       // v353: 在campaign循环开头预加载广告组PT状态，避免在每个搜索词处理中重复查询
@@ -366,13 +366,13 @@ export async function executeSearchTermAnalysis(
       
       // v191: 使用智能投放决策引擎替代旧的classifySearchTerms
       // 获取campaign的定向类型（auto/manual）
-      const campaignTargetingType = (campaign as Record<string, any>).targetingType || 
-        ((campaign as Record<string, any>).campaignType === 'sp_auto' ? 'auto' : 'manual');
+      const campaignTargetingType = (campaign as Record<string, unknown>).targetingType || 
+        ((campaign as Record<string, unknown>).campaignType === 'sp_auto' ? 'auto' : 'manual');
       const targetAcos = config.targetAcos || 30; // 默认30%
       
       // v191: 将搜索词数据转换为智能决策引擎所需的格式
       // v2: 新增campaignType字段，用于否定策略分发
-      const rawCampaignType = (campaign as Record<string, any>).campaignType || 'sp_auto';
+      const rawCampaignType = (campaign as Record<string, unknown>).campaignType || 'sp_auto';
       const v2CampaignType = (() => {
         if (rawCampaignType === 'sponsoredProducts' || rawCampaignType === 'sp') {
           return campaignTargetingType === 'auto' ? 'sp_auto' : 'sp_manual';
@@ -383,7 +383,7 @@ export async function executeSearchTermAnalysis(
         return campaignTargetingType === 'auto' ? 'sp_auto' : 'sp_manual';
       })() as 'sp_auto' | 'sp_manual' | 'sb' | 'sd';
       
-      const searchTermPerformanceList: SearchTermPerformance[] = searchTerms.map((st: Record<string, any>) => ({
+      const searchTermPerformanceList: SearchTermPerformance[] = searchTerms.map((st: Record<string, unknown>) => ({
         searchTerm: st.searchTerm,
         clicks: Number(st.searchTermClicks || 0),
         impressions: Number(st.searchTermImpressions || 0),
@@ -452,7 +452,7 @@ export async function executeSearchTermAnalysis(
           
           // v122h: 探索期保护 - 检查对应的投放词是否在探索期内
           const matchingKeywords = await db.getKeywordsByCampaignId(campaignAmazonId);
-          const matchingKw = matchingKeywords.find((kw: Record<string, any>) => 
+          const matchingKw = matchingKeywords.find((kw: Record<string, unknown>) => 
             kw.keywordText?.toLowerCase() === stPerf.searchTerm.toLowerCase()
           );
           if (matchingKw?.createdAt) {
@@ -534,7 +534,7 @@ export async function executeSearchTermAnalysis(
             }
           }
 
-          const negativeKeyword: Record<string, any> = {
+          const negativeKeyword: Record<string, unknown> = {
             accountId: config.accountId,
             localCampaignId: campaignLocalId,
             amazonCampaignId: campaignAmazonId,
@@ -594,7 +594,7 @@ export async function executeSearchTermAnalysis(
             }
           }
           
-          const negativeProduct: Record<string, any> = {
+          const negativeProduct: Record<string, unknown> = {
             accountId: config.accountId,
             localCampaignId: campaignLocalId,
             amazonCampaignId: campaignAmazonId,
@@ -743,7 +743,7 @@ export async function executeSearchTermAnalysis(
           const matchType = decision.matchType || 'phrase';
           const bid = decision.suggestedBid || 0.50;
           
-          const newKeyword: Record<string, any> = {
+          const newKeyword: Record<string, unknown> = {
             accountId: config.accountId,
             localCampaignId: campaignLocalId,
             amazonCampaignId: campaignAmazonId,
@@ -767,7 +767,7 @@ export async function executeSearchTermAnalysis(
             if (dbInstance) {
               const adGroups = await db.getAdGroupsByCampaignId(campaignAmazonId);
               if (adGroups.length > 0) {
-                const adGroup = adGroups[0] as any;
+                const adGroup = adGroups[0] as unknown;
                 const amazonAdGroupId = Number(adGroup.adGroupId || 0);
                 // v201: 直接使用字符串避免大数字精度丢失
                 const amazonCampaignId = campaignAmazonId;
@@ -828,11 +828,11 @@ export async function executeSearchTermAnalysis(
                     createdAt: new Date().toISOString(),
                     updatedAt: new Date().toISOString(),
                   });
-                  const localKeywordId = (insertResult as Record<string, any>[])[0]?.insertId;
+                  const localKeywordId = (insertResult as Record<string, unknown>[])[0]?.insertId;
                   
                   if (Number(amazonAdGroupId) > 0 && Number(amazonCampaignId) > 0) {
                     try {
-                      const apiResult: any = await amazonApiHelper.syncNewKeywordsToAmazon(
+                      const apiResult: unknown = await amazonApiHelper.syncNewKeywordsToAmazon(
                         config.accountId,
                         [{
                           localKeywordId: localKeywordId || undefined,
@@ -874,7 +874,7 @@ export async function executeSearchTermAnalysis(
           const ptType = decision.productTargetingType || 'exact';
           const bid = decision.suggestedBid || 0.50;
           
-          const newTarget: Record<string, any> = {
+          const newTarget: Record<string, unknown> = {
             accountId: config.accountId,
             localCampaignId: campaignLocalId,
             amazonCampaignId: campaignAmazonId,
@@ -899,7 +899,7 @@ export async function executeSearchTermAnalysis(
             if (dbInstance) {
               const adGroups = await db.getAdGroupsByCampaignId(campaignAmazonId);
               if (adGroups.length > 0) {
-                const adGroup = adGroups[0] as any;
+                const adGroup = adGroups[0] as unknown;
                 const amazonAdGroupId = Number(adGroup.adGroupId || 0);
                 const amazonCampaignId = campaignAmazonId;
                 
@@ -930,7 +930,7 @@ export async function executeSearchTermAnalysis(
                       createdAt: new Date().toISOString(),
                       updatedAt: new Date().toISOString(),
                     });
-                    const localTargetId = (insertResult as Record<string, any>[])[0]?.insertId;
+                    const localTargetId = (insertResult as Record<string, unknown>[])[0]?.insertId;
                     
                     // 同步到Amazon
                     try {
@@ -1007,7 +1007,7 @@ export async function executeSearchTermAnalysis(
             
             const negProdSyncStatus = negProdSyncResult.failed === 0 && negProdSyncResult.success > 0 ? 'synced' : 
                                       negProdSyncResult.success === 0 ? 'failed' : 'partial';
-            for (const d of (negProdDetails as any[])) {
+            for (const d of (negProdDetails as unknown[])) {
               d.apiSyncStatus = negProdSyncStatus;
             }
             log.info(`[SearchTermAnalysis] v2: 否定产品定向API同步: ${negProdDetails.length}个, 状态=${negProdSyncStatus}`);
@@ -1017,7 +1017,7 @@ export async function executeSearchTermAnalysis(
               const dbInstance = await db.getDb();
               if (dbInstance) {
                 const { negativeKeywords } = await import('../../drizzle/schema');
-                for (const d of (negProdDetails as any[])) {
+                for (const d of (negProdDetails as unknown[])) {
                   if (d._pendingDbInsert && d.apiSyncStatus !== 'failed') {
                     try {
                       await dbInstance.insert(negativeKeywords).values(d._pendingDbInsert);
@@ -1030,7 +1030,7 @@ export async function executeSearchTermAnalysis(
               }
             }
           } catch (apiError: unknown) {
-            for (const d of (negProdDetails as any[])) {
+            for (const d of (negProdDetails as unknown[])) {
               d.apiSyncStatus = 'failed';
               d.apiSyncDetail = JSON.stringify({ error: (apiError as Error).message });
             }
@@ -1057,7 +1057,7 @@ export async function executeSearchTermAnalysis(
             // v134: 将同步状态回写到detail中
             const negSyncStatus = negSyncResult.failed === 0 && negSyncResult.success > 0 ? 'synced' : 
                                   negSyncResult.success === 0 ? 'failed' : 'partial';
-            for (const d of (negativeDetails as any[])) {
+            for (const d of (negativeDetails as unknown[])) {
               d.apiSyncStatus = negSyncStatus;
               if (negSyncResult.errors.length > 0) {
                 d.apiSyncDetail = JSON.stringify({ errors: negSyncResult.errors });
@@ -1070,7 +1070,7 @@ export async function executeSearchTermAnalysis(
               const dbInstance = await db.getDb();
               if (dbInstance) {
                 const { negativeKeywords } = await import('../../drizzle/schema');
-                for (const d of (negativeDetails as any[])) {
+                for (const d of (negativeDetails as unknown[])) {
                   if (d._pendingDbInsert && d.apiSyncStatus !== 'failed') {
                     try {
                       await dbInstance.insert(negativeKeywords).values(d._pendingDbInsert);
@@ -1120,7 +1120,7 @@ export async function executeSearchTermAnalysis(
               log.warn(`[SearchTermAnalysis] v165: API同步失败，跳过本地DB写入 (Campaign ${campaign.campaignName})`);
             }
           } catch (apiError: unknown) {
-            for (const d of (negativeDetails as any[])) {
+            for (const d of (negativeDetails as unknown[])) {
               d.apiSyncStatus = 'failed';
               d.apiSyncDetail = JSON.stringify({ error: (apiError as Error).message });
             }
@@ -1145,18 +1145,18 @@ export async function executeSearchTermAnalysis(
  * 执行预算分配优化
  */
 export async function executeAutoNgramNegation(
-  config: Record<string, any>,
-  campaigns: any[],
+  config: Record<string, unknown>,
+  campaigns: unknown[],
   dryRun: boolean
-): Promise<{ executed: boolean; negativeKeywordsAdded: number; details: Record<string, any>[] }> {
-  const details: Record<string, any>[] = [];
+): Promise<{ executed: boolean; negativeKeywordsAdded: number; details: Record<string, unknown>[] }> {
+  const details: Record<string, unknown>[] = [];
   let negativeKeywordsAdded = 0;
   
   if (!config.accountId || campaigns.length === 0) {
     return { executed: false, negativeKeywordsAdded: 0, details: [{ reason: '无账号或无广告活动' }] };
   }
   
-  const campaignIds = campaigns.map((c: Record<string, any>) => c.id);
+  const campaignIds = campaigns.map((c: Record<string, unknown>) => c.id);
   
   // 1. 获取全局Ngram否定建议（跨所有campaign）
   const globalSuggestions = await generateNegativeKeywordSuggestions(
@@ -1181,7 +1181,7 @@ export async function executeAutoNgramNegation(
     return { executed: false, negativeKeywordsAdded: 0, details: [{ error: 'Database not available' }] };
   }
   
-  for (const suggestion of (autoExecuteSuggestions as any[])) {
+  for (const suggestion of (autoExecuteSuggestions as unknown[])) {
     try {
       // 查询该Ngram在各campaign中的表现
       const startDate = new Date();
@@ -1203,13 +1203,13 @@ export async function executeAutoNgramNegation(
         GROUP BY campaign_id
       `);
       
-      const perfRows = (campaignPerformance as any[])[0] || [];
+      const perfRows = (campaignPerformance as Record<string, unknown>[])[0] || [];
       
       // 判断全局 vs 局部
       let badCampaigns: number[] = [];
       let goodCampaigns: number[] = [];
       
-      for (const row of (perfRows as any[])) {
+      for (const row of (perfRows as unknown[])) {
         const spend = Number(row.spend) || 0;
         const sales = Number(row.sales) || 0;
         const orders = Number(row.orders) || 0;

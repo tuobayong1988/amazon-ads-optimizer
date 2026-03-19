@@ -15,7 +15,7 @@ import { createModuleLogger } from '../utils/logger';
 
 const log = createModuleLogger('Migration-v390-indexes');
 
-export async function runV390PerformanceIndexes(db: any): Promise<void> {
+export async function runV390PerformanceIndexes(db: unknown): Promise<void> {
   log.info('[v390] 开始创建性能优化索引...');
 
   const indexDefinitions = [
@@ -40,7 +40,7 @@ export async function runV390PerformanceIndexes(db: any): Promise<void> {
       await db.execute(sql.raw(idx.sql));
       created++;
       log.info(`[v390] 索引 ${idx.name} 创建成功`);
-    } catch (error: any) {
+    } catch (error: unknown) {
       if (error.message?.includes('Duplicate') || error.code === 'ER_DUP_KEYNAME') {
         skipped++;
         log.debug(`[v390] 索引 ${idx.name} 已存在，跳过`);

@@ -284,7 +284,7 @@ export async function optimizeBudgetPortfolio(
     
     // 为每个Campaign估计利润曲线
     const curves: CampaignProfitCurve[] = [];
-    for (const campaign of (activeCampaigns as any[])) {
+    for (const campaign of (activeCampaigns as unknown[])) {
       const curve = await estimateProfitCurve(
         db, accountId,
         String(campaign.campaignId),
@@ -298,8 +298,8 @@ export async function optimizeBudgetPortfolio(
     const allocations = marginalUtilityAllocation(curves, totalBudget);
     
     // 计算汇总指标
-    const expectedTotalProfit = allocations.reduce((sum: any, a: any) => sum + a.expectedProfit, 0);
-    const totalAllocated = allocations.reduce((sum: any, a: any) => sum + a.optimalBudget, 0);
+    const expectedTotalProfit = allocations.reduce((sum: number, a: Record<string, unknown>) => sum + a.expectedProfit, 0);
+    const totalAllocated = allocations.reduce((sum: number, a: Record<string, unknown>) => sum + a.optimalBudget, 0);
     const expectedTotalSales = curves.reduce((sum, c, i) => {
       const budget = allocations[i]?.optimalBudget || c.currentBudget;
       return sum + c.maxSales * (1 - Math.exp(-c.efficiency * budget));
@@ -331,7 +331,7 @@ export async function optimizeBudgetPortfolio(
       algorithmUsed: 'marginal_utility',
       iterationCount: 100,
       convergenceScore: '0.990000',
-    } as Record<string, any>);
+    } as Record<string, unknown>);
     
     log.info(`[BudgetPortfolio] Optimized ${allocations.length} campaigns, expected profit: $${result.expectedTotalProfit}`);
     return result;

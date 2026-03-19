@@ -118,10 +118,10 @@ export default function BatchAuthorization() {
   const [authMethod, setAuthMethod] = useState<AuthMethod>('standard');
   
   // 获取区域配置
-  const { data: regionsData, isLoading: regionsLoading } = trpc.amazonApi.getBatchAuthRegions.useQuery() as any;
+  const { data: regionsData, isLoading: regionsLoading } = trpc.amazonApi.getBatchAuthRegions.useQuery() as unknown;
   
   // 获取已授权区域状态
-  const { data: authorizedRegions, refetch: refetchAuthorized } = trpc.amazonApi.getAuthorizedRegions.useQuery() as any;
+  const { data: authorizedRegions, refetch: refetchAuthorized } = trpc.amazonApi.getAuthorizedRegions.useQuery() as unknown;
   
   // 创建批量授权会话
   const createSessionMutation = trpc.amazonApi.createBatchAuthSession.useMutation();
@@ -182,7 +182,7 @@ export default function BatchAuthorization() {
         toast.success(`请在紫鸟浏览器中打开授权链接，完成 ${result.regions.length} 个区域的授权`);
       } else {
         // 标准模式：自动打开所有授权页面
-        result.regions.forEach((region: any, index: any) => {
+        result.regions.forEach((region: unknown, index: unknown) => {
           setTimeout(() => {
             window.open(region.authUrl, `_blank_${region.regionCode}`);
           }, index * 500);
@@ -190,7 +190,7 @@ export default function BatchAuthorization() {
         toast.success(`已打开 ${result.regions.length} 个区域的授权页面，请在每个页面完成授权后复制授权码`);
       }
       
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast.error(`创建授权会话失败: ${error.message}`);
     }
   };
@@ -262,7 +262,7 @@ export default function BatchAuthorization() {
         toast.error('授权失败，请检查授权码是否正确');
       }
       
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast.error(`处理授权码失败: ${error.message}`);
       setRegionAuthStates(prev => prev.map(state => ({
         ...state,
@@ -475,7 +475,7 @@ export default function BatchAuthorization() {
                       </AlertDescription>
                     </Alert>
                   ) : (
-                    regions.map((region: any) => {
+                    regions.map((region: unknown) => {
                       const isSelected = selectedRegions.includes(region.code as RegionCode);
                       // @ts-expect-error - error code check
                       const isAuthorized = authorizedRegions?.regions?.find(r => r.code === region.code)?.authorized;
@@ -508,7 +508,7 @@ export default function BatchAuthorization() {
                                 )}
                               </div>
                               <div className="mt-2 flex flex-wrap gap-2">
-                                {region.marketplaces.map((mp: any) => (
+                                {region.marketplaces.map((mp: unknown) => (
                                   <Badge key={mp.code} variant="outline" className="text-xs">
                                     {mp.flag} {mp.name}
                                   </Badge>
@@ -630,7 +630,7 @@ export default function BatchAuthorization() {
             )}
             
             <div className="grid gap-4">
-              {regionAuthStates.map((state: any) => {
+              {regionAuthStates.map((state: unknown) => {
                 const region = regions.find(r => r.code === state.regionCode);
                 
                 return (
@@ -768,7 +768,7 @@ export default function BatchAuthorization() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {regionAuthStates.map((state: any) => {
+                  {regionAuthStates.map((state: unknown) => {
                     const region = regions.find(r => r.code === state.regionCode);
                     return (
                       <div key={state.regionCode} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">

@@ -60,7 +60,7 @@ class TimerManager {
       }
       try {
         await callback();
-      } catch (err: any) {
+      } catch (err: unknown) {
         log.error(`[TimerManager] 定时器 "${key}" 执行异常: ${err?.message || err}`);
       }
     };

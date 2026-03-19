@@ -25,7 +25,7 @@ export const nextGenRouter = router({
   // 获取NextGen算法系统状态
   getStatus: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    .query(async ({ input, ctx }: any) => {
+    .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       return {
         version: 'v276',
@@ -48,7 +48,7 @@ export const nextGenRouter = router({
   // 查询因果推断分析结果（只读查询，分析由定时任务自动执行）
   getCausalAnalysis: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    .query(async ({ input, ctx }: any) => {
+    .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       return causalInferenceEngine.batchCausalAnalysis(input.accountId);
     }),
@@ -60,7 +60,7 @@ export const nextGenRouter = router({
       days: z.number().default(30),
       limit: z.number().default(50),
     }))
-    .query(async ({ input, ctx }: any) => {
+    .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       const db = await getDb();
       if (!db) return { results: [], summary: { total: 0, significant: 0, avgUplift: 0, totalIncrementalProfit: 0 } };
@@ -106,7 +106,7 @@ export const nextGenRouter = router({
           parseFloat(r.confidenceInterval as string || '1') < 0.5
         ).length;
         const avgUplift = total > 0 
-          ? results.reduce((sum: any, r: any) => sum + parseFloat(r.upliftScore as string || '0'), 0) / total 
+          ? results.reduce((sum: number, r: Record<string, unknown>) => sum + parseFloat(r.upliftScore as string || '0'), 0) / total 
           : 0;
         const totalIncrementalProfit = results.reduce(
           (sum, r) => sum + parseFloat(r.incrementalProfit as string || '0'), 0
@@ -142,7 +142,7 @@ export const nextGenRouter = router({
   // v275: 查询CQL模型训练状态 — 用于前端CQL训练效果监控
   getCqlModelStatus: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    .query(async ({ input, ctx }: any) => {
+    .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       const db = await getDb();
       if (!db) return { models: [], summary: { totalModels: 0, avgTrainingSteps: 0, latestTrainedAt: null } };
@@ -166,7 +166,7 @@ export const nextGenRouter = router({
 
         const totalModels = models.length;
         const avgTrainingSteps = totalModels > 0
-          ? models.reduce((sum: any, m: any) => sum + (m.trainingSteps || 0), 0) / totalModels
+          ? models.reduce((sum: number, m: Record<string, unknown>) => sum + (m.trainingSteps || 0), 0) / totalModels
           : 0;
         const latestTrainedAt = models.length > 0 ? models[0].lastTrainedAt : null;
 
@@ -192,7 +192,7 @@ export const nextGenRouter = router({
       accountId: z.number(),
       days: z.number().default(7),
     }))
-    .query(async ({ input, ctx }: any) => {
+    .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       const db = await getDb();
       if (!db) return { distribution: [], recentTrend: [], summary: { avgCompetition: 'medium', dominantType: 'neutral' } };
@@ -220,7 +220,7 @@ export const nextGenRouter = router({
         const dailyCompetition: Record<string, { aggressive: number; tight: number; passive: number; neutral: number; total: number }> = {};
 
         for (const event of events) {
-          const perfData = event.performanceData as Record<string, any>;
+          const perfData = event.performanceData as Record<string, unknown>;
           if (!perfData) continue;
           
           // 从performanceData中提取GTO竞争分类
@@ -237,7 +237,7 @@ export const nextGenRouter = router({
           dailyCompetition[dateKey].total++;
         }
 
-        const total = Object.values(competitionCounts).reduce((a: any, b: any) => a + b, 0);
+        const total = Object.values(competitionCounts).reduce((a: unknown, b: unknown) => a + b, 0);
         const distribution = Object.entries(competitionCounts).map(([type, cnt]) => ({
           type,
           count: cnt,
@@ -282,7 +282,7 @@ export const nextGenRouter = router({
       accountId: z.number(),
       days: z.number().default(30),
     }))
-    .query(async ({ input, ctx }: any) => {
+    .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       const db = await getDb();
       if (!db) return { poolAllocation: { coreRatio: 80, explorationRatio: 20 }, dailyTrend: [], summary: { avgCoreRatio: 80, avgExplorationRatio: 20, fusedCount: 0, totalEvents: 0 } };
@@ -313,7 +313,7 @@ export const nextGenRouter = router({
         let fusedCount = 0;
 
         for (const event of events) {
-          const perfData = event.performanceData as Record<string, any>;
+          const perfData = event.performanceData as Record<string, unknown>;
           if (!perfData) continue;
 
           const budgetPool = perfData?.budgetPool || perfData?.gto?.budgetPool;
@@ -369,7 +369,7 @@ export const nextGenRouter = router({
   // 查询关键词图谱机会（只读查询，图谱由定时任务自动构建）
   getKeywordOpportunities: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    .query(async ({ input, ctx }: any) => {
+    .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       const opportunities = await keywordGraphService.discoverOpportunities(input.accountId);
       const negatives = await keywordGraphService.discoverNegativeCandidates(input.accountId);

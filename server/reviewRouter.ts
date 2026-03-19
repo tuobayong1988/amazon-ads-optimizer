@@ -35,7 +35,7 @@ export const reviewRouter = router({
       campaignIds: z.array(z.number()).optional(),
       days: z.number().default(30),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ input }: unknown) => {
       return await getNgramAnalysisSummary(input.accountId, input.campaignIds, input.days);
     }),
   
@@ -48,7 +48,7 @@ export const reviewRouter = router({
       campaignIds: z.array(z.number()).optional(),
       days: z.number().default(30),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ input }: unknown) => {
       return await generateNegativeKeywordSuggestions(input.accountId, input.campaignIds, input.days);
     }),
   
@@ -61,7 +61,7 @@ export const reviewRouter = router({
       campaignIds: z.array(z.number()).optional(),
       days: z.number().default(30),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ input }: unknown) => {
       return await generateNgramAnalysisReport(input.accountId, input.campaignIds, input.days);
     }),
   
@@ -79,7 +79,7 @@ export const reviewRouter = router({
         action: z.enum(['accept', 'reject']),
       })),
     }))
-    .mutation(async ({ input, ctx }: any) => {
+    .mutation(async ({ input, ctx }: unknown) => {
       // @ts-expect-error - array method type inference
       const accepted = input.decisions.filter(d => d.action === 'accept');
       // @ts-expect-error - array method type inference
@@ -123,7 +123,7 @@ export const reviewRouter = router({
       adGroupId: z.number().nullable(),
       days: z.number().default(30),
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ input }: unknown) => {
       // 获取所有建议
       const suggestions = await generateNegativeKeywordSuggestions(
         input.accountId,
@@ -158,7 +158,7 @@ export const reviewRouter = router({
       campaignIds: z.array(z.number()).optional(),
       days: z.number().default(30),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ input }: unknown) => {
       return await getMigrationSummary(input.accountId, input.campaignIds, input.days);
     }),
   
@@ -172,7 +172,7 @@ export const reviewRouter = router({
       days: z.number().default(30),
       targetRoas: z.number().default(3.0),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ input }: unknown) => {
       return await generateMigrationSuggestions(
         input.accountId,
         input.campaignIds,
@@ -190,7 +190,7 @@ export const reviewRouter = router({
       campaignIds: z.array(z.number()).optional(),
       days: z.number().default(30),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ input }: unknown) => {
       return await detectTrafficConflicts(input.accountId, input.campaignIds, input.days);
     }),
   
@@ -206,7 +206,7 @@ export const reviewRouter = router({
         action: z.enum(['accept', 'reject']),
       })),
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ input }: unknown) => {
       // @ts-expect-error - array method type inference
       const accepted = input.decisions.filter(d => d.action === 'accept');
       // @ts-expect-error - array method type inference
@@ -251,7 +251,7 @@ export const reviewRouter = router({
         action: z.enum(['accept', 'reject']),
       })),
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ input }: unknown) => {
       // @ts-expect-error - array method type inference
       const accepted = input.decisions.filter(d => d.action === 'accept');
       // @ts-expect-error - array method type inference
@@ -293,7 +293,7 @@ export const reviewRouter = router({
       campaignIds: z.array(z.number()).optional(),
       days: z.number().default(30),
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ input }: unknown) => {
       // 获取所有冲突
       const conflicts = await detectTrafficConflicts(
         input.accountId,
@@ -336,7 +336,7 @@ export const reviewRouter = router({
       type: z.enum(['negative', 'migration', 'conflict']).optional(),
       limit: z.number().default(50),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ input }: unknown) => {
       // 返回空数组，因为审核历史表可能不存在
       return [];
     }),

@@ -24,7 +24,7 @@ interface PerformanceGroup {
 
 interface BatchExportProps {
   groups: PerformanceGroup[];
-  onExport: (groupIds: number[], format: 'csv' | 'excel', timeRange: string) => Promise<any[]>;
+  onExport: (groupIds: number[], format: 'csv' | 'excel', timeRange: string) => Promise<unknown[]>;
 }
 
 export function BatchExport({ groups, onExport }: BatchExportProps) {
@@ -140,7 +140,7 @@ export function BatchExport({ groups, onExport }: BatchExportProps) {
       setOpen(false);
       setSelectedGroups([]);
       
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('批量导出失败:', error);
       toast.error(`导出失败: ${error.message}`);
     } finally {
@@ -202,7 +202,7 @@ export function BatchExport({ groups, onExport }: BatchExportProps) {
             {/* 导出格式 */}
             <div className="space-y-2">
               <Label>导出格式</Label>
-              <Select value={format} onValueChange={(v: any) => setFormat(v)}>
+              <Select value={format} onValueChange={(v: unknown) => setFormat(v)}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>

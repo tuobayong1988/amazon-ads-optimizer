@@ -147,7 +147,7 @@ export async function getCampaignOptimizationState(
   
   if (campaign.length === 0) return null;
   
-  const c = campaign[0] as any;
+  const c = campaign[0] as unknown;
   
   // 获取今日执行的优化数量
   const executedToday = 0; // TODO: 从优化日志表获取
@@ -199,7 +199,7 @@ export async function getPerformanceGroupOptimizationState(
   
   if (group.length === 0) return null;
   
-  const g = group[0] as any;
+  const g = group[0] as unknown;
   
   // 获取组内广告活动
   const groupCampaigns = await db
@@ -210,7 +210,7 @@ export async function getPerformanceGroupOptimizationState(
   // 计算整体绩效得分
   let totalSpend = 0;
   let totalSales = 0;
-  for (const c of (groupCampaigns as any[])) {
+  for (const c of (groupCampaigns as unknown[])) {
     totalSpend += Number(c.spend) || 0;
     totalSales += Number(c.sales) || 0;
   }
@@ -278,7 +278,7 @@ export async function runUnifiedOptimizationAnalysis(
     'negative_keyword'
   ];
   
-  for (const campaign of (targetCampaigns as any[])) {
+  for (const campaign of (targetCampaigns as unknown[])) {
     // 识别广告计费方式：SP/SB都是CPC，SD可能是CPC或vCPM
     const costType: 'cpc' | 'vcpm' = (campaign.costType === 'vcpm') ? 'vcpm' : 'cpc';
     const isVcpm = costType === 'vcpm';
@@ -314,7 +314,7 @@ export async function runUnifiedOptimizationAnalysis(
 /**
  * 分析竞价调整
  */
-async function analyzeBidAdjustments(campaign: Record<string, any>, costType: 'cpc' | 'vcpm' = 'cpc'): Promise<OptimizationDecision[]> {
+async function analyzeBidAdjustments(campaign: Record<string, unknown>, costType: 'cpc' | 'vcpm' = 'cpc'): Promise<OptimizationDecision[]> {
   const db = await getDbInstance();
   const decisions: OptimizationDecision[] = [];
   const isVcpm = costType === 'vcpm';
@@ -363,7 +363,7 @@ async function analyzeBidAdjustments(campaign: Record<string, any>, costType: 'c
     .from(keywords)
     .where(sql`${keywords.internalAdGroupId} IN (SELECT id FROM ad_groups WHERE campaignId = ${campaign.campaignId})`);
   
-  for (const kw of (campaignKeywords as any[])) {
+  for (const kw of (campaignKeywords as unknown[])) {
     const rawImpressions = Number(kw.impressions) || 0;
     const rawClicks = Number(kw.clicks) || 0;
     const rawOrders = Number(kw.orders) || 0;
@@ -555,7 +555,7 @@ async function analyzeBidAdjustments(campaign: Record<string, any>, costType: 'c
 /**
  * 分析位置倾斜
  */
-async function analyzePlacementTilt(campaign: Record<string, any>): Promise<OptimizationDecision[]> {
+async function analyzePlacementTilt(campaign: Record<string, unknown>): Promise<OptimizationDecision[]> {
   const decisions: OptimizationDecision[] = [];
   
   // 获取当前位置调整设置
@@ -618,7 +618,7 @@ async function analyzePlacementTilt(campaign: Record<string, any>): Promise<Opti
 /**
  * 分析分时策略
  */
-async function analyzeDayparting(campaign: Record<string, any>): Promise<OptimizationDecision[]> {
+async function analyzeDayparting(campaign: Record<string, unknown>): Promise<OptimizationDecision[]> {
   const decisions: OptimizationDecision[] = [];
   
   // 分时策略分析需要历史时段数据
@@ -653,7 +653,7 @@ async function analyzeDayparting(campaign: Record<string, any>): Promise<Optimiz
 /**
  * 分析否定词
  */
-async function analyzeNegativeKeywords(campaign: Record<string, any>, costType: 'cpc' | 'vcpm' = 'cpc'): Promise<OptimizationDecision[]> {
+async function analyzeNegativeKeywords(campaign: Record<string, unknown>, costType: 'cpc' | 'vcpm' = 'cpc'): Promise<OptimizationDecision[]> {
   const db = await getDbInstance();
   const decisions: OptimizationDecision[] = [];
   const isVcpm = costType === 'vcpm';
@@ -672,7 +672,7 @@ async function analyzeNegativeKeywords(campaign: Record<string, any>, costType: 
       ))
       .limit(10);
     
-    for (const kw of (poorKeywords as any[])) {
+    for (const kw of (poorKeywords as unknown[])) {
       const impressions = Number(kw.impressions) || 0;
       const spend = Number(kw.spend) || 0;
       decisions.push({
@@ -714,7 +714,7 @@ async function analyzeNegativeKeywords(campaign: Record<string, any>, costType: 
       ))
       .limit(10);
     
-    for (const kw of (poorKeywords as any[])) {
+    for (const kw of (poorKeywords as unknown[])) {
       const kwSpend = Number(kw.spend) || 0;
       // v251: 花费容忍线 = AOV × 目标ACoS × 1.5（归因延迟容忍）
       const spendThreshold = campaignAov > 0 ? campaignAov * (campaignTargetAcos / 100) * 1.5 : 0;

@@ -141,10 +141,10 @@ export async function analyzeSearchTermPerformance(
   query += ` GROUP BY st.search_term, st.campaign_id, c.campaign_name, st.internal_ad_group_id, st.search_term_match_type`;
   
   const result = await db.execute(sql.raw(query));
-  const rows = (result as any[])[0] || [];
+  const rows = (result as Record<string, unknown>[])[0] || [];
   
   // 计算指标
-  return rows.map((t: Record<string, any>) => {
+  return rows.map((t: Record<string, unknown>) => {
     const impressions = Number(t.impressions) || 0;
     const clicks = Number(t.clicks) || 0;
     const spend = Number(t.spend) || 0;
@@ -251,7 +251,7 @@ export async function generateMigrationSuggestions(
   }
   
   // 按优先级和ROAS排序
-  suggestions.sort((a: any, b: any) => {
+  suggestions.sort((a: unknown, b: unknown) => {
     const priorityOrder = { high: 0, medium: 1, low: 2 };
     // @ts-expect-error - runtime type mismatch
     if (priorityOrder[a.priority] !== priorityOrder[b.priority]) {
@@ -311,12 +311,12 @@ export async function detectTrafficConflicts(
     }));
     
     // 选择胜者（基于ROAS）
-    const sortedByRoas = [...campaignList].sort((a: any, b: any) => b.roas - a.roas);
-    const winner = sortedByRoas[0] as any;
+    const sortedByRoas = [...campaignList].sort((a: unknown, b: unknown) => b.roas - a.roas);
+    const winner = sortedByRoas[0] as unknown;
     const losers = sortedByRoas.slice(1);
     
     // 计算严重程度
-    const totalClicks = campaignList.reduce((sum: any, c: any) => sum + c.clicks, 0);
+    const totalClicks = campaignList.reduce((sum: number, c: Record<string, unknown>) => sum + c.clicks, 0);
     let severity: 'high' | 'medium' | 'low' = 'low';
     if (totalClicks >= 50 || campaignList.length >= 3) {
       severity = 'high';
@@ -341,7 +341,7 @@ export async function detectTrafficConflicts(
   }
   
   // 按严重程度排序
-  conflicts.sort((a: any, b: any) => {
+  conflicts.sort((a: unknown, b: unknown) => {
     const severityOrder = { high: 0, medium: 1, low: 2 };
     // @ts-expect-error - runtime type mismatch
     return severityOrder[a.severity] - severityOrder[b.severity];
@@ -380,7 +380,7 @@ export async function executeTrafficIsolation(
         negativeMatchType: 'negative_exact',
         negativeSource: 'traffic_conflict',
         negativeStatus: 'active',
-      } as Record<string, any>);
+      } as Record<string, unknown>);
       addedCount++;
     } catch (error: unknown) {
       if (!(error as Error).message?.includes('Duplicate')) {
@@ -426,7 +426,7 @@ export async function getMigrationSummary(
   // 估算潜在节省（冲突词的重复花费）
   let potentialSavings = 0;
   for (const conflict of conflicts) {
-    const loserSpend = conflict.losers.reduce((sum: any, l: any) => {
+    const loserSpend = conflict.losers.reduce((sum: unknown, l: unknown) => {
       const loserData = conflict.campaigns.find(c => c.campaignId === l.campaignId);
       return sum + (loserData?.clicks || 0) * 0.5; // 假设CPC为0.5
     }, 0);
@@ -481,10 +481,10 @@ export async function getTierArchitectureStatus(
   `;
   
   const result = await db.execute(sql.raw(query));
-  const rows = (result as any[])[0] || [];
+  const rows = (result as Record<string, unknown>[])[0] || [];
   
   const countMap = new Map<string, number>();
-  for (const row of (rows as any[])) {
+  for (const row of (rows as unknown[])) {
     countMap.set(row.match_type, Number(row.count) || 0);
   }
   

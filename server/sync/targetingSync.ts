@@ -54,7 +54,7 @@ export async function syncAutoTargeting(service: SyncContext,days: number = 14):
     log.debug(`获取到 ${reportData.length} 条自动定向数据`);
     let synced = 0;
 
-    for (const row of (reportData as any[])) {
+    for (const row of (reportData as unknown[])) {
       // 只处理自动定向数据
       if (row.targetingType !== 'AUTO') continue;
 
@@ -173,7 +173,7 @@ export async function syncSdTargeting(service: SyncContext,days: number = 14): P
 
     // v422: 修复 - SD报告中没有targetId字段，只有targetingText
     // 需要通过adGroupId+targetingText匹配已有记录
-    for (const row of (reportData as any[])) {
+    for (const row of (reportData as unknown[])) {
       // 查找对应的adGroup
       const [adGroup] = await db
         .select()
@@ -287,7 +287,7 @@ export async function syncSbTargeting(service: SyncContext,days: number = 14): P
     let synced = 0;
 
     // v422: 修复 - SB报告中没有keywordId字段，只有targetingText和matchType
-    for (const row of (reportData as any[])) {
+    for (const row of (reportData as unknown[])) {
       // 查找对应的adGroup
       const [adGroup] = await db
         .select()

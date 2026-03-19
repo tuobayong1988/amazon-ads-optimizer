@@ -82,7 +82,7 @@ vi.mock('../timeDecayWeightedDataService', () => ({
 
 vi.mock('../systemConfigService', () => ({
   getConfig: vi.fn((key: string) => {
-    const defaults: Record<string, any> = {
+    const defaults: Record<string, unknown> = {
       'safety.cooldown_hours': 6,
       'safety.min_adjustment_percent': 0.02,
       'safety.max_adjustments_per_day': 3,
@@ -146,7 +146,7 @@ describe('NextGenBidOrchestrator', () => {
     };
 
     it('应始终返回有效的NextGenBidResult', async () => {
-      const result = await calculateNextGenBid(1, baseTarget, baseGroupConfig as any);
+      const result = await calculateNextGenBid(1, baseTarget, baseGroupConfig as unknown);
       
       expect(result).toBeDefined();
       expect(result.newBid).toBeGreaterThanOrEqual(0.02);
@@ -162,7 +162,7 @@ describe('NextGenBidOrchestrator', () => {
       const result = await calculateNextGenBid(1, baseTarget, {
         ...baseGroupConfig,
         targetAcos: 30,
-      } as any);
+      } as unknown);
       
       expect(result).toBeDefined();
       expect(result.newBid).toBeGreaterThan(0);
@@ -172,14 +172,14 @@ describe('NextGenBidOrchestrator', () => {
       const result = await calculateNextGenBid(1, baseTarget, {
         ...baseGroupConfig,
         targetAcos: 0.30,
-      } as any);
+      } as unknown);
       
       expect(result).toBeDefined();
       expect(result.newBid).toBeGreaterThan(0);
     });
 
     it('应在高级算法不可用时降级到规则引擎', async () => {
-      const result = await calculateNextGenBid(1, baseTarget, baseGroupConfig as any);
+      const result = await calculateNextGenBid(1, baseTarget, baseGroupConfig as unknown);
       
       // rule_based被selectBestAlgorithm返回，但confidence=0.3 < threshold
       // 所以应该降级到规则引擎
@@ -188,7 +188,7 @@ describe('NextGenBidOrchestrator', () => {
 
     it('应对零出价的关键词返回合理结果', async () => {
       const zeroTarget = { ...baseTarget, currentBid: 0 };
-      const result = await calculateNextGenBid(1, zeroTarget, baseGroupConfig as any);
+      const result = await calculateNextGenBid(1, zeroTarget, baseGroupConfig as unknown);
       
       expect(result).toBeDefined();
       // 零出价的关键词可能返回0（hold状态），这是合理的
@@ -205,7 +205,7 @@ describe('NextGenBidOrchestrator', () => {
         orders: 0,
         acos: 0,
       };
-      const result = await calculateNextGenBid(1, newTarget, baseGroupConfig as any);
+      const result = await calculateNextGenBid(1, newTarget, baseGroupConfig as unknown);
       
       expect(result).toBeDefined();
       expect(result.newBid).toBeGreaterThanOrEqual(0.02);
@@ -213,7 +213,7 @@ describe('NextGenBidOrchestrator', () => {
 
     it('应对product_target类型正确处理', async () => {
       const ptTarget = { ...baseTarget, type: 'product_target' as const };
-      const result = await calculateNextGenBid(1, ptTarget, baseGroupConfig as any);
+      const result = await calculateNextGenBid(1, ptTarget, baseGroupConfig as unknown);
       
       expect(result).toBeDefined();
       expect(result.newBid).toBeGreaterThanOrEqual(0.02);
@@ -246,7 +246,7 @@ describe('NextGenBidOrchestrator', () => {
         accountId: 1,
         targetAcos: 30,
         optimizationGoal: 'target_acos',
-      } as any);
+      } as unknown);
       
       // 出价应在安全范围内
       expect(result.newBid).toBeGreaterThanOrEqual(0.02);
@@ -280,7 +280,7 @@ describe('NextGenBidOrchestrator', () => {
         accountId: 1,
         targetAcos: 30,
         optimizationGoal: 'target_acos',
-      } as any);
+      } as unknown);
       
       // systemConfigService.getConfig在模块加载时被调用
       // 验证模块能正常工作即可
@@ -312,7 +312,7 @@ describe('NextGenBidOrchestrator', () => {
         accountId: 1,
         targetAcos: 30,
         optimizationGoal: 'target_acos',
-      } as any);
+      } as unknown);
       
       // 应该启动算法追踪
       expect(startAlgorithmTrace).toHaveBeenCalledWith(

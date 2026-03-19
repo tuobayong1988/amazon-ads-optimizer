@@ -167,7 +167,7 @@ export function BidResponseCurve({
     
     // 如果没找到，选择利润最大的点
     if (minDiff > 10) {
-      optimal = curveData.reduce((max: any, p: any) => p.profit > max.profit ? p : max, curveData[0]);
+      optimal = curveData.reduce((max: unknown, p: unknown) => p.profit > max.profit ? p : max, curveData[0]);
     }
     
     return optimal;
@@ -274,7 +274,7 @@ export function BidResponseCurve({
         </div>
         
         {/* 图表Tab */}
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as unknown)}>
           <TabsList className="mb-4">
             <TabsTrigger value="curve" className="gap-2">
               <TrendingUp className="h-4 w-4" />
@@ -336,7 +336,7 @@ export function BidResponseCurve({
                         if (name === "销售额") return [formatCurrency(value), name];
                         if (name === "ROAS") return [value.toFixed(2), name];
                         return [value, name];
-                      }) as any}
+                      }) as unknown}
                       labelFormatter={(label) => `出价: $${label}`}
                     />
                     <Legend />
@@ -427,7 +427,7 @@ export function BidResponseCurve({
                         border: "1px solid hsl(var(--border))",
                         borderRadius: "8px",
                       }}
-                      formatter={((value: number, name: string) => [formatCurrency(value), name]) as any}
+                      formatter={((value: number, name: string) => [formatCurrency(value), name]) as unknown}
                       labelFormatter={(label) => `出价: $${label}`}
                     />
                     <Legend />
@@ -494,7 +494,7 @@ export function BidResponseCurve({
                         border: "1px solid hsl(var(--border))",
                         borderRadius: "8px",
                       }}
-                      formatter={((value: number) => [formatCurrency(value), "利润"]) as any}
+                      formatter={((value: number) => [formatCurrency(value), "利润"]) as unknown}
                       labelFormatter={(label) => `出价: $${label}`}
                     />
                     <Area

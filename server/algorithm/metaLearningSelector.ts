@@ -424,13 +424,13 @@ async function executeAlgorithm(
           if (sigR.optimalBid > 0) {
             const sigConf = Math.min(0.9, sigP.r2);
             bids.push({ bid: sigR.optimalBid, weight: sigConf });
-            sigmoid = { recommendedBid: sigR.optimalBid, confidence: sigConf } as Record<string, any>;
+            sigmoid = { recommendedBid: sigR.optimalBid, confidence: sigConf } as Record<string, unknown>;
           }
         }
       } catch { /* Sigmoid不可用时静默跳过 */ }
       if (bids.length > 0) {
-        const tw = bids.reduce((s: any, b: any) => s + b.weight, 0);
-        bid = bids.reduce((s: any, b: any) => s + b.bid * b.weight, 0) / tw;
+        const tw = bids.reduce((s: unknown, b: unknown) => s + b.weight, 0);
+        bid = bids.reduce((s: unknown, b: unknown) => s + b.bid * b.weight, 0) / tw;
         conf = tw / bids.length;
       }
       break;
@@ -483,7 +483,7 @@ export async function selectBestAlgorithm(
   
   // 选择得分最高的可用算法
   const eligibleScores = scores.filter(s => s.eligible);
-  eligibleScores.sort((a: any, b: any) => b.score - a.score);
+  eligibleScores.sort((a: unknown, b: unknown) => b.score - a.score);
   
   const top1 = eligibleScores[0] || scores.find(s => s.algorithm === 'rule_based')!;
   const top2 = eligibleScores[1];
@@ -569,8 +569,8 @@ export async function selectBestAlgorithm(
       
       if (fusionBids.length >= 2) {
         // 按置信度加权融合
-        const totalConf = fusionBids.reduce((s: any, b: any) => s + b.confidence, 0);
-        recommendedBid = fusionBids.reduce((s: any, b: any) => s + b.bid * b.confidence, 0) / totalConf;
+        const totalConf = fusionBids.reduce((s: unknown, b: unknown) => s + b.confidence, 0);
+        recommendedBid = fusionBids.reduce((s: unknown, b: unknown) => s + b.bid * b.confidence, 0) / totalConf;
         // 融合后的置信度取加权平均，并给予融合奖励（多算法一致性提升置信度）
         const bidDivergence = Math.abs(fusionBids[0].bid - fusionBids[1].bid) / Math.max(fusionBids[0].bid, fusionBids[1].bid, 0.01);
         // v271 P1-2: 共识奖励阈值从策略模板配置获取
@@ -647,7 +647,7 @@ export async function selectBestAlgorithm(
     algorithmScores: scores,
     selectionReason: decision.reasoning,
     executedBid: String(recommendedBid),
-  } as Record<string, any>);
+  } as Record<string, unknown>);
   
   return decision;
 }

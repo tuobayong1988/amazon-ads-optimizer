@@ -190,9 +190,9 @@ async function getRecentlyOptimizedKeywordIds(
                 AND created_at >= ${cutoff}
                 AND JSON_EXTRACT(action_detail, '$.keywordId') IS NOT NULL`
         );
-        const fallbackRows = (fallbackResults as unknown as any[][])[0] || [];
+        const fallbackRows = (fallbackResults as unknown as unknown[][])[0] || [];
         if (fallbackRows && fallbackRows.length > 0) {
-          const fallbackKeywordIds = new Set(fallbackRows.map((r: Record<string, any>) => Number(r.kw_id)).filter(id => id > 0 && keywordIds.includes(id)));
+          const fallbackKeywordIds = new Set(fallbackRows.map((r: Record<string, unknown>) => Number(r.kw_id)).filter(id => id > 0 && keywordIds.includes(id)));
           if (fallbackKeywordIds.size > 0) {
             log.debug(`v212: Fallback查询optimization_logs找到${fallbackKeywordIds.size}个需要保护的关键词`);
             for (const id of fallbackKeywordIds) protectedSet.add(id);
@@ -208,7 +208,7 @@ async function getRecentlyOptimizedKeywordIds(
   } catch (error) {
     log.error('v212: ❌ 批量查询优化关键词失败，保护机制降级！', (error instanceof Error ? (error as Error).message : String(error)));
     // @ts-expect-error - Error stack access
-    log.error('v212: 错误详情:', (error as unknown).stack?.substring(0, 300));
+    log.error('v212: 错误详情:', (error as Record<string, unknown>).stack?.substring(0, 300));
     // v212: 即使查询失败，仍返回空Set以不阻塞同步
     // 但通过error级别日志确保问题被发现
     return new Set();
@@ -367,7 +367,7 @@ export class AmazonSyncService {
           const durationMs = Date.now() - stepStart;
           let synced = 0;
           if (typeof result === 'number') synced = result;
-          else if (result && typeof result === 'object' && 'synced' in (result as any)) synced = (result as any).synced;
+          else if (result && typeof result === 'object' && 'synced' in (result as unknown)) synced = (result as Record<string, unknown>).synced;
           results._syncDiagnostics!.push({ stepName, synced, durationMs, ...(attempt > 0 ? { retried: true } : {}) });
           log.info(`[syncAll] ✅ 账户${this.accountId} 步骤[${totalSteps}] ${stepName} 完成: ${synced}条, 耗时${durationMs}ms${attempt > 0 ? ` (第${attempt}次重试成功)` : ''}`);
           // v352: 步骤间延迟，降低API调用密度
@@ -435,15 +435,15 @@ export class AmazonSyncService {
     ]);
     
     if (spResult.status === 'fulfilled' && spResult.value !== null) {
-      results.spCampaigns = typeof spResult.value === 'number' ? spResult.value : (spResult.value as Record<string, any>)?.synced as number || 0;
+      results.spCampaigns = typeof spResult.value === 'number' ? spResult.value : (spResult.value as Record<string, unknown>)?.synced as number || 0;
       results.campaigns += results.spCampaigns;
     }
     if (sbResult.status === 'fulfilled' && sbResult.value !== null) {
-      results.sbCampaigns = typeof sbResult.value === 'number' ? sbResult.value : (sbResult.value as Record<string, any>)?.synced as number || 0;
+      results.sbCampaigns = typeof sbResult.value === 'number' ? sbResult.value : (sbResult.value as Record<string, unknown>)?.synced as number || 0;
       results.campaigns += results.sbCampaigns;
     }
     if (sdResult.status === 'fulfilled' && sdResult.value !== null) {
-      results.sdCampaigns = typeof sdResult.value === 'number' ? sdResult.value : (sdResult.value as Record<string, any>)?.synced as number || 0;
+      results.sdCampaigns = typeof sdResult.value === 'number' ? sdResult.value : (sdResult.value as Record<string, unknown>)?.synced as number || 0;
       results.campaigns += results.sdCampaigns;
     }
     
@@ -464,13 +464,13 @@ export class AmazonSyncService {
     ]);
     
     if (spAdGroupResult.status === 'fulfilled' && spAdGroupResult.value !== null) {
-      results.adGroups += typeof spAdGroupResult.value === 'number' ? spAdGroupResult.value : (spAdGroupResult.value as Record<string, any>)?.synced as number || 0;
+      results.adGroups += typeof spAdGroupResult.value === 'number' ? spAdGroupResult.value : (spAdGroupResult.value as Record<string, unknown>)?.synced as number || 0;
     }
     if (sbAdGroupResult.status === 'fulfilled' && sbAdGroupResult.value !== null) {
-      results.adGroups += (sbAdGroupResult.value as Record<string, any>)?.synced as number || 0;
+      results.adGroups += (sbAdGroupResult.value as Record<string, unknown>)?.synced as number || 0;
     }
     if (sdAdGroupResult.status === 'fulfilled' && sdAdGroupResult.value !== null) {
-      results.adGroups += (sdAdGroupResult.value as Record<string, any>)?.synced as number || 0;
+      results.adGroups += (sdAdGroupResult.value as Record<string, unknown>)?.synced as number || 0;
     }
     
     // v360: 层间转换延迟
@@ -496,19 +496,19 @@ export class AmazonSyncService {
     ]);
     
     if (spKeywordResult.status === 'fulfilled' && spKeywordResult.value !== null) {
-      results.keywords += typeof spKeywordResult.value === 'number' ? spKeywordResult.value : (spKeywordResult.value as Record<string, any>)?.synced as number || 0;
+      results.keywords += typeof spKeywordResult.value === 'number' ? spKeywordResult.value : (spKeywordResult.value as Record<string, unknown>)?.synced as number || 0;
     }
     if (sbKeywordResult.status === 'fulfilled' && sbKeywordResult.value !== null) {
-      results.keywords += (sbKeywordResult.value as Record<string, any>)?.synced as number || 0;
+      results.keywords += (sbKeywordResult.value as Record<string, unknown>)?.synced as number || 0;
     }
     if (spTargetResult.status === 'fulfilled' && spTargetResult.value !== null) {
-      results.targets += typeof spTargetResult.value === 'number' ? spTargetResult.value : (spTargetResult.value as Record<string, any>)?.synced as number || 0;
+      results.targets += typeof spTargetResult.value === 'number' ? spTargetResult.value : (spTargetResult.value as Record<string, unknown>)?.synced as number || 0;
     }
     if (sbTargetResult.status === 'fulfilled' && sbTargetResult.value !== null) {
-      results.targets += (sbTargetResult.value as Record<string, any>)?.synced as number || 0;
+      results.targets += (sbTargetResult.value as Record<string, unknown>)?.synced as number || 0;
     }
     if (sdTargetResult.status === 'fulfilled' && sdTargetResult.value !== null) {
-      results.targets += (sdTargetResult.value as Record<string, any>)?.synced as number || 0;
+      results.targets += (sdTargetResult.value as Record<string, unknown>)?.synced as number || 0;
     }
     
     // v360: 层间转换延迟
@@ -575,7 +575,7 @@ export class AmazonSyncService {
       runStep(`广告组绩效(${performanceDays}天)`, () => this.syncAdGroupPerformanceData(performanceDays)),
     ]);
     if (perfResult.status === 'fulfilled' && perfResult.value !== null) {
-      results.performance += typeof perfResult.value === 'number' ? perfResult.value : (perfResult.value as Record<string, any>)?.synced as number || 0;
+      results.performance += typeof perfResult.value === 'number' ? perfResult.value : (perfResult.value as Record<string, unknown>)?.synced as number || 0;
     }
     }); // end Layer 5
 
@@ -602,7 +602,7 @@ export class AmazonSyncService {
 
     // v340: 同步完成汇总报告
     const totalDurationMs = Date.now() - syncAllStartTime;
-    const totalSynced = results._syncDiagnostics!.reduce((sum: any, d: any) => sum + d.synced, 0);
+    const totalSynced = results._syncDiagnostics!.reduce((sum: number, d: Record<string, unknown>) => sum + d.synced, 0);
     const failedStepNames = results._syncDiagnostics!.filter(d => d.error).map(d => d.stepName);
     log.info(`[syncAll] 📊 账户${this.accountId} ${syncMode}模式同步完成: 总步骤=${totalSteps}, 成功=${totalSteps - failedSteps}, 失败=${failedSteps}, 总记录=${totalSynced}, 总耗时=${totalDurationMs}ms`);
     if (failedSteps > 0) {
@@ -794,7 +794,7 @@ export class AmazonSyncService {
  * v383: 搜索词批量UPSERT辅助函数
  * 批量INSERT搜索词数据，失败时回退到逐条插入
  */
-export async function flushSearchTermBatch(db: any, batch: any[]): Promise<void> {
+export async function flushSearchTermBatch(db: unknown, batch: unknown[]): Promise<void> {
   if (batch.length === 0) return;
   try {
     // v395: 使用ON DUPLICATE KEY UPDATE实现真正的UPSERT，防止重复插入
@@ -864,7 +864,7 @@ AmazonSyncService.prototype.syncSearchTerms = async function(this: AmazonSyncSer
       log.info(`v339: 总范围: ${rangeStartDate} - ${rangeEndDate}`);
 
       // v413: 批量提交+统一轮询模式（替代串行循环）
-      let allReportData: any[] = [];
+      let allReportData: unknown[] = [];
       if (batches === 1) {
         try {
           const reportId = await this.client.requestSpSearchTermReport(rangeStartDate, rangeEndDate);
@@ -918,7 +918,7 @@ AmazonSyncService.prototype.syncSearchTerms = async function(this: AmazonSyncSer
         .where(eq(campaigns.accountId, this.accountId));
       // v420: 修复 - Map value需要包含campaignId，否则后续访问campaign.campaignId会undefined
       const campaignMap = new Map<string, { id: number; campaignId: string }>();
-      for (const c of (allCampaigns as any[])) {
+      for (const c of (allCampaigns as unknown[])) {
         campaignMap.set(String(c.campaignId), { id: c.id, campaignId: String(c.campaignId) });
       }
 
@@ -927,7 +927,7 @@ AmazonSyncService.prototype.syncSearchTerms = async function(this: AmazonSyncSer
         .select({ id: adGroups.id, adGroupId: adGroups.adGroupId })
         .from(adGroups)
         // @ts-expect-error - dynamic property access
-        .where(eq((adGroups as unknown).accountId, this.accountId));
+        .where(eq((adGroups as Record<string, unknown>).accountId, this.accountId));
       const adGroupMap = new Map<string, { id: number }>();
       for (const ag of allAdGroups) {
         adGroupMap.set(String(ag.adGroupId), { id: ag.id });
@@ -938,9 +938,9 @@ AmazonSyncService.prototype.syncSearchTerms = async function(this: AmazonSyncSer
         .select({ id: keywords.id, adGroupId: keywords.internalAdGroupId, keywordText: keywords.keywordText, matchType: keywords.matchType })
         .from(keywords)
         // @ts-expect-error - dynamic property access
-        .where(eq((keywords as unknown).accountId, this.accountId));
+        .where(eq((keywords as Record<string, unknown>).accountId, this.accountId));
       const keywordMap = new Map<string, { id: number; matchType: string | null }>();
-      for (const kw of (allKeywords as any[])) {
+      for (const kw of (allKeywords as unknown[])) {
         const key = `${kw.adGroupId}:${(kw.keywordText || '').toLowerCase()}`;
         keywordMap.set(key, { id: kw.id, matchType: kw.matchType });
       }
@@ -950,7 +950,7 @@ AmazonSyncService.prototype.syncSearchTerms = async function(this: AmazonSyncSer
         .select({ id: productTargets.id, adGroupId: productTargets.internalAdGroupId, targetValue: productTargets.targetValue, targetMatchType: productTargets.targetMatchType })
         .from(productTargets)
         // @ts-expect-error - dynamic property access
-        .where(eq((productTargets as unknown).accountId, this.accountId));
+        .where(eq((productTargets as Record<string, unknown>).accountId, this.accountId));
       const targetMap = new Map<string, { id: number; targetMatchType: string | null }>();
       for (const t of allTargets) {
         const key = `${t.adGroupId}:${(t.targetValue || '').toLowerCase()}`;
@@ -974,10 +974,10 @@ AmazonSyncService.prototype.syncSearchTerms = async function(this: AmazonSyncSer
       let synced = 0;
       let skipped = 0;
       const BATCH_SIZE = 500;
-      let upsertBatch: any[] = [];
+      let upsertBatch: unknown[] = [];
       const nowStr = new Date().toISOString().slice(0, 19).replace('T', ' ');
 
-      for (const row of (reportData as any[])) {
+      for (const row of (reportData as unknown[])) {
         // 查找对应的campaign（从Ma查找，O(1)）
         const campaign = campaignMap.get(String(row.campaignId));
         if (!campaign) { skipped++; continue; }
@@ -1028,7 +1028,7 @@ AmazonSyncService.prototype.syncSearchTerms = async function(this: AmazonSyncSer
 
         const searchTermData = {
           accountId: this.accountId,
-          campaignId: (campaign as Record<string, any>).campaignId,
+          campaignId: (campaign as Record<string, unknown>).campaignId,
           internalAdGroupId: adGroup.id,  // v418: ID体系重构
           searchTerm: searchTermText,
           searchTermTargetType: isProductTarget ? 'product_target' as const : 'keyword' as const,
@@ -1100,7 +1100,7 @@ AmazonSyncService.prototype.syncAutoTargeting = async function(this: AmazonSyncS
       log.info(`v339: 开始同步SP自动定向数据: 共${totalDays}天，分${batches}批请求 (站点: ${this.marketplace})`);
 
       // v413: 批量提交+统一轮询模式（替代串行循环）
-      let allReportData: any[] = [];
+      let allReportData: unknown[] = [];
       if (batches === 1) {
         try {
           const reportId = await this.client.requestSpAutoTargetingReport(rangeStartDate, rangeEndDate);
@@ -1148,7 +1148,7 @@ AmazonSyncService.prototype.syncAutoTargeting = async function(this: AmazonSyncS
         .select({ id: adGroups.id, adGroupId: adGroups.adGroupId, campaignId: adGroups.campaignId })
         .from(adGroups)
         // @ts-expect-error - dynamic property access
-        .where(eq((adGroups as unknown).accountId, this.accountId));
+        .where(eq((adGroups as Record<string, unknown>).accountId, this.accountId));
       const adGroupMap = new Map<string, { id: number; campaignId: string | null }>();
       for (const ag of allAdGroups) {
         adGroupMap.set(String(ag.adGroupId), { id: ag.id, campaignId: ag.campaignId });
@@ -1167,10 +1167,10 @@ AmazonSyncService.prototype.syncAutoTargeting = async function(this: AmazonSyncS
 
       // v401: 收集批量UPSERT数据
       const BATCH_SIZE = 200;
-      let upsertBatch: any[] = [];
+      let upsertBatch: unknown[] = [];
       const nowStr = new Date().toISOString().slice(0, 19).replace('T', ' ');
 
-      for (const row of (reportData as any[])) {
+      for (const row of (reportData as unknown[])) {
         // v420: P0修复 - SP自动定向报告字段映射修正
         // 报告返回的字段名: keywordType, keyword, targeting, keywordId, sales7d, purchases7d
         // 之前错误地使用了: targetingType, targetingExpression, targetId, sales14d, purchases14d
@@ -1466,7 +1466,7 @@ AmazonSyncService.prototype.syncAssetUrls = async function(this: AmazonSyncServi
 
       // 收集所有需要解析的assetId
       const assetIdsToResolve = new Set<string>();
-      for (const row of (adGroupsNeedingUrls as any[])) {
+      for (const row of (adGroupsNeedingUrls as unknown[])) {
         if (row.ad_groups.videoAssetId && !row.ad_groups.videoUrl) {
           assetIdsToResolve.add(row.ad_groups.videoAssetId);
         }
@@ -1486,8 +1486,8 @@ AmazonSyncService.prototype.syncAssetUrls = async function(this: AmazonSyncServi
 
       // 更新数据库
       let updated = 0;
-      for (const row of (adGroupsNeedingUrls as any[])) {
-        const updates: Record<string, any> = {};
+      for (const row of (adGroupsNeedingUrls as unknown[])) {
+        const updates: Record<string, unknown> = {};
         let needsUpdate = false;
 
         if (row.ad_groups.videoAssetId && !row.ad_groups.videoUrl) {

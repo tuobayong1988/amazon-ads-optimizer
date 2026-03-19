@@ -488,7 +488,7 @@ export async function analyzeCampaignPlacementProfit(
     rest_of_search: { impressions: 0, clicks: 0, spend: 0, sales: 0, orders: 0 }
   };
   
-  for (const row of (placementData as any[])) {
+  for (const row of (placementData as unknown[])) {
     const placement = row.placement;
     if (placementAggregates[placement]) {
       placementAggregates[placement].impressions += row.impressions || 0;
@@ -517,9 +517,8 @@ export async function analyzeCampaignPlacementProfit(
   }
   
   // 6. 计算汇总数据
-  const totalCurrentProfit = bidObjectAnalyses.reduce((sum: any, a: any) => sum + a.totalEstimatedProfit, 0);
-  const totalOptimizedProfit = bidObjectAnalyses.reduce((sum: any, a: any) => 
-    sum + a.totalEstimatedProfit + a.profitImprovementPotential, 0);
+  const totalCurrentProfit = bidObjectAnalyses.reduce((sum: number, a: Record<string, unknown>) => sum + a.totalEstimatedProfit, 0);
+  const totalOptimizedProfit = bidObjectAnalyses.reduce((sum: number, a: Record<string, unknown>) => sum + a.totalEstimatedProfit + a.profitImprovementPotential, 0);
   
   // 7. 计算各位置汇总
   const calculatePlacementSummary = (data: typeof placementAggregates.top_of_search): PlacementSummary => {
@@ -593,10 +592,10 @@ export async function analyzeCampaignPlacementProfit(
       priority: 'medium',
       title: `优化${bidImprovements.length}个关键词的基础出价`,
       description: `发现${bidImprovements.length}个关键词的当前出价偏离最优值，调整后可提升利润。`,
-      expectedImpact: `预计提升利润${Math.round(bidImprovements.reduce((sum: any, a: any) => sum + a.profitImprovementPotential, 0))}美元`,
+      expectedImpact: `预计提升利润${Math.round(bidImprovements.reduce((sum: number, a: Record<string, unknown>) => sum + a.profitImprovementPotential, 0))}美元`,
       currentValue: bidImprovements.map(a => ({ id: a.bidObjectId, bid: a.currentBaseBid })),
       recommendedValue: bidImprovements.map(a => ({ id: a.bidObjectId, bid: a.recommendedBaseBid })),
-      expectedProfitChange: bidImprovements.reduce((sum: any, a: any) => sum + a.profitImprovementPotential, 0)
+      expectedProfitChange: bidImprovements.reduce((sum: number, a: Record<string, unknown>) => sum + a.profitImprovementPotential, 0)
     });
   }
   
@@ -677,7 +676,7 @@ export async function applyOptimizationRecommendation(
     return { success: false, message: '未找到优化建议' };
   }
   
-  const rec = recommendation[0] as any;
+  const rec = recommendation[0] as unknown;
   
   if (rec.status !== 'pending') {
     return { success: false, message: '该建议已被处理' };

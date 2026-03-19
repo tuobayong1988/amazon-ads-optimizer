@@ -18,7 +18,7 @@ import { createModuleLogger } from '../utils/logger';
 
 const log = createModuleLogger('Migration-v395-search-terms-unique');
 
-export async function runV395SearchTermsUnique(db: any): Promise<void> {
+export async function runV395SearchTermsUnique(db: unknown): Promise<void> {
   log.info('[v395] 开始search_terms唯一约束迁移...');
 
   try {
@@ -66,7 +66,7 @@ export async function runV395SearchTermsUnique(db: any): Promise<void> {
         ADD UNIQUE INDEX uk_search_term (accountId, campaignId, adGroupId, searchTerm(191), report_start_date)
       `));
       log.info('[v395] 唯一约束 uk_search_term 创建成功');
-    } catch (error: any) {
+    } catch (error: unknown) {
       if (error.message?.includes('Duplicate') || error.code === 'ER_DUP_KEYNAME') {
         log.info('[v395] 唯一约束 uk_search_term 已存在，跳过');
       } else if (error.message?.includes('Duplicate entry')) {
@@ -100,7 +100,7 @@ export async function runV395SearchTermsUnique(db: any): Promise<void> {
     const totalAfter = countAfter?.[0]?.total || countAfter?.total || 0;
     log.info(`[v395] 迁移完成: 清理前=${totalBefore}, 清理后=${totalAfter}, 减少=${Number(totalBefore) - Number(totalAfter)}条`);
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.error(`[v395] search_terms唯一约束迁移失败:`, error.message);
     // 不抛出错误，允许系统继续启动
   }

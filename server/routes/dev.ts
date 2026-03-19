@@ -19,7 +19,7 @@ const SQS_QUEUE_URLS = {
 
 async function checkSqsQueues() {
   const sqsClient = new SQSClient({ region: process.env.AWS_REGION || 'us-east-1' });
-  const results: any[] = [];
+  const results: unknown[] = [];
   let allQueuesActive = true;
 
   for (const [name, url] of Object.entries(SQS_QUEUE_URLS)) {
@@ -55,7 +55,7 @@ async function checkDatabase() {
   }
 
   // @ts-expect-error - runtime type mismatch
-  const results: Record<string, any>[] = {};
+  const results: Record<string, unknown>[] = {};
 
   // AMS Data Check
   try {

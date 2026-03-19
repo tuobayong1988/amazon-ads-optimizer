@@ -79,7 +79,7 @@ export function MLBudgetOptimization({ accountId }: MLBudgetOptimizationProps) {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="text-sm font-medium">优化目标</label>
-              <Select value={objective} onValueChange={(v: any) => setObjective(v)}>
+              <Select value={objective} onValueChange={(v: unknown) => setObjective(v)}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -161,7 +161,7 @@ export function MLBudgetOptimization({ accountId }: MLBudgetOptimizationProps) {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {(allocation.allocations || []).map((item: any) => {
+                  {(allocation.allocations || []).map((item: unknown) => {
                     const change = item.allocatedBudget - item.currentBudget;
                     const changePercent = (change / item.currentBudget) * 100;
 
@@ -202,7 +202,7 @@ export function MLBudgetOptimization({ accountId }: MLBudgetOptimizationProps) {
 
               {/* 优化决策可视化 */}
               <OptimizationVisualizer
-                data={(allocation.allocations || []).map((a: any) => ({ value: a.allocatedBudget, sales: a.expectedSales }))}
+                data={(allocation.allocations || []).map((a: unknown) => ({ value: a.allocatedBudget, sales: a.expectedSales }))}
                 type="budget-optimization"
                 currentValue={allocation.summary?.totalBudget || 0}
                 suggestedValue={allocation.summary?.totalAllocated || 0}

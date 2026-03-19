@@ -93,7 +93,7 @@ export default function DataHealthDashboard() {
   });
 
   const data = overviewQuery.data?.data;
-  const overall = data?.overall as any;
+  const overall = data?.overall as unknown;
 
   return (
     <DashboardLayout>
@@ -169,16 +169,16 @@ export default function DataHealthDashboard() {
               {data?.syncJobs ? (
                 <>
                   <div className="text-2xl font-bold">
-                    {(data.syncJobs as any)?.stats24h?.successRate ?? 0}%
+                    {(data.syncJobs as unknown)?.stats24h?.successRate ?? 0}%
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    24h成功率 ({(data.syncJobs as any)?.stats24h?.succeeded ?? 0}/{(data.syncJobs as any)?.stats24h?.total ?? 0})
+                    24h成功率 ({(data.syncJobs as unknown)?.stats24h?.succeeded ?? 0}/{(data.syncJobs as unknown)?.stats24h?.total ?? 0})
                   </p>
-                  {(data.syncJobs as any)?.stats24h?.running > 0 && (
+                  {(data.syncJobs as unknown)?.stats24h?.running > 0 && (
                     <div className="flex items-center gap-1 mt-1">
                       <Activity className="h-3 w-3 text-blue-500 animate-pulse" />
                       <span className="text-xs text-blue-500">
-                        {(data.syncJobs as any).stats24h.running} 个同步进行中
+                        {(data.syncJobs as Record<string, unknown>).stats24h.running} 个同步进行中
                       </span>
                     </div>
                   )}
@@ -199,13 +199,13 @@ export default function DataHealthDashboard() {
             </CardHeader>
             <CardContent>
               <div className="flex items-center gap-2">
-                {getStatusIcon((data?.rateLimiting as any)?.status)}
+                {getStatusIcon((data?.rateLimiting as unknown)?.status)}
                 <span className="text-sm capitalize">
-                  {(data?.rateLimiting as any)?.status === 'active' ? '运行中' : '未激活'}
+                  {(data?.rateLimiting as unknown)?.status === 'active' ? '运行中' : '未激活'}
                 </span>
               </div>
               <p className="text-xs text-muted-foreground mt-1">
-                {(data?.rateLimiting as any)?.metrics?.length ?? 0} 个端点监控中
+                {(data?.rateLimiting as unknown)?.metrics?.length ?? 0} 个端点监控中
               </p>
             </CardContent>
           </Card>
@@ -220,13 +220,13 @@ export default function DataHealthDashboard() {
             </CardHeader>
             <CardContent>
               <div className="flex items-center gap-2">
-                {getStatusIcon((data?.selfHealing as any)?.status)}
+                {getStatusIcon((data?.selfHealing as unknown)?.status)}
                 <span className="text-sm">
-                  {(data?.selfHealing as any)?.status === 'running' ? '运行中' : '已停止'}
+                  {(data?.selfHealing as unknown)?.status === 'running' ? '运行中' : '已停止'}
                 </span>
               </div>
               <p className="text-xs text-muted-foreground mt-1">
-                已执行 {(data?.selfHealing as any)?.totalExecutions ?? 0} 次自愈任务
+                已执行 {(data?.selfHealing as unknown)?.totalExecutions ?? 0} 次自愈任务
               </p>
             </CardContent>
           </Card>
@@ -241,13 +241,13 @@ export default function DataHealthDashboard() {
             </CardHeader>
             <CardContent>
               <div className="flex items-center gap-2">
-                {getStatusIcon((data?.confirmationService as any)?.status)}
+                {getStatusIcon((data?.confirmationService as unknown)?.status)}
                 <span className="text-sm">
-                  {(data?.confirmationService as any)?.status === 'active' ? '运行中' : '未激活'}
+                  {(data?.confirmationService as unknown)?.status === 'active' ? '运行中' : '未激活'}
                 </span>
               </div>
               <p className="text-xs text-muted-foreground mt-1">
-                待确认: {(data?.confirmationService as any)?.metrics?.pendingRequests ?? 0} 条
+                待确认: {(data?.confirmationService as unknown)?.metrics?.pendingRequests ?? 0} 条
               </p>
             </CardContent>
           </Card>
@@ -270,9 +270,9 @@ export default function DataHealthDashboard() {
                 <CardDescription>最近10次数据同步任务的执行状态</CardDescription>
               </CardHeader>
               <CardContent>
-                {(data?.syncJobs as any)?.recent?.length > 0 ? (
+                {(data?.syncJobs as unknown)?.recent?.length > 0 ? (
                   <div className="space-y-2">
-                    {((data?.syncJobs as any)?.recent as any[])?.map((job: any) => (
+                    {((data?.syncJobs as unknown)?.recent as unknown[])?.map((job: unknown) => (
                       <div key={job.id} className="flex items-center justify-between p-3 rounded-lg border">
                         <div className="flex items-center gap-3">
                           {job.status === 'completed' ? (
@@ -330,7 +330,7 @@ export default function DataHealthDashboard() {
               <CardContent>
                 {rateLimitQuery.data?.configs ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {Object.entries(rateLimitQuery.data.configs as Record<string, any>).map(([type, config]) => (
+                    {Object.entries(rateLimitQuery.data.configs as Record<string, unknown>).map(([type, config]) => (
                       <div key={type} className="p-4 rounded-lg border">
                         <div className="flex items-center gap-2 mb-2">
                           <Zap className="h-4 w-4" />
@@ -410,7 +410,7 @@ export default function DataHealthDashboard() {
                     {selfHealingQuery.data.status.taskStatuses && (
                       <div className="space-y-2">
                         <h4 className="text-sm font-medium">注册任务</h4>
-                        {Object.entries(selfHealingQuery.data.status.taskStatuses as Record<string, any>).map(([taskId, taskStatus]) => (
+                        {Object.entries(selfHealingQuery.data.status.taskStatuses as Record<string, unknown>).map(([taskId, taskStatus]) => (
                           <div key={taskId} className="flex items-center justify-between p-3 rounded-lg border">
                             <div className="flex items-center gap-2">
                               {taskStatus.enabled ? (
@@ -440,7 +440,7 @@ export default function DataHealthDashboard() {
                     {selfHealingQuery.data.recentHistory?.length > 0 && (
                       <div className="space-y-2">
                         <h4 className="text-sm font-medium">最近执行记录</h4>
-                        {(selfHealingQuery.data.recentHistory as any[]).slice(0, 5).map((record: any, i: number) => (
+                        {(selfHealingQuery.data.recentHistory as unknown[]).slice(0, 5).map((record: unknown, i: number) => (
                           <div key={i} className="flex items-center justify-between p-2 rounded border text-sm">
                             <div className="flex items-center gap-2">
                               {record.result?.success ? (
@@ -486,25 +486,25 @@ export default function DataHealthDashboard() {
                     <div className="p-3 rounded-lg bg-muted">
                       <div className="text-xs text-muted-foreground">总请求数</div>
                       <div className="text-lg font-bold mt-1">
-                        {(confirmationQuery.data.metrics as any).totalRequests}
+                        {(confirmationQuery.data.metrics as Record<string, unknown>).totalRequests}
                       </div>
                     </div>
                     <div className="p-3 rounded-lg bg-muted">
                       <div className="text-xs text-muted-foreground">待确认</div>
                       <div className="text-lg font-bold mt-1 text-blue-600">
-                        {(confirmationQuery.data.metrics as any).pendingRequests}
+                        {(confirmationQuery.data.metrics as Record<string, unknown>).pendingRequests}
                       </div>
                     </div>
                     <div className="p-3 rounded-lg bg-muted">
                       <div className="text-xs text-muted-foreground">确认成功率</div>
                       <div className="text-lg font-bold mt-1 text-green-600">
-                        {((confirmationQuery.data.metrics as any).confirmationSuccessRate * 100).toFixed(1)}%
+                        {((confirmationQuery.data.metrics as Record<string, unknown>).confirmationSuccessRate * 100).toFixed(1)}%
                       </div>
                     </div>
                     <div className="p-3 rounded-lg bg-muted">
                       <div className="text-xs text-muted-foreground">平均确认时间</div>
                       <div className="text-lg font-bold mt-1">
-                        {((confirmationQuery.data.metrics as any).avgConfirmationTimeMs / 1000).toFixed(1)}s
+                        {((confirmationQuery.data.metrics as Record<string, unknown>).avgConfirmationTimeMs / 1000).toFixed(1)}s
                       </div>
                     </div>
                   </div>

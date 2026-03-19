@@ -18,7 +18,7 @@
 
 /**
  * Axios 风格的错误对象类型
- * 用于替代 (error as unknown).response?.status 等模式
+ * 用于替代 (error as Record<string, unknown>).response?.status 等模式
  */
 export interface AxiosLikeError extends Error {
   response?: {
@@ -189,7 +189,7 @@ export function getMySQLErrorCode(error: unknown): string | undefined {
 
 /**
  * 带有额外属性的 Error 类型
- * 用于替代 (enhancedError as unknown).status = xxx 等模式
+ * 用于替代 (enhancedError as Record<string, unknown>).status = xxx 等模式
  */
 export class EnhancedError extends Error {
   status?: number;

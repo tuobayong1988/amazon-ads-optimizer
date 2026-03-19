@@ -315,7 +315,7 @@ describe('MobileListCard', () => {
       );
 
       const buttons = screen.getAllByRole('button');
-      buttons.forEach((button: any) => {
+      buttons.forEach((button: unknown) => {
         expect((button as HTMLButtonElement).disabled).toBe(true);
       });
     });

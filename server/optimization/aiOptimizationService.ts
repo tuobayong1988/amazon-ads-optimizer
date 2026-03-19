@@ -69,8 +69,8 @@ export async function generateAIAnalysisWithSuggestions(campaignId: number): Pro
   
   // v381: 修复ID混淆 — 使用Amazon campaignId查询子层级数据
   const adGroups = await db.getAdGroupsByCampaignId(campaign.campaignId);
-  let allKeywords: any[] = [];
-  let allProductTargets: any[] = [];
+  let allKeywords: unknown[] = [];
+  let allProductTargets: unknown[] = [];
   
   for (const adGroup of adGroups) {
     const keywords = await db.getKeywordsByAdGroupId(adGroup.id);
@@ -224,7 +224,7 @@ export async function generateAIAnalysisWithSuggestions(campaignId: number): Pro
   }
   
   // 按优先级排序
-  suggestions.sort((a: any, b: any) => {
+  suggestions.sort((a: unknown, b: unknown) => {
     const priorityOrder = { high: 0, medium: 1, low: 2 };
     // @ts-expect-error - runtime type mismatch
     return priorityOrder[a.priority] - priorityOrder[b.priority];
@@ -261,7 +261,7 @@ function generatePredictions(
   let totalSpendChange = 0;
   let totalSalesChange = 0;
   
-  for (const suggestion of (suggestions as any[])) {
+  for (const suggestion of (suggestions as unknown[])) {
     if (suggestion.expectedImpact) {
       totalSpendChange += suggestion.expectedImpact.spendChange || 0;
       totalSalesChange += suggestion.expectedImpact.salesChange || 0;
@@ -305,11 +305,11 @@ function generatePredictions(
  * 使用LLM生成摘要
  */
 async function generateSummaryWithLLM(
-  campaign: any,
-  metrics: any,
+  campaign: unknown,
+  metrics: unknown,
   suggestions: OptimizationSuggestion[]
 ): Promise<string> {
-  const suggestionsSummary = suggestions.slice(0, 5).map((s: any, i: any) => 
+  const suggestionsSummary = suggestions.slice(0, 5).map((s: unknown, i: unknown) => 
     `${i + 1}. [${s.priority === "high" ? "高优先级" : s.priority === "medium" ? "中优先级" : "低优先级"}] ${s.reason}`
   ).join("\n");
   
@@ -464,7 +464,7 @@ export async function executeOptimizationSuggestions(
   // 获取所有操作记录
   const actionRecords = await db.getAiOptimizationActionsByExecution(executionId);
   
-  for (const action of (actionRecords as any[])) {
+  for (const action of (actionRecords as unknown[])) {
     try {
       await executeAction(action);
       await db.updateAiOptimizationAction(action.id, { 
@@ -503,7 +503,7 @@ export async function executeOptimizationSuggestions(
  * 映射操作类型
  */
 function mapActionType(action: string): "bid_increase" | "bid_decrease" | "bid_set" | "enable_target" | "pause_target" | "add_negative_phrase" | "add_negative_exact" {
-  const mapping: Record<string, any> = {
+  const mapping: Record<string, unknown> = {
     "bid_increase": "bid_increase",
     "bid_decrease": "bid_decrease",
     "bid_set": "bid_set",
@@ -518,7 +518,7 @@ function mapActionType(action: string): "bid_increase" | "bid_decrease" | "bid_s
 /**
  * 执行单个操作
  */
-async function executeAction(action: any): Promise<void> {
+async function executeAction(action: unknown): Promise<void> {
   switch (action.actionType) {
     case "bid_increase":
     case "bid_decrease":

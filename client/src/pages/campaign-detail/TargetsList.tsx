@@ -25,12 +25,12 @@ export function TargetsList({ campaignId }: { campaignId: number }) {
   
   // 编辑出价状态
   const [editBidOpen, setEditBidOpen] = useState(false);
-  const [editingTarget, setEditingTarget] = useState<any>(null);
+  const [editingTarget, setEditingTarget] = useState<unknown>(null);
   const [newBid, setNewBid] = useState("");
   
   // 确认状态变更弹窗
   const [confirmStatusOpen, setConfirmStatusOpen] = useState(false);
-  const [statusChangeTarget, setStatusChangeTarget] = useState<any>(null);
+  const [statusChangeTarget, setStatusChangeTarget] = useState<unknown>(null);
   const [newStatus, setNewStatus] = useState<"enabled" | "paused">("enabled");
   
   // 批量选择状态
@@ -160,7 +160,7 @@ export function TargetsList({ campaignId }: { campaignId: number }) {
   });
   
   // 打开编辑出价弹窗
-  const handleEditBid = useCallback((target: any) => {
+  const handleEditBid = useCallback((target: unknown) => {
     setEditingTarget(target);
     setNewBid(target.bid || "");
     setEditBidOpen(true);
@@ -181,7 +181,7 @@ export function TargetsList({ campaignId }: { campaignId: number }) {
   }, [editingTarget, newBid, updateKeywordMutation, updateProductTargetMutation]);
   
   // 打开状态变更确认弹窗
-  const handleStatusChange = useCallback((target: any, status: "enabled" | "paused") => {
+  const handleStatusChange = useCallback((target: unknown, status: "enabled" | "paused") => {
     setStatusChangeTarget(target);
     setNewStatus(status);
     setConfirmStatusOpen(true);
@@ -216,7 +216,7 @@ export function TargetsList({ campaignId }: { campaignId: number }) {
   }, [selectedIds]);
   
   // 全选/取消全选
-  const toggleSelectAll = useCallback((targets: any[]) => {
+  const toggleSelectAll = useCallback((targets: unknown[]) => {
     if (selectAll) {
       setSelectedIds(new Set());
       setSelectAll(false);
@@ -349,10 +349,10 @@ export function TargetsList({ campaignId }: { campaignId: number }) {
   }
   
   // 合并关键词和商品定向为统一的投放词列表
-  const allTargets: any[] = [];
+  const allTargets: unknown[] = [];
   
   if (targetsData?.keywords) {
-    targetsData.keywords.forEach((k: any) => {
+    targetsData.keywords.forEach((k: unknown) => {
       allTargets.push({
         id: `kw-${k.id}`,
         originalId: k.id,
@@ -374,7 +374,7 @@ export function TargetsList({ campaignId }: { campaignId: number }) {
   }
   
   if (targetsData?.productTargets) {
-    targetsData.productTargets.forEach((pt: any) => {
+    targetsData.productTargets.forEach((pt: unknown) => {
       allTargets.push({
         id: `pt-${pt.id}`,
         originalId: pt.id,
@@ -468,7 +468,7 @@ export function TargetsList({ campaignId }: { campaignId: number }) {
   }
   
   // 按销售额排序
-  const sortedTargets = [...filteredTargets].sort((a: any, b: any) => 
+  const sortedTargets = [...filteredTargets].sort((a: unknown, b: unknown) => 
     parseFloat(b.sales || "0") - parseFloat(a.sales || "0")
   );
   
@@ -558,7 +558,7 @@ export function TargetsList({ campaignId }: { campaignId: number }) {
                   <select
                     className="w-full mt-1 h-9 rounded-md border border-input bg-background px-3 text-sm"
                     value={filters.matchType}
-                    onChange={(e) => setFilters({...filters, matchType: e.target.value as any})}
+                    onChange={(e) => setFilters({...filters, matchType: e.target.value as unknown})}
                   >
                     <option value="all">全部</option>
                     <option value="broad">广泛</option>
@@ -574,7 +574,7 @@ export function TargetsList({ campaignId }: { campaignId: number }) {
                   <select
                     className="w-full mt-1 h-9 rounded-md border border-input bg-background px-3 text-sm"
                     value={filters.status}
-                    onChange={(e) => setFilters({...filters, status: e.target.value as any})}
+                    onChange={(e) => setFilters({...filters, status: e.target.value as unknown})}
                   >
                     <option value="all">全部</option>
                     <option value="enabled">启用</option>
@@ -814,7 +814,7 @@ export function TargetsList({ campaignId }: { campaignId: number }) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {sortedTargets.map((target: any) => {
+            {sortedTargets.map((target: unknown) => {
               const tSpend = parseFloat(target.spend || "0");
               const tSales = parseFloat(target.sales || "0");
               const tAcos = tSales > 0 ? (tSpend / tSales * 100) : 0;
@@ -1067,7 +1067,7 @@ export function TargetsList({ campaignId }: { campaignId: number }) {
                 <select
                   className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
                   value={batchBidType}
-                  onChange={(e) => setBatchBidType(e.target.value as any)}
+                  onChange={(e) => setBatchBidType(e.target.value as unknown)}
                 >
                   <optgroup label="基于当前出价">
                     <option value="fixed">固定出价</option>

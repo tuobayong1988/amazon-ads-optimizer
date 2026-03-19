@@ -84,7 +84,7 @@ export async function shardBasedSyncAll(
     const steps = getStepsForTier(tier);
     const shardDefs: ShardDefinition[] = [];
 
-    for (const account of (accounts as any[])) {
+    for (const account of (accounts as unknown[])) {
       for (const step of steps) {
         shardDefs.push({
           accountId: account.accountId,

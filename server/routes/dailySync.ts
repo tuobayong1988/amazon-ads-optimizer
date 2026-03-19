@@ -61,7 +61,7 @@ export const dailySyncRouter = router({
     .input(z.object({
       accountId: z.number(),
     }))
-    .query(async ({ input, ctx }: any) => {
+    .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       // 查询最近的同步记录 - 使用现有的getDailyPerformanceByDateRange函数
       const endDate = new Date();

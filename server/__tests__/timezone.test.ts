@@ -55,8 +55,8 @@ describe('timezone', () => {
 
     it('should handle empty/null input', () => {
       expect(getMarketplaceTimezone('')).toBe(DEFAULT_TIMEZONE);
-      expect(getMarketplaceTimezone(null as any)).toBe(DEFAULT_TIMEZONE);
-      expect(getMarketplaceTimezone(undefined as any)).toBe(DEFAULT_TIMEZONE);
+      expect(getMarketplaceTimezone(null as unknown)).toBe(DEFAULT_TIMEZONE);
+      expect(getMarketplaceTimezone(undefined as unknown)).toBe(DEFAULT_TIMEZONE);
     });
   });
 

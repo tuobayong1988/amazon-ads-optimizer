@@ -59,10 +59,10 @@ import type { OptimizationExecutionResult, OptimizationTargetConfig } from './ty
 
 export async function executeDaypartingOptimization(
   config: OptimizationTargetConfig,
-  campaigns: any[],
+  campaigns: unknown[],
   dryRun: boolean
-): Promise<{ executed: boolean; adjustmentsCount: number; details: Record<string, any>[] }> {
-  const details: Record<string, any>[] = [];
+): Promise<{ executed: boolean; adjustmentsCount: number; details: Record<string, unknown>[] }> {
+  const details: Record<string, unknown>[] = [];
   let adjustmentsCount = 0;
   
   // v122h: 使用站点本地时间而非UTC时间
@@ -72,7 +72,7 @@ export async function executeDaypartingOptimization(
   const currentDayOfWeek = getLocalDayOfWeek(now, marketplace);
   
   // v183: 预加载多维度组合分析结果，用于分投放词分时竞价
-  let comboAnalysisMap = new Map<number, any>(); // keywordId -> comboAnalysis
+  let comboAnalysisMap = new Map<number, unknown>(); // keywordId -> comboAnalysis
   try {
     const dbConn = await getDb();
     if (dbConn) {
@@ -112,17 +112,17 @@ export async function executeDaypartingOptimization(
         LIMIT 50
       `);
       // @ts-expect-error - type assertion
-      const pendingRows = (pendingDayparting as unknown)[0] || [];
+      const pendingRows = (pendingDayparting as Record<string, unknown>)[0] || [];
       
       if (pendingRows.length > 0) {
         log.info(`[DaypartingOptimization] v310: 发现${pendingRows.length}条pending的dayparting_bid，开始处理`);
         let retried = 0, superseded = 0, timedOut = 0;
         
         // 按keywordId分组，只保留每个keyword的最新pending记录
-        const latestByKeyword = new Map<string, any>();
+        const latestByKeyword = new Map<string, unknown>();
         const olderIds: number[] = [];
         
-        for (const row of (pendingRows as any[])) {
+        for (const row of (pendingRows as unknown[])) {
           const kwId = row.kw_id;
           if (!kwId) continue;
           if (latestByKeyword.has(kwId)) {
@@ -165,7 +165,7 @@ export async function executeDaypartingOptimization(
             }
             
             if (newBid > 0 && Number(kwId) > 0) {
-              const syncResult: any = await amazonApiHelper.syncBidAdjustmentsToAmazon(
+              const syncResult: unknown = await amazonApiHelper.syncBidAdjustmentsToAmazon(
                 config.accountId,
                 [{
                   keywordId: Number(kwId),
@@ -206,7 +206,7 @@ export async function executeDaypartingOptimization(
   let dpDiag = { total: 0, noStrategy: 0, draftInsufficient: 0, draftUpgraded: 0, draftUpgradeFailed: 0, noHourlyRule: 0, noKeywords: 0, bidUnchanged: 0, adjusted: 0 };
   log.info(`[DaypartingOptimization] v349: 开始分时竞价执行, campaigns=${campaigns.length}, hour=${currentHour}, dayOfWeek=${currentDayOfWeek}, marketplace=${marketplace}`);
   
-  for (const campaign of (campaigns as any[])) {
+  for (const campaign of (campaigns as unknown[])) {
     const campaignLocalId = getCampaignLocalId(campaign);
     const campaignAmazonId = getCampaignAmazonId(campaign);
     dpDiag.total++;
@@ -232,7 +232,7 @@ export async function executeDaypartingOptimization(
         try {
           // 检查广告活动是否有足够数据（至少7天的每日数据）
           const weeklyData = await daypartingService.analyzeWeeklyPerformance(Number(campaignAmazonId), 30);
-          const totalDataPoints = weeklyData.reduce((sum: any, d: any) => sum + d.dataPoints, 0);
+          const totalDataPoints = weeklyData.reduce((sum: number, d: Record<string, unknown>) => sum + d.dataPoints, 0);
           
           if (totalDataPoints >= 7) {
             // 有足够数据，自动分析并生成有意义的分时规则
@@ -241,7 +241,7 @@ export async function executeDaypartingOptimization(
             if (hourlyData.length > 0) {
               // 计算最优出价调整并保存
               const bidAdjustments = daypartingService.calculateOptimalBidAdjustments(hourlyData, {
-                optimizationGoal: config.optimizationGoal as any,
+                optimizationGoal: config.optimizationGoal as unknown,
                 targetAcos: config.targetAcos,
                 targetRoas: config.targetRoas,
               });
@@ -261,7 +261,7 @@ export async function executeDaypartingOptimization(
               
               // 计算最优预算分配并保存
               const budgetAllocation = daypartingService.calculateOptimalBudgetAllocation(weeklyData, {
-                optimizationGoal: config.optimizationGoal as any,
+                optimizationGoal: config.optimizationGoal as unknown,
                 targetAcos: config.targetAcos,
                 targetRoas: config.targetRoas,
               });
@@ -309,7 +309,7 @@ export async function executeDaypartingOptimization(
           const hourlyData = await daypartingService.analyzeHourlyPerformance(Number(campaignAmazonId), 30);
           if (hourlyData.length > 0) {
             const bidAdjustments = daypartingService.calculateOptimalBidAdjustments(hourlyData, {
-              optimizationGoal: config.optimizationGoal as any,
+              optimizationGoal: config.optimizationGoal as unknown,
               targetAcos: config.targetAcos,
               targetRoas: config.targetRoas,
             });
@@ -377,11 +377,11 @@ export async function executeDaypartingOptimization(
             const worstWindows: unknown[] = comboAnalysis.worstTimeWindows || [];
             
             // @ts-expect-error - runtime type mismatch
-            const isInBestWindow = bestWindows.some((w: Record<string, any>) => 
+            const isInBestWindow = bestWindows.some((w: Record<string, unknown>) => 
               w.dayOfWeek === currentDayOfWeek && currentHour >= w.startHour && currentHour <= w.endHour
             );
             // @ts-expect-error - runtime type mismatch
-            const isInWorstWindow = worstWindows.some((w: Record<string, any>) => 
+            const isInWorstWindow = worstWindows.some((w: Record<string, unknown>) => 
               w.dayOfWeek === currentDayOfWeek && currentHour >= w.startHour && currentHour <= w.endHour
             );
             
@@ -417,7 +417,7 @@ export async function executeDaypartingOptimization(
         if (comboTimeMultiplier !== 1.0) reasonParts.push(`时段${comboTimeMultiplier.toFixed(3)}x`);
         if (comboCategory !== 'standard') reasonParts.push(`[${comboCategory}]`);
         
-        const adjustment: Record<string, any> = {
+        const adjustment: Record<string, unknown> = {
           accountId: config.accountId,
           localCampaignId: campaignLocalId,
           amazonCampaignId: campaignAmazonId,
@@ -453,7 +453,7 @@ export async function executeDaypartingOptimization(
         
         if (!dryRun) {
           try {
-            const syncResult: any = await amazonApiHelper.syncBidAdjustmentsToAmazon(
+            const syncResult: unknown = await amazonApiHelper.syncBidAdjustmentsToAmazon(
               config.accountId,
               [{
                 keywordId: keyword.id,
@@ -525,10 +525,10 @@ export async function executeDaypartingOptimization(
  */
 export async function executeDaypartingBudgetOptimization(
   config: OptimizationTargetConfig,
-  campaigns: any[],
+  campaigns: unknown[],
   dryRun: boolean
-): Promise<{ executed: boolean; adjustmentsCount: number; details: Record<string, any>[] }> {
-  const details: Record<string, any>[] = [];
+): Promise<{ executed: boolean; adjustmentsCount: number; details: Record<string, unknown>[] }> {
+  const details: Record<string, unknown>[] = [];
   let adjustmentsCount = 0;
   
   // 获取当前星期几（站点本地时间）
@@ -536,7 +536,7 @@ export async function executeDaypartingBudgetOptimization(
   const now = new Date();
   const currentDayOfWeek = getLocalDayOfWeek(now, marketplace);
   
-  for (const campaign of (campaigns as any[])) {
+  for (const campaign of (campaigns as unknown[])) {
     const campaignLocalId = getCampaignLocalId(campaign);
     const campaignAmazonId = getCampaignAmazonId(campaign);
     try {
@@ -546,7 +546,7 @@ export async function executeDaypartingBudgetOptimization(
       
       // 获取今天的预算规则
       const budgetRules = await daypartingService.getBudgetRules(strategy.id);
-      const todayRule = budgetRules.find((r: Record<string, any>) => r.dayOfWeek === currentDayOfWeek);
+      const todayRule = budgetRules.find((r: Record<string, unknown>) => r.dayOfWeek === currentDayOfWeek);
       
       if (!todayRule) continue;
       
@@ -579,10 +579,10 @@ export async function executeDaypartingBudgetOptimization(
       
       // 计算基础预算（如果之前已经调整过，需要还原到基础值）
       // 策略：使用campaign的原始预算作为基础，乘以今天的倍数
-      const baseBudget = parseFloat((campaign as Record<string, any>).originalDailyBudget || campaign.dailyBudget || '0');
+      const baseBudget = parseFloat((campaign as Record<string, unknown>).originalDailyBudget || campaign.dailyBudget || '0');
       const adjustedBudget = Math.round(baseBudget * budgetMultiplier * 100) / 100;
       
-      const adjustment: Record<string, any> = {
+      const adjustment: Record<string, unknown> = {
         accountId: config.accountId,
         localCampaignId: campaignLocalId,
         amazonCampaignId: campaignAmazonId,
@@ -617,7 +617,7 @@ export async function executeDaypartingBudgetOptimization(
             await db.updateCampaign(campaignLocalId, {
               dailyBudget: adjustedBudget.toFixed(2),
               lastOptimizedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
-            } as Record<string, any>);
+            } as Record<string, unknown>);
             adjustmentsCount++;
             adjustment.apiSyncStatus = 'synced';
             

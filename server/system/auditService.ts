@@ -103,7 +103,7 @@ export async function createAuditLog(data: Omit<InsertAuditLog, "id" | "createdA
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   const result = await db.insert(auditLogs).values(data);
-  const [log] = await db.select().from(auditLogs).where(eq(auditLogs.id, (result as Record<string, any>[][])[0]?.insertId || 0));
+  const [log] = await db.select().from(auditLogs).where(eq(auditLogs.id, (result as Record<string, unknown>[][])[0]?.insertId || 0));
   return log;
 }
 
@@ -285,7 +285,7 @@ export async function getUserAuditStats(userId: number | undefined, days: number
   }
 
   // 按天统计 - 使用DATE_FORMAT避免DATE函数兼容性问题
-  let dayStats: any[] = [];
+  let dayStats: unknown[] = [];
   try {
     dayStats = await db
       .select({
@@ -372,7 +372,7 @@ export async function getAccountAuditStats(accountId: number, days: number = 30)
     .groupBy(auditLogs.userId, auditLogs.userName) as unknown;
 
   // @ts-expect-error - array method type inference
-  const actionsByUser = userStats.map((stat: Record<string, any>) => ({
+  const actionsByUser = userStats.map((stat: Record<string, unknown>) => ({
     userId: stat.userId || 0,
     userName: stat.userName || (stat.userId === 0 || !stat.userId ? '系统自动优化' : '未知用户'), // v375: 修复系统自动操作显示为"未知用户"的问题
     count: stat.count,
@@ -415,7 +415,7 @@ export async function exportAuditLogsToCSV(params: {
     "IP地址",
   ];
 
-  const rows = logs.map((log: any) => [
+  const rows = logs.map((log: unknown) => [
     log.id,
     String(log.createdAt),
     log.userName || "",
@@ -431,7 +431,7 @@ export async function exportAuditLogsToCSV(params: {
 
   const csvContent = [
     headers.join(","),
-    ...rows.map((row: any) => row.map((cell: any) => `"${String(cell).replace(/"/g, '""')}"`).join(",")),
+    ...rows.map((row: unknown) => row.map((cell: unknown) => `"${String(cell).replace(/"/g, '""')}"`).join(",")),
   ].join("\n");
 
   return csvContent;

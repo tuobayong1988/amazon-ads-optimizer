@@ -62,12 +62,12 @@ export default function MonitoringCenter() {
   
   // v187: 使用真实API数据替代模拟数据
   const { data: accountsWithPerformance } = trpc.adAccount.listWithPerformance.useQuery(
-    { timeRange: timeRange === 'today' ? 'today' : timeRange === '7days' ? 'last7days' : 'last30days' as any, days: timeRange === 'today' ? 1 : timeRange === '7days' ? 7 : 30 },
+    { timeRange: timeRange === 'today' ? 'today' : timeRange === '7days' ? 'last7days' : 'last30days' as unknown, days: timeRange === 'today' ? 1 : timeRange === '7days' ? 7 : 30 },
     { enabled: !!user }
   );
   
   const { data: trendData } = trpc.adAccount.getDailyTrend.useQuery(
-    { days: timeRange === 'today' ? 1 : timeRange === '7days' ? 7 : 30, timeRange: timeRange === 'today' ? 'today' : timeRange === '7days' ? 'last7days' : 'last30days' as any},
+    { days: timeRange === 'today' ? 1 : timeRange === '7days' ? 7 : 30, timeRange: timeRange === 'today' ? 'today' : timeRange === '7days' ? 'last7days' : 'last30days' as unknown},
     { enabled: !!user }
   );
   
@@ -80,9 +80,9 @@ export default function MonitoringCenter() {
   
   // 计算汇总数据
   const summary = useMemo(() => {
-    const totalSpend = accountsData.reduce((sum: number, a: any) => sum + (a.spend || 0), 0);
-    const totalSales = accountsData.reduce((sum: number, a: any) => sum + (a.sales || 0), 0);
-    const totalOrders = accountsData.reduce((sum: number, a: any) => sum + (a.orders || 0), 0);
+    const totalSpend = accountsData.reduce((sum: number, a: unknown) => sum + (a.spend || 0), 0);
+    const totalSales = accountsData.reduce((sum: number, a: unknown) => sum + (a.sales || 0), 0);
+    const totalOrders = accountsData.reduce((sum: number, a: unknown) => sum + (a.orders || 0), 0);
     const avgAcos = totalSpend > 0 && totalSales > 0 ? (totalSpend / totalSales) * 100 : 0;
     const avgRoas = totalSpend > 0 ? totalSales / totalSpend : 0;
     
@@ -92,9 +92,9 @@ export default function MonitoringCenter() {
       totalOrders,
       avgAcos,
       avgRoas,
-      healthyCount: accountsData.filter((a: any) => a.status === 'healthy').length,
-      warningCount: accountsData.filter((a: any) => a.status === 'warning').length,
-      criticalCount: accountsData.filter((a: any) => a.status === 'critical').length,
+      healthyCount: accountsData.filter((a: unknown) => a.status === 'healthy').length,
+      warningCount: accountsData.filter((a: unknown) => a.status === 'warning').length,
+      criticalCount: accountsData.filter((a: unknown) => a.status === 'critical').length,
     };
   }, [accountsData]);
   
@@ -151,7 +151,7 @@ export default function MonitoringCenter() {
           <div className="flex items-center gap-3">
             {/* 时间范围选择 */}
             <div className="flex items-center gap-1 bg-gray-800/50 rounded-lg p-1">
-              {(['today', '7days', '30days'] as const).map((range: any) => (
+              {(['today', '7days', '30days'] as const).map((range: unknown) => (
                 <Button
                   key={range}
                   variant={timeRange === range ? 'secondary' : 'ghost'}
@@ -286,7 +286,7 @@ export default function MonitoringCenter() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {accountsData.map((account: any) => (
+              {accountsData.map((account: unknown) => (
                 <Card 
                   key={account.id} 
                   className={`${getStatusBg(account.status)} cursor-pointer hover:scale-[1.02] transition-transform`}
@@ -408,7 +408,7 @@ export default function MonitoringCenter() {
                         border: '1px solid #374151',
                         borderRadius: '8px'
                       }}
-                      formatter={((value: number) => [`${value}%`, 'ACoS']) as any}
+                      formatter={((value: number) => [`${value}%`, 'ACoS']) as unknown}
                     />
                     <Area 
                       type="monotone" 
@@ -446,7 +446,7 @@ export default function MonitoringCenter() {
                   </tr>
                 </thead>
                 <tbody>
-                  {accountsData.map((account: any) => (
+                  {accountsData.map((account: unknown) => (
                     <tr key={account.id} className="border-b border-gray-800 hover:bg-gray-800/50">
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-2">

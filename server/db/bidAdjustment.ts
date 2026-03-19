@@ -86,7 +86,7 @@ export async function recordBidAdjustment(data: {
     appliedBy: data.appliedBy,
     status: data.status || 'applied',
     errorMessage: data.errorMessage,
-  } as Record<string, any>);
+  } as Record<string, unknown>);
   
   // v145: 双写到统一优化事件表
   try {
@@ -470,9 +470,9 @@ export async function importBidAdjustmentHistory(records: Array<{
   if (!db || records.length === 0) return { success: false, imported: 0, errors: [] };
   
   const errors: Array<{ row: number; error: string }> = [];
-  const validRecords: any[] = [];
+  const validRecords: unknown[] = [];
   
-  records.forEach((record: any, index: any) => {
+  records.forEach((record: unknown, index: unknown) => {
     // 验证必填字段
     if (!record.accountId) {
       errors.push({ row: index + 1, error: '缺少账号ID' });

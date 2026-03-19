@@ -17,8 +17,8 @@ export default function PrelaunchM6Video() {
   const [projectId, setProjectId] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState("scripts");
 
-  const projectsQuery = trpc.prelaunch.listProjects.useQuery() as any;
-  const projects = (() => { const d = projectsQuery.data; return (d && 'data' in (d as any) ? (d as any).data : d) || []; })();
+  const projectsQuery = trpc.prelaunch.listProjects.useQuery() as unknown;
+  const projects = (() => { const d = projectsQuery.data; return (d && 'data' in (d as unknown) ? (d as Record<string, unknown>).data : d) || []; })();
   if (!projectId && projects.length > 0) setProjectId(projects[0].id);
 
   const scriptsQuery = trpc.prelaunch.getVideoScripts.useQuery(
@@ -36,8 +36,8 @@ export default function PrelaunchM6Video() {
     onError: (err) => toast.error("启动失败: " + err.message),
   });
 
-  const scriptsData = (scriptsQuery.data as any)?.data || [];
-  const bannersData = (bannersQuery.data as any)?.data || [];
+  const scriptsData = (scriptsQuery.data as unknown)?.data || [];
+  const bannersData = (bannersQuery.data as unknown)?.data || [];
 
   return (
     <DashboardLayout>
@@ -61,7 +61,7 @@ export default function PrelaunchM6Video() {
             <select className="h-8 rounded-md border border-input bg-transparent px-2 text-xs"
               value={projectId || ''} onChange={(e) => setProjectId(Number(e.target.value))}>
               <option value="">选择项目</option>
-              {projects.map((p: any) => <option key={p.id} value={p.id}>{p.projectName}</option>)}
+              {projects.map((p: unknown) => <option key={p.id} value={p.id}>{p.projectName}</option>)}
             </select>
             <Button variant="outline" size="sm" onClick={() => scriptsQuery.refetch()} disabled={scriptsQuery.isFetching}>
               <RefreshCw className={`w-3 h-3 mr-1 ${scriptsQuery.isFetching ? 'animate-spin' : ''}`} />刷新
@@ -95,7 +95,7 @@ export default function PrelaunchM6Video() {
               </Card>
             ) : (
               <div className="space-y-4">
-                {scriptsData.map((script: any) => (
+                {scriptsData.map((script: unknown) => (
                   <Card key={script.id} className="hover:border-red-500/20 transition-colors">
                     <CardHeader className="pb-2">
                       <div className="flex items-center justify-between">
@@ -110,9 +110,9 @@ export default function PrelaunchM6Video() {
                       <p className="text-sm whitespace-pre-wrap text-muted-foreground">{script.content || script.scriptContent || '-'}</p>
                       {script.storyboardFrames && (
                         <div className="mt-4 pt-3 border-t">
-                          <p className="text-xs font-medium mb-2">分镜表 ({(script.storyboardFrames as any[])?.length || 0} 帧)</p>
+                          <p className="text-xs font-medium mb-2">分镜表 ({(script.storyboardFrames as unknown[])?.length || 0} 帧)</p>
                           <div className="grid grid-cols-4 gap-2">
-                            {((script.storyboardFrames as any[]) || []).slice(0, 8).map((frame: any, i: number) => (
+                            {((script.storyboardFrames as unknown[]) || []).slice(0, 8).map((frame: unknown, i: number) => (
                               <div key={i} className="aspect-video bg-muted/20 rounded border border-border/30 flex items-center justify-center">
                                 {frame.imageUrl ? (
                                   <img src={frame.imageUrl} alt={`Frame ${i + 1}`} className="w-full h-full object-cover rounded" />
@@ -142,7 +142,7 @@ export default function PrelaunchM6Video() {
               </Card>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {bannersData.map((banner: any) => (
+                {bannersData.map((banner: unknown) => (
                   <Card key={banner.id} className="overflow-hidden hover:border-red-500/30 transition-colors">
                     {banner.imageUrl ? (
                       <div className="aspect-[16/9] bg-muted/30 overflow-hidden">

@@ -18,7 +18,7 @@ import { createModuleLogger } from '../utils/logger';
 
 const log = createModuleLogger('Migration-v372-indexes');
 
-export async function runV372ExtendedIndexes(db: any): Promise<void> {
+export async function runV372ExtendedIndexes(db: unknown): Promise<void> {
   log.info('[v372] 开始创建扩展索引和限流表...');
 
   // ==================== 索引定义 ====================
@@ -65,7 +65,7 @@ export async function runV372ExtendedIndexes(db: any): Promise<void> {
       await db.execute(sql.raw(idx.sql));
       created++;
       log.info(`[v372] 索引 ${idx.name} 创建成功`);
-    } catch (error: any) {
+    } catch (error: unknown) {
       if (error.message?.includes('Duplicate') || error.code === 'ER_DUP_KEYNAME') {
         skipped++;
         log.debug(`[v372] 索引 ${idx.name} 已存在，跳过`);
@@ -89,7 +89,7 @@ export async function runV372ExtendedIndexes(db: any): Promise<void> {
       ) ENGINE=InnoDB
     `);
     log.info('[v372] rate_limit_buckets 表创建成功');
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (!error.message?.includes('already exists')) {
       log.warn(`[v372] rate_limit_buckets 表创建失败: ${error.message}`);
     }
@@ -107,7 +107,7 @@ export async function runV372ExtendedIndexes(db: any): Promise<void> {
       ) ENGINE=InnoDB
     `);
     log.info('[v372] rate_limit_counters 表创建成功');
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (!error.message?.includes('already exists')) {
       log.warn(`[v372] rate_limit_counters 表创建失败: ${error.message}`);
     }

@@ -27,7 +27,7 @@ export const placementRouter = router({
       accountId: z.number(),
       days: z.number().default(7),
     }))
-    .query(async ({ input, ctx }: any) => {
+    .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       return placementService.getCampaignPlacementPerformance(
         input.campaignId,
@@ -42,7 +42,7 @@ export const placementRouter = router({
       campaignId: z.string(),
       accountId: z.number(),
     }))
-    .query(async ({ input, ctx }: any) => {
+    .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       return placementService.getCampaignPlacementSettings(
         input.campaignId,
@@ -57,7 +57,7 @@ export const placementRouter = router({
       accountId: z.number(),
       days: z.number().default(7),
     }))
-    .mutation(async ({ input, ctx }: any) => {
+    .mutation(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       // 获取位置表现数据
       const performance = await placementService.getCampaignPlacementPerformance(
@@ -83,7 +83,7 @@ export const placementRouter = router({
       // 集成边际效益分析
       let marginalBenefitInsights = null;
       try {
-        const marginalBenefits: Record<string, any> = {};
+        const marginalBenefits: Record<string, unknown> = {};
         for (const p of performance) {
           const placementType = p.placementType as 'top_of_search' | 'product_page' | 'rest_of_search';
           const currentAdjustment = currentSettings?.[placementType] || 0;
@@ -145,7 +145,7 @@ export const placementRouter = router({
         }).optional(), // V2新增：冷却期状态
       })),
     }))
-    .mutation(async ({ ctx, input }: any) => {
+    .mutation(async ({ ctx, input }: unknown) => {
       await placementService.updatePlacementSettings(
         input.campaignId,
         input.accountId,
@@ -160,7 +160,7 @@ export const placementRouter = router({
       campaignId: z.string(),
       accountId: z.number(),
     }))
-    .mutation(async ({ input, ctx }: any) => {
+    .mutation(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       return placementService.executeAutomaticPlacementOptimization(
         input.campaignId,
@@ -174,7 +174,7 @@ export const placementRouter = router({
       accountId: z.number(),
       campaignIds: z.array(z.string()).optional(),
     }))
-    .mutation(async ({ input, ctx }: any) => {
+    .mutation(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       return placementService.batchExecutePlacementOptimization(
         input.accountId,
@@ -189,7 +189,7 @@ export const placementRouter = router({
       accountId: z.number(),
       limit: z.number().default(50),
     }))
-    .query(async ({ input, ctx }: any) => {
+    .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       // TODO: 实现历史记录查询
       return [];
@@ -203,7 +203,7 @@ export const placementRouter = router({
       campaignId: z.string(),
       accountId: z.number(),
     }))
-    .query(async ({ input, ctx }: any) => {
+    .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       return advancedPlacementService.analyzeCampaignPlacementProfit(
         input.accountId,
@@ -223,7 +223,7 @@ export const placementRouter = router({
       currentTopAdjustment: z.number().default(0),
       currentProductAdjustment: z.number().default(0),
     }))
-    .query(async ({ input, ctx }: any) => {
+    .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       return advancedPlacementService.analyzeBidObjectProfit(
         input.accountId,
@@ -243,7 +243,7 @@ export const placementRouter = router({
       accountId: z.number(),
       campaignId: z.string().optional(),
     }))
-    .query(async ({ input, ctx }: any) => {
+    .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       return advancedPlacementService.getPendingRecommendations(
         input.accountId,
@@ -256,7 +256,7 @@ export const placementRouter = router({
     .input(z.object({
       recommendationId: z.number(),
     }))
-    .mutation(async ({ input, ctx }: any) => {
+    .mutation(async ({ input, ctx }: unknown) => {
       return advancedPlacementService.applyOptimizationRecommendation(
         input.recommendationId,
         ctx.user.id
@@ -270,7 +270,7 @@ export const placementRouter = router({
       bidObjectType: z.enum(['keyword', 'asin']),
       bidObjectId: z.string(),
     }))
-    .query(async ({ input, ctx }: any) => {
+    .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       return advancedPlacementService.generateProfitVisualizationData(
         input.accountId,
@@ -289,7 +289,7 @@ export const placementRouter = router({
       keywordId: z.number(),
       daysBack: z.number().default(30),
     }))
-    .mutation(async ({ input, ctx }: any) => {
+    .mutation(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       const model = await marketCurveService.buildMarketCurveForKeyword(
         input.accountId,
@@ -307,7 +307,7 @@ export const placementRouter = router({
       bidObjectType: z.enum(['keyword', 'asin', 'audience']),
       bidObjectId: z.string(),
     }))
-    .query(async ({ input, ctx }: any) => {
+    .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       return marketCurveService.getMarketCurveModel(
         input.accountId,
@@ -321,7 +321,7 @@ export const placementRouter = router({
     .input(z.object({
       accountId: z.number(),
     }))
-    .mutation(async ({ input, ctx }: any) => {
+    .mutation(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       return marketCurveService.updateAllMarketCurveModels(input.accountId);
     }),
@@ -334,7 +334,7 @@ export const placementRouter = router({
       accountId: z.number(),
       modelType: z.enum(['cr_prediction', 'cv_prediction']),
     }))
-    .mutation(async ({ input, ctx }: any) => {
+    .mutation(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       const result = await decisionTreeService.trainDecisionTreeModel(
         input.accountId,
@@ -367,7 +367,7 @@ export const placementRouter = router({
       keywordType: z.enum(['brand', 'competitor', 'generic', 'product']),
       avgBid: z.number(),
     }))
-    .query(async ({ input, ctx }: any) => {
+    .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       return decisionTreeService.predictKeywordPerformance(
         input.accountId,
@@ -385,7 +385,7 @@ export const placementRouter = router({
     .input(z.object({
       accountId: z.number(),
     }))
-    .mutation(async ({ input, ctx }: any) => {
+    .mutation(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       return decisionTreeService.batchPredictAndSaveKeywords(input.accountId);
     }),
@@ -395,7 +395,7 @@ export const placementRouter = router({
     .input(z.object({
       accountId: z.number(),
     }))
-    .query(async ({ input, ctx }: any) => {
+    .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       return decisionTreeService.getKeywordPredictionSummary(input.accountId);
     }),
@@ -408,7 +408,7 @@ export const placementRouter = router({
       campaignId: z.string(),
       accountId: z.number(),
     }))
-    .query(async ({ input, ctx }: any) => {
+    .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       // 获取广告活动下的所有关键词
       const campaignKeywords = await db.getKeywordsByCampaignId(input.campaignId);
@@ -452,9 +452,9 @@ export const placementRouter = router({
       const summary = {
         totalKeywords: campaignKeywords.length,
         analyzedKeywords: results.length,
-        avgOptimalBid: results.length > 0 ? results.reduce((sum: any, r: any) => sum + r.optimalBid, 0) / results.length : 0,
-        avgCurrentBid: results.length > 0 ? results.reduce((sum: any, r: any) => sum + r.currentBid, 0) / results.length : 0,
-        totalMaxProfit: results.reduce((sum: any, r: any) => sum + r.maxProfit, 0),
+        avgOptimalBid: results.length > 0 ? results.reduce((sum: number, r: Record<string, unknown>) => sum + r.optimalBid, 0) / results.length : 0,
+        avgCurrentBid: results.length > 0 ? results.reduce((sum: number, r: Record<string, unknown>) => sum + r.currentBid, 0) / results.length : 0,
+        totalMaxProfit: results.reduce((sum: number, r: Record<string, unknown>) => sum + r.maxProfit, 0),
         keywordsNeedIncrease: results.filter(r => r.recommendation === 'increase').length,
         keywordsNeedDecrease: results.filter(r => r.recommendation === 'decrease').length,
         keywordsMaintain: results.filter(r => r.recommendation === 'maintain').length,
@@ -472,7 +472,7 @@ export const placementRouter = router({
       groupId: z.number(),
       accountId: z.number(),
     }))
-    .query(async ({ input, ctx }: any) => {
+    .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       // 获取绩效组信息
       const group = await db.getPerformanceGroupById(input.groupId);
@@ -558,7 +558,7 @@ export const placementRouter = router({
         totalAnalyzedKeywords,
         totalMaxProfit: Math.round(totalMaxProfit * 100) / 100,
         avgOptimizationScore: campaignResults.length > 0 
-          ? Math.round(campaignResults.reduce((sum: any, c: any) => sum + c.optimizationScore, 0) / campaignResults.length)
+          ? Math.round(campaignResults.reduce((sum: number, c: Record<string, unknown>) => sum + c.optimizationScore, 0) / campaignResults.length)
           : 0,
         keywordsNeedIncrease: totalKeywordsNeedIncrease,
         keywordsNeedDecrease: totalKeywordsNeedDecrease,
@@ -580,7 +580,7 @@ export const placementRouter = router({
       keywordIds: z.array(z.number()).optional(), // 可选，指定要应用的关键词，不指定则应用所有
       minBidDifferencePercent: z.number().default(5), // 最小差距百分比，低于此值不调整
     }))
-    .mutation(async ({ input, ctx }: any) => {
+    .mutation(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       // 获取广告活动下的所有关键词
       const campaignKeywords = await db.getKeywordsByCampaignId(input.campaignId);
@@ -739,7 +739,7 @@ export const placementRouter = router({
       accountId: z.number(),
       minBidDifferencePercent: z.number().default(5),
     }))
-    .mutation(async ({ input, ctx }: any) => {
+    .mutation(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       // 获取绩效组信息
       const group = await db.getPerformanceGroupById(input.groupId);
@@ -881,7 +881,7 @@ export const placementRouter = router({
       page: z.number().default(1),
       pageSize: z.number().default(50),
     }))
-    .query(async ({ input, ctx }: any) => {
+    .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       // v146: 重定向到统一事件表查询
       const result = await db.getOptimizationEvents({
@@ -896,7 +896,7 @@ export const placementRouter = router({
       });
       // 兼容旧的返回格式
       return {
-        records: result.events.map((e: Record<string, any>) => ({
+        records: result.events.map((e: Record<string, unknown>) => ({
           ...e,
           appliedAt: e.createdAt,
           adjustmentType: e.adjustmentType || e.actionType,
@@ -916,7 +916,7 @@ export const placementRouter = router({
       accountId: z.number(),
       days: z.number().default(30),
     }))
-    .query(async ({ input, ctx }: any) => {
+    .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       return db.getOptimizationEventStats({
         accountId: input.accountId,
@@ -933,7 +933,7 @@ export const placementRouter = router({
       cvr: z.number().optional(),
       aov: z.number().optional(),
     }))
-    .query(async ({ input, ctx }: any) => {
+    .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       // 尝试获取市场曲线模型
       const marketCurve = await marketCurveService.getMarketCurveModel(
@@ -981,7 +981,7 @@ export const placementRouter = router({
     .input(z.object({
       adjustmentId: z.number(),
     }))
-    .mutation(async ({ input, ctx }: any) => {
+    .mutation(async ({ input, ctx }: unknown) => {
       // v146: 重定向到统一事件表回滚
       return db.rollbackOptimizationEvent(input.adjustmentId, ctx.user.name || ctx.user.openId);
     }),
@@ -991,9 +991,9 @@ export const placementRouter = router({
     .input(z.object({
       adjustmentId: z.number(),
     }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       const result = await db.getOptimizationEvents({ limit: 1, offset: 0 });
-      return result.events.find((e: Record<string, any>) => e.id === input.adjustmentId) || null;
+      return result.events.find((e: Record<string, unknown>) => e.id === input.adjustmentId) || null;
     }),
 
   // 获取效果追踪统计 - v146: 重定向到统一事件表
@@ -1002,7 +1002,7 @@ export const placementRouter = router({
       accountId: z.number(),
       days: z.number().default(30),
     }))
-    .query(async ({ input, ctx }: any) => {
+    .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       return db.getOptimizationEventStats({
         accountId: input.accountId,
@@ -1032,7 +1032,7 @@ export const placementRouter = router({
         status: z.enum(['applied', 'pending', 'failed', 'rolled_back']).default('applied'),
       })),
     }))
-    .mutation(async ({ input, ctx }: any) => {
+    .mutation(async ({ input, ctx }: unknown) => {
       // @ts-expect-error - array method type inference
       const recordsWithAccount = input.records.map(r => ({
         ...r,
@@ -1047,7 +1047,7 @@ export const placementRouter = router({
     .input(z.object({
       daysAgo: z.number().default(7),
     }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       return db.getAdjustmentsNeedingTracking(input.daysAgo);
     }),
 
@@ -1066,7 +1066,7 @@ export const placementRouter = router({
         actualRevenue7D: z.number().optional(),
       }),
     }))
-    .mutation(async ({ ctx, input }: any) => {
+    .mutation(async ({ ctx, input }: unknown) => {
       return db.updateBidAdjustmentTracking(input.adjustmentId, input.trackingData);
     }),
 
@@ -1075,7 +1075,7 @@ export const placementRouter = router({
     .input(z.object({
       period: z.number().default(7), // 7, 14, 或 30 天
     }))
-    .mutation(async ({ ctx, input }: any) => {
+    .mutation(async ({ ctx, input }: unknown) => {
       const { runEffectTrackingTask } = await import('../scheduler/effectTrackingScheduler');
       return runEffectTrackingTask(input.period);
     }),
@@ -1102,7 +1102,7 @@ export const placementRouter = router({
       campaignId: z.number().optional(),
       performanceGroupId: z.number().optional(),
     }))
-    .query(async ({ input, ctx }: any) => {
+    .query(async ({ input, ctx }: unknown) => {
       // 使用输入参数或默认账号ID
       const accountId = 1; // TODO: 从输入参数或用户会话中获取
       
@@ -1158,7 +1158,7 @@ export const placementRouter = router({
       const byAdjustmentType: Record<string, { count: number; estimated: number; actual: number }> = {};
       const byCampaign: Record<number, { name: string; count: number; estimated: number; actual: number }> = {};
       
-      for (const record of (records as any[])) {
+      for (const record of (records as unknown[])) {
         const estimated = parseFloat(record.expectedProfitIncrease || '0');
         totalEstimatedProfit += estimated;
         
@@ -1173,14 +1173,14 @@ export const placementRouter = router({
         // 按广告活动分组
         if (record.campaignId) {
           // @ts-expect-error - type assertion
-          if (!(byCampaign as unknown)[record.campaignId]) {
+          if (!(byCampaign as Record<string, unknown>)[record.campaignId]) {
             // @ts-expect-error - type assertion
-            (byCampaign as unknown)[record.campaignId] = { name: record.campaignName || '', count: 0, estimated: 0, actual: 0 };
+            (byCampaign as Record<string, unknown>)[record.campaignId] = { name: record.campaignName || '', count: 0, estimated: 0, actual: 0 };
           }
           // @ts-expect-error - type assertion
-          (byCampaign as unknown)[record.campaignId].count++;
+          (byCampaign as Record<string, unknown>)[record.campaignId].count++;
           // @ts-expect-error - type assertion
-          (byCampaign as unknown)[record.campaignId].estimated += estimated;
+          (byCampaign as Record<string, unknown>)[record.campaignId].estimated += estimated;
         }
         
         // 统计已追踪的记录
@@ -1191,9 +1191,9 @@ export const placementRouter = router({
           trackedRecords++;
           byAdjustmentType[type].actual += actual;
           // @ts-expect-error - type assertion
-          if (record.campaignId && (byCampaign as unknown)[record.campaignId]) {
+          if (record.campaignId && (byCampaign as Record<string, unknown>)[record.campaignId]) {
             // @ts-expect-error - type assertion
-            (byCampaign as unknown)[record.campaignId].actual += actual;
+            (byCampaign as Record<string, unknown>)[record.campaignId].actual += actual;
           }
         }
         if (record.actualProfit14D !== null) {
@@ -1256,7 +1256,7 @@ export const placementRouter = router({
     .input(z.object({
       adjustmentIds: z.array(z.number()),
     }))
-    .mutation(async ({ input, ctx }: any) => {
+    .mutation(async ({ input, ctx }: unknown) => {
       const results: { id: number; success: boolean; error?: string }[] = [];
       
       for (const id of input.adjustmentIds) {
@@ -1298,7 +1298,7 @@ export const placementRouter = router({
       currentAdjustment: z.number().default(0),
       days: z.number().default(30),
     }))
-    .query(async ({ input, ctx }: any) => {
+    .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       const { calculateMarginalBenefit } = await import('../optimization/marginalBenefitAnalysisService');
       return calculateMarginalBenefit(
@@ -1330,7 +1330,7 @@ export const placementRouter = router({
         targetROAS: z.number().optional(),
       }).optional(),
     }))
-    .mutation(async ({ ctx, input }: any) => {
+    .mutation(async ({ ctx, input }: unknown) => {
       const { optimizeTrafficAllocation } = await import('../optimization/marginalBenefitAnalysisService');
       return optimizeTrafficAllocation(
         input.campaignId,
@@ -1349,7 +1349,7 @@ export const placementRouter = router({
       optimizationGoal: z.enum(['maximize_roas', 'minimize_acos', 'maximize_sales', 'balanced']).default('balanced'),
       analysisName: z.string().optional(),
     }))
-    .mutation(async ({ input, ctx }: any) => {
+    .mutation(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       const { createBatchAnalysis, executeBatchAnalysis } = await import('../optimization/marginalBenefitBatchService');
       
@@ -1378,7 +1378,7 @@ export const placementRouter = router({
       accountId: z.number(),
       limit: z.number().default(10),
     }))
-    .query(async ({ input, ctx }: any) => {
+    .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       const { getBatchAnalysisHistory } = await import('../optimization/marginalBenefitBatchService');
       return getBatchAnalysisHistory(input.accountId, input.limit);
@@ -1387,7 +1387,7 @@ export const placementRouter = router({
   // 获取批量分析详情
   getBatchAnalysisDetail: protectedProcedure
     .input(z.object({ analysisId: z.number() }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       const { getBatchAnalysisDetail } = await import('../optimization/marginalBenefitBatchService');
       return getBatchAnalysisDetail(input.analysisId);
     }),
@@ -1406,7 +1406,7 @@ export const placementRouter = router({
       expectedACoSChange: z.number(),
       note: z.string().optional(),
     }))
-    .mutation(async ({ input, ctx }: any) => {
+    .mutation(async ({ input, ctx }: unknown) => {
       const { applyOptimization } = await import('../optimization/marginalBenefitBatchService');
       return applyOptimization({
         ...input,
@@ -1429,7 +1429,7 @@ export const placementRouter = router({
         expectedACoSChange: z.number(),
       })),
     }))
-    .mutation(async ({ input, ctx }: any) => {
+    .mutation(async ({ input, ctx }: unknown) => {
       const { batchApplyOptimization } = await import('../optimization/marginalBenefitBatchService');
       return batchApplyOptimization(input.accountId, ctx.user.id, input.applications);
     }),
@@ -1437,7 +1437,7 @@ export const placementRouter = router({
   // 回滚优化应用
   rollbackApplication: protectedProcedure
     .input(z.object({ applicationId: z.number() }))
-    .mutation(async ({ ctx, input }: any) => {
+    .mutation(async ({ ctx, input }: unknown) => {
       const { rollbackApplication } = await import('../optimization/marginalBenefitBatchService');
       return rollbackApplication(input.applicationId);
     }),
@@ -1449,7 +1449,7 @@ export const placementRouter = router({
       campaignId: z.string().optional(),
       limit: z.number().default(20),
     }))
-    .query(async ({ input, ctx }: any) => {
+    .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       const { getApplicationHistory } = await import('../optimization/marginalBenefitBatchService');
       return getApplicationHistory(input.accountId, input.campaignId, input.limit);
@@ -1463,7 +1463,7 @@ export const placementRouter = router({
       placementType: z.enum(['top_of_search', 'product_page', 'rest_of_search']),
       days: z.number().default(30),
     }))
-    .query(async ({ input, ctx }: any) => {
+    .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       const { getHistoryTrend } = await import('../optimization/marginalBenefitHistoryService');
       return getHistoryTrend(input.accountId, input.campaignId, input.days);
@@ -1476,7 +1476,7 @@ export const placementRouter = router({
       campaignId: z.string(),
       period: z.enum(['weekly', 'monthly']).default('weekly'),
     }))
-    .query(async ({ input, ctx }: any) => {
+    .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       const { analyzeSeasonalPatterns } = await import('../optimization/marginalBenefitHistoryService');
       return analyzeSeasonalPatterns(input.accountId, input.campaignId, input.period);
@@ -1492,7 +1492,7 @@ export const placementRouter = router({
       period2Start: z.string(),
       period2End: z.string(),
     }))
-    .query(async ({ input, ctx }: any) => {
+    .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       const { comparePeriods } = await import('../optimization/marginalBenefitHistoryService');
       return comparePeriods(
@@ -1512,7 +1512,7 @@ export const placementRouter = router({
       accountId: z.number(),
       goal: z.enum(['maximize_roas', 'minimize_acos', 'maximize_sales', 'balanced']).default('balanced'),
     }))
-    .query(async ({ input, ctx }: any) => {
+    .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       const { 
         calculateMarginalBenefit, 
@@ -1534,7 +1534,7 @@ export const placementRouter = router({
       
       // 计算各位置的边际效益
       const placements: Array<'top_of_search' | 'product_page' | 'rest_of_search'> = ['top_of_search', 'product_page', 'rest_of_search'];
-      const marginalBenefits: Record<string, any> = {};
+      const marginalBenefits: Record<string, unknown> = {};
       
       for (const placement of placements) {
         marginalBenefits[placement] = await calculateMarginalBenefit(

@@ -159,10 +159,10 @@ export default function AccountSwitcher({ compact = false, showStatus = true }: 
   });
 
   // 获取账号列表
-  const { data: accounts, isLoading, refetch } = trpc.adAccount.list.useQuery() as any;
+  const { data: accounts, isLoading, refetch } = trpc.adAccount.list.useQuery() as unknown;
 
   // 获取账号统计
-  const { data: stats } = trpc.adAccount.getStats.useQuery() as any;
+  const { data: stats } = trpc.adAccount.getStats.useQuery() as unknown;
 
   // 设置默认账号mutation
   const setDefaultMutation = trpc.adAccount.setDefault.useMutation({
@@ -462,7 +462,7 @@ export default function AccountSwitcher({ compact = false, showStatus = true }: 
               没有符合筛选条件的账号
             </div>
           ) : (
-            filteredAccounts.map((account: any, index: any) => {
+            filteredAccounts.map((account: unknown, index: unknown) => {
               const isSelected = account.id === currentAccountId;
               const flag = MARKETPLACE_FLAGS[account.marketplace] || '🌐';
               

@@ -301,7 +301,7 @@ const [alertTypeFilter, setAlertTypeFilter] = useState<AlertType | "all">("all")
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {alertsData?.alerts.map((alert: any) => (
+                  {alertsData?.alerts.map((alert: unknown) => (
                     <div
                       key={alert.id}
                       className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent/50 transition-colors"

@@ -79,13 +79,13 @@ export default function BudgetAllocation() {
   const [totalBudget, setTotalBudget] = useState<number>(1000);
   // v399: 使用全局店铺选择器替代本地状态
   const { accountId: selectedAccountId, accounts, isLoading: accountsLoading } = useGlobalAccountId();
-  const setSelectedAccountId = (_: any) => {}; // v399: 由全局选择器控制，本地setter为no-op
+  const setSelectedAccountId = (_: unknown) => {}; // v399: 由全局选择器控制，本地setter为no-op
 const [prioritizeHighRoas, setPrioritizeHighRoas] = useState(true);
   const [prioritizeNewProducts, setPrioritizeNewProducts] = useState(false);
   const [minCampaignBudget, setMinCampaignBudget] = useState<number>(10);
   const [maxCampaignBudget, setMaxCampaignBudget] = useState<number>(300);
   
-  const [allocationResult, setAllocationResult] = useState<any>(null);
+  const [allocationResult, setAllocationResult] = useState<unknown>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isApplying, setIsApplying] = useState(false);
@@ -213,7 +213,7 @@ const [prioritizeHighRoas, setPrioritizeHighRoas] = useState(true);
 
   const handleApply = (allocationId: number) => {
     // 查找对应的分配方案
-    const allocation = allocationHistory?.find(a => a.id === allocationId) as any;
+    const allocation = allocationHistory?.find(a => a.id === allocationId) as unknown;
     if (!allocation) {
       setIsApplying(true);
       applyMutation.mutate({ allocationId });
@@ -229,7 +229,7 @@ const [prioritizeHighRoas, setPrioritizeHighRoas] = useState(true);
         : resultData;
       
       if (result?.allocations) {
-        result.allocations.forEach((item: any, index: number) => {
+        result.allocations.forEach((item: unknown, index: number) => {
           if (item.currentBudget !== item.recommendedBudget) {
             const changePercent = item.currentBudget > 0 
               ? ((item.recommendedBudget - item.currentBudget) / item.currentBudget) * 100 
@@ -274,9 +274,9 @@ const [prioritizeHighRoas, setPrioritizeHighRoas] = useState(true);
   const handleCreateGoal = () => {
     createGoalMutation.mutate({
       accountId: selectedAccountId ?? undefined,
-      goalType: newGoal.goalType as any,
+      goalType: newGoal.goalType as unknown,
       targetValue: newGoal.targetValue,
-      periodType: newGoal.periodType as any,
+      periodType: newGoal.periodType as unknown,
       totalBudget: newGoal.totalBudget,
     });
   };
@@ -308,7 +308,7 @@ const [prioritizeHighRoas, setPrioritizeHighRoas] = useState(true);
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">全部账号</SelectItem>
-                {accounts?.map((account: any) => (
+                {accounts?.map((account: unknown) => (
                   <SelectItem key={account.id} value={account.id.toString()}>
                     {account.storeName || account.accountName}
                   </SelectItem>
@@ -517,7 +517,7 @@ const [prioritizeHighRoas, setPrioritizeHighRoas] = useState(true);
                       {/* 分配明细列表 */}
                       <ScrollArea className="h-[400px]">
                         <div className="space-y-3">
-                          {allocationResult.recommendations.map((rec: any, index: number) => (
+                          {allocationResult.recommendations.map((rec: unknown, index: number) => (
                             <div
                               key={index}
                               className="p-4 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
@@ -604,7 +604,7 @@ const [prioritizeHighRoas, setPrioritizeHighRoas] = useState(true);
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {budgetGoals?.map((goal: any) => (
+              {budgetGoals?.map((goal: unknown) => (
                 <Card key={goal.id}>
                   <CardHeader className="pb-2">
                     <div className="flex items-center justify-between">
@@ -674,7 +674,7 @@ const [prioritizeHighRoas, setPrioritizeHighRoas] = useState(true);
             </div>
 
             <div className="space-y-4">
-              {allocationHistory?.map((allocation: any) => (
+              {allocationHistory?.map((allocation: unknown) => (
                 <Card key={allocation.id}>
                   <CardContent className="pt-6">
                     <div className="flex items-start justify-between">
@@ -754,7 +754,7 @@ const [prioritizeHighRoas, setPrioritizeHighRoas] = useState(true);
               <CardContent className="pt-6">
                 <ScrollArea className="h-[500px]">
                   <div className="space-y-3">
-                    {budgetHistory?.map((record: any) => (
+                    {budgetHistory?.map((record: unknown) => (
                       <div
                         key={record.id}
                         className="flex items-center justify-between p-3 rounded-lg border"

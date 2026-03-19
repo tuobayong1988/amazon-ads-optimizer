@@ -131,7 +131,7 @@ AmazonSyncService.prototype.syncSpCampaigns = async function(this: AmazonSyncSer
       // v168: SP API v3的dailyBudget可能嵌套在多种结构中
       // 常见结构: { budget: { budget: 30 } }, { budget: { dailyBudget: 30 } }, { dailyBudget: 30 }, { budget: 30 }
       let dailyBudgetValue = 0;
-      const budgetField = (apiCampaign as Record<string, any>).budget;
+      const budgetField = (apiCampaign as Record<string, unknown>).budget;
       if (budgetField !== undefined && budgetField !== null) {
         if (typeof budgetField === 'number') {
           dailyBudgetValue = budgetField;
@@ -180,8 +180,8 @@ AmazonSyncService.prototype.syncSpCampaigns = async function(this: AmazonSyncSer
       }
 
       // v423: 获取竞价策略 - API v3返回大写格式，需要映射到数据库枚举值
-      const rawStrategy = (apiCampaign as Record<string, any>).dynamicBidding?.strategy || 
-                         (apiCampaign as Record<string, any>).bidding?.strategy || 
+      const rawStrategy = (apiCampaign as Record<string, unknown>).dynamicBidding?.strategy || 
+                         (apiCampaign as Record<string, unknown>).bidding?.strategy || 
                          'LEGACY_FOR_SALES';
       const strategyMap: Record<string, string> = {
         'MANUAL': 'manual', 'LEGACY_FOR_SALES': 'legacyForSales', 'AUTO_FOR_SALES': 'autoForSales', 'RULE_BASED': 'ruleBasedBidding',
@@ -190,7 +190,7 @@ AmazonSyncService.prototype.syncSpCampaigns = async function(this: AmazonSyncSer
       const biddingStrategy = strategyMap[rawStrategy] || 'legacyForSales';
 
       // 获取组合信息
-      const portfolioId = (apiCampaign as Record<string, any>).portfolioId ? String((apiCampaign as Record<string, any>).portfolioId) : null;
+      const portfolioId = (apiCampaign as Record<string, unknown>).portfolioId ? String((apiCampaign as Record<string, unknown>).portfolioId) : null;
 
       const campaignData = {
         accountId: this.accountId,
@@ -219,7 +219,7 @@ AmazonSyncService.prototype.syncSpCampaigns = async function(this: AmazonSyncSer
         const apiBudget = parseFloat(String(dailyBudgetValue || '0'));
         if (apiBudget === 0 && localBudget > 0) {
           log.warn(`v168: 零值预算防护生效 - campaign=${existing.campaignName}, local=$${localBudget}, api=$${apiBudget}, 保留本地预算`);
-          delete (campaignData as Record<string, any>[]).dailyBudget;
+          delete (campaignData as Record<string, unknown>[]).dailyBudget;
         }
         
         // v150: 智能预算保护策略
@@ -232,7 +232,7 @@ AmazonSyncService.prototype.syncSpCampaigns = async function(this: AmazonSyncSer
           if (hasRecentOpt) {
             // 有近期优化事件，保留本地预算
             log.debug(`v150: 预算保护生效 - campaign=${existing.campaignName}, local=$${localBudget}, api=$${apiBudget}, 保留本地优化预算`);
-            delete (campaignData as Record<string, any>[]).dailyBudget;
+            delete (campaignData as Record<string, unknown>[]).dailyBudget;
             protectionStats.budgetProtected++;
             protectionStats.protectedEntities.push(`camp:${existing.campaignName}`);
           } else {
@@ -243,18 +243,18 @@ AmazonSyncService.prototype.syncSpCampaigns = async function(this: AmazonSyncSer
         
         // v165: 位置倾斜比例保护逻辑
         const localTopPlacement1 = existing.placementTopSearchBidAdjustment || 0;
-        const apiTopPlacement1 = (campaignData as Record<string, any>[]).placementTopSearchBidAdjustment || 0;
+        const apiTopPlacement1 = (campaignData as Record<string, unknown>[]).placementTopSearchBidAdjustment || 0;
         const localProductPlacement1 = existing.placementProductPageBidAdjustment || 0;
-        const apiProductPlacement1 = (campaignData as Record<string, any>[]).placementProductPageBidAdjustment || 0;
+        const apiProductPlacement1 = (campaignData as Record<string, unknown>[]).placementProductPageBidAdjustment || 0;
         // v423: 增加restOfSearch位置保护
-        const localRestPlacement1 = (existing as any).placementRestBidAdjustment || 0;
-        const apiRestPlacement1 = (campaignData as Record<string, any>[]).placementRestBidAdjustment || 0;
+        const localRestPlacement1 = (existing as Record<string, unknown>).placementRestBidAdjustment || 0;
+        const apiRestPlacement1 = (campaignData as Record<string, unknown>[]).placementRestBidAdjustment || 0;
         const hasPlacementDiff1 = localTopPlacement1 !== apiTopPlacement1 || localProductPlacement1 !== apiProductPlacement1 || localRestPlacement1 !== apiRestPlacement1;
         if (hasPlacementDiff1 && protectedCampaignIds.has(existing.id)) {
           log.debug(`v165: 位置倾斜保护生效 - campaign=${existing.campaignName}, localTop=${localTopPlacement1}%, apiTop=${apiTopPlacement1}%, localProduct=${localProductPlacement1}%, apiProduct=${apiProductPlacement1}%, localRest=${localRestPlacement1}%, apiRest=${apiRestPlacement1}%`);
-          delete (campaignData as Record<string, any>[]).placementTopSearchBidAdjustment;
-          delete (campaignData as Record<string, any>[]).placementProductPageBidAdjustment;
-          delete (campaignData as Record<string, any>[]).placementRestBidAdjustment;
+          delete (campaignData as Record<string, unknown>[]).placementTopSearchBidAdjustment;
+          delete (campaignData as Record<string, unknown>[]).placementProductPageBidAdjustment;
+          delete (campaignData as Record<string, unknown>[]).placementRestBidAdjustment;
           protectionStats.protectedEntities.push(`placement:${existing.campaignName}`);
         }
         
@@ -422,7 +422,7 @@ AmazonSyncService.prototype.syncSpKeywords = async function(this: AmazonSyncServ
       // v215修复: 移除错误的updatedAt跳过逻辑
       // 始终使用Amazon API返回的最新数据更新本地记录
 
-      const keywordData: Record<string, any> = {
+      const keywordData: Record<string, unknown> = {
         internalAdGroupId: adGroup.id,  // v418: ID体系重构
         accountId: this.accountId,
         campaignId: adGroup.campaignId || '',  // v357
@@ -534,7 +534,7 @@ AmazonSyncService.prototype.syncSpProductTargets = async function(this: AmazonSy
       let categoryRefinements: string | null = null;
       
       // 收集品类细化条件
-      const refinements: Record<string, any> = {};
+      const refinements: Record<string, unknown> = {};
       
       for (const expr of (apiTarget.expression || [])) {
         const et = (expr.type || '').toLowerCase();
@@ -589,8 +589,8 @@ AmazonSyncService.prototype.syncSpProductTargets = async function(this: AmazonSy
       }
       
       // 如果没有从expression中提取到值，尝试从resolvedExpression获取
-      if (!targetValue && (apiTarget as Record<string, any>).resolvedExpression) {
-        const resolved = (apiTarget as Record<string, any>).resolvedExpression;
+      if (!targetValue && (apiTarget as Record<string, unknown>).resolvedExpression) {
+        const resolved = (apiTarget as Record<string, unknown>).resolvedExpression;
         if (Array.isArray(resolved)) {
           for (const re of resolved) {
             const ret = (re.type || '').toLowerCase();
@@ -662,7 +662,7 @@ AmazonSyncService.prototype.syncSpProductTargets = async function(this: AmazonSy
           const hasRecentOpt = protectedTargetIds.has(existing.id);
           if (hasRecentOpt) {
             log.debug(`v150: 出价保护生效 - target=${existing.targetValue}, local=$${localBid}, api=$${apiBid}, 保留本地优化出价`);
-            delete (targetData as Record<string, any>[]).bid;
+            delete (targetData as Record<string, unknown>[]).bid;
             protectionStats.bidProtected++;
             protectionStats.protectedEntities.push(`tgt:${existing.targetValue}`);
           } else {
@@ -857,7 +857,7 @@ AmazonSyncService.prototype.syncSpNegativeProductTargets = async function(this: 
       const negState = (neg.state || 'enabled').toLowerCase();
       if (negState === 'archived') continue;
       const expression = neg.expression || [];
-      const asinExpr = expression.find((e: Record<string, any>) => e.type?.toLowerCase().includes('asin'));
+      const asinExpr = expression.find((e: Record<string, unknown>) => e.type?.toLowerCase().includes('asin'));
       const negativeText = asinExpr?.value || JSON.stringify(expression);
       const amazonTargetId = String(neg.targetId || '');
       const [existing] = await db
@@ -913,7 +913,7 @@ AmazonSyncService.prototype.syncSpNegativeProductTargets = async function(this: 
         .limit(1);
       if (!campaign) continue;
       const expression = neg.expression || [];
-      const asinExpr = expression.find((e: Record<string, any>) => e.type?.toLowerCase().includes('asin'));
+      const asinExpr = expression.find((e: Record<string, unknown>) => e.type?.toLowerCase().includes('asin'));
       const negativeText = asinExpr?.value || JSON.stringify(expression);
       const amazonTargetId = String(neg.targetId || '');
       const [existing] = await db
@@ -1057,7 +1057,7 @@ AmazonSyncService.prototype.syncSpBidRecommendations = async function(this: Amaz
                   rangeLow: rec.rangeStart || 0,
                   rangeHigh: rec.rangeEnd || 0,
                 };
-                recMap.set(`${rec.keyword.toLowerCase()}:${(rec as any).matchType?.toLowerCase() || ''}`, bidData);
+                recMap.set(`${rec.keyword.toLowerCase()}:${(rec as Record<string, unknown>).matchType?.toLowerCase() || ''}`, bidData);
                 // 也用不带matchType的key作为fallback
                 recMap.set(rec.keyword.toLowerCase(), bidData);
               }
@@ -1188,8 +1188,8 @@ AmazonSyncService.prototype.syncSpBidRecommendations = async function(this: Amaz
                 await db.update(productTargets)
                   .set({
                     suggestedBid: String(rec.suggestedBid),
-                    suggestedBidLow: (rec as any).rangeLow > 0 ? String((rec as any).rangeLow) : null,
-                    suggestedBidHigh: (rec as any).rangeHigh > 0 ? String((rec as any).rangeHigh) : null,
+                    suggestedBidLow: (rec as Record<string, unknown>).rangeLow > 0 ? String((rec as Record<string, unknown>).rangeLow) : null,
+                    suggestedBidHigh: (rec as Record<string, unknown>).rangeHigh > 0 ? String((rec as Record<string, unknown>).rangeHigh) : null,
                   })
                   .where(eq(productTargets.id, batch[j].id));
                 targetBidsUpdated++;
@@ -1266,7 +1266,7 @@ AmazonSyncService.prototype.syncSpBudgetRules = async function(this: AmazonSyncS
     // 3. 写入budget rules到数据库
     const allRules: Array<{
       campaignId: string;
-      rules: Record<string, any>[];
+      rules: Record<string, unknown>[];
     }> = [];
 
     for (const [campaignId, rules] of budgetRulesMap.entries()) {
@@ -1285,7 +1285,7 @@ AmazonSyncService.prototype.syncSpBudgetRules = async function(this: AmazonSyncS
           if (!ruleId) continue;
 
           // 解析规则数据
-          const ruleData: Record<string, any> = {
+          const ruleData: Record<string, unknown> = {
             accountId: this.accountId,
             ruleId: String(ruleId),
             ruleName: rule.name || rule.ruleName || null,

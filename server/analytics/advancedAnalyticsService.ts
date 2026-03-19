@@ -471,7 +471,7 @@ export async function getTrendAnalysis(params: {
     const dataPoints = enrichedData.map(d => ({
       date: d.date,
       // @ts-expect-error - type assertion
-      value: Math.round((d as unknown)[metric] * 100) / 100,
+      value: Math.round((d as Record<string, unknown>)[metric] * 100) / 100,
     }));
     
     // 计算移动平均（7日窗口）
@@ -506,7 +506,7 @@ function calculateMovingAverage(
   const result: { date: string; value: number }[] = [];
   for (let i = window - 1; i < data.length; i++) {
     const windowData = data.slice(i - window + 1, i + 1);
-    const avg = windowData.reduce((sum: any, d: any) => sum + d.value, 0) / window;
+    const avg = windowData.reduce((sum: number, d: Record<string, unknown>) => sum + d.value, 0) / window;
     result.push({ date: data[i].date, value: Math.round(avg * 100) / 100 });
   }
   return result;
@@ -623,11 +623,11 @@ export async function detectAnomalies(params: {
   
   for (const metric of metricsToCheck) {
     // @ts-expect-error - number type assertion
-    const values = enrichedData.map(d => (d as unknown)[metric] as number);
+    const values = enrichedData.map(d => (d as Record<string, unknown>)[metric] as number);
     
     // 计算均值和标准差
-    const mean = values.reduce((a: any, b: any) => a + b, 0) / values.length;
-    const variance = values.reduce((sum: any, v: any) => sum + Math.pow(v - mean, 2), 0) / values.length;
+    const mean = values.reduce((a: unknown, b: unknown) => a + b, 0) / values.length;
+    const variance = values.reduce((sum: number, v: Record<string, unknown>) => sum + Math.pow(v - mean, 2), 0) / values.length;
     const stdDev = Math.sqrt(variance);
     
     if (stdDev === 0) continue;
@@ -637,7 +637,7 @@ export async function detectAnomalies(params: {
     
     for (let i = 0; i < enrichedData.length; i++) {
       // @ts-expect-error - number type assertion
-      const value = (enrichedData[i] as unknown)[metric] as number;
+      const value = (enrichedData[i] as Record<string, unknown>)[metric] as number;
       const zScore = Math.abs((value - mean) / stdDev);
       
       if (zScore >= threshold) {
@@ -672,7 +672,7 @@ export async function detectAnomalies(params: {
   
   // 按严重程度和日期排序
   const severityOrder = { critical: 0, warning: 1, info: 2 };
-  return anomalies.sort((a: any, b: any) => {
+  return anomalies.sort((a: unknown, b: unknown) => {
     // @ts-expect-error - runtime type mismatch
     if (severityOrder[a.severity] !== severityOrder[b.severity]) {
       // @ts-expect-error - runtime type mismatch
@@ -828,17 +828,17 @@ export async function getStrategyROIComparison(params: {
     const bidIncreases = bidEvents.filter(e => parseFloat(e.bidChangePercent || '0') > 0).length;
     const bidDecreases = bidEvents.filter(e => parseFloat(e.bidChangePercent || '0') < 0).length;
     const avgBidChange = bidEvents.length > 0
-      ? bidEvents.reduce((sum: any, e: any) => sum + parseFloat(e.bidChangePercent || '0'), 0) / bidEvents.length
+      ? bidEvents.reduce((sum: number, e: Record<string, unknown>) => sum + parseFloat(e.bidChangePercent || '0'), 0) / bidEvents.length
       : 0;
     
     // 效果追踪统计
     const trackedEvents = group.events.filter(e => e.actualProfit7D !== null);
-    const totalEstimatedProfit = group.events.reduce((sum: any, e: any) => sum + parseFloat(e.expectedProfitIncrease || '0'), 0);
-    const totalActualProfit7D = trackedEvents.reduce((sum: any, e: any) => sum + parseFloat(e.actualProfit7D || '0'), 0);
+    const totalEstimatedProfit = group.events.reduce((sum: number, e: Record<string, unknown>) => sum + parseFloat(e.expectedProfitIncrease || '0'), 0);
+    const totalActualProfit7D = trackedEvents.reduce((sum: number, e: Record<string, unknown>) => sum + parseFloat(e.actualProfit7D || '0'), 0);
     const totalActualProfit14D = group.events.filter(e => e.actualProfit14D !== null)
-      .reduce((sum: any, e: any) => sum + parseFloat(e.actualProfit14D || '0'), 0);
+      .reduce((sum: number, e: Record<string, unknown>) => sum + parseFloat(e.actualProfit14D || '0'), 0);
     const totalActualProfit30D = group.events.filter(e => e.actualProfit30D !== null)
-      .reduce((sum: any, e: any) => sum + parseFloat(e.actualProfit30D || '0'), 0);
+      .reduce((sum: number, e: Record<string, unknown>) => sum + parseFloat(e.actualProfit30D || '0'), 0);
     
     // 计算ROI
     const roi7D = totalEstimatedProfit !== 0 ? (totalActualProfit7D / Math.abs(totalEstimatedProfit)) * 100 : null;
@@ -888,7 +888,7 @@ export async function getStrategyROIComparison(params: {
   }
   
   // 按总事件数排序
-  return results.sort((a: any, b: any) => b.totalEvents - a.totalEvents);
+  return results.sort((a: unknown, b: unknown) => b.totalEvents - a.totalEvents);
 }
 
 
@@ -956,10 +956,10 @@ export async function getAdvancedAnalyticsSummary(params: {
   
   const validStrategies = strategyROI.filter(s => s.roi7D !== null && s.totalEvents >= 5);
   const bestStrategy = validStrategies.length > 0
-    ? validStrategies.reduce((best: any, s: any) => (s.roi7D || 0) > (best.roi7D || 0) ? s : best)
+    ? validStrategies.reduce((best: unknown, s: unknown) => (s.roi7D || 0) > (best.roi7D || 0) ? s : best)
     : null;
   const worstStrategy = validStrategies.length > 0
-    ? validStrategies.reduce((worst: any, s: any) => (s.roi7D || 0) < (worst.roi7D || 0) ? s : worst)
+    ? validStrategies.reduce((worst: unknown, s: unknown) => (s.roi7D || 0) < (worst.roi7D || 0) ? s : worst)
     : null;
   
   // 获取异常数量
@@ -1070,7 +1070,7 @@ export async function updateEventTrackingData(
   const db = await getDb();
   if (!db) return;
   
-  const updateData: Record<string, any> = {
+  const updateData: Record<string, unknown> = {
     trackingUpdatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
   };
   

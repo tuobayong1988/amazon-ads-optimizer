@@ -158,7 +158,7 @@ AmazonSyncService.prototype.syncPerformanceData = async function(this: AmazonSyn
       throw error;
     }
     // @ts-expect-error - error message access
-    log.error(`[v242] 同步绩效数据失败: ${JSON.stringify({ message: (error as Error).message, status: error.status || (error as any).response?.status, code: (error as any).code })}`);
+    log.error(`[v242] 同步绩效数据失败: ${JSON.stringify({ message: (error as Error).message, status: error.status || (error as Record<string, unknown>).response?.status, code: (error as Record<string, unknown>).code })}`);
     log.error('[v242] 详细错误:', (error as Error).stack?.substring(0, 500));
     
     // v148: 移除模拟数据回退逻辑 - 报告超时时不再生成假数据，而是记录错误并等待下次重试
@@ -211,7 +211,7 @@ AmazonSyncService.prototype.syncPerformanceDataBatch = async function(this: Amaz
 
   // v215优化: 并行请求SP/SB/SD报告 + 智能重试
   // v351增强: 支持动态startDate和data retention错误自动重试
-  const retryReport = async (name: string, adType: string, requestFn: (start: string, end: string) => Promise<string>, maxRetries = 3): Promise<Record<string, any>[] | null> => {
+  const retryReport = async (name: string, adType: string, requestFn: (start: string, end: string) => Promise<string>, maxRetries = 3): Promise<Record<string, unknown>[] | null> => {
     let effectiveStartDate = clampStartDateForRetention(adType, startDateStr);
     
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -305,8 +305,8 @@ AmazonSyncService.prototype.syncPerformanceDataBatch = async function(this: Amaz
  * v383优化: 将货币字段合并到主UPSERT中，消除N+1查询问题（原每batch 500次额外UPDATE -> 0次）
  */
 async function flushDailyPerfBatch(
-  db: any,
-  batch: any[],
+  db: unknown,
+  batch: unknown[],
   currencyBatch: { currency: string; exchangeRate: number; spendUsd: string; salesUsd: string }[]
 ): Promise<void> {
   if (batch.length === 0) return;
@@ -380,7 +380,7 @@ AmazonSyncService.prototype.processReportData = async function(this: AmazonSyncS
     let notMatched = 0;
 
     // v360: 批量UPSERT数组
-    let upsertBatch: any[] = [];
+    let upsertBatch: unknown[] = [];
     let currencyBatch: { currency: string; exchangeRate: number; spendUsd: string; salesUsd: string }[] = [];
 
     // v391: 预加载该账户所有campaigns到内存Map，消除N+1查询
@@ -389,8 +389,8 @@ AmazonSyncService.prototype.processReportData = async function(this: AmazonSyncS
       .from(campaigns)
       .where(eq(campaigns.accountId, this.accountId));
     
-    const campaignByIdMap = new Map<string, any>();
-    const campaignByNameMap = new Map<string, any>();
+    const campaignByIdMap = new Map<string, unknown>();
+    const campaignByNameMap = new Map<string, unknown>();
     for (const c of allCampaigns) {
       campaignByIdMap.set(String(c.campaignId), c);
       if (c.campaignName) campaignByNameMap.set(c.campaignName, c);
@@ -401,7 +401,7 @@ AmazonSyncService.prototype.processReportData = async function(this: AmazonSyncS
     const { currency: preFetchedCurrency, rate: preFetchedRate } = await getExchangeRateByMarketplace(this.marketplace);
     log.info(`[v395] 预加载汇率: ${this.marketplace} -> ${preFetchedCurrency}, rate=${preFetchedRate}`);
     
-    for (const row of (reportData as any[])) {
+    for (const row of (reportData as unknown[])) {
       // v391: 使用内存Map匹配，避免逐条查询数据库
       // 策略：先用campaignId匹配，失败后用campaignName匹配
       
@@ -629,7 +629,7 @@ AmazonSyncService.prototype.generateMockPerformanceData = async function(this: A
     const marketplaceToday = getMarketplaceCurrentDate(this.marketplace);
     log.debug(`站点${this.marketplace}当前日期: ${marketplaceToday}`);
     
-    for (const campaign of (accountCampaigns as any[])) {
+    for (const campaign of (accountCampaigns as unknown[])) {
       // v440: 命名物理隔离
       const { amazonId: amazonCampaignId } = extractCampaignIds(campaign, 'generateMockPerformanceData');
       // 为每个广告活动生成最近N天的模拟数据
@@ -719,7 +719,7 @@ AmazonSyncService.prototype.syncKeywordPerformanceData = async function(this: Am
     log.info(`v339: 开始同步关键词绩效数据: 共${totalDays}天，分${batches}批请求 (站点: ${this.marketplace})`);
 
     // v413: 批量提交+统一轮询模式（替代串行循环）
-    let allReportData: any[] = [];
+    let allReportData: unknown[] = [];
     if (batches === 1) {
       try {
         const reportId = await this.client.requestSpKeywordReport(rangeStartDate, rangeEndDate);
@@ -765,7 +765,7 @@ AmazonSyncService.prototype.syncKeywordPerformanceData = async function(this: Am
     // ==================== v395: SUMMARY模式分批数据聚合 ====================
     // 问题：SUMMARY模式下，同一keyword在不同批次中都会出现，合并时后一批会覆盖前一批
     // 解决：按targetId/keywordId聚合累加所有批次的指标
-    const aggregatedMap = new Map<string, any>();
+    const aggregatedMap = new Map<string, unknown>();
     for (const row of allReportData) {
       const key = String(row.targetId || row.keywordId || '');
       if (!key) continue;
@@ -814,7 +814,7 @@ AmazonSyncService.prototype.syncKeywordPerformanceData = async function(this: Am
     // 纯文本键: keywordText (最后兜底)
     const kwByText = new Map<string, typeof allKeywords[0]>();
     
-    for (const kw of (allKeywords as any[])) {
+    for (const kw of (allKeywords as unknown[])) {
       if (kw.keywordId) kwByKeywordId.set(kw.keywordId, kw);
       if (kw.adGroupId && kw.keywordText && kw.matchType) {
         kwByAdGroupTextMatch.set(`${kw.adGroupId}_${kw.keywordText.toLowerCase()}_${kw.matchType.toLowerCase()}`, kw);
@@ -849,10 +849,10 @@ AmazonSyncService.prototype.syncKeywordPerformanceData = async function(this: Am
     let matchStats = { byKeywordId: 0, byAdGroupTextMatch: 0, byAdGroupText: 0, byText: 0, byTargetId: 0, byExpression: 0 };
     
     // 批量更新缓冲
-    const kwUpdates: { id: number; data: Record<string, any> }[] = [];
-    const ptUpdates: { id: number; data: Record<string, any> }[] = [];
+    const kwUpdates: { id: number; data: Record<string, unknown> }[] = [];
+    const ptUpdates: { id: number; data: Record<string, unknown> }[] = [];
     
-    for (const row of (reportData as any[])) {
+    for (const row of (reportData as unknown[])) {
       const reportTargetId = String(row.targetId || row.keywordId || '');
       if (!reportTargetId) continue;
       
@@ -992,7 +992,7 @@ AmazonSyncService.prototype.syncKeywordPerformanceData = async function(this: Am
     
     // v196: 同步时顺便回填keywordId（如果通过文本匹配到了但keywordId不一致）
     let backfilled = 0;
-    for (const row of (reportData as any[])) {
+    for (const row of (reportData as unknown[])) {
       const reportTargetId = String(row.targetId || row.keywordId || '');
       if (!reportTargetId || !row.targetingText) continue;
       
@@ -1082,7 +1082,7 @@ AmazonSyncService.prototype.generateHourlyFromDaily = async function(this: Amazo
         AND hp.dt IS NULL
     `);
     
-    const rows = (dailyData as Record<string, any>[])?.[0] || dailyData;
+    const rows = (dailyData as Record<string, unknown>[])?.[0] || dailyData;
     if (!rows || !Array.isArray(rows) || rows.length === 0) {
       log.debug('v195: 没有新的daily数据需要生成hourly');
       return 0;
@@ -1091,7 +1091,7 @@ AmazonSyncService.prototype.generateHourlyFromDaily = async function(this: Amazo
     log.debug(`v195: 找到 ${rows.length} 条缺少hourly数据的daily记录`);
     
     let insertedCount = 0;
-    let batch: any[] = [];
+    let batch: unknown[] = [];
     
     for (const daily of rows) {
       const dateObj = new Date(daily.date);
@@ -1110,7 +1110,7 @@ AmazonSyncService.prototype.generateHourlyFromDaily = async function(this: Amazo
         if (isWeekend) return base * 0.7 + (1/24) * 0.3;
         return base;
       });
-      const distSum = dist.reduce((a: any, b: any) => a + b, 0);
+      const distSum = dist.reduce((a: unknown, b: unknown) => a + b, 0);
       
       const dateStr = typeof daily.date === 'string' 
         ? daily.date.split('T')[0].split(' ')[0]
@@ -1240,7 +1240,7 @@ AmazonSyncService.prototype.syncAdGroupPerformanceData = async function(this: Am
 
     // v413: 通用分批报告请求函数 - 批量提交+统一轮询模式
     // v395: 添加groupByKey参数，用于SUMMARY模式分批数据的自动聚合
-    const fetchBatchedReport = async (requestFn: (start: string, end: string) => Promise<string>, reportDays: number, reportName: string, groupByKey?: string): Promise<Record<string, any>[]> => {
+    const fetchBatchedReport = async (requestFn: (start: string, end: string) => Promise<string>, reportDays: number, reportName: string, groupByKey?: string): Promise<Record<string, unknown>[]> => {
       const reportTotalDays = Math.min(reportDays, 90);
       const { startDate: rStart, endDate: rEnd } = getMarketplaceDateRange(this.marketplace, reportTotalDays);
       const rBatches = Math.ceil(reportTotalDays / MAX_DAYS_PER_REQUEST);
@@ -1276,7 +1276,7 @@ AmazonSyncService.prototype.syncAdGroupPerformanceData = async function(this: Am
       log.info(`[v413] ${reportName}: ${rBatches}批次批量提交开始`);
       const results = await this.client.submitAndWaitMultipleReports(batchRequests, 300000, 2000);
       
-      let allData: any[] = [];
+      let allData: unknown[] = [];
       for (const result of results) {
         if (result.data && result.data.length > 0) {
           allData = allData.concat(result.data);
@@ -1287,7 +1287,7 @@ AmazonSyncService.prototype.syncAdGroupPerformanceData = async function(this: Am
       
       // v395: SUMMARY模式分批数据聚合 - 按groupByKey累加数值指标
       if (groupByKey && rBatches > 1 && allData.length > 0) {
-        const aggMap = new Map<string, any>();
+        const aggMap = new Map<string, unknown>();
         const numericFields = ['cost', 'impressions', 'clicks', 'sales7d', 'sales14d', 'purchases7d', 'purchases14d',
           'unitsSoldClicks7d', 'unitsSoldSameSku7d', 'unitsSoldOtherSku7d', 'attributedSalesSameSku7d', 'salesOtherSku7d',
           'sales', 'purchases', 'unitsSold', 'dpv', 'dpvClicks', 'viewImpressions', 'viewAttributedConversions14d',
@@ -1321,7 +1321,7 @@ AmazonSyncService.prototype.syncAdGroupPerformanceData = async function(this: Am
           totalDays, 'SP广告组', 'adGroupId'
         );
         if (spData && spData.length > 0) {
-          for (const row of (spData as any[])) {
+          for (const row of (spData as unknown[])) {
             const adGroupId = String(row.adGroupId);
             // v399-fix3: 使用预加载的Map查找，避免N+1查询
             const adGroup = adGroupMap.get(adGroupId);
@@ -1366,7 +1366,7 @@ AmazonSyncService.prototype.syncAdGroupPerformanceData = async function(this: Am
         );
         if (sbData && sbData.length > 0) {
           let sbSynced = 0;
-          for (const row of (sbData as any[])) {
+          for (const row of (sbData as unknown[])) {
             const adGroupId = String(row.adGroupId);
             // v399-fix3: 使用预加载的Map查找，避免N+1查询
             const adGroup = adGroupMap.get(adGroupId);
@@ -1418,7 +1418,7 @@ AmazonSyncService.prototype.syncAdGroupPerformanceData = async function(this: Am
         );
         if (sdData && sdData.length > 0) {
           let sdSynced = 0;
-          for (const row of (sdData as any[])) {
+          for (const row of (sdData as unknown[])) {
             const adGroupId = String(row.adGroupId);
             // v399-fix3: 使用预加载的Map查找，避免N+1查询
             const adGroup = adGroupMap.get(adGroupId);
@@ -1491,7 +1491,7 @@ AmazonSyncService.prototype.syncPlacementPerformance = async function(this: Amaz
     log.info(`v339: 开始同步SP广告位置绩效: 共${totalDays}天，分${batches}批请求 (站点: ${this.marketplace})`);
 
     // v413: 批量提交+统一轮询模式（替代串行循环）
-    let allReportData: any[] = [];
+    let allReportData: unknown[] = [];
     if (batches === 1) {
       try {
         const reportId = await this.client.requestSpPlacementReport(rangeStartDate, rangeEndDate);
@@ -1534,7 +1534,7 @@ AmazonSyncService.prototype.syncPlacementPerformance = async function(this: Amaz
     log.info(`v339: 共获取到 ${reportData.length} 条SP广告位数据（${batches}批合并）`);
     // v351: 增强诊断日志 - 记录第一条数据的完整字段名和placement相关值
     if (reportData.length > 0) {
-      const sampleRow = reportData[0] as any;
+      const sampleRow = reportData[0] as unknown;
       const allKeys = Object.keys(sampleRow);
       const placementKeys = allKeys.filter(k => k.toLowerCase().includes('placement') || k.toLowerCase().includes('position') || k.toLowerCase().includes('location'));
       log.info(`v351: SP广告位报告字段诊断: allKeys=[${allKeys.join(',')}], placementKeys=[${placementKeys.join(',')}]`);
@@ -1560,7 +1560,7 @@ AmazonSyncService.prototype.syncPlacementPerformance = async function(this: Amaz
     }
     log.info(`v399-fix3: 预加载 ${allCampaigns.length} 个campaigns用于广告位绩效匹配`);
 
-    for (const row of (reportData as any[])) {
+    for (const row of (reportData as unknown[])) {
       // v399-fix3: 使用预加载的Map查找，避免每条数据都查询数据库
       const campaign = campaignMap.get(String(row.campaignId));
 
@@ -1732,14 +1732,14 @@ AmazonSyncService.prototype.updateCampaignPerformanceSummary = async function(th
     }
 
     // v391: 第二步 - 找出没有dailyPerformance数据的campaign，从keywords/productTargets批量汇总
-    const campaignsWithoutDailyData = (accountCampaigns as any[]).filter(c => {
+    const campaignsWithoutDailyData = (accountCampaigns as unknown[]).filter(c => {
       const summary = summaryMap.get(String(c.campaignId));
       return !summary || (summary.totalImpressions === 0 && summary.totalClicks === 0 && summary.totalSpend === 0);
     });
 
     if (campaignsWithoutDailyData.length > 0) {
       // 获取这些campaign的所有广告组（一次性查询）
-      const noDailyCampaignIds = campaignsWithoutDailyData.map((c: any) => String(c.campaignId));
+      const noDailyCampaignIds = campaignsWithoutDailyData.map((c: unknown) => String(c.campaignId));
       const allAdGroups = await db
         .select({ id: adGroups.id, campaignId: adGroups.campaignId })
         .from(adGroups)
@@ -1825,7 +1825,7 @@ AmazonSyncService.prototype.updateCampaignPerformanceSummary = async function(th
 
     // v391: 第三步 - 批量更新campaigns表
     let updatedCount = 0;
-    for (const campaign of (accountCampaigns as any[])) {
+    for (const campaign of (accountCampaigns as unknown[])) {
       const summary = summaryMap.get(String(campaign.campaignId));
       const totalImpressions = summary?.totalImpressions || 0;
       const totalClicks = summary?.totalClicks || 0;

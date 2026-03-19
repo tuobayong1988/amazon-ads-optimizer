@@ -35,7 +35,7 @@ export interface OperationTrace {
   endTime?: Date;
   durationMs?: number;
   status: 'started' | 'completed' | 'failed';
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
   parentTraceId?: string;
 }
 
@@ -102,7 +102,7 @@ async function collectSyncMetrics(now: Date): Promise<SystemMetricSnapshot> {
   let totalSynced = 0, totalPending = 0, totalFailed = 0, totalNA = 0;
   const typeBreakdown: Record<string, { synced: number; pending: number; failed: number }> = {};
   
-  for (const row of (syncStats as any[])) {
+  for (const row of (syncStats as unknown[])) {
     const opType = row.operationType || 'unknown';
     if (!typeBreakdown[opType]) {
       typeBreakdown[opType] = { synced: 0, pending: 0, failed: 0 };
@@ -158,7 +158,7 @@ async function collectOptimizationMetrics(now: Date): Promise<SystemMetricSnapsh
     .groupBy(optimizationEvents.status);
     
     let hourlyExecuted = 0, hourlyFailed = 0, hourlyRolledBack = 0;
-    for (const row of (hourlyStats as any[])) {
+    for (const row of (hourlyStats as unknown[])) {
       const cnt = Number(row.cnt);
       if (row.status === 'success') hourlyExecuted += cnt;
       else if (row.status === 'failed') hourlyFailed += cnt;
@@ -175,7 +175,7 @@ async function collectOptimizationMetrics(now: Date): Promise<SystemMetricSnapsh
     .groupBy(optimizationEvents.status);
     
     let dailyExecuted = 0, dailyFailed = 0, dailyRolledBack = 0;
-    for (const row of (dailyStats as any[])) {
+    for (const row of (dailyStats as unknown[])) {
       const cnt = Number(row.cnt);
       if (row.status === 'success') dailyExecuted += cnt;
       else if (row.status === 'failed') dailyFailed += cnt;
@@ -227,7 +227,7 @@ async function collectReliabilityMetrics(now: Date): Promise<SystemMetricSnapsho
     ))
     .groupBy(optimizationEvents.apiSyncStatus);
     
-    for (const row of (apiStats as any[])) {
+    for (const row of (apiStats as unknown[])) {
       const cnt = Number(row.cnt);
       if (row.apiSyncStatus === 'synced') apiSuccess += cnt;
       else if (row.apiSyncStatus === 'failed') apiFailed += cnt;
@@ -246,7 +246,7 @@ async function collectReliabilityMetrics(now: Date): Promise<SystemMetricSnapsho
   // 计算平均操作延迟（从最近完成的追踪中）
   const completedTraces = Array.from(activeTraces.values()).filter(t => t.status === 'completed' && t.durationMs);
   const avgLatency = completedTraces.length > 0
-    ? completedTraces.reduce((sum: any, t: any) => sum + (t.durationMs || 0), 0) / completedTraces.length
+    ? completedTraces.reduce((sum: number, t: Record<string, unknown>) => sum + (t.durationMs || 0), 0) / completedTraces.length
     : 0;
   
   return {
@@ -270,7 +270,7 @@ async function collectReliabilityMetrics(now: Date): Promise<SystemMetricSnapsho
 /**
  * 开始一个操作追踪
  */
-export function startTrace(operationType: string, metadata: Record<string, any> = {}, parentTraceId?: string): string {
+export function startTrace(operationType: string, metadata: Record<string, unknown> = {}, parentTraceId?: string): string {
   const traceId = `trace_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
   
   const trace: OperationTrace = {
@@ -298,7 +298,7 @@ export function startTrace(operationType: string, metadata: Record<string, any> 
 /**
  * 完成一个操作追踪
  */
-export function endTrace(traceId: string, status: 'completed' | 'failed' = 'completed', additionalMetadata?: Record<string, any>): void {
+export function endTrace(traceId: string, status: 'completed' | 'failed' = 'completed', additionalMetadata?: Record<string, unknown>): void {
   const trace = activeTraces.get(traceId);
   if (!trace) return;
   
@@ -796,13 +796,13 @@ export function getLatencyStats(): Record<string, { avg: number; p50: number; p9
   for (const [key, values] of metricAggregates) {
     if (!key.startsWith('latency_')) continue;
     const opType = key.replace('latency_', '');
-    const sorted = [...values].sort((a: any, b: any) => a - b);
+    const sorted = [...values].sort((a: unknown, b: unknown) => a - b);
     const count = sorted.length;
     
     if (count === 0) continue;
     
     stats[opType] = {
-      avg: Math.round(sorted.reduce((a: any, b: any) => a + b, 0) / count),
+      avg: Math.round(sorted.reduce((a: unknown, b: unknown) => a + b, 0) / count),
       p50: sorted[Math.floor(count * 0.5)],
       p95: sorted[Math.floor(count * 0.95)],
       p99: sorted[Math.floor(count * 0.99)],
@@ -819,5 +819,5 @@ export function getLatencyStats(): Record<string, { avg: number; p50: number; p9
 export function getActiveTraces(): OperationTrace[] {
   return Array.from(activeTraces.values())
     .filter(t => t.status === 'started')
-    .sort((a: any, b: any) => b.startTime.getTime() - a.startTime.getTime());
+    .sort((a: unknown, b: unknown) => b.startTime.getTime() - a.startTime.getTime());
 }

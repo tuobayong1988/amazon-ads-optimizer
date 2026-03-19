@@ -93,7 +93,7 @@ export const appRouter = router({
   // 认证路由
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
-    logout: publicProcedure.mutation(({ ctx }: any) => {
+    logout: publicProcedure.mutation(({ ctx }: unknown) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
       return { success: true } as const;
@@ -129,7 +129,7 @@ export const appRouter = router({
     // 验证Token
     verifyToken: publicProcedure
       .input(z.object({ token: z.string() }))
-      .query(async ({ input }: any) => {
+      .query(async ({ input }: unknown) => {
         const { verifyToken } = await import('./system/localAuthService');
         return verifyToken(input.token);
       }),

@@ -116,7 +116,7 @@ const ADJUSTMENT_TYPE_LABELS: Record<string, { label: string; color: string }> =
 };
 
 // 状态标签
-const STATUS_LABELS: Record<string, { label: string; icon: any; color: string }> = {
+const STATUS_LABELS: Record<string, { label: string; icon: unknown; color: string }> = {
   success: { label: "成功", icon: CheckCircle, color: "text-green-400" },
   pending: { label: "待执行", icon: Clock, color: "text-yellow-400" },
   failed: { label: "失败", icon: XCircle, color: "text-red-400" },
@@ -125,7 +125,7 @@ const STATUS_LABELS: Record<string, { label: string; icon: any; color: string }>
 };
 
 // API同步状态标签
-const API_SYNC_LABELS: Record<string, { label: string; icon: any; color: string }> = {
+const API_SYNC_LABELS: Record<string, { label: string; icon: unknown; color: string }> = {
   synced: { label: "已同步", icon: Cloud, color: "text-green-400" },
   pending: { label: "同步中", icon: Clock, color: "text-yellow-400" },
   failed: { label: "同步失败", icon: CloudOff, color: "text-red-400" },
@@ -182,7 +182,7 @@ export function UnifiedHistoryTracker({ performanceGroupId, performanceGroupName
       setRollbackDialogOpen(false);
       setRollbackTarget(null);
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       toast.error(`回滚失败: ${error.message}`);
     },
   });
@@ -212,8 +212,8 @@ export function UnifiedHistoryTracker({ performanceGroupId, performanceGroupName
   const toggleSelectAll = () => {
     if (!adjustmentData?.events) return;
     const rollbackableIds = adjustmentData.events
-      .filter((r: any) => r.status === 'success')
-      .map((r: any) => r.id);
+      .filter((r: unknown) => r.status === 'success')
+      .map((r: unknown) => r.id);
     if (selectedIds.length === rollbackableIds.length) {
       setSelectedIds([]);
     } else {
@@ -241,7 +241,7 @@ export function UnifiedHistoryTracker({ performanceGroupId, performanceGroupName
     );
   };
 
-  const renderProfit = (val: any) => {
+  const renderProfit = (val: unknown) => {
     if (val === null || val === undefined) return <span className="text-muted-foreground">-</span>;
     const num = parseFloat(val);
     return (
@@ -286,7 +286,7 @@ export function UnifiedHistoryTracker({ performanceGroupId, performanceGroupName
               <span className="text-xs text-muted-foreground">出价调整</span>
             </div>
             <p className="text-xl font-bold mt-1">
-              {eventStats?.byCategory?.find((c: any) => c.category === 'bid_adjustment')?.count ?? 0}
+              {eventStats?.byCategory?.find((c: unknown) => c.category === 'bid_adjustment')?.count ?? 0}
             </p>
           </CardContent>
         </Card>
@@ -297,7 +297,7 @@ export function UnifiedHistoryTracker({ performanceGroupId, performanceGroupName
               <span className="text-xs text-muted-foreground">已回滚</span>
             </div>
             <p className="text-xl font-bold mt-1">
-              {eventStats?.byStatus?.find((s: any) => s.status === 'rolled_back')?.count ?? 0}
+              {eventStats?.byStatus?.find((s: unknown) => s.status === 'rolled_back')?.count ?? 0}
             </p>
           </CardContent>
         </Card>
@@ -376,7 +376,7 @@ export function UnifiedHistoryTracker({ performanceGroupId, performanceGroupName
                     <TableRow>
                       <TableHead className="w-10">
                         <Checkbox 
-                          checked={selectedIds.length > 0 && selectedIds.length === adjustmentData.events.filter((r: any) => r.status === 'success').length}
+                          checked={selectedIds.length > 0 && selectedIds.length === adjustmentData.events.filter((r: unknown) => r.status === 'success').length}
                           onCheckedChange={toggleSelectAll}
                         />
                       </TableHead>
@@ -395,7 +395,7 @@ export function UnifiedHistoryTracker({ performanceGroupId, performanceGroupName
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {adjustmentData.events.map((record: any) => {
+                    {adjustmentData.events.map((record: unknown) => {
                       const statusInfo = STATUS_LABELS[record.status] || STATUS_LABELS.pending;
                       const StatusIcon = statusInfo.icon;
                       const changePercent = record.bidChangePercent ? parseFloat(record.bidChangePercent) : 0;
@@ -533,8 +533,8 @@ export function UnifiedHistoryTracker({ performanceGroupId, performanceGroupName
                   </TableHeader>
                   <TableBody>
                     {adjustmentData.events
-                      .filter((r: any) => r.actualProfit7D !== null || r.actualProfit14D !== null || r.actualProfit30D !== null)
-                      .map((record: any) => {
+                      .filter((r: unknown) => r.actualProfit7D !== null || r.actualProfit14D !== null || r.actualProfit30D !== null)
+                      .map((record: unknown) => {
                         const prevBid = parseFloat(record.previousBid || '0');
                         const newBid = parseFloat(record.newBid || '0');
                         const changeStr = newBid >= prevBid 
@@ -572,7 +572,7 @@ export function UnifiedHistoryTracker({ performanceGroupId, performanceGroupName
                           </TableRow>
                         );
                       })}
-                    {adjustmentData.events.filter((r: any) => r.actualProfit7D !== null || r.actualProfit14D !== null || r.actualProfit30D !== null).length === 0 && (
+                    {adjustmentData.events.filter((r: unknown) => r.actualProfit7D !== null || r.actualProfit14D !== null || r.actualProfit30D !== null).length === 0 && (
                       <TableRow>
                         <TableCell colSpan={12} className="text-center py-8 text-muted-foreground">
                           暂无追踪数据。出价调整后7天将开始生成追踪报告。
@@ -639,7 +639,7 @@ export function UnifiedHistoryTracker({ performanceGroupId, performanceGroupName
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {allEventsData.events.map((event: any) => {
+                    {allEventsData.events.map((event: unknown) => {
                       const catInfo = EVENT_CATEGORY_LABELS[event.eventCategory] || { label: event.eventCategory, color: "bg-gray-500/20 text-gray-400" };
                       const statusInfo = STATUS_LABELS[event.status] || STATUS_LABELS.pending;
                       const StatusIcon = statusInfo.icon;

@@ -65,7 +65,7 @@ function formatDateTime(date: Date | string | null): string {
 export default function AutoOperation() {
   // v399: 使用全局店铺选择器替代本地状态
   const { accountId: selectedAccountId, accounts, isLoading: accountsLoading } = useGlobalAccountId();
-  const setSelectedAccountId = (_: any) => {}; // v399: 由全局选择器控制，本地setter为no-op
+  const setSelectedAccountId = (_: unknown) => {}; // v399: 由全局选择器控制，本地setter为no-op
 const [isExecuting, setIsExecuting] = useState(false);
   
   // 获取账号列表
@@ -107,7 +107,7 @@ const [isExecuting, setIsExecuting] = useState(false);
   });
   
   // 处理配置更新
-  const handleConfigUpdate = (updates: Record<string, any>) => {
+  const handleConfigUpdate = (updates: Record<string, unknown>) => {
     if (!selectedAccountId) return;
     updateConfigMutation.mutate({
       accountId: selectedAccountId,
@@ -155,7 +155,7 @@ const [isExecuting, setIsExecuting] = useState(false);
                 <SelectValue placeholder="选择账号" />
               </SelectTrigger>
               <SelectContent>
-                {accounts?.map((account: any) => (
+                {accounts?.map((account: unknown) => (
                   <SelectItem key={account.id} value={account.id.toString()}>
                     {account.storeName || account.accountName}
                   </SelectItem>
@@ -301,7 +301,7 @@ const [isExecuting, setIsExecuting] = useState(false);
                 <div className="space-y-4">
                   <Label className="text-base font-medium">启用的优化步骤</Label>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {OPERATION_STEPS.map((step: any) => {
+                    {OPERATION_STEPS.map((step: unknown) => {
                       // 构建配置键名
                       const keyParts = step.key.split('_');
                       // @ts-expect-error - array method type inference
@@ -370,7 +370,7 @@ const [isExecuting, setIsExecuting] = useState(false);
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {logs.map((log: any) => (
+                      {logs.map((log: unknown) => (
                         <TableRow key={log.id}>
                           <TableCell>{formatDateTime(log.startedAt)}</TableCell>
                           <TableCell>
@@ -444,7 +444,7 @@ const [isExecuting, setIsExecuting] = useState(false);
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {OPERATION_STEPS.map((step: any, index: any) => (
+                  {OPERATION_STEPS.map((step: unknown, index: unknown) => (
                     <div key={step.key} className="flex items-start gap-4 p-4 border rounded-lg">
                       <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
                         {index + 1}

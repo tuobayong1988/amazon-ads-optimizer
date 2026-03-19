@@ -150,7 +150,7 @@ export class AccountInitializationService {
         });
     }
 
-    const totalTasks = phases.reduce((sum: any, p: any) => sum + p.totalTasks, 0);
+    const totalTasks = phases.reduce((sum: number, p: Record<string, unknown>) => sum + p.totalTasks, 0);
     log.info(`[AccountInit] 账号 ${accountId} 初始化任务创建完成，共 ${totalTasks} 个任务`);
 
     return {
@@ -421,8 +421,8 @@ export class AccountInitializationService {
     const anyFailed = progressRecords.some(r => r.phaseStatus === 'failed');
 
     // 计算总进度
-    const totalTasks = progressRecords.reduce((sum: any, r: any) => sum + r.totalTasks, 0);
-    const completedTasks = progressRecords.reduce((sum: any, r: any) => sum + r.completedTasks, 0);
+    const totalTasks = progressRecords.reduce((sum: number, r: Record<string, unknown>) => sum + r.totalTasks, 0);
+    const completedTasks = progressRecords.reduce((sum: number, r: Record<string, unknown>) => sum + r.completedTasks, 0);
     const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
     if (allCompleted) {

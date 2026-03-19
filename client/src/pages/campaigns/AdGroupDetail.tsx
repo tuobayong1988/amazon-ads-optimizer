@@ -107,7 +107,7 @@ export default function AdGroupDetail() {
   const isLoading = adGroupLoading || keywordsLoading || targetsLoading;
   
   // 过滤关键词
-  const filteredKeywords = keywords?.filter((kw: any) => {
+  const filteredKeywords = keywords?.filter((kw: unknown) => {
     const matchesSearch = !searchTerm || 
       kw.keywordText?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === "all" || kw.keywordStatus === statusFilter;
@@ -115,7 +115,7 @@ export default function AdGroupDetail() {
   }) || [];
   
   // 过滤商品定位
-  const filteredTargets = productTargets?.filter((pt: any) => {
+  const filteredTargets = productTargets?.filter((pt: unknown) => {
     const matchesSearch = !searchTerm || 
       pt.targetExpression?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       pt.targetValue?.toLowerCase().includes(searchTerm.toLowerCase());
@@ -624,7 +624,7 @@ export default function AdGroupDetail() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {filteredKeywords.map((keyword: any) => {
+                          {filteredKeywords.map((keyword: unknown) => {
                             const kwSpend = parseFloat(keyword.spend || "0");
                             const kwSales = parseFloat(keyword.sales || "0");
                             const kwImpressions = keyword.impressions || 0;
@@ -704,7 +704,7 @@ export default function AdGroupDetail() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {filteredTargets.map((target: any) => {
+                          {filteredTargets.map((target: unknown) => {
                             const tSpend = parseFloat(target.spend || "0");
                             const tSales = parseFloat(target.sales || "0");
                             const tImpressions = target.impressions || 0;
@@ -802,7 +802,7 @@ export default function AdGroupDetail() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {adGroupNegatives.map((neg: any) => (
+                        {adGroupNegatives.map((neg: unknown) => (
                           <TableRow key={neg.id}>
                             <TableCell className="font-medium">{neg.negativeText}</TableCell>
                             <TableCell>
@@ -867,7 +867,7 @@ export default function AdGroupDetail() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {adGroupSearchTerms.map((st: any) => {
+                          {adGroupSearchTerms.map((st: unknown) => {
                             const stSpend = parseFloat(st.searchTermSpend || "0");
                             const stSales = parseFloat(st.searchTermSales || "0");
                             const stImpressions = st.searchTermImpressions || 0;
@@ -1013,7 +1013,7 @@ export default function AdGroupDetail() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {changeHistory.records.map((record: any) => (
+                        {changeHistory.records.map((record: unknown) => (
                           <TableRow key={record.id}>
                             <TableCell className="text-xs whitespace-nowrap">
                               {record.timestamp ? new Date(record.timestamp).toLocaleString('zh-CN') : '-'}

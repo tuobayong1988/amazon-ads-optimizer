@@ -94,9 +94,9 @@ export async function enqueueTasks(tasks: OptimizationTask[]): Promise<string> {
       const batch = tasks.slice(i, i + INSERT_BATCH);
       // v429.1: 使用SQL NOW()替代JS toISOString()，避免时区不一致
       const placeholders = batch.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())').join(', ');
-      const values: any[] = [];
+      const values: unknown[] = [];
       
-      for (const t of (batch as any[])) {
+      for (const t of (batch as unknown[])) {
         values.push(
           batchId, t.optimizationTargetId, t.accountId,
           t.taskType, t.priority,
@@ -172,8 +172,8 @@ export async function executeBatchSync(options?: {
       `UPDATE optimization_tasks SET status = 'retry', retry_count = retry_count + 1, 
        error_message = CONCAT(IFNULL(error_message,''), ' | v429: 僵尸任务自动重置(processing超过15分钟)') 
        WHERE status = 'processing' AND processing_started_at < DATE_SUB(NOW(), INTERVAL 15 MINUTE)`
-    ) as any[];
-    const zombieCount = (zombieResult as any)?.affectedRows || 0;
+    ) as unknown[];
+    const zombieCount = (zombieResult as unknown)?.affectedRows || 0;
     if (zombieCount > 0) {
       log.warn(`[SyncEngine] v429: 清理${zombieCount}个僵尸任务(processing超过15分钟)`);
     }
@@ -190,8 +190,8 @@ export async function executeBatchSync(options?: {
        LEFT JOIN keywords k ON ot.target_entity_id = k.id
        SET ot.status = 'failed', ot.error_message = CONCAT(IFNULL(ot.error_message,''), ' | v429: 目标keyword已被删除')
        WHERE ot.target_entity_type = 'keyword' AND ot.status IN ('pending', 'retry') AND k.id IS NULL AND ot.target_entity_id IS NOT NULL`
-    ) as any[];
-    const kwCleanCount = (kwCleanResult as any)?.affectedRows || 0;
+    ) as unknown[];
+    const kwCleanCount = (kwCleanResult as unknown)?.affectedRows || 0;
     if (kwCleanCount > 0) {
       log.warn(`[SyncEngine] v429: 清理${kwCleanCount}个引用已删除keyword的任务`);
     }
@@ -202,8 +202,8 @@ export async function executeBatchSync(options?: {
        LEFT JOIN product_targets pt ON ot.target_entity_id = pt.id
        SET ot.status = 'failed', ot.error_message = CONCAT(IFNULL(ot.error_message,''), ' | v429: 目标product_target已被删除')
        WHERE ot.target_entity_type = 'product_target' AND ot.status IN ('pending', 'retry') AND pt.id IS NULL AND ot.target_entity_id IS NOT NULL`
-    ) as any[];
-    const ptCleanCount = (ptCleanResult as any)?.affectedRows || 0;
+    ) as unknown[];
+    const ptCleanCount = (ptCleanResult as unknown)?.affectedRows || 0;
     if (ptCleanCount > 0) {
       log.warn(`[SyncEngine] v429: 清理${ptCleanCount}个引用已删除product_target的任务`);
     }
@@ -211,11 +211,11 @@ export async function executeBatchSync(options?: {
     log.error(`[SyncEngine] v429: 失效引用清理失败: ${(cleanErr as Error).message}`);
   }
   
-  const accountGroups = new Map<number, Record<string, any>[]>();
+  const accountGroups = new Map<number, Record<string, unknown>[]>();
   try {
     // 1. 读取待处理任务
     let query = `SELECT * FROM optimization_tasks WHERE status IN ('pending', 'retry')`;
-    const params: any[] = [];
+    const params: unknown[] = [];
     
     if (options?.batchId) {
       query += ` AND batch_id = ?`;
@@ -233,7 +233,7 @@ export async function executeBatchSync(options?: {
       query += ` LIMIT ${Number(options.maxTasks)}`;
     }
     
-    const [rows] = await conn.execute(query, params) as any[];
+    const [rows] = await conn.execute(query, params) as unknown[];
     result.totalTasks = rows.length;
     
     if (rows.length === 0) {
@@ -245,7 +245,7 @@ export async function executeBatchSync(options?: {
     log.info(`[SyncEngine] 读取到 ${rows.length} 条待同步任务`);
     
     // 2. 按账号分组
-    for (const row of (rows as any[])) {
+    for (const row of (rows as unknown[])) {
       const accId = row.account_id;
       if (!accountGroups.has(accId)) accountGroups.set(accId, []);
       accountGroups.get(accId)!.push(row);
@@ -264,7 +264,7 @@ export async function executeBatchSync(options?: {
       log.info(`[SyncEngine] [v352] --- 处理账号 [${accountIndex}/${totalAccountGroups}] ${accountId}: ${accountTasks.length} 条任务 ---`);
       
       // 按任务类型分组
-      const typeGroups = new Map<string, Record<string, any>[]>();
+      const typeGroups = new Map<string, Record<string, unknown>[]>();
       for (const task of accountTasks) {
         const type = task.task_type;
         if (!typeGroups.has(type)) typeGroups.set(type, []);
@@ -290,7 +290,7 @@ export async function executeBatchSync(options?: {
           log.error(`[SyncEngine] ${taskType} 处理异常: ${(err as Error).message}`);
           result.errors.push(`${taskType}: ${(err as Error).message}`);
           // 标记该类型所有任务为失败
-          const taskIds = typeTasks.map((t: Record<string, any>) => t.id);
+          const taskIds = typeTasks.map((t: Record<string, unknown>) => t.id);
           await markTasksFailed(conn, taskIds, (err as Error).message);
           result.failed += typeTasks.length;
         }
@@ -327,15 +327,15 @@ export async function executeBatchSync(options?: {
     try {
       const { logAudit } = await import('../system/auditService');
       for (const [accountId, accountTasks] of accountGroups) {
-        const bidTasks = accountTasks.filter((t: Record<string, any>) => t.task_type === 'bid_adjustment');
-        const statusTasks = accountTasks.filter((t: Record<string, any>) => t.task_type === 'campaign_status' || t.task_type === 'keyword_status');
-        const budgetTasks = accountTasks.filter((t: Record<string, any>) => t.task_type === 'budget_adjustment');
+        const bidTasks = accountTasks.filter((t: Record<string, unknown>) => t.task_type === 'bid_adjustment');
+        const statusTasks = accountTasks.filter((t: Record<string, unknown>) => t.task_type === 'campaign_status' || t.task_type === 'keyword_status');
+        const budgetTasks = accountTasks.filter((t: Record<string, unknown>) => t.task_type === 'budget_adjustment');
         
         // v375: 为所有操作类型添加审计日志，并修复userName显示"未知用户"问题
-        const negKeywordTasks = accountTasks.filter((t: Record<string, any>) => t.task_type === 'negative_keyword');
-        const newKeywordTasks = accountTasks.filter((t: Record<string, any>) => t.task_type === 'new_keyword');
-        const placementTasks = accountTasks.filter((t: Record<string, any>) => t.task_type === 'placement_adjustment');
-        const daypartingTasks = accountTasks.filter((t: Record<string, any>) => t.task_type === 'dayparting_adjustment');
+        const negKeywordTasks = accountTasks.filter((t: Record<string, unknown>) => t.task_type === 'negative_keyword');
+        const newKeywordTasks = accountTasks.filter((t: Record<string, unknown>) => t.task_type === 'new_keyword');
+        const placementTasks = accountTasks.filter((t: Record<string, unknown>) => t.task_type === 'placement_adjustment');
+        const daypartingTasks = accountTasks.filter((t: Record<string, unknown>) => t.task_type === 'dayparting_adjustment');
         
         if (bidTasks.length > 0) {
           await logAudit({
@@ -477,7 +477,7 @@ async function syncTasksByType(
   conn: DbInstance,
   accountId: number,
   taskType: string,
-  tasks: any[],
+  tasks: unknown[],
   dryRun?: boolean
 ): Promise<{ synced: number; failed: number; skipped: number; errors: string[] }> {
   const result = { synced: 0, failed: 0, skipped: 0, errors: [] as string[] };
@@ -489,13 +489,13 @@ async function syncTasksByType(
     const msg = `账号 ${accountId} 无法获取API服务`;
     result.errors.push(msg);
     result.failed = tasks.length;
-    await markTasksFailed(conn, tasks.map((t: Record<string, any>) => t.id), msg);
+    await markTasksFailed(conn, tasks.map((t: Record<string, unknown>) => t.id), msg);
     return result;
   }
   
   // 标记任务为processing
   // v429.1: 使用SQL NOW()替代JS toISOString()，避免时区不一致
-  const taskIds = tasks.map((t: Record<string, any>) => t.id);
+  const taskIds = tasks.map((t: Record<string, unknown>) => t.id);
   if (taskIds.length > 0) {
     await conn.execute(
       `UPDATE optimization_tasks SET status = 'processing', processing_started_at = NOW() WHERE id IN (${taskIds.join(',')})`,
@@ -520,7 +520,7 @@ async function syncTasksByType(
     } catch (err: unknown) {
       log.error(`[SyncEngine] 批次 ${i / config.maxBatchSize + 1} 异常: ${(err as Error).message}`);
       result.errors.push((err as Error).message);
-      await markTasksFailed(conn, batch.map((t: Record<string, any>) => t.id), (err as Error).message);
+      await markTasksFailed(conn, batch.map((t: Record<string, unknown>) => t.id), (err as Error).message);
       result.failed += batch.length;
     }
     
@@ -539,23 +539,23 @@ async function syncTasksByType(
 async function executeBatchByType(
   // @ts-expect-error - runtime type mismatch
   conn: DbInstance,
-  syncService: Record<string, any>,
+  syncService: Record<string, unknown>,
   taskType: string,
-  batch: any[]
+  batch: unknown[]
 ): Promise<{ synced: number; failed: number; skipped: number; errors: string[] }> {
   const result = { synced: 0, failed: 0, skipped: 0, errors: [] as string[] };
   
   switch (taskType) {
     case 'bid_adjustment': {
       // v138: 先尝试从数据库查找缺失的Amazon ID
-      for (const t of (batch as any[])) {
+      for (const t of (batch as unknown[])) {
         if (!t.amazon_entity_id && t.target_entity_id) {
           try {
             if (t.target_entity_type === 'keyword') {
               const [kwRows] = await conn.execute(
                 'SELECT keywordId FROM keywords WHERE id = ? AND keywordId IS NOT NULL LIMIT 1',
                 [t.target_entity_id]
-              ) as any[];
+              ) as unknown[];
               if (kwRows[0]?.keywordId) {
                 t.amazon_entity_id = kwRows[0].keywordId;
                 await conn.execute(
@@ -568,7 +568,7 @@ async function executeBatchByType(
               const [ptRows] = await conn.execute(
                 'SELECT targetId FROM product_targets WHERE id = ? AND targetId IS NOT NULL LIMIT 1',
                 [t.target_entity_id]
-              ) as any[];
+              ) as unknown[];
               if (ptRows[0]?.targetId) {
                 t.amazon_entity_id = ptRows[0].targetId;
                 await conn.execute(
@@ -586,15 +586,15 @@ async function executeBatchByType(
       
       // v428: P2修复 — Amazon ID前置校验，检查target_entity_id对应的记录是否仍然存在
       // 避免对已删除的关键词/定向发送API请求
-      const validatedBatch: any[] = [];
-      for (const t of (batch as any[])) {
+      const validatedBatch: unknown[] = [];
+      for (const t of (batch as unknown[])) {
         if (t.target_entity_id) {
           try {
             const checkTable = t.target_entity_type === 'keyword' ? 'keywords' : 'product_targets';
             const [existRows] = await conn.execute(
               `SELECT id FROM ${checkTable} WHERE id = ? LIMIT 1`,
               [t.target_entity_id]
-            ) as any[];
+            ) as unknown[];
             if (existRows.length === 0) {
               await markTaskFailed(conn, t.id, `v428: 目标实体已不存在 (${checkTable}.id=${t.target_entity_id})`);
               result.failed++;
@@ -606,9 +606,9 @@ async function executeBatchByType(
       }
       
       // 分离keyword和product_target
-      const kwTasks = validatedBatch.filter((t: Record<string, any>) => t.target_entity_type === 'keyword' && t.amazon_entity_id);
-      const ptTasks = validatedBatch.filter((t: Record<string, any>) => t.target_entity_type === 'product_target' && t.amazon_entity_id);
-      const noIdTasks = validatedBatch.filter((t: Record<string, any>) => !t.amazon_entity_id);
+      const kwTasks = validatedBatch.filter((t: Record<string, unknown>) => t.target_entity_type === 'keyword' && t.amazon_entity_id);
+      const ptTasks = validatedBatch.filter((t: Record<string, unknown>) => t.target_entity_type === 'product_target' && t.amazon_entity_id);
+      const noIdTasks = validatedBatch.filter((t: Record<string, unknown>) => !t.amazon_entity_id);
       
       // v429: 使用集中式entityIdResolver批量解析缺失的Amazon ID（替代v141的逐个即时回填）
       // entityIdResolver内置10分钟缓存，显著降低数据库查询压力
@@ -618,12 +618,12 @@ async function executeBatchByType(
           const { batchResolveKeywordIds, batchResolveProductTargetIds } = await import('../services/entityIdResolver');
           
           // 分离keyword和product_target的无ID任务
-          const noIdKwTasks = noIdTasks.filter((t: Record<string, any>) => t.target_entity_type === 'keyword');
-          const noIdPtTasks = noIdTasks.filter((t: Record<string, any>) => t.target_entity_type === 'product_target');
+          const noIdKwTasks = noIdTasks.filter((t: Record<string, unknown>) => t.target_entity_type === 'keyword');
+          const noIdPtTasks = noIdTasks.filter((t: Record<string, unknown>) => t.target_entity_type === 'product_target');
           
           // 批量解析keyword IDs
           if (noIdKwTasks.length > 0) {
-            const kwIds = noIdKwTasks.map((t: Record<string, any>) => t.target_entity_id);
+            const kwIds = noIdKwTasks.map((t: Record<string, unknown>) => t.target_entity_id);
             const kwResult = await batchResolveKeywordIds(kwIds);
             for (const t of noIdKwTasks) {
               const resolved = kwResult.resolved.get(t.target_entity_id);
@@ -656,7 +656,7 @@ async function executeBatchByType(
           
           // 批量解析product_target IDs
           if (noIdPtTasks.length > 0) {
-            const ptIds = noIdPtTasks.map((t: Record<string, any>) => t.target_entity_id);
+            const ptIds = noIdPtTasks.map((t: Record<string, unknown>) => t.target_entity_id);
             const ptResult = await batchResolveProductTargetIds(ptIds);
             for (const t of noIdPtTasks) {
               const resolved = ptResult.resolved.get(t.target_entity_id);
@@ -712,7 +712,7 @@ async function executeBatchByType(
               }
             }
           } catch (importErr: unknown) {
-            await markTasksFailed(conn, noIdTasks.map((t: Record<string, any>) => t.id), '缺少Amazon ID（所有解析器均不可用）');
+            await markTasksFailed(conn, noIdTasks.map((t: Record<string, unknown>) => t.id), '缺少Amazon ID（所有解析器均不可用）');
             result.failed += noIdTasks.length;
           }
         }
@@ -722,8 +722,8 @@ async function executeBatchByType(
       // SB/SBV广告活动的关键词需要使用SB API，SP广告活动使用SP API
       if (kwTasks.length > 0) {
         // 查询每个关键词所属campaign的类型
-        const spKwTasks: any[] = [];
-        const sbKwTasks: any[] = [];
+        const spKwTasks: unknown[] = [];
+        const sbKwTasks: unknown[] = [];
         
         for (const t of kwTasks) {
           try {
@@ -737,7 +737,7 @@ async function executeBatchByType(
                  LEFT JOIN ad_accounts a ON c.accountId = a.id 
                  WHERE c.id = ? OR c.campaignId = ? LIMIT 1`,
                 [t.campaign_id, String(t.campaign_id)]
-              ) as any[];
+              ) as unknown[];
               if (campRows.length > 0) {
                 if (campRows[0].campaignType) campaignType = campRows[0].campaignType;
                 if (campRows[0].marketplace) kwMarketplace = campRows[0].marketplace;
@@ -753,7 +753,7 @@ async function executeBatchByType(
                  LEFT JOIN ad_accounts a ON c.accountId = a.id
                  WHERE k.id = ? LIMIT 1`,
                 [t.target_entity_id]
-              ) as any[];
+              ) as unknown[];
               if (kwCampRows.length > 0) {
                 if (kwCampRows[0].campaignType) campaignType = kwCampRows[0].campaignType;
                 if (kwCampRows[0].marketplace) kwMarketplace = kwCampRows[0].marketplace;
@@ -783,7 +783,7 @@ async function executeBatchByType(
         if (spKwTasks.length > 0) {
           try {
             // v434: SP keyword bid约束保护 — 确保竞价在Amazon允许范围内
-            const spBidUpdates = spKwTasks.map((t: Record<string, any>) => {
+            const spBidUpdates = spKwTasks.map((t: Record<string, unknown>) => {
               const rawBid = Number(parseFloat(t.new_value).toFixed(2));
               const spMarketplace = t._marketplace || 'US';
               const { clampedBid, wasAdjusted, constraint, adTypeKey } = clampBidToConstraint(rawBid, 'sp_manual', spMarketplace, 'cpc');
@@ -795,13 +795,13 @@ async function executeBatchByType(
                 bid: clampedBid,
               };
             });
-            const apiResult: any = await (syncService as any).client.updateKeywordBids(spBidUpdates);
+            const apiResult: unknown = await (syncService as Record<string, unknown>).client.updateKeywordBids(spBidUpdates);
             
             const failedIds = new Map<string, string>();
             if (apiResult.errors && apiResult.errors.length > 0) {
               for (const err of apiResult.errors) {
                 // v444: 增强错误记录 - 保存完整错误信息
-                const errDetail = err.details || (err as any).code || JSON.stringify(err).substring(0, 200) || 'API_ERROR';
+                const errDetail = err.details || (err as Record<string, unknown>).code || JSON.stringify(err).substring(0, 200) || 'API_ERROR';
                 failedIds.set(String(err.keywordId), errDetail);
               }
             }
@@ -843,7 +843,7 @@ async function executeBatchByType(
           try {
             // v429: 为每个SB关键词任务查询关联的Amazon adGroupId和campaignId
             const sbUpdates: Array<{ keywordId: string; bid: number; adGroupId: string; campaignId: string }> = [];
-            const sbSkippedTasks: any[] = [];
+            const sbSkippedTasks: unknown[] = [];
             
             for (const t of sbKwTasks) {
               try {
@@ -853,7 +853,7 @@ async function executeBatchByType(
                    INNER JOIN ad_groups ag ON k.internal_ad_group_id = ag.id
                    WHERE k.id = ? LIMIT 1`,
                   [t.target_entity_id]
-                ) as any[];
+                ) as unknown[];
                 
                 if (kwDetailRows.length > 0 && kwDetailRows[0].amazonAdGroupId && kwDetailRows[0].amazonCampaignId) {
                   // v436: SB keyword最低bid保护 — 增强ad_format获取，支持campaign名称推断
@@ -866,7 +866,7 @@ async function executeBatchByType(
                        LEFT JOIN ad_accounts a ON c.accountId = a.id
                        WHERE c.campaignId = ? LIMIT 1`,
                       [kwDetailRows[0].amazonCampaignId]
-                    ) as any[];
+                    ) as unknown[];
                     if (campDetailRows.length > 0) {
                       sbAdFormat = campDetailRows[0].ad_format || null;
                       sbMarketplace = campDetailRows[0].marketplace || 'US';
@@ -920,7 +920,7 @@ async function executeBatchByType(
             
             // v429: 调用修复后的updateSbKeywordBids，现在传递完整的adGroupId和campaignId
             const sbApiResult = sbUpdates.length > 0 
-              ? await (syncService as any).client.updateSbKeywordBids(sbUpdates)
+              ? await (syncService as Record<string, unknown>).client.updateSbKeywordBids(sbUpdates)
               : { successes: [], errors: [] };
             
             // v428: 构建keywordId到失败原因的映射
@@ -969,7 +969,7 @@ async function executeBatchByType(
       if (ptTasks.length > 0) {
         try {
           // v434: product target bid约束保护 — 根据campaign类型和计费方式确定正确的最低竞价
-          const ptBidUpdates = await Promise.all(ptTasks.map(async (t: Record<string, any>) => {
+          const ptBidUpdates = await Promise.all(ptTasks.map(async (t: Record<string, unknown>) => {
             const rawBid = Number(parseFloat(t.new_value).toFixed(2));
             // 查询campaign类型和costType
             let ptCampType = 'sp_manual';
@@ -983,7 +983,7 @@ async function executeBatchByType(
                  LEFT JOIN ad_accounts a ON c.accountId = a.id
                  WHERE pt.id = ? LIMIT 1`,
                 [t.target_entity_id]
-              ) as any[];
+              ) as unknown[];
               if (ptCampRows.length > 0) {
                 ptCampType = ptCampRows[0].campaignType || 'sp_manual';
                 ptCostType = ptCampRows[0].costType || 'cpc';
@@ -999,13 +999,13 @@ async function executeBatchByType(
               bid: clampedBid,
             };
           }));
-          const apiResult: any = await (syncService as any).client.updateProductTargetBids(ptBidUpdates);
+          const apiResult: unknown = await (syncService as Record<string, unknown>).client.updateProductTargetBids(ptBidUpdates);
           
           const failedIds = new Map<string, string>();
           if (apiResult.errors && apiResult.errors.length > 0) {
             for (const err of apiResult.errors) {
               // v444: 增强错误记录 - 保存完整错误信息
-              const ptErrDetail = err.details || (err as any).code || JSON.stringify(err).substring(0, 200) || 'API_ERROR';
+              const ptErrDetail = err.details || (err as Record<string, unknown>).code || JSON.stringify(err).substring(0, 200) || 'API_ERROR';
               failedIds.set(String(err.targetId), ptErrDetail);
             }
           }
@@ -1036,11 +1036,11 @@ async function executeBatchByType(
     case 'keyword_status': {
       // v429: 使用entityIdResolver批量解析keyword_status任务的Amazon ID
       // 替代v138的逐个数据库查询和v141的即时回填
-      const validTasks: any[] = [];
-      const noIdTasks: any[] = [];
+      const validTasks: unknown[] = [];
+      const noIdTasks: unknown[] = [];
       
       // 先将已有Amazon ID的任务分到validTasks
-      for (const t of (batch as any[])) {
+      for (const t of (batch as unknown[])) {
         if (t.amazon_entity_id) {
           validTasks.push(t);
         } else {
@@ -1052,7 +1052,7 @@ async function executeBatchByType(
       if (noIdTasks.length > 0) {
         try {
           const { batchResolveKeywordIds } = await import('../services/entityIdResolver');
-          const kwIds = noIdTasks.map((t: Record<string, any>) => t.target_entity_id);
+          const kwIds = noIdTasks.map((t: Record<string, unknown>) => t.target_entity_id);
           const kwResult = await batchResolveKeywordIds(kwIds);
           
           for (const t of noIdTasks) {
@@ -1103,7 +1103,7 @@ async function executeBatchByType(
               }
             }
           } catch (importErr: unknown) {
-            await markTasksFailed(conn, noIdTasks.map((t: Record<string, any>) => t.id), '缺少Amazon ID（所有解析器均不可用）');
+            await markTasksFailed(conn, noIdTasks.map((t: Record<string, unknown>) => t.id), '缺少Amazon ID（所有解析器均不可用）');
             result.failed += noIdTasks.length;
           }
         }
@@ -1111,8 +1111,8 @@ async function executeBatchByType(
       
       if (validTasks.length > 0) {
         try {
-          const apiResult: any = await (syncService as any).client.updateKeywordStatus(
-            validTasks.map((t: Record<string, any>) => ({
+          const apiResult: unknown = await (syncService as Record<string, unknown>).client.updateKeywordStatus(
+            validTasks.map((t: Record<string, unknown>) => ({
               keywordId: String(t.amazon_entity_id),
               state: t.new_value as 'enabled' | 'paused' | 'archived',
             }))
@@ -1153,7 +1153,7 @@ async function executeBatchByType(
     
     case 'campaign_status': {
       // 广告活动状态逐个更新（Amazon API不支持批量更新Campaign状态）
-      for (const t of (batch as any[])) {
+      for (const t of (batch as unknown[])) {
         try {
           if (!t.amazon_entity_id) {
             await markTaskFailed(conn, t.id, '缺少Amazon Campaign ID');
@@ -1161,7 +1161,7 @@ async function executeBatchByType(
             continue;
           }
           
-          await (syncService as any).client.updateSpCampaign(
+          await (syncService as Record<string, unknown>).client.updateSpCampaign(
             String(t.amazon_entity_id),
             { state: t.new_value === 'enabled' ? 'ENABLED' : 'PAUSED' }
           );
@@ -1185,8 +1185,8 @@ async function executeBatchByType(
     
     case 'adgroup_status': {
       // v431: 修复方法名 updateSpAdGroup → updateSpAdGroupStatus，使用批量API
-      const validAdGroupTasks = (batch as any[]).filter(t => t.amazon_entity_id);
-      const invalidAdGroupTasks = (batch as any[]).filter(t => !t.amazon_entity_id);
+      const validAdGroupTasks = (batch as unknown[]).filter(t => t.amazon_entity_id);
+      const invalidAdGroupTasks = (batch as unknown[]).filter(t => !t.amazon_entity_id);
       
       // 标记缺少ID的任务为失败
       for (const t of invalidAdGroupTasks) {
@@ -1196,8 +1196,8 @@ async function executeBatchByType(
       
       if (validAdGroupTasks.length > 0) {
         try {
-          const agResult = await (syncService as any).client.updateSpAdGroupStatus(
-            validAdGroupTasks.map((t: any) => ({
+          const agResult = await (syncService as Record<string, unknown>).client.updateSpAdGroupStatus(
+            validAdGroupTasks.map((t: unknown) => ({
               adGroupId: String(t.amazon_entity_id),
               state: t.new_value === 'enabled' ? 'enabled' : 'paused',
             }))
@@ -1238,13 +1238,13 @@ async function executeBatchByType(
       // v189: 否定词批量创建 - 增强自动回填Amazon campaignId
       // v395: P1修复 — 同时获取campaignType，过滤掉SB/SD类型（SP API不支持）
       // 先尝试回填缺少的campaign_id，并获取campaignType
-      for (const t of (batch as any[])) {
+      for (const t of (batch as unknown[])) {
         if (!t.campaign_id && t.target_entity_id) {
           try {
             const [rows] = await conn.execute(
               'SELECT campaignId, campaignType FROM campaigns WHERE id = ? LIMIT 1',
               [t.target_entity_id]
-            ) as any[];
+            ) as unknown[];
             if (rows.length > 0 && rows[0].campaignId) {
               t.campaign_id = rows[0].campaignId;
               t.amazon_entity_id = rows[0].campaignId;
@@ -1259,7 +1259,7 @@ async function executeBatchByType(
             const [rows] = await conn.execute(
               'SELECT campaignType FROM campaigns WHERE campaignId = ? LIMIT 1',
               [t.campaign_id]
-            ) as any[];
+            ) as unknown[];
             if (rows.length > 0) {
               t._campaignType = rows[0].campaignType || 'sp_manual';
             }
@@ -1270,22 +1270,22 @@ async function executeBatchByType(
       }
       
       // v395: 过滤掉SB/SD类型的campaign（SP否定词API不支持SB/SD）
-      const spTasks = (batch as any[]).filter((t: Record<string, any>) => {
+      const spTasks = (batch as unknown[]).filter((t: Record<string, unknown>) => {
         const cType = (t._campaignType || 'sp_manual').toLowerCase();
         return cType.startsWith('sp') || cType === '' || !t._campaignType;
       });
-      const nonSpTasks = (batch as any[]).filter((t: Record<string, any>) => {
+      const nonSpTasks = (batch as unknown[]).filter((t: Record<string, unknown>) => {
         const cType = (t._campaignType || '').toLowerCase();
         return cType === 'sb' || cType === 'sd';
       });
       
       // v428: P2修复 — SB否定词使用SB专用API（POST /sb/negativeKeywords）而不是直接跳过
       // SD不支持否定关键词，仅支持否定产品定向，所以SD仍然跳过
-      const sbNegTasks = nonSpTasks.filter((t: Record<string, any>) => {
+      const sbNegTasks = nonSpTasks.filter((t: Record<string, unknown>) => {
         const cType = (t._campaignType || '').toLowerCase();
         return cType === 'sb';
       });
-      const sdNegTasks = nonSpTasks.filter((t: Record<string, any>) => {
+      const sdNegTasks = nonSpTasks.filter((t: Record<string, unknown>) => {
         const cType = (t._campaignType || '').toLowerCase();
         return cType === 'sd';
       });
@@ -1298,7 +1298,7 @@ async function executeBatchByType(
       
       // v428: SB否定词使用SB专用API (POST /sb/negativeKeywords)
       if (sbNegTasks.length > 0) {
-        const sbNegValidTasks = sbNegTasks.filter((t: Record<string, any>) => t.campaign_id || t.amazon_entity_id);
+        const sbNegValidTasks = sbNegTasks.filter((t: Record<string, unknown>) => t.campaign_id || t.amazon_entity_id);
         if (sbNegValidTasks.length > 0) {
           try {
             // v428: 需要回填adGroupId，SB否定词需要adGroupId
@@ -1308,14 +1308,14 @@ async function executeBatchByType(
                   const [agRows] = await conn.execute(
                     'SELECT ag.adGroupId FROM ad_groups ag JOIN campaigns c ON ag.internalCampaignId = c.id WHERE c.campaignId = ? LIMIT 1',
                     [t.amazon_entity_id || t.campaign_id]
-                  ) as any[];
+                  ) as unknown[];
                   if (agRows.length > 0) t.ad_group_id = agRows[0].adGroupId;
                 } catch { /* ignore */ }
               }
             }
             
-            const sbNegApiResults = await (syncService as any).client.createSbNegativeKeywords(
-              sbNegValidTasks.map((t: Record<string, any>) => ({
+            const sbNegApiResults = await (syncService as Record<string, unknown>).client.createSbNegativeKeywords(
+              sbNegValidTasks.map((t: Record<string, unknown>) => ({
                 campaignId: String(t.amazon_entity_id || t.campaign_id),
                 adGroupId: t.ad_group_id ? String(t.ad_group_id) : '0',
                 keywordText: t.target_entity_name,
@@ -1324,7 +1324,7 @@ async function executeBatchByType(
               }))
             );
             // createSbNegativeKeywords返回数组，每个元素包含结果
-            const sbNegSuccessCount = Array.isArray(sbNegApiResults) ? sbNegApiResults.filter((r: any) => r.code === 'SUCCESS' || r.negativeKeywordId).length : 0;
+            const sbNegSuccessCount = Array.isArray(sbNegApiResults) ? sbNegApiResults.filter((r: unknown) => r.code === 'SUCCESS' || r.negativeKeywordId).length : 0;
             if (sbNegSuccessCount > 0 || (Array.isArray(sbNegApiResults) && sbNegApiResults.length > 0)) {
               for (const t of sbNegValidTasks) {
                 await markTaskSynced(conn, t.id);
@@ -1346,15 +1346,15 @@ async function executeBatchByType(
           }
         }
         // 无法回填campaign_id的SB任务
-        const sbNegInvalidTasks = sbNegTasks.filter((t: Record<string, any>) => !t.campaign_id && !t.amazon_entity_id);
+        const sbNegInvalidTasks = sbNegTasks.filter((t: Record<string, unknown>) => !t.campaign_id && !t.amazon_entity_id);
         for (const t of sbNegInvalidTasks) {
           await markTaskFailed(conn, t.id, 'v428: SB否定词缺少Amazon Campaign ID');
           result.failed++;
         }
       }
       
-      const validTasks = spTasks.filter((t: Record<string, any>) => t.campaign_id || t.amazon_entity_id);
-      const invalidTasks = spTasks.filter((t: Record<string, any>) => !t.campaign_id && !t.amazon_entity_id);
+      const validTasks = spTasks.filter((t: Record<string, unknown>) => t.campaign_id || t.amazon_entity_id);
+      const invalidTasks = spTasks.filter((t: Record<string, unknown>) => !t.campaign_id && !t.amazon_entity_id);
       
       // 标记无法处理的任务
       for (const t of invalidTasks) {
@@ -1367,7 +1367,7 @@ async function executeBatchByType(
         try {
           const negSyncResult = await amazonApiHelper.syncNegativeKeywordsToAmazon(
             validTasks[0].account_id,
-            validTasks.map((t: Record<string, any>) => ({
+            validTasks.map((t: Record<string, unknown>) => ({
               campaignId: String(t.amazon_entity_id || t.campaign_id),  // v356: 统一使用String类型传递Amazon ID
               keywordText: t.target_entity_name,
               matchType: (t.action || '').includes('exact') || (t.action || '').includes('Exact') 
@@ -1420,12 +1420,12 @@ async function executeBatchByType(
     }
     
     case 'new_keyword': {
-      const validTasks = batch.filter((t: Record<string, any>) => t.ad_group_id);
+      const validTasks = batch.filter((t: Record<string, unknown>) => t.ad_group_id);
       
       if (validTasks.length > 0) {
         try {
-          const createResult = await (syncService as any).client.createSpKeywords(
-            validTasks.map((t: Record<string, any>) => ({
+          const createResult = await (syncService as Record<string, unknown>).client.createSpKeywords(
+            validTasks.map((t: Record<string, unknown>) => ({
               adGroupId: Number(t.ad_group_id),
               campaignId: Number(t.campaign_id),
               keywordText: t.target_entity_name,
@@ -1468,7 +1468,7 @@ async function executeBatchByType(
     }
     
     case 'placement_adjustment': {
-      for (const t of (batch as any[])) {
+      for (const t of (batch as unknown[])) {
         try {
           // 位置倾斜通过Campaign的bidding策略更新
           const placementType = t.action; // e.g., 'top_of_search', 'product_pages'
@@ -1481,7 +1481,7 @@ async function executeBatchByType(
               const [rows] = await conn.execute(
                 'SELECT campaignId FROM campaigns WHERE id = ? LIMIT 1',
                 [t.target_entity_id]
-              ) as any[];
+              ) as unknown[];
               if (rows.length > 0 && rows[0].campaignId) {
                 amazonCampaignId = rows[0].campaignId;
                 await conn.execute(
@@ -1500,7 +1500,7 @@ async function executeBatchByType(
             const v3PlacementType = placementType === 'top_of_search' ? 'PLACEMENT_TOP' 
               : placementType === 'rest_of_search' ? 'PLACEMENT_REST_OF_SEARCH'
               : 'PLACEMENT_PRODUCT_PAGE';
-            await (syncService as any).client.updateSpCampaign(
+            await (syncService as Record<string, unknown>).client.updateSpCampaign(
               String(amazonCampaignId),
               {
                 dynamicBidding: {
@@ -1530,7 +1530,7 @@ async function executeBatchByType(
     
     case 'budget_adjustment': {
       // v189: 使用amazonApiHelper.syncBudgetAdjustmentToAmazon以支持SP/SB/SD不同类型的campaign
-      for (const t of (batch as any[])) {
+      for (const t of (batch as unknown[])) {
         try {
           let amazonCampaignId = t.amazon_entity_id;
           let campaignType = 'sp_manual';
@@ -1541,7 +1541,7 @@ async function executeBatchByType(
               const [rows] = await conn.execute(
                 'SELECT campaignId, campaignType FROM campaigns WHERE id = ? LIMIT 1',
                 [t.target_entity_id]
-              ) as any[];
+              ) as unknown[];
               if (rows.length > 0 && rows[0].campaignId) {
                 amazonCampaignId = rows[0].campaignId;
                 campaignType = rows[0].campaignType || 'sp_manual';
@@ -1560,7 +1560,7 @@ async function executeBatchByType(
               const [campRows] = await conn.execute(
                 'SELECT campaignType FROM campaigns WHERE campaignId = ? OR id = ? LIMIT 1',
                 [String(amazonCampaignId), t.target_entity_id || 0]
-              ) as any[];
+              ) as unknown[];
               if (campRows.length > 0 && campRows[0].campaignType) {
                 campaignType = campRows[0].campaignType;
               }
@@ -1729,7 +1729,7 @@ async function updateLogsSyncStatus(conn: DbInstance, batchId: string) {
     const [stats] = await conn.execute(
       `SELECT status, COUNT(*) as cnt FROM optimization_tasks WHERE batch_id = ? GROUP BY status`,
       [batchId]
-    ) as any[];
+    ) as unknown[];
     
     let totalSynced = 0, totalFailed = 0, totalPending = 0, totalRetry = 0;
     for (const s of stats) {
@@ -1813,7 +1813,7 @@ async function resetRecoverableFailedTasks(): Promise<number> {
          AND (ot.amazon_entity_id IS NULL OR ot.amazon_entity_id = '')
          AND ot.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
        LIMIT 200`
-    ) as any[];
+    ) as unknown[];
     
     if (failedTasks.length === 0) return 0;
     
@@ -1825,19 +1825,19 @@ async function resetRecoverableFailedTasks(): Promise<number> {
         const [rows] = await conn.execute(
           'SELECT keywordId FROM keywords WHERE id = ? AND keywordId IS NOT NULL AND keywordId NOT LIKE "SKIP_%" LIMIT 1',
           [task.target_entity_id]
-        ) as any[];
+        ) as unknown[];
         if (rows[0]?.keywordId) amazonId = rows[0].keywordId;
       } else if (task.target_entity_type === 'product_target') {
         const [rows] = await conn.execute(
           'SELECT targetId FROM product_targets WHERE id = ? AND targetId IS NOT NULL LIMIT 1',
           [task.target_entity_id]
-        ) as any[];
+        ) as unknown[];
         if (rows[0]?.targetId) amazonId = rows[0].targetId;
       } else if (task.target_entity_type === 'campaign') {
         const [rows] = await conn.execute(
           'SELECT campaignId FROM campaigns WHERE id = ? AND campaignId IS NOT NULL LIMIT 1',
           [task.target_entity_id]
-        ) as any[];
+        ) as unknown[];
         if (rows[0]?.campaignId) amazonId = rows[0].campaignId;
       }
       
@@ -1883,7 +1883,7 @@ export async function getBatchStatus(batchId: string): Promise<{
     );
     
     const result = { total: 0, synced: 0, failed: 0, pending: 0, retry: 0, permanentlyFailed: 0 };
-    for (const r of (rows as any[])) {
+    for (const r of (rows as unknown[])) {
       result.total += r.cnt;
       if (r.status === 'synced') result.synced = r.cnt;
       else if (r.status === 'failed') result.failed = r.cnt;

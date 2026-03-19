@@ -90,7 +90,7 @@ export default function StrategyCenter() {
   const [groupToDelete, setGroupToDelete] = useState<{ id: number; name: string } | null>(null);
 
   // 获取账号列表
-  const { data: accounts, isLoading: accountsLoading } = trpc.adAccount.list.useQuery() as any;
+  const { data: accounts, isLoading: accountsLoading } = trpc.adAccount.list.useQuery() as unknown;
   
   // v221: 根据店铺+站点查找对应的accountId
   // 修复BUG: 之前从不同路由入口进入时，如果localStorage中没有店铺/站点信息，
@@ -125,7 +125,7 @@ export default function StrategyCenter() {
   // 这确保从任何路由入口进入都能正确加载数据
   useEffect(() => {
     if (accounts && accounts.length > 0 && !currentStore) {
-      const firstAccount = accounts[0] as any;
+      const firstAccount = accounts[0] as unknown;
       const storeName = (firstAccount.storeName || firstAccount.accountName || '').trim();
       if (storeName) {
         setCurrentSelection(storeName, firstAccount.marketplace || null);
@@ -145,7 +145,7 @@ export default function StrategyCenter() {
       performanceGroupsQuery.refetch();
       toast.success("状态更新成功");
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       toast.error(`更新失败: ${error.message}`);
     }
   });
@@ -156,7 +156,7 @@ export default function StrategyCenter() {
       performanceGroupsQuery.refetch();
       toast.success("删除成功");
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       toast.error(`删除失败: ${error.message}`);
     }
   });
@@ -204,8 +204,8 @@ export default function StrategyCenter() {
   };
 
   const groups = performanceGroupsQuery.data || [];
-  const activeGroups = groups.filter((g: any) => g.status === 'active');
-  const totalCampaigns = groups.reduce((sum: number, g: any) => sum + (g.campaignCount || 0), 0);
+  const activeGroups = groups.filter((g: unknown) => g.status === 'active');
+  const totalCampaigns = groups.reduce((sum: number, g: unknown) => sum + (g.campaignCount || 0), 0);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -376,7 +376,7 @@ export default function StrategyCenter() {
             </Card>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
-              {groups.map((group: any) => {
+              {groups.map((group: unknown) => {
                 const goalLabel = OPTIMIZATION_GOAL_LABELS[group.optimizationGoal] || '未设置';
                 const templateInfo = group.strategyTemplateName 
                   ? STRATEGY_TEMPLATE_LABELS[group.strategyTemplateName] || { name: group.strategyTemplateName, color: "text-blue-400 bg-blue-500/20", icon: "📋" }
@@ -497,7 +497,7 @@ export default function StrategyCenter() {
                           {/* v164: 五维度得分明细 */}
                           {group.goalProgressDetail?.dimensions && group.goalProgressDetail.dimensions.length > 0 && (
                             <div className={`grid gap-1 mt-2 ${group.goalProgressDetail.dimensions.length >= 5 ? 'grid-cols-5' : 'grid-cols-4'}`}>
-                              {group.goalProgressDetail.dimensions.map((dim: any) => (
+                              {group.goalProgressDetail.dimensions.map((dim: unknown) => (
                                 <div key={dim.name} className="text-center" title={dim.detail}>
                                   <div className="text-[10px] text-muted-foreground truncate">{dim.nameZh}</div>
                                   <div className={`text-xs font-semibold ${

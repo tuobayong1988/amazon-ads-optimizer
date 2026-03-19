@@ -43,7 +43,7 @@ export default function IntelligentBudgetAllocation() {
   const [activeTab, setActiveTab] = useState("suggestions");
   const [showConfigDialog, setShowConfigDialog] = useState(false);
   const [showSimulationDialog, setShowSimulationDialog] = useState(false);
-  const [selectedCampaign, setSelectedCampaign] = useState<any>(null);
+  const [selectedCampaign, setSelectedCampaign] = useState<unknown>(null);
   const [simulationBudget, setSimulationBudget] = useState<number>(0);
   const [selectedSuggestions, setSelectedSuggestions] = useState<number[]>([]);
   
@@ -153,7 +153,7 @@ export default function IntelligentBudgetAllocation() {
                 <SelectValue placeholder="选择绩效组" />
               </SelectTrigger>
               <SelectContent>
-                {performanceGroups?.map((group: any) => (
+                {performanceGroups?.map((group: unknown) => (
                   <SelectItem key={group.id} value={group.id.toString()}>
                     {group.name}
                   </SelectItem>
@@ -266,7 +266,7 @@ export default function IntelligentBudgetAllocation() {
                 <AlertTitle>数据异常警告</AlertTitle>
                 <AlertDescription>
                   <ul className="list-disc list-inside mt-2">
-                    {suggestionsData.warnings.map((warning: any, index: any) => (
+                    {suggestionsData.warnings.map((warning: unknown, index: unknown) => (
                       <li key={index}>{warning}</li>
                     ))}
                   </ul>
@@ -313,7 +313,7 @@ export default function IntelligentBudgetAllocation() {
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
-                      {suggestionsData?.suggestions.map((suggestion: any) => (
+                      {suggestionsData?.suggestions.map((suggestion: unknown) => (
                         <div
                           key={suggestion.campaignId}
                           className={`p-4 border rounded-lg transition-colors ${
@@ -460,7 +460,7 @@ export default function IntelligentBudgetAllocation() {
                           </tr>
                         </thead>
                         <tbody>
-                          {campaignPerformance?.map((campaign: any) => {
+                          {campaignPerformance?.map((campaign: unknown) => {
                             const trend = campaign.roas7d > campaign.roas30d * 1.05 
                               ? 'up' 
                               : campaign.roas7d < campaign.roas30d * 0.95 
@@ -505,7 +505,7 @@ export default function IntelligentBudgetAllocation() {
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-6">
-                      {suggestionsData?.suggestions.map((suggestion: any) => (
+                      {suggestionsData?.suggestions.map((suggestion: unknown) => (
                         <div key={suggestion.campaignId} className="p-4 border rounded-lg">
                           <div className="flex items-center justify-between mb-4">
                             <h4 className="font-medium">{suggestion.campaignName}</h4>
@@ -841,8 +841,8 @@ function ScenarioSimulation({
   campaignPerformance 
 }: { 
   performanceGroupId: number | null;
-  suggestionsData: any;
-  campaignPerformance: any;
+  suggestionsData: unknown;
+  campaignPerformance: unknown;
 }) {
   const [scenarioType, setScenarioType] = useState<'conservative' | 'balanced' | 'aggressive'>('balanced');
   const [customBudgetMultiplier, setCustomBudgetMultiplier] = useState(1.0);
@@ -859,7 +859,7 @@ function ScenarioSimulation({
   const calculateScenarioData = (multiplier: number) => {
     if (!suggestionsData?.suggestions) return null;
     
-    const campaigns = suggestionsData.suggestions.map((s: any) => {
+    const campaigns = suggestionsData.suggestions.map((s: unknown) => {
       const newBudget = s.currentBudget * multiplier;
       // 基于边际效益递减模型计算预测效果
       const efficiencyFactor = multiplier > 1 
@@ -883,10 +883,10 @@ function ScenarioSimulation({
     });
     
     // 汇总数据
-    const totalCurrentBudget = campaigns.reduce((sum: number, c: any) => sum + c.currentBudget, 0);
-    const totalNewBudget = campaigns.reduce((sum: number, c: any) => sum + c.newBudget, 0);
-    const totalPredictedSpend = campaigns.reduce((sum: number, c: any) => sum + c.predictedSpend, 0);
-    const totalPredictedSales = campaigns.reduce((sum: number, c: any) => sum + c.predictedSales, 0);
+    const totalCurrentBudget = campaigns.reduce((sum: number, c: unknown) => sum + c.currentBudget, 0);
+    const totalNewBudget = campaigns.reduce((sum: number, c: unknown) => sum + c.newBudget, 0);
+    const totalPredictedSpend = campaigns.reduce((sum: number, c: unknown) => sum + c.predictedSpend, 0);
+    const totalPredictedSales = campaigns.reduce((sum: number, c: unknown) => sum + c.predictedSales, 0);
     const avgROAS = totalPredictedSpend > 0 ? totalPredictedSales / totalPredictedSpend : 0;
     const avgACoS = totalPredictedSales > 0 ? (totalPredictedSpend / totalPredictedSales) * 100 : 0;
     
@@ -952,7 +952,7 @@ function ScenarioSimulation({
                 ? 'border-primary ring-2 ring-primary/20' 
                 : 'hover:border-muted-foreground/30'
             }`}
-            onClick={() => setScenarioType(key as any)}
+            onClick={() => setScenarioType(key as unknown)}
           >
             <CardContent className="pt-6">
               <div className="flex items-center justify-between mb-2">
@@ -1023,7 +1023,7 @@ function ScenarioSimulation({
               </defs>
               
               {/* Y轴网格线 */}
-              {[0, 0.25, 0.5, 0.75, 1].map((ratio: any, i: any) => (
+              {[0, 0.25, 0.5, 0.75, 1].map((ratio: unknown, i: unknown) => (
                 <g key={i}>
                   <line 
                     x1="60" y1={220 - ratio * 200} 
@@ -1043,7 +1043,7 @@ function ScenarioSimulation({
               
               {/* 销售额曲线填充 */}
               <path
-                d={`M ${curveData.map((d: any, i: any) => {
+                d={`M ${curveData.map((d: unknown, i: unknown) => {
                   const x = 60 + (i / (curveData.length - 1)) * 720;
                   const y = 220 - (d.sales / maxSales) * 200;
                   return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
@@ -1053,7 +1053,7 @@ function ScenarioSimulation({
               
               {/* 销售额曲线 */}
               <path
-                d={curveData.map((d: any, i: any) => {
+                d={curveData.map((d: unknown, i: unknown) => {
                   const x = 60 + (i / (curveData.length - 1)) * 720;
                   const y = 220 - (d.sales / maxSales) * 200;
                   return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
@@ -1065,7 +1065,7 @@ function ScenarioSimulation({
               
               {/* ROAS曲线 */}
               <path
-                d={curveData.map((d: any, i: any) => {
+                d={curveData.map((d: unknown, i: unknown) => {
                   const x = 60 + (i / (curveData.length - 1)) * 720;
                   const maxROAS = Math.max(...curveData.map(c => c.roas));
                   const y = 220 - (d.roas / maxROAS) * 200;
@@ -1096,7 +1096,7 @@ function ScenarioSimulation({
               })()}
               
               {/* X轴标签 */}
-              {curveData.filter((_: any, i: any) => i % 2 === 0).map((d: any, i: any) => {
+              {curveData.filter((_: unknown, i: unknown) => i % 2 === 0).map((d: unknown, i: unknown) => {
                 const x = 60 + ((i * 2) / (curveData.length - 1)) * 720;
                 return (
                   <text 
@@ -1175,7 +1175,7 @@ function ScenarioSimulation({
                   </tr>
                 </thead>
                 <tbody>
-                  {scenarioData.campaigns.map((campaign: any) => (
+                  {scenarioData.campaigns.map((campaign: unknown) => (
                     <tr key={campaign.campaignId} className="border-b hover:bg-muted/50">
                       <td className="py-3 px-2 font-medium">{campaign.campaignName}</td>
                       <td className="text-right py-3 px-2">${campaign.currentBudget.toFixed(2)}</td>

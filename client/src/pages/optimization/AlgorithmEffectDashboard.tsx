@@ -66,7 +66,7 @@ export default function AlgorithmEffectDashboard() {
   const [budgetPoolTimeRange, setBudgetPoolTimeRange] = useState("30");
 
   // 获取账户列表
-  const { data: accounts } = trpc.adAccount.list.useQuery() as any;
+  const { data: accounts } = trpc.adAccount.list.useQuery() as unknown;
 
   // 获取出价调整历史统计
   const { data: bidStats } = trpc.placement.getBidAdjustmentStats.useQuery(
@@ -160,9 +160,9 @@ export default function AlgorithmEffectDashboard() {
   );
 
   // 计算统计数据
-  const autoCount = (byTypeAnalysis || []).filter((t: any) => t.adjustmentType?.startsWith('auto')).reduce((sum: number, t: any) => sum + (t.count || 0), 0);
-  const manualCount = (byTypeAnalysis || []).filter((t: any) => t.adjustmentType === 'manual').reduce((sum: number, t: any) => sum + (t.count || 0), 0);
-  const avgChange = (byTypeAnalysis || []).reduce((sum: number, t: any) => sum + (t.avgBidChange || 0), 0) / Math.max((byTypeAnalysis || []).length, 1);
+  const autoCount = (byTypeAnalysis || []).filter((t: unknown) => t.adjustmentType?.startsWith('auto')).reduce((sum: number, t: unknown) => sum + (t.count || 0), 0);
+  const manualCount = (byTypeAnalysis || []).filter((t: unknown) => t.adjustmentType === 'manual').reduce((sum: number, t: unknown) => sum + (t.count || 0), 0);
+  const avgChange = (byTypeAnalysis || []).reduce((sum: number, t: unknown) => sum + (t.avgBidChange || 0), 0) / Math.max((byTypeAnalysis || []).length, 1);
   
   const stats = {
     totalAdjustments: algorithmPerformance?.totalAdjustments || 0,
@@ -201,25 +201,25 @@ export default function AlgorithmEffectDashboard() {
     
     return Array.from(tierMap.entries()).map(([tier, data]) => ({
       tier,
-      name: (TIER_COLORS as any)[tier]?.label || tier,
+      name: (TIER_COLORS as Record<string, unknown>)[tier]?.label || tier,
       count: data.count,
       positiveRate: Math.round(data.positiveRate),
       algorithms: data.algorithms,
-      fill: (TIER_COLORS as any)[tier]?.fill || '#6B7280',
-    })).sort((a: any, b: any) => b.count - a.count);
+      fill: (TIER_COLORS as Record<string, unknown>)[tier]?.fill || '#6B7280',
+    })).sort((a: unknown, b: unknown) => b.count - a.count);
   }, [algorithmEffectStats]);
 
   // 算法详细统计
   const algorithmDetailStats = useMemo(() => {
     if (!algorithmEffectStats || algorithmEffectStats.length === 0) return [];
-    return algorithmEffectStats.map((stat: any) => ({
+    return algorithmEffectStats.map((stat: unknown) => ({
       algorithm: stat.algorithm,
       count: stat.count,
       positiveRate: stat.positiveRate,
       avgEffectScore: stat.avgEffectScore,
-      label: (TIER_COLORS as any)[stat.algorithm]?.label || stat.algorithm,
-      fill: (TIER_COLORS as any)[stat.algorithm]?.fill || '#6B7280',
-    })).sort((a: any, b: any) => b.count - a.count);
+      label: (TIER_COLORS as Record<string, unknown>)[stat.algorithm]?.label || stat.algorithm,
+      fill: (TIER_COLORS as Record<string, unknown>)[stat.algorithm]?.fill || '#6B7280',
+    })).sort((a: unknown, b: unknown) => b.count - a.count);
   }, [algorithmEffectStats]);
 
   // v187: 使用真实API数据替代模拟的ACoS趋势数据
@@ -229,7 +229,7 @@ export default function AlgorithmEffectDashboard() {
   );
   const acosTrendData = useMemo(() => {
     if (!trendData || trendData.length === 0) return [];
-    return trendData.map((d: any) => ({
+    return trendData.map((d: unknown) => ({
       date: d.date,
       actualAcos: d.acos ? d.acos.toFixed(1) : '0',
       targetAcos: 30,
@@ -240,7 +240,7 @@ export default function AlgorithmEffectDashboard() {
   // v135: 从真实趋势数据计算统计指标
   const acosTrendStats = useMemo(() => {
     if (!acosTrendData || acosTrendData.length === 0) return { avgChange: 0, daysOnTarget: 0, targetRate: 0 };
-    const acosValues = acosTrendData.map((d: any) => parseFloat(d.actualAcos) || 0).filter((v: number) => v > 0);
+    const acosValues = acosTrendData.map((d: unknown) => parseFloat(d.actualAcos) || 0).filter((v: number) => v > 0);
     if (acosValues.length < 2) return { avgChange: 0, daysOnTarget: 0, targetRate: 0 };
     
     const firstHalf = acosValues.slice(0, Math.floor(acosValues.length / 2));
@@ -257,14 +257,14 @@ export default function AlgorithmEffectDashboard() {
 
   // 使用真实API数据生成调整分布
   const adjustmentDistribution = {
-    byType: (byTypeAnalysis || []).map((item: any) => ({
+    byType: (byTypeAnalysis || []).map((item: unknown) => ({
       type: item.adjustmentType === 'auto_optimal' ? '最优出价' :
             item.adjustmentType === 'auto_dayparting' ? '分时调整' :
             item.adjustmentType === 'auto_placement' ? '位置优化' :
             item.adjustmentType === 'manual' ? '手动调整' : item.adjustmentType,
       count: item.count || 0
     })),
-    byRange: (byRangeAnalysis || []).map((item: any) => ({
+    byRange: (byRangeAnalysis || []).map((item: unknown) => ({
       range: item.range,
       count: item.count || 0
     }))
@@ -274,14 +274,14 @@ export default function AlgorithmEffectDashboard() {
   const effectComparisonData = useMemo(() => {
     if (!algorithmPerformance) return [];
     return [
-      { metric: 'ACoS (%)', before: (algorithmPerformance as any).avgAcosBefore || 0, after: (algorithmPerformance as any).avgAcosAfter || 0 },
-      { metric: 'ROAS', before: (algorithmPerformance as any).avgRoasBefore || 0, after: (algorithmPerformance as any).avgRoasAfter || 0 },
-      { metric: '每次点击成本 ($)', before: (algorithmPerformance as any).avgCpcBefore || 0, after: (algorithmPerformance as any).avgCpcAfter || 0 },
+      { metric: 'ACoS (%)', before: (algorithmPerformance as Record<string, unknown>).avgAcosBefore || 0, after: (algorithmPerformance as Record<string, unknown>).avgAcosAfter || 0 },
+      { metric: 'ROAS', before: (algorithmPerformance as Record<string, unknown>).avgRoasBefore || 0, after: (algorithmPerformance as Record<string, unknown>).avgRoasAfter || 0 },
+      { metric: '每次点击成本 ($)', before: (algorithmPerformance as Record<string, unknown>).avgCpcBefore || 0, after: (algorithmPerformance as Record<string, unknown>).avgCpcAfter || 0 },
     ].filter(item => item.before > 0 || item.after > 0);
   }, [algorithmPerformance]);
 
   // v135: 计算总调整中各层级占比（用于核心指标卡片迷你图）
-  const totalAlgoCount = algorithmDistribution.reduce((sum: any, d: any) => sum + d.count, 0);
+  const totalAlgoCount = algorithmDistribution.reduce((sum: number, d: Record<string, unknown>) => sum + d.count, 0);
 
   return (
     <DashboardLayout>
@@ -304,7 +304,7 @@ export default function AlgorithmEffectDashboard() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">全部账户</SelectItem>
-                {accounts?.map((account: any) => (
+                {accounts?.map((account: unknown) => (
                   <SelectItem key={account.id} value={account.id.toString()}>
                     {account.accountName}
                   </SelectItem>
@@ -398,7 +398,7 @@ export default function AlgorithmEffectDashboard() {
                   <p className="text-sm text-orange-300">算法层级分布</p>
                   {totalAlgoCount > 0 ? (
                     <div className="mt-2 space-y-1.5">
-                      {algorithmDistribution.slice(0, 3).map((d: any) => {
+                      {algorithmDistribution.slice(0, 3).map((d: unknown) => {
                         const pct = totalAlgoCount > 0 ? Math.round(d.count / totalAlgoCount * 100) : 0;
                         return (
                           <div key={d.tier} className="flex items-center gap-2">
@@ -539,10 +539,10 @@ export default function AlgorithmEffectDashboard() {
                               cy="50%"
                               outerRadius={100}
                               innerRadius={50}
-                              label={(props: any) => `${props.name || ''} ${((props.percent ?? 0) * 100).toFixed(0)}%`}
+                              label={(props: unknown) => `${props.name || ''} ${((props.percent ?? 0) * 100).toFixed(0)}%`}
                               labelLine={{ stroke: '#9CA3AF' }}
                             >
-                              {algorithmDistribution.map((entry: any, index: any) => (
+                              {algorithmDistribution.map((entry: unknown, index: unknown) => (
                                 <Cell key={`cell-${index}`} fill={entry.fill} />
                               ))}
                             </Pie>
@@ -554,7 +554,7 @@ export default function AlgorithmEffectDashboard() {
                         </ResponsiveContainer>
                       </div>
                       <div className="mt-4 space-y-2">
-                        {algorithmDistribution.map((d: any) => {
+                        {algorithmDistribution.map((d: unknown) => {
                           const pct = totalAlgoCount > 0 ? (d.count / totalAlgoCount * 100).toFixed(1) : '0';
                           return (
                             <div key={d.tier} className="flex items-center justify-between p-2 rounded bg-gray-700/30">
@@ -595,7 +595,7 @@ export default function AlgorithmEffectDashboard() {
                 <CardContent>
                   {algorithmDetailStats.length > 0 ? (
                     <div className="space-y-3">
-                      {algorithmDetailStats.map((stat: any) => (
+                      {algorithmDetailStats.map((stat: unknown) => (
                         <div key={stat.algorithm} className="p-3 rounded-lg bg-gray-700/30 border border-gray-700/50">
                           <div className="flex items-center justify-between mb-2">
                             <div className="flex items-center gap-2">
@@ -662,7 +662,7 @@ export default function AlgorithmEffectDashboard() {
                 {/* v135: 使用真实数据计算对比指标 */}
                 <div className="mt-4 grid grid-cols-4 gap-4">
                   {effectComparisonData.length > 0 ? (
-                    effectComparisonData.map((item: any) => {
+                    effectComparisonData.map((item: unknown) => {
                       const change = item.before > 0 ? ((item.after - item.before) / item.before * 100) : 0;
                       const isPositive = item.metric.includes('ACoS') || item.metric.includes('成本') ? change < 0 : change > 0;
                       return (
@@ -750,7 +750,7 @@ export default function AlgorithmEffectDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {(byTypeAnalysis || []).slice(0, 10).map((item: any, index: number) => (
+                  {(byTypeAnalysis || []).slice(0, 10).map((item: unknown, index: number) => (
                     <div key={index} className="flex items-center justify-between p-4 bg-gray-700/50 rounded-lg">
                       <div className="flex items-center gap-4">
                         <div className="p-2 rounded-full bg-blue-500/20">
@@ -833,8 +833,8 @@ export default function AlgorithmEffectDashboard() {
                   <span className="text-xs text-gray-500 ml-auto">
                     共 {(() => {
                       let data = causalInsights?.results || [];
-                      if (causalFilterSignificant) data = data.filter((r: any) => r.upliftScore > 0 && r.confidenceInterval && r.confidenceInterval < 0.5);
-                      if (causalSearchKeyword) data = data.filter((r: any) => String(r.keywordId || r.targetId || '').includes(causalSearchKeyword));
+                      if (causalFilterSignificant) data = data.filter((r: unknown) => r.upliftScore > 0 && r.confidenceInterval && r.confidenceInterval < 0.5);
+                      if (causalSearchKeyword) data = data.filter((r: unknown) => String(r.keywordId || r.targetId || '').includes(causalSearchKeyword));
                       return data.length;
                     })()} 条结果
                   </span>
@@ -878,16 +878,16 @@ export default function AlgorithmEffectDashboard() {
                       {(() => {
                         let data = [...(causalInsights?.results || [])];
                         // v276: 筛选
-                        if (causalFilterSignificant) data = data.filter((r: any) => r.upliftScore > 0 && r.confidenceInterval && r.confidenceInterval < 0.5);
-                        if (causalSearchKeyword) data = data.filter((r: any) => String(r.keywordId || r.targetId || '').includes(causalSearchKeyword));
+                        if (causalFilterSignificant) data = data.filter((r: unknown) => r.upliftScore > 0 && r.confidenceInterval && r.confidenceInterval < 0.5);
+                        if (causalSearchKeyword) data = data.filter((r: unknown) => String(r.keywordId || r.targetId || '').includes(causalSearchKeyword));
                         // v276: 排序
-                        if (causalSortBy === 'uplift') data.sort((a: any, b: any) => (b.upliftScore || 0) - (a.upliftScore || 0));
-                        else if (causalSortBy === 'profit') data.sort((a: any, b: any) => (b.incrementalProfit || 0) - (a.incrementalProfit || 0));
-                        else if (causalSortBy === 'roas') data.sort((a: any, b: any) => (b.incrementalRoas || 0) - (a.incrementalRoas || 0));
-                        else if (causalSortBy === 'sample') data.sort((a: any, b: any) => (b.sampleSize || 0) - (a.sampleSize || 0));
-                        else data.sort((a: any, b: any) => (b.analysisDate || '').localeCompare(a.analysisDate || ''));
+                        if (causalSortBy === 'uplift') data.sort((a: unknown, b: unknown) => (b.upliftScore || 0) - (a.upliftScore || 0));
+                        else if (causalSortBy === 'profit') data.sort((a: unknown, b: unknown) => (b.incrementalProfit || 0) - (a.incrementalProfit || 0));
+                        else if (causalSortBy === 'roas') data.sort((a: unknown, b: unknown) => (b.incrementalRoas || 0) - (a.incrementalRoas || 0));
+                        else if (causalSortBy === 'sample') data.sort((a: unknown, b: unknown) => (b.sampleSize || 0) - (a.sampleSize || 0));
+                        else data.sort((a: unknown, b: unknown) => (b.analysisDate || '').localeCompare(a.analysisDate || ''));
                         return data.slice(0, 30);
-                      })().map((r: any, i: number) => (
+                      })().map((r: unknown, i: number) => (
                         <tr key={i} className="border-b border-gray-700/50 hover:bg-gray-700/30">
                           <td className="py-2 px-3 text-gray-300 text-sm">{r.analysisDate}</td>
                           <td className="py-2 px-3 text-white text-sm">{r.keywordId || r.targetId || '-'}</td>
@@ -971,12 +971,12 @@ export default function AlgorithmEffectDashboard() {
                 <div className="space-y-3">
                   {(() => {
                     const models = [...(cqlModelStatus?.models || [])];
-                    if (cqlSortBy === 'version') models.sort((a: any, b: any) => (b.modelVersion || 0) - (a.modelVersion || 0));
-                    else if (cqlSortBy === 'loss') models.sort((a: any, b: any) => (a.avgLoss || 999) - (b.avgLoss || 999));
-                    else if (cqlSortBy === 'steps') models.sort((a: any, b: any) => (b.trainingSteps || 0) - (a.trainingSteps || 0));
-                    else models.sort((a: any, b: any) => new Date(b.lastTrainedAt || 0).getTime() - new Date(a.lastTrainedAt || 0).getTime());
+                    if (cqlSortBy === 'version') models.sort((a: unknown, b: unknown) => (b.modelVersion || 0) - (a.modelVersion || 0));
+                    else if (cqlSortBy === 'loss') models.sort((a: unknown, b: unknown) => (a.avgLoss || 999) - (b.avgLoss || 999));
+                    else if (cqlSortBy === 'steps') models.sort((a: unknown, b: unknown) => (b.trainingSteps || 0) - (a.trainingSteps || 0));
+                    else models.sort((a: unknown, b: unknown) => new Date(b.lastTrainedAt || 0).getTime() - new Date(a.lastTrainedAt || 0).getTime());
                     return models;
-                  })().map((model: any, i: number) => (
+                  })().map((model: unknown, i: number) => (
                     <div key={i} className="flex items-center justify-between p-4 bg-gray-700/50 rounded-lg">
                       <div className="flex items-center gap-4">
                         <div className="p-2 rounded-full bg-pink-500/20">
@@ -1043,7 +1043,7 @@ export default function AlgorithmEffectDashboard() {
                     <ResponsiveContainer width="100%" height={250}>
                       <PieChart>
                         <Pie
-                          data={(competitionInsights?.distribution || []).map((d: any) => ({
+                          data={(competitionInsights?.distribution || []).map((d: unknown) => ({
                             name: d.label,
                             value: d.count,
                           }))}
@@ -1053,9 +1053,9 @@ export default function AlgorithmEffectDashboard() {
                           outerRadius={90}
                           paddingAngle={3}
                           dataKey="value"
-                          label={({ name, percent }: any) => `${name} ${(percent * 100).toFixed(0)}%`}
+                          label={({ name, percent }: unknown) => `${name} ${(percent * 100).toFixed(0)}%`}
                         >
-                          {(competitionInsights?.distribution || []).map((_: any, index: number) => (
+                          {(competitionInsights?.distribution || []).map((_: unknown, index: number) => (
                             <Cell key={`cell-${index}`} fill={['#EF4444', '#F59E0B', '#10B981', '#6B7280'][index % 4]} />
                           ))}
                         </Pie>
@@ -1235,7 +1235,7 @@ export default function AlgorithmEffectDashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {(bidHistory?.records || []).slice(0, 20).map((record: any, index: number) => (
+                  {(bidHistory?.records || []).slice(0, 20).map((record: unknown, index: number) => (
                     <tr key={index} className="border-b border-gray-700/50 hover:bg-gray-700/30">
                       <td className="py-3 px-4 text-gray-300">
                         {record.appliedAt ? format(new Date(record.appliedAt), "MM/dd HH:mm") : '-'}

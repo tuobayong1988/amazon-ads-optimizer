@@ -83,7 +83,7 @@ export async function syncSbSearchTerms(service: SyncContext, days: number = 14)
       .from(keywords)
       .where(eq(keywords.accountId, service.accountId));
     const keywordMap = new Map<string, { id: number; matchType: string | null }>();
-    for (const kw of (allKeywords as any[])) {
+    for (const kw of (allKeywords as unknown[])) {
       keywordMap.set(`${kw.adGroupId}:${(kw.keywordText || '').toLowerCase()}`, { id: kw.id, matchType: kw.matchType });
     }
 
@@ -110,9 +110,9 @@ export async function syncSbSearchTerms(service: SyncContext, days: number = 14)
     log.info(`v426: SB搜索词预加载完成 - campaigns=${allCampaigns.length}, adGroups=${allAdGroups.length}, keywords=${allKeywords.length}, targets=${allTargets.length}, existing=${allSearchTerms.length}`);
 
     const nowStr = new Date().toISOString().slice(0, 19).replace('T', ' ');
-    const toInsert: any[] = [];
+    const toInsert: unknown[] = [];
 
-    for (const row of (reportData as any[])) {
+    for (const row of (reportData as unknown[])) {
       // v426: O(1) Map查找替代数据库查询
       const campaign = campaignMap.get(String(row.campaignId));
       if (!campaign) { skipped++; continue; }
@@ -240,7 +240,7 @@ export async function syncSearchTerms(service: SyncContext,days: number = 14): P
       .from(campaigns)
       .where(eq(campaigns.accountId, service.accountId));
     const campaignMap = new Map<string, { id: number }>();
-    for (const c of (allCampaigns as any[])) {
+    for (const c of (allCampaigns as unknown[])) {
       campaignMap.set(String(c.campaignId), { id: c.id });
     }
 
@@ -262,7 +262,7 @@ export async function syncSearchTerms(service: SyncContext,days: number = 14): P
       // @ts-expect-error - property exists at runtime
       .where(eq(keywords.accountId, service.accountId));
     const keywordMap = new Map<string, { id: number; matchType: string | null }>();
-    for (const kw of (allKeywords as any[])) {
+    for (const kw of (allKeywords as unknown[])) {
       const key = `${kw.adGroupId}:${(kw.keywordText || '').toLowerCase()}`;
       keywordMap.set(key, { id: kw.id, matchType: kw.matchType });
     }
@@ -295,7 +295,7 @@ export async function syncSearchTerms(service: SyncContext,days: number = 14): P
     let synced = 0;
     let skipped = 0;
 
-    for (const row of (reportData as any[])) {
+    for (const row of (reportData as unknown[])) {
       // 查找对应的campaign（从Map查找，O(1)）
       const campaign = campaignMap.get(String(row.campaignId));
       if (!campaign) { skipped++; continue; }

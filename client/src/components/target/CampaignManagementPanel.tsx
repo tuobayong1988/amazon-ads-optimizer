@@ -32,7 +32,7 @@ import {
 } from 'lucide-react';
 
 interface CampaignManagementProps {
-  groupCampaigns: any[];
+  groupCampaigns: unknown[];
   onRemoveCampaign?: (campaignId: number) => void;
   onAddCampaigns?: () => void;
   isLoading?: boolean;
@@ -68,14 +68,14 @@ export default function CampaignManagementPanel({
     // 搜索筛选
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
-      result = result.filter((c: any) => 
+      result = result.filter((c: unknown) => 
         (c.campaignName || '').toLowerCase().includes(term)
       );
     }
 
     // 排序
-    result.sort((a: any, b: any) => {
-      let aVal: any, bVal: any;
+    result.sort((a: unknown, b: unknown) => {
+      let aVal: unknown, bVal: unknown;
       switch (sortField) {
         case 'campaignName':
           aVal = (a.campaignName || '').toLowerCase();
@@ -186,7 +186,7 @@ export default function CampaignManagementPanel({
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredCampaigns.map((campaign: any) => (
+                filteredCampaigns.map((campaign: unknown) => (
                   <TableRow key={campaign.id || campaign.campaignId}>
                     <TableCell className="font-medium max-w-[200px] truncate">
                       {campaign.campaignName || `Campaign ${campaign.campaignId}`}

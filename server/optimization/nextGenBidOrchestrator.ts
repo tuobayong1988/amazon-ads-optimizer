@@ -151,14 +151,14 @@ async function checkBidDirectionConsistency(
     if (!rows || rows.length < 3) return { isOscillating: false, reason: '' };
     
     // 检测方向序列: 如果最近3次中方向交替变化，则为振荡
-    const directions = rows.slice(0, 3).map((r: Record<string, any>) => r.action_type === 'bid_increase' ? 'up' : 'down');
+    const directions = rows.slice(0, 3).map((r: Record<string, unknown>) => r.action_type === 'bid_increase' ? 'up' : 'down');
     
     // 振荡模式: 升-降-升 或 降-升-降
     const isOscillating = (
       (directions[0] !== directions[1] && directions[1] !== directions[2]) ||
       // 或者4次调整中方向变化超过2次
       (rows.length >= 4 && (() => {
-        const dirs4 = rows.slice(0, 4).map((r: Record<string, any>) => r.action_type === 'bid_increase' ? 'up' : 'down');
+        const dirs4 = rows.slice(0, 4).map((r: Record<string, unknown>) => r.action_type === 'bid_increase' ? 'up' : 'down');
         let changes = 0;
         for (let i = 1; i < dirs4.length; i++) {
           if (dirs4[i] !== dirs4[i-1]) changes++;
@@ -286,7 +286,7 @@ async function checkCircuitBreaker(
   targetId?: number,
   currentBid?: number,
   proposedBid?: number
-): Promise<{ tripped: boolean; reason: string; guardrailInfo: Record<string, any> }> {
+): Promise<{ tripped: boolean; reason: string; guardrailInfo: Record<string, unknown> }> {
   if (!keywordId && !targetId) return { tripped: false, reason: '', guardrailInfo: {} };
   if (!proposedBid || !currentBid || proposedBid >= currentBid) {
     // 只对降价操作进行熔断检查
@@ -326,7 +326,7 @@ async function checkCircuitBreaker(
       .orderBy(sqlOp`created_at DESC`)
       .limit(20);
     
-    const guardrailInfo: Record<string, any> = {
+    const guardrailInfo: Record<string, unknown> = {
       recentEventsCount: recentEvents.length,
       circuitBreakerConfig: BID_CIRCUIT_BREAKER_CONFIG,
     };
@@ -595,14 +595,14 @@ function ruleEngineDecision(
   // v259: 最低曝光保护机制
   // 核心逻辑：当曝光量大幅下降时，说明出价可能已经降得太低，应暂停所有降价并尝试提价恢复
   // 使用dailyData对比近期曝光与历史基线
-  const dailyDataForImpression = (target as Record<string, any>).dailyData as Array<{ date: Date; impressions?: number; clicks: number; spend: number; sales: number; orders: number }> | undefined;
+  const dailyDataForImpression = (target as Record<string, unknown>).dailyData as Array<{ date: Date; impressions?: number; clicks: number; spend: number; sales: number; orders: number }> | undefined;
   if (dailyDataForImpression && dailyDataForImpression.length >= 7) {
     const recent3d = dailyDataForImpression.slice(-3);
     const earlier4d = dailyDataForImpression.slice(-7, -3);
     // @ts-expect-error - dynamic property access
-    const recentAvgImpressions = recent3d.reduce((sum: any, d: any) => sum + ((d as unknown).impressions || 0), 0) / Math.max(recent3d.length, 1);
+    const recentAvgImpressions = recent3d.reduce((sum: number, d: Record<string, unknown>) => sum + ((d as Record<string, unknown>).impressions || 0), 0) / Math.max(recent3d.length, 1);
     // @ts-expect-error - dynamic property access
-    const earlierAvgImpressions = earlier4d.reduce((sum: any, d: any) => sum + ((d as unknown).impressions || 0), 0) / Math.max(earlier4d.length, 1);
+    const earlierAvgImpressions = earlier4d.reduce((sum: number, d: Record<string, unknown>) => sum + ((d as Record<string, unknown>).impressions || 0), 0) / Math.max(earlier4d.length, 1);
     
     if (earlierAvgImpressions > 50 && recentAvgImpressions < earlierAvgImpressions * BID_CIRCUIT_BREAKER_CONFIG.minImpressionProtectionRatio) {
       // v268 P0-1: 增强曝光保护 — 引入渐进恢复机制
@@ -623,7 +623,7 @@ function ruleEngineDecision(
     // 触发条件：曝光持续低迷（近期均值<20）且当前出价较低（<$0.50）
     // 安全保护：仅对有历史表现的关键词触发，且受maxBid限制
     // @ts-expect-error - dynamic property access
-    const hasHistoricalPerformance = dailyDataForImpression.some(d => ((d as unknown).impressions || 0) > 100);
+    const hasHistoricalPerformance = dailyDataForImpression.some(d => ((d as Record<string, unknown>).impressions || 0) > 100);
     if (recentAvgImpressions < 20 && currentBid < 0.50 && hasHistoricalPerformance) {
       const suggestedBid = (groupConfig.maxBid || 10) * 0.15; // 使用maxBid的15%作为建议竞价估算
       const competitiveRecoveryBid = Math.max(currentBid * 1.5, suggestedBid * 0.80);
@@ -641,7 +641,7 @@ function ruleEngineDecision(
     let h = ((id * 2654435761 + seed) >>> 0) % 10000;
     return h / 10000; // 返回0~1之间的确定性值
   };
-  const entityId = Number((target as Record<string, any>).keywordId || (target as Record<string, any>).targetId || 0);
+  const entityId = Number((target as Record<string, unknown>).keywordId || (target as Record<string, unknown>).targetId || 0);
   
   // 场景1: 零曝光 — 需要提升可见性
   // v238: 增加出价累积保护，防止零曝光关键词被无限提价
@@ -649,11 +649,11 @@ function ruleEngineDecision(
   if (impressions === 0) {
     // v330 R-01: 从上层传入的建议出价数据
     // @ts-expect-error - dynamic property access
-    const suggestedBid = (groupConfig as unknown)._suggestedBid as number | undefined;
+    const suggestedBid = (groupConfig as Record<string, unknown>)._suggestedBid as number | undefined;
     // @ts-expect-error - dynamic property access
-    const suggestedBidRangeStart = (groupConfig as unknown)._suggestedBidRangeStart as number | undefined;
+    const suggestedBidRangeStart = (groupConfig as Record<string, unknown>)._suggestedBidRangeStart as number | undefined;
     // @ts-expect-error - dynamic property access
-    const suggestedBidRangeEnd = (groupConfig as unknown)._suggestedBidRangeEnd as number | undefined;
+    const suggestedBidRangeEnd = (groupConfig as Record<string, unknown>)._suggestedBidRangeEnd as number | undefined;
     
     // v434: 零曝光探索 — 基于Amazon建议竞价的动态范围快速测试
     // 竞价范围: 建议最低竞价×50% ~ 建议最高竞价×150%
@@ -772,7 +772,7 @@ function ruleEngineDecision(
     // v258: 趋势感知（保留v254逻辑）
     let zeroConvTrendDir: 'improving' | 'stable' | 'declining' = 'stable';
     let zeroConvTrendStr = 0;
-    const dailyData = (target as Record<string, any>).dailyData as Array<{ date: Date; spend: number; sales: number; clicks: number; orders: number }> | undefined;
+    const dailyData = (target as Record<string, unknown>).dailyData as Array<{ date: Date; spend: number; sales: number; clicks: number; orders: number }> | undefined;
     if (dailyData && dailyData.length >= 7) {
       try {
         const rawData: timeDecayService.DailyRawData[] = dailyData.map(d => ({
@@ -875,7 +875,7 @@ function ruleEngineDecision(
     // stable: 不做额外调整
     let trendDirection: 'improving' | 'stable' | 'declining' = 'stable';
     let trendStrength = 0;
-    const dailyData = (target as Record<string, any>).dailyData as Array<{ date: Date; spend: number; sales: number; clicks: number; orders: number }> | undefined;
+    const dailyData = (target as Record<string, unknown>).dailyData as Array<{ date: Date; spend: number; sales: number; clicks: number; orders: number }> | undefined;
     if (dailyData && dailyData.length >= 7) {
       try {
         const rawData: timeDecayService.DailyRawData[] = dailyData.map(d => ({
@@ -1048,11 +1048,11 @@ export async function calculateNextGenBid(
   // 进化引擎通过 _evolvedMaxChangePercent/_evolvedMaxDecreasePercent/_confidenceMultiplier 注入参数
   // 这些参数基于历史优化效果动态调整，使系统能够自我学习和进化
   // @ts-expect-error - dynamic property access
-  const evolvedMaxIncrease = (groupConfig as unknown)._evolvedMaxChangePercent;
+  const evolvedMaxIncrease = (groupConfig as Record<string, unknown>)._evolvedMaxChangePercent;
   // @ts-expect-error - dynamic property access
-  const evolvedMaxDecrease = (groupConfig as unknown)._evolvedMaxDecreasePercent;
+  const evolvedMaxDecrease = (groupConfig as Record<string, unknown>)._evolvedMaxDecreasePercent;
   // @ts-expect-error - dynamic property access
-  const evolvedConfidenceMultiplier = (groupConfig as unknown)._confidenceMultiplier || 1.0;
+  const evolvedConfidenceMultiplier = (groupConfig as Record<string, unknown>)._confidenceMultiplier || 1.0;
   
   // 使用进化参数覆盖默认安全配置（如果可用）
   const effectiveMaxChange = evolvedMaxIncrease 
@@ -1086,9 +1086,9 @@ export async function calculateNextGenBid(
       accountId,
       target.type === 'keyword' ? 'keyword' : 'product_target',
       target.id,
-      (target as Record<string, any>).amazonCampaignId,
+      (target as Record<string, unknown>).amazonCampaignId,
       // @ts-expect-error - dynamic property access
-      (normalizedConfig as unknown).strategyTemplate
+      (normalizedConfig as Record<string, unknown>).strategyTemplate
     );
     
     // v271 P1-2: 传递策略模板以支持策略级别的算法配置
@@ -1128,8 +1128,8 @@ export async function calculateNextGenBid(
         accountId,
         keywordId,
         targetId,
-        campaignId: (target as Record<string, any>).amazonCampaignId || undefined,
-        adGroupId: (target as Record<string, any>).internalAdGroupId || undefined,
+        campaignId: (target as Record<string, unknown>).amazonCampaignId || undefined,
+        adGroupId: (target as Record<string, unknown>).internalAdGroupId || undefined,
         bidBefore: target.currentBid,
         bidAfter: safeBid,
         actionSource: metaDecision.selectedAlgorithm === 'linucb' ? 'linucb' :
@@ -1142,11 +1142,11 @@ export async function calculateNextGenBid(
           accountId,
           entityType: target.type === 'keyword' ? 'keyword' : 'product_target',
           entityId: target.id,
-          campaignId: (target as Record<string, any>).amazonCampaignId,
+          campaignId: (target as Record<string, unknown>).amazonCampaignId,
           // @ts-expect-error - dynamic property access
-          strategyTemplateId: (normalizedConfig as unknown).strategyTemplate,
+          strategyTemplateId: (normalizedConfig as Record<string, unknown>).strategyTemplate,
           metaSelection: {
-            algorithmScores: metaDecision.algorithmScores?.map((s: Record<string, any>) => ({ algorithm: s.algorithm, score: s.score, eligible: s.eligible })) || [],
+            algorithmScores: metaDecision.algorithmScores?.map((s: Record<string, unknown>) => ({ algorithm: s.algorithm, score: s.score, eligible: s.eligible })) || [],
             selectedAlgorithm: metaDecision.selectedAlgorithm,
             fusionMode: metaDecision.fusionMode || 'single',
             fusionThreshold: 0.15,
@@ -1321,8 +1321,8 @@ export async function calculateNextGenBid(
       accountId,
       keywordId,
       targetId,
-      campaignId: (target as Record<string, any>).amazonCampaignId || undefined,
-      adGroupId: (target as Record<string, any>).internalAdGroupId || undefined,
+      campaignId: (target as Record<string, unknown>).amazonCampaignId || undefined,
+      adGroupId: (target as Record<string, unknown>).internalAdGroupId || undefined,
       bidBefore: target.currentBid,
       bidAfter: safeBid,
       actionSource: 'rule_based',
@@ -1369,11 +1369,11 @@ function buildResult(
                  tier === 'guardrail' ? `护栏保护:${algorithmUsed}` :
                  `规则引擎:${reason.split(':')[0]?.replace('[\u89c4\u5219\u5f15\u64ce] ', '') || algorithmUsed}`,
     coreMetrics: {
-      clicks: (target as Record<string, any>).clicks,
-      impressions: (target as Record<string, any>).impressions,
-      spend: (target as Record<string, any>).spend,
-      sales: (target as Record<string, any>).sales,
-      orders: (target as Record<string, any>).orders,
+      clicks: (target as Record<string, unknown>).clicks,
+      impressions: (target as Record<string, unknown>).impressions,
+      spend: (target as Record<string, unknown>).spend,
+      sales: (target as Record<string, unknown>).sales,
+      orders: (target as Record<string, unknown>).orders,
     },
     algorithmChoice: `${tier}/${algorithmUsed}`,
     dataConfidence: confidence,
@@ -1462,9 +1462,9 @@ export async function batchCalculateNextGenBids(
   try {
     const currentHour = new Date().getUTCHours();
     // 构建GTO上下文（使用安全默认值，避免外部依赖失败影响NextGen核心流程）
-    const totalSpend = targets.reduce((s: any, t: any) => s + t.spend, 0);
-    const totalSales = targets.reduce((s: any, t: any) => s + t.sales, 0);
-    const totalOrders = targets.reduce((s: any, t: any) => s + t.orders, 0);
+    const totalSpend = targets.reduce((s: unknown, t: unknown) => s + t.spend, 0);
+    const totalSales = targets.reduce((s: unknown, t: unknown) => s + t.sales, 0);
+    const totalOrders = targets.reduce((s: unknown, t: unknown) => s + t.orders, 0);
     const valueTargets = targets.filter(t => t.orders > 0);
     const drawingTargets = targets.filter(t => t.orders === 0 && t.clicks >= 5);
     
@@ -1472,8 +1472,8 @@ export async function batchCalculateNextGenBids(
       accountId,
       currentHour,
       totalDailyBudget: groupConfig.maxBid ? groupConfig.maxBid * targets.length * 0.5 : 100,
-      ventureSpentToday: drawingTargets.reduce((s: any, t: any) => s + t.spend, 0),
-      ventureSalesToday: drawingTargets.reduce((s: any, t: any) => s + t.sales, 0),
+      ventureSpentToday: drawingTargets.reduce((s: unknown, t: unknown) => s + t.spend, 0),
+      ventureSalesToday: drawingTargets.reduce((s: unknown, t: unknown) => s + t.sales, 0),
       pulseHistory: new Map(), // 将在未来版本中从数据库加载
       hourlySignals: [], // 将在未来版本中从 hourly_performance 表加载
       corePoolRoas: totalSpend > 0 ? totalSales / totalSpend : 1.0,

@@ -105,7 +105,7 @@ export async function registerWithInviteCode(input: RegisterInput, ipAddress?: s
     `);
     
     // @ts-expect-error - type assertion
-    const existingRows = (existingUser as unknown)[0];
+    const existingRows = (existingUser as Record<string, unknown>)[0];
     if (existingRows && existingRows.length > 0) {
       return { success: false, error: '用户名已存在' };
     }
@@ -120,7 +120,7 @@ export async function registerWithInviteCode(input: RegisterInput, ipAddress?: s
         INSERT INTO organizations (name, type, status, max_users, max_accounts, created_at)
         VALUES (${orgName}, 'external', 'active', 10, 5, NOW())
       `);
-      organizationId = (orgResult as Record<string, any>[])[0]?.insertId;
+      organizationId = (orgResult as Record<string, unknown>[])[0]?.insertId;
     } else if (inviteCode.inviteType === 'team_member') {
       // 团队成员加入邀请者的组织
       organizationId = inviteCode.organizationId;
@@ -155,7 +155,7 @@ export async function registerWithInviteCode(input: RegisterInput, ipAddress?: s
       )
     `);
     
-    const userId = (userResult as Record<string, any>[])[0]?.insertId;
+    const userId = (userResult as Record<string, unknown>[])[0]?.insertId;
     
     // 6. 如果是新组织的所有者，更新组织的owner_id
     if (inviteCode.inviteType === 'external_user' && organizationId !== 1) {
@@ -229,7 +229,7 @@ export async function loginLocalUser(input: LoginInput, ipAddress?: string, user
       WHERE tm.username = ${input.username}
     `);
     
-    const rows = (result as Record<string, any>[][])[0];
+    const rows = (result as Record<string, unknown>[][])[0];
     if (!rows || rows.length === 0) {
       return { success: false, error: '用户名或密码错误' };
     }
@@ -350,7 +350,7 @@ export async function verifyToken(token: string): Promise<{
       SELECT * FROM team_members WHERE id = ${decoded.userId}
     `);
     
-    const rows = (result as Record<string, any>[][])[0];
+    const rows = (result as Record<string, unknown>[][])[0];
     if (!rows || rows.length === 0) {
       return { valid: false, error: '用户不存在' };
     }
@@ -411,7 +411,7 @@ export async function changePassword(userId: number, oldPassword: string, newPas
       SELECT password_hash FROM team_members WHERE id = ${userId}
     `);
     
-    const rows = (result as Record<string, any>[][])[0];
+    const rows = (result as Record<string, unknown>[][])[0];
     if (!rows || rows.length === 0) {
       return { success: false, error: '用户不存在' };
     }

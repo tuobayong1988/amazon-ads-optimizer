@@ -35,7 +35,7 @@ export interface LogEntry {
   levelName: string;
   module: string;
   message: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   // 采样信息
   suppressedCount?: number;  // 被抑制的重复日志数
 }
@@ -221,7 +221,7 @@ class DbWriter {
   private buffer: DbLogEntry[] = [];
   private flushTimer: NodeJS.Timeout | null = null;
   private isWriting: boolean = false;
-  private getDb: (() => Promise<any>) | null = null;
+  private getDb: (() => Promise<unknown>) | null = null;
   private readonly batchSize: number;
   private readonly flushIntervalMs: number;
   private readonly retentionDays: number;
@@ -233,7 +233,7 @@ class DbWriter {
     this.retentionDays = retentionDays;
   }
 
-  setDbProvider(getDb: () => Promise<any>): void {
+  setDbProvider(getDb: () => Promise<unknown>): void {
     this.getDb = getDb;
   }
 
@@ -355,7 +355,7 @@ class Logger {
   }
 
   /** 设置数据库提供者（延迟初始化，避免循环依赖） */
-  setDbProvider(getDb: () => Promise<any>): void {
+  setDbProvider(getDb: () => Promise<unknown>): void {
     this.dbWriter.setDbProvider(getDb);
     this.dbWriter.startPeriodicFlush();
   }
@@ -379,27 +379,27 @@ class Logger {
 
   // ==================== 日志写入方法 ====================
 
-  debug(module: string, message: string, metadata?: Record<string, any>): void {
+  debug(module: string, message: string, metadata?: Record<string, unknown>): void {
     this.log(LogLevel.DEBUG, module, message, metadata);
   }
 
-  info(module: string, message: string, metadata?: Record<string, any>): void {
+  info(module: string, message: string, metadata?: Record<string, unknown>): void {
     this.log(LogLevel.INFO, module, message, metadata);
   }
 
-  warn(module: string, message: string, metadata?: Record<string, any>): void {
+  warn(module: string, message: string, metadata?: Record<string, unknown>): void {
     this.log(LogLevel.WARN, module, message, metadata);
   }
 
-  error(module: string, message: string, metadata?: Record<string, any>): void {
+  error(module: string, message: string, metadata?: Record<string, unknown>): void {
     this.log(LogLevel.ERROR, module, message, metadata);
   }
 
-  fatal(module: string, message: string, metadata?: Record<string, any>): void {
+  fatal(module: string, message: string, metadata?: Record<string, unknown>): void {
     this.log(LogLevel.FATAL, module, message, metadata);
   }
 
-  private log(level: LogLevel, module: string, message: string, metadata?: Record<string, any>): void {
+  private log(level: LogLevel, module: string, message: string, metadata?: Record<string, unknown>): void {
     const now = Date.now();
     const timestamp = new Date(now).toISOString();
 
@@ -552,7 +552,7 @@ class Logger {
     // 按数量排序的模块列表（前20个）
     const byModule = Array.from(moduleCount.entries())
       .map(([module, count]) => ({ module, count }))
-      .sort((a: any, b: any) => b.count - a.count)
+      .sort((a: unknown, b: unknown) => b.count - a.count)
       .slice(0, 20);
 
     return {
@@ -625,11 +625,11 @@ export const logger = new Logger({
 /** 创建模块专用的日志快捷方法 */
 export function createModuleLogger(moduleName: string) {
   return {
-    debug: (message: string, metadata?: any) => logger.debug(moduleName, message, typeof metadata === 'object' ? metadata : { value: metadata }),
-    info: (message: string, metadata?: any) => logger.info(moduleName, message, typeof metadata === 'object' ? metadata : { value: metadata }),
-    warn: (message: string, metadata?: any) => logger.warn(moduleName, message, typeof metadata === 'object' ? metadata : { value: metadata }),
-    error: (message: string, metadata?: any) => logger.error(moduleName, message, typeof metadata === 'object' ? metadata : { value: metadata }),
-    fatal: (message: string, metadata?: any) => logger.fatal(moduleName, message, typeof metadata === 'object' ? metadata : { value: metadata }),
+    debug: (message: string, metadata?: unknown) => logger.debug(moduleName, message, typeof metadata === 'object' ? metadata : { value: metadata }),
+    info: (message: string, metadata?: unknown) => logger.info(moduleName, message, typeof metadata === 'object' ? metadata : { value: metadata }),
+    warn: (message: string, metadata?: unknown) => logger.warn(moduleName, message, typeof metadata === 'object' ? metadata : { value: metadata }),
+    error: (message: string, metadata?: unknown) => logger.error(moduleName, message, typeof metadata === 'object' ? metadata : { value: metadata }),
+    fatal: (message: string, metadata?: unknown) => logger.fatal(moduleName, message, typeof metadata === 'object' ? metadata : { value: metadata }),
   };
 }
 

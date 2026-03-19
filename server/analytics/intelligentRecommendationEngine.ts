@@ -179,8 +179,8 @@ function calculateHealthScore(campaign: CampaignHealthData): number {
 function matchStrategy(campaignList: CampaignHealthData[]): typeof STRATEGY_TEMPLATES[0] | null {
   if (campaignList.length === 0) return null;
 
-  const totalSpend = campaignList.reduce((sum: any, c: any) => sum + c.recent7dSpend, 0);
-  const totalSales = campaignList.reduce((sum: any, c: any) => sum + c.recent7dSales, 0);
+  const totalSpend = campaignList.reduce((sum: number, c: Record<string, unknown>) => sum + c.recent7dSpend, 0);
+  const totalSales = campaignList.reduce((sum: number, c: Record<string, unknown>) => sum + c.recent7dSales, 0);
   const avgAcos = totalSales > 0 ? (totalSpend / totalSales) * 100 : 999;
 
   const zeroCvCampaigns = campaignList.filter(c => c.recent7dSpend > 5 && c.recent7dOrders === 0);
@@ -308,7 +308,7 @@ async function executeAutoOptimizationForTarget(
     }
     
     const executedActions = actions.filter(a => a.status === 'executed');
-    const totalAdjustments = executedActions.reduce((sum: any, a: any) => sum + a.count, 0);
+    const totalAdjustments = executedActions.reduce((sum: number, a: Record<string, unknown>) => sum + a.count, 0);
     
     const summary = totalAdjustments > 0
       ? `系统已自动执行${executedActions.length}类优化动作，共${totalAdjustments}项调整`
@@ -490,7 +490,7 @@ export async function scanAccountHealth(accountId: number): Promise<ScanResult> 
         actions: autoOptResult.actions,
       });
 
-      const totalWasted = groupCampaigns.reduce((sum: any, c: any) => {
+      const totalWasted = groupCampaigns.reduce((sum: unknown, c: unknown) => {
         if (c.recent7dAcos > 30 && c.recent7dSales > 0) return sum + Math.max(0, c.recent7dSpend - c.recent7dSales * 0.3);
         return sum + (c.recent7dOrders === 0 ? c.recent7dSpend : 0);
       }, 0);
@@ -507,7 +507,7 @@ export async function scanAccountHealth(accountId: number): Promise<ScanResult> 
         suggestedStrategy: null,
         estimatedImpact: {
           potentialSavings: Math.round(totalWasted * 100) / 100,
-          acosReduction: `预计可降${Math.min(50, Math.round(totalWasted / (groupCampaigns.reduce((s: any, c: any) => s + c.recent7dSpend, 0) || 1) * 100))}%`,
+          acosReduction: `预计可降${Math.min(50, Math.round(totalWasted / (groupCampaigns.reduce((s: unknown, c: unknown) => s + c.recent7dSpend, 0) || 1) * 100))}%`,
           description: autoOptResult.summary,
         },
         autoOptimizationActions: autoOptResult.actions,
@@ -523,9 +523,9 @@ export async function scanAccountHealth(accountId: number): Promise<ScanResult> 
 
   // ==================== 未纳管恶化广告：生成一键创建优化目标 ====================
   if (unmanagedDet.length > 0) {
-    unmanagedDet.sort((a: any, b: any) => a.healthScore - b.healthScore);
+    unmanagedDet.sort((a: unknown, b: unknown) => a.healthScore - b.healthScore);
     const strategy = matchStrategy(unmanagedDet);
-    const totalWasted = unmanagedDet.reduce((sum: any, c: any) => {
+    const totalWasted = unmanagedDet.reduce((sum: unknown, c: unknown) => {
       if (c.recent7dAcos > 30 && c.recent7dSales > 0) return sum + Math.max(0, c.recent7dSpend - c.recent7dSales * 0.3);
       return sum + (c.recent7dOrders === 0 ? c.recent7dSpend : 0);
     }, 0);
@@ -565,7 +565,7 @@ export async function scanAccountHealth(accountId: number): Promise<ScanResult> 
 
   const priorityOrder = { critical: 0, high: 1, medium: 2, low: 3 };
   // @ts-expect-error - runtime type mismatch
-  recommendations.sort((a: any, b: any) => priorityOrder[a.priority] - priorityOrder[b.priority]);
+  recommendations.sort((a: unknown, b: unknown) => priorityOrder[a.priority] - priorityOrder[b.priority]);
 
   return {
     accountId, scanTime: new Date().toISOString(),
@@ -573,7 +573,7 @@ export async function scanAccountHealth(accountId: number): Promise<ScanResult> 
     deterioratingCampaigns: deteriorating.length,
     unmanagedDeteriorating: unmanagedDet.length,
     managedDeteriorating: managedDet.length,
-    totalPotentialSavings: Math.round(recommendations.reduce((s: any, r: any) => s + r.estimatedImpact.potentialSavings, 0) * 100) / 100,
+    totalPotentialSavings: Math.round(recommendations.reduce((s: unknown, r: unknown) => s + r.estimatedImpact.potentialSavings, 0) * 100) / 100,
     autoOptimizationTriggered: autoOptTriggered,
     autoOptimizationResults: autoOptResults,
     recommendations,

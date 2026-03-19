@@ -51,7 +51,7 @@ export default function AIOptimizationHistory() {
   const campaignId = params?.id ? parseInt(params.id) : null;
   
   const [expandedExecution, setExpandedExecution] = useState<number | null>(null);
-  const [selectedExecution, setSelectedExecution] = useState<any>(null);
+  const [selectedExecution, setSelectedExecution] = useState<unknown>(null);
   const [showDetailDialog, setShowDetailDialog] = useState(false);
   
   // 获取广告活动信息
@@ -72,7 +72,7 @@ export default function AIOptimizationHistory() {
     { enabled: !!selectedExecution?.id }
   );
   
-  const handleViewDetail = (execution: any) => {
+  const handleViewDetail = (execution: unknown) => {
     setSelectedExecution(execution);
     setShowDetailDialog(true);
   };
@@ -140,7 +140,7 @@ export default function AIOptimizationHistory() {
               </div>
             ) : (
               <div className="space-y-4">
-                {executions.map((execution: any) => (
+                {executions.map((execution: unknown) => (
                   <div key={execution.id} className="border rounded-lg overflow-hidden">
                     {/* 执行摘要行 */}
                     <div 
@@ -263,7 +263,7 @@ export default function AIOptimizationHistory() {
                 {/* 执行操作 */}
                 <TabsContent value="actions" className="mt-4">
                   <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                    {executionDetail.actions.map((action: any) => (
+                    {executionDetail.actions.map((action: unknown) => (
                       <div key={action.id} className="p-3 border rounded-lg">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
@@ -305,7 +305,7 @@ export default function AIOptimizationHistory() {
                 {/* 效果预测 */}
                 <TabsContent value="predictions" className="mt-4">
                   <div className="grid grid-cols-3 gap-4">
-                    {executionDetail.predictions.map((pred: any) => (
+                    {executionDetail.predictions.map((pred: unknown) => (
                       <Card key={pred.id}>
                         <CardHeader className="pb-2">
                           <CardTitle className="text-base">
@@ -373,7 +373,7 @@ export default function AIOptimizationHistory() {
                     </div>
                   ) : (
                     <div className="space-y-4">
-                      {executionDetail.reviews.map((review: any) => (
+                      {executionDetail.reviews.map((review: unknown) => (
                         <Card key={review.id}>
                           <CardHeader className="pb-2">
                             <div className="flex items-center justify-between">

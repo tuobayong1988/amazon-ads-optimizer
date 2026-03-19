@@ -38,7 +38,7 @@ export async function updateNotificationSettingsByUserId(userId: number, data: {
   const existing = await getNotificationSettingsByUserId(userId);
   
   if (existing) {
-    const updateData: Record<string, any> = { updatedAt: new Date() };
+    const updateData: Record<string, unknown> = { updatedAt: new Date() };
     if (data.emailEnabled !== undefined) updateData.emailEnabled = data.emailEnabled;
     if (data.inAppEnabled !== undefined) updateData.inAppEnabled = data.inAppEnabled;
     if (data.acosThreshold !== undefined) updateData.acosThreshold = String(data.acosThreshold);

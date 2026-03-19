@@ -189,14 +189,14 @@ export function resolveConflictsAndCreatePlan(
   }
 
   // 添加无冲突的操作
-  for (const action of (actions as any[])) {
+  for (const action of (actions as unknown[])) {
     if (!skippedActionIds.has(action.id)) {
       resolvedActions.push(action);
     }
   }
 
   // 按优先级排序
-  resolvedActions.sort((a: any, b: any) => b.priority - a.priority);
+  resolvedActions.sort((a: unknown, b: unknown) => b.priority - a.priority);
 
   // 计算总预期影响
   const totalExpectedImpact = resolvedActions.reduce(

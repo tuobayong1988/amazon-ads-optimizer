@@ -247,9 +247,9 @@ export class GuardrailConfigService {
       `);
       
       if (rows && Array.isArray(rows) && rows.length > 0) {
-        for (const row of (rows as any[])) {
+        for (const row of (rows as unknown[])) {
           try {
-            const detail = JSON.parse((row as any).action_detail || '{}');
+            const detail = JSON.parse((row as Record<string, unknown>).action_detail || '{}');
             if (detail.scope && detail.scopeKey && detail.overrides) {
               const cacheKey = `${detail.scope}:${detail.scopeKey}`;
               this.cache.set(cacheKey, {
@@ -283,7 +283,7 @@ export class GuardrailConfigService {
     
     if (overrides.bid) {
       for (const [key, value] of Object.entries(overrides.bid)) {
-        const limit = (HARD_LIMITS.bid as any)[key];
+        const limit = (HARD_LIMITS.bid as Record<string, unknown>)[key];
         if (limit && (value < limit.min || value > limit.max)) {
           errors.push(`bid.${key}: ${value} 超出允许范围 [${limit.min}, ${limit.max}]`);
         }
@@ -292,7 +292,7 @@ export class GuardrailConfigService {
     
     if (overrides.budget) {
       for (const [key, value] of Object.entries(overrides.budget)) {
-        const limit = (HARD_LIMITS.budget as any)[key];
+        const limit = (HARD_LIMITS.budget as Record<string, unknown>)[key];
         if (limit && (value < limit.min || value > limit.max)) {
           errors.push(`budget.${key}: ${value} 超出允许范围 [${limit.min}, ${limit.max}]`);
         }
@@ -301,7 +301,7 @@ export class GuardrailConfigService {
     
     if (overrides.placement) {
       for (const [key, value] of Object.entries(overrides.placement)) {
-        const limit = (HARD_LIMITS.placement as any)[key];
+        const limit = (HARD_LIMITS.placement as Record<string, unknown>)[key];
         if (limit && (value < limit.min || value > limit.max)) {
           errors.push(`placement.${key}: ${value} 超出允许范围 [${limit.min}, ${limit.max}]`);
         }
@@ -310,7 +310,7 @@ export class GuardrailConfigService {
     
     if (overrides.emergency) {
       for (const [key, value] of Object.entries(overrides.emergency)) {
-        const limit = (HARD_LIMITS.emergency as any)[key];
+        const limit = (HARD_LIMITS.emergency as Record<string, unknown>)[key];
         if (limit && (value < limit.min || value > limit.max)) {
           errors.push(`emergency.${key}: ${value} 超出允许范围 [${limit.min}, ${limit.max}]`);
         }

@@ -127,14 +127,14 @@ export async function calculateDynamicTimeout(
       LIMIT 5
     `);
 
-    const rows = (recentSyncs as Record<string, any>[])?.[0] || recentSyncs;
+    const rows = (recentSyncs as Record<string, unknown>[])?.[0] || recentSyncs;
     if (!rows || !Array.isArray(rows) || rows.length === 0) {
       log.info(`[v358] 账户${accountId}无历史同步数据，使用默认超时: ${profile.reportTimeoutMs}ms`);
       return profile.reportTimeoutMs;
     }
 
     // 计算平均耗时
-    const avgDuration = rows.reduce((sum: number, r: Record<string, any>) => sum + (r.duration_ms || 0), 0) / rows.length;
+    const avgDuration = rows.reduce((sum: number, r: Record<string, unknown>) => sum + (r.duration_ms || 0), 0) / rows.length;
     
     // 动态超时 = 平均值 × 1.5，限制在[5min, 30min]
     const dynamicTimeout = Math.max(

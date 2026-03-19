@@ -295,15 +295,15 @@ export async function getBidChangeRecords(accountId: number, days: number): Prom
           .from(dailyPerformance)
           .where(and(
             // @ts-expect-error - dynamic property access
-            eq(dailyPerformance.campaignId, String((log as unknown).campaignId)),
+            eq(dailyPerformance.campaignId, String((log as Record<string, unknown>).campaignId)),
             sql`DATE(${dailyPerformance.date}) >= ${changeDate.toISOString().split('T')[0]}`,
             sql`DATE(${dailyPerformance.date}) <= ${endDate.toISOString().split('T')[0]}`
           ));
         if (perfRows.length > 0) {
-          const totalClicks = perfRows.reduce((s: any, r: any) => s + (r.clicks || 0), 0);
-          const totalSpend = perfRows.reduce((s: any, r: any) => s + parseFloat(String(r.spend || '0')), 0);
-          const totalSales = perfRows.reduce((s: any, r: any) => s + parseFloat(String(r.sales || '0')), 0);
-          const totalOrders = perfRows.reduce((s: any, r: any) => s + (r.orders || 0), 0);
+          const totalClicks = perfRows.reduce((s: unknown, r: unknown) => s + (r.clicks || 0), 0);
+          const totalSpend = perfRows.reduce((s: unknown, r: unknown) => s + parseFloat(String(r.spend || '0')), 0);
+          const totalSales = perfRows.reduce((s: unknown, r: unknown) => s + parseFloat(String(r.sales || '0')), 0);
+          const totalOrders = perfRows.reduce((s: unknown, r: unknown) => s + (r.orders || 0), 0);
           performanceAfter = {
             clicks: totalClicks,
             conversions: totalOrders,
@@ -423,7 +423,7 @@ export async function getCampaignHealthMetrics(accountId: number): Promise<Campa
   
   const results: CampaignHealthMetrics[] = [];
   
-  for (const campaign of (campaignList as any[])) {
+  for (const campaign of (campaignList as unknown[])) {
     // 获取最近7天的绩效数据
     const recentPerf = await db.select()
       .from(dailyPerformance)
@@ -553,7 +553,7 @@ export async function addNegativeKeyword(data: {
     negativeText: data.keyword,
     negativeMatchType: data.matchType === 'phrase' ? 'negative_phrase' : 'negative_exact',
     negativeSource: 'manual',
-  } as Record<string, any>);
+  } as Record<string, unknown>);
 }
 
 

@@ -32,7 +32,7 @@ export default function DataImport() {
   const [uploadProgress, setUploadProgress] = useState(0);
 
   // Fetch import history
-  const { data: importJobs, refetch: refetchJobs } = trpc.import.list.useQuery() as any;
+  const { data: importJobs, refetch: refetchJobs } = trpc.import.list.useQuery() as unknown;
 
   // Create import job mutation
   const createImportJob = trpc.import.create.useMutation({
@@ -346,7 +346,7 @@ export default function DataImport() {
               <CardContent>
                 {importJobs && importJobs.length > 0 ? (
                   <div className="space-y-4">
-                    {importJobs.map((job: any) => (
+                    {importJobs.map((job: unknown) => (
                       <div 
                         key={job.id} 
                         className="flex items-center justify-between p-4 rounded-lg border bg-card"

@@ -57,20 +57,20 @@ const statusColors: Record<string, string> = {
 
 export default function AutoRollbackSettings() {
   const [activeTab, setActiveTab] = useState('rules');
-  const [editingRule, setEditingRule] = useState<any>(null);
+  const [editingRule, setEditingRule] = useState<unknown>(null);
   const [ruleDialogOpen, setRuleDialogOpen] = useState(false);
   const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
-  const [selectedSuggestion, setSelectedSuggestion] = useState<any>(null);
+  const [selectedSuggestion, setSelectedSuggestion] = useState<unknown>(null);
   const [reviewNote, setReviewNote] = useState('');
 
   // 获取回滚规则
-  const { data: rules, isLoading: rulesLoading, refetch: refetchRules } = trpc.autoRollback.getRules.useQuery() as any;
+  const { data: rules, isLoading: rulesLoading, refetch: refetchRules } = trpc.autoRollback.getRules.useQuery() as unknown;
 
   // 获取回滚建议
-  const { data: suggestions, isLoading: suggestionsLoading, refetch: refetchSuggestions } = trpc.autoRollback.getSuggestions.useQuery({}) as any;
+  const { data: suggestions, isLoading: suggestionsLoading, refetch: refetchSuggestions } = trpc.autoRollback.getSuggestions.useQuery({}) as unknown;
 
   // 获取统计数据
-  const { data: stats } = trpc.autoRollback.getStats.useQuery() as any;
+  const { data: stats } = trpc.autoRollback.getStats.useQuery() as unknown;
 
   // 运行评估
   const runEvaluationMutation = trpc.autoRollback.runEvaluation.useMutation({
@@ -163,7 +163,7 @@ export default function AutoRollbackSettings() {
     },
   });
 
-  const openEditDialog = (rule: any) => {
+  const openEditDialog = (rule: unknown) => {
     setEditingRule(rule);
     setRuleForm({
       name: rule.name,
@@ -347,7 +347,7 @@ export default function AutoRollbackSettings() {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {rules?.map((rule: any) => (
+                    {rules?.map((rule: unknown) => (
                       <div
                         key={rule.id}
                         className="border rounded-lg p-4 hover:bg-muted/30 transition-colors"
@@ -444,7 +444,7 @@ export default function AutoRollbackSettings() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {suggestions?.map((suggestion: any) => (
+                        {suggestions?.map((suggestion: unknown) => (
                           <TableRow key={suggestion.id}>
                             <TableCell className="font-medium max-w-[150px] truncate">
                               {suggestion.keywordText || '-'}

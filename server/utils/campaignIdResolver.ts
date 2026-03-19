@@ -223,7 +223,7 @@ export async function preloadCampaignIdCache(adGroupIds: number[]): Promise<void
       campaignId: adGroups.campaignId,
     }).from(adGroups).where(inArray(adGroups.id, uncachedIds));
 
-    for (const row of (results as any[])) {
+    for (const row of (results as unknown[])) {
       if (row.campaignId && isValidAmazonId(row.campaignId)) {
         setCachedCampaignId(row.id, row.campaignId);
       }

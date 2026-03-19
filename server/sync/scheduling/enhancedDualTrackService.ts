@@ -60,7 +60,7 @@ export async function getSmartMergedData(
     campaignIds?: string[];
   }
 ): Promise<{
-  data: any[];
+  data: unknown[];
   dataSource: DataSource;
   freshness: 'fresh' | 'stale' | 'mixed';
   warnings: string[];
@@ -113,7 +113,7 @@ export async function getSmartMergedData(
     const apiData = await getApiPerformanceData(db, accountId, startDate, effectiveEndDate, options.campaignIds);
     
     // 获取AMS数据（仅当需要实时数据时）
-    let amsData: any[] = [];
+    let amsData: unknown[] = [];
     if (strategy === 'ams_priority' && options.includeToday !== false) {
       amsData = await getAmsPerformanceData(db, accountId, today, options.campaignIds);
     }
@@ -148,7 +148,7 @@ async function getApiPerformanceData(
   startDate: string,
   endDate: string,
   campaignIds?: string[]
-): Promise<Record<string, any>[]> {
+): Promise<Record<string, unknown>[]> {
   try {
     let query = sql`
       SELECT 
@@ -188,7 +188,7 @@ async function getAmsPerformanceData(
   accountId: number,
   date: string,
   campaignIds?: string[]
-): Promise<Record<string, any>[]> {
+): Promise<Record<string, unknown>[]> {
   try {
     // @ts-expect-error - Drizzle raw SQL execution
     const [rows] = await db.execute(sql`
@@ -270,7 +270,7 @@ function mergeApiFirst(apiData: unknown[], amsData: unknown[]): unknown[] {
  * API数据权重更高（准确性），AMS数据用于补充
  */
 function weightedMerge(apiData: unknown[], amsData: unknown[]): unknown[] {
-  const mergedMap = new Map<string, any>();
+  const mergedMap = new Map<string, unknown>();
   
   // 先添加API数据（权重1.0）
   for (const item of apiData) {
@@ -297,10 +297,10 @@ function weightedMerge(apiData: unknown[], amsData: unknown[]): unknown[] {
  * 最新数据优先合并
  */
 function latestWinsMerge(apiData: unknown[], amsData: unknown[]): unknown[] {
-  const mergedMap = new Map<string, any>();
+  const mergedMap = new Map<string, unknown>();
   
   // 合并所有数据，按更新时间排序
-  const allData = [...apiData, ...amsData].sort((a: any, b: any) => {
+  const allData = [...apiData, ...amsData].sort((a: unknown, b: unknown) => {
     const timeA = new Date(a.updatedAt || a.lastUpdateTime || 0).getTime();
     const timeB = new Date(b.updatedAt || b.lastUpdateTime || 0).getTime();
     return timeB - timeA;
@@ -481,7 +481,7 @@ export async function getTimelineAggregatedData(
       ORDER BY period
     `) as unknown;
 
-    const timeline = (Array.isArray(rows) ? rows : []).map((row: Record<string, any>) => ({
+    const timeline = (Array.isArray(rows) ? rows : []).map((row: Record<string, unknown>) => ({
       period: String(row.period),
       impressions: Number(row.impressions) || 0,
       clicks: Number(row.clicks) || 0,
@@ -566,7 +566,7 @@ export async function getRealtimeDashboardData(
     // 尝试获取AMS实时数据
     let dataSource: 'ams' | 'api' = 'api';
     // @ts-expect-error - runtime type mismatch
-    let result: Record<string, any> = null;
+    let result: Record<string, unknown> = null;
 
     try {
       // @ts-expect-error - Drizzle raw SQL execution

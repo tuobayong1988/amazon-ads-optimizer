@@ -40,7 +40,7 @@ function getMapsConfig(): MapsConfig {
 
 interface RequestOptions {
   method?: "GET" | "POST";
-  body?: Record<string, any>;
+  body?: Record<string, unknown>;
 }
 
 /**
@@ -53,7 +53,7 @@ interface RequestOptions {
  */
 export async function makeRequest<T = unknown>(
   endpoint: string,
-  params: Record<string, any> = {},
+  params: Record<string, unknown> = {},
   options: RequestOptions = {}
 ): Promise<T> {
   const { baseUrl, apiKey } = getMapsConfig();

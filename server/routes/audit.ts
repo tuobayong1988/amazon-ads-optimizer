@@ -39,7 +39,7 @@ export const auditRouter = router({
   // v370.4: 数据隔离 - 获取单个审计日志详情
   getById: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       const { getAuditLogById } = await import("../system/auditService");
       const log = await getAuditLogById(input.id);
       // v452.8: 验证审计日志归属（只有系统管理员可查看所有）
@@ -63,7 +63,7 @@ export const auditRouter = router({
   // 获取账号操作统计
   accountStats: protectedProcedure
     .input(z.object({ accountId: z.number(), days: z.number().default(30) }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       const { getAccountAuditStats } = await import("../system/auditService");
       return getAccountAuditStats(input.accountId, input.days);
     }),

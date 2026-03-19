@@ -68,7 +68,7 @@ function getMultiplierColor(multiplier: number): string {
 export default function DaypartingStrategy() {
   // v399: 使用全局店铺选择器替代本地状态
   const { accountId: selectedAccountId, accounts, isLoading: accountsLoading } = useGlobalAccountId();
-  const setSelectedAccountId = (_: any) => {}; // v399: 由全局选择器控制，本地setter为no-op
+  const setSelectedAccountId = (_: unknown) => {}; // v399: 由全局选择器控制，本地setter为no-op
 const [selectedCampaignId, setSelectedCampaignId] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState("overview");
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -193,7 +193,7 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<number | null>(null
       () => []
     );
 
-    bidPreview.adjustments.forEach((adj: any) => {
+    bidPreview.adjustments.forEach((adj: unknown) => {
       if (!matrix[adj.dayOfWeek]) matrix[adj.dayOfWeek] = [];
       matrix[adj.dayOfWeek][adj.hour] = adj;
     });
@@ -203,7 +203,7 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<number | null>(null
 
   // 设置默认账号
   if (accounts && accounts.length > 0 && !selectedAccountId) {
-    const defaultAccount = accounts.find((a: any) => a.isDefault) || accounts[0];
+    const defaultAccount = accounts.find((a: unknown) => a.isDefault) || accounts[0];
     setSelectedAccountId(defaultAccount.id);
   }
 
@@ -234,7 +234,7 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<number | null>(null
                 <SelectValue placeholder="选择账号" />
               </SelectTrigger>
               <SelectContent>
-                {accounts?.map((account: any) => (
+                {accounts?.map((account: unknown) => (
                   <SelectItem key={account.id} value={account.id.toString()}>
                     {account.accountName}
                   </SelectItem>
@@ -252,7 +252,7 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<number | null>(null
                 <SelectValue placeholder="选择广告活动" />
               </SelectTrigger>
               <SelectContent>
-                {campaigns?.map((campaign: any) => (
+                {campaigns?.map((campaign: unknown) => (
                   <SelectItem key={campaign.id} value={campaign.id.toString()}>
                     {campaign.campaignName}
                   </SelectItem>
@@ -294,7 +294,7 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<number | null>(null
                   <div className="space-y-2">
                     <Label>优化目标</Label>
                     <div className="grid grid-cols-2 gap-3">
-                      {OPTIMIZATION_GOALS.map((goal: any) => (
+                      {OPTIMIZATION_GOALS.map((goal: unknown) => (
                         <div
                           key={goal.value}
                           className={`p-3 rounded-lg border cursor-pointer transition-colors ${
@@ -302,7 +302,7 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<number | null>(null
                               ? "border-primary bg-primary/5"
                               : "border-border hover:border-primary/50"
                           }`}
-                          onClick={() => setNewStrategy({ ...newStrategy, optimizationGoal: goal.value as any })}
+                          onClick={() => setNewStrategy({ ...newStrategy, optimizationGoal: goal.value as unknown })}
                         >
                           <div className="font-medium">{goal.label}</div>
                           <div className="text-xs text-muted-foreground mt-1">{goal.description}</div>
@@ -398,7 +398,7 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<number | null>(null
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {strategies.map((strategy: any) => (
+                {strategies.map((strategy: unknown) => (
                   <div
                     key={strategy.id}
                     className="flex items-center justify-between p-4 rounded-lg border bg-card hover:bg-accent/5 transition-colors"
@@ -416,7 +416,7 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<number | null>(null
                         <div className="text-sm text-muted-foreground">
                           {strategy.strategyType === "budget" ? "预算分配" : strategy.strategyType === "bidding" ? "竞价调整" : "预算+竞价"}
                           {" · "}
-                          {OPTIMIZATION_GOALS.find((g: any) => g.value === strategy.daypartingOptGoal)?.label || strategy.daypartingOptGoal}
+                          {OPTIMIZATION_GOALS.find((g: unknown) => g.value === strategy.daypartingOptGoal)?.label || strategy.daypartingOptGoal}
                         </div>
                       </div>
                     </div>
@@ -475,7 +475,7 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<number | null>(null
                       </div>
                     ) : weeklyAnalysis && weeklyAnalysis.length > 0 ? (
                       <div className="space-y-3">
-                        {weeklyAnalysis.map((day: any) => (
+                        {weeklyAnalysis.map((day: unknown) => (
                           <div key={day.dayOfWeek} className="flex items-center gap-3">
                             <div className="w-12 text-sm font-medium">{day.dayLabel}</div>
                             <div className="flex-1">
@@ -514,7 +514,7 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<number | null>(null
                   <CardContent>
                     {budgetPreview?.allocation ? (
                       <div className="space-y-3">
-                        {budgetPreview.allocation.map((rule: any) => (
+                        {budgetPreview.allocation.map((rule: unknown) => (
                           <div key={rule.dayOfWeek} className="flex items-center gap-3">
                             <div className="w-12 text-sm font-medium">{DAY_LABELS[rule.dayOfWeek]}</div>
                             <div className="flex-1 flex items-center gap-2">
@@ -556,9 +556,9 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<number | null>(null
                     <div className="space-y-4">
                       {/* 热力图 */}
                       <div className="grid grid-cols-7 gap-2">
-                        {DAY_LABELS.map((label: any, index: any) => {
-                          const dayData = budgetPreview.weeklyData.find((d: any) => d.dayOfWeek === index);
-                          const allocation = budgetPreview.allocation.find((a: any) => a.dayOfWeek === index);
+                        {DAY_LABELS.map((label: unknown, index: unknown) => {
+                          const dayData = budgetPreview.weeklyData.find((d: unknown) => d.dayOfWeek === index);
+                          const allocation = budgetPreview.allocation.find((a: unknown) => a.dayOfWeek === index);
                           return (
                             <div key={index} className="text-center">
                               <div className="text-sm font-medium mb-2">{label}</div>
@@ -631,7 +631,7 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<number | null>(null
                         {/* 小时标签 */}
                         <div className="flex mb-2">
                           <div className="w-16" />
-                          {HOUR_LABELS.map((hour: any, index: any) => (
+                          {HOUR_LABELS.map((hour: unknown, index: unknown) => (
                             <div key={index} className="flex-1 text-center text-xs text-muted-foreground">
                               {index % 3 === 0 ? hour.split(":")[0] : ""}
                             </div>
@@ -639,11 +639,11 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<number | null>(null
                         </div>
 
                         {/* 热力图网格 */}
-                        {DAY_LABELS.map((dayLabel: any, dayIndex: any) => (
+                        {DAY_LABELS.map((dayLabel: unknown, dayIndex: unknown) => (
                           <div key={dayIndex} className="flex mb-1">
                             <div className="w-16 text-sm font-medium flex items-center">{dayLabel}</div>
                             <div className="flex-1 flex gap-0.5">
-                              {HOUR_LABELS.map((_: any, hourIndex: any) => {
+                              {HOUR_LABELS.map((_: unknown, hourIndex: unknown) => {
                                 const adjustment = bidPreview.adjustments.find(
                                   (a) => a.dayOfWeek === dayIndex && a.hour === hourIndex
                                 );

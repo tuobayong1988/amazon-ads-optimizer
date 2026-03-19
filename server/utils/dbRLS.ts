@@ -287,7 +287,7 @@ export async function getRLSAuditLog(options: {
   userId?: number;
   limit?: number;
   since?: Date;
-}): Promise<any[]> {
+}): Promise<unknown[]> {
   try {
     const { getDb } = await import('../db/connection');
     const db = await getDb();

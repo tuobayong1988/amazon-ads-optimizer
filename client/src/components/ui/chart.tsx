@@ -117,7 +117,7 @@ function ChartTooltipContent({
   nameKey,
   labelKey,
   ...restProps
-}: any) {
+}: unknown) {
   const { config } = useChart();
 
   const tooltipLabel = React.useMemo(() => {
@@ -172,8 +172,8 @@ function ChartTooltipContent({
       {!nestLabel ? tooltipLabel : null}
       <div className="grid gap-1.5">
         {payload
-          .filter((item: any) => item.type !== "none")
-          .map((item: any, index: number) => {
+          .filter((item: unknown) => item.type !== "none")
+          .map((item: unknown, index: number) => {
             const key = `${nameKey || item.name || item.dataKey || "value"}`;
             const itemConfig = getPayloadConfigFromPayload(config, item, key);
             const indicatorColor = color || item.payload.fill || item.color;
@@ -251,7 +251,7 @@ function ChartLegendContent({
   verticalAlign = "bottom",
   nameKey,
   ...restProps
-}: any) {
+}: unknown) {
   const { config } = useChart();
 
   if (!payload?.length) {
@@ -267,8 +267,8 @@ function ChartLegendContent({
       )}
     >
       {payload
-        .filter((item: any) => item.type !== "none")
-        .map((item: any) => {
+        .filter((item: unknown) => item.type !== "none")
+        .map((item: unknown) => {
           const key = `${nameKey || item.dataKey || "value"}`;
           const itemConfig = getPayloadConfigFromPayload(config, item, key);
 
@@ -300,7 +300,7 @@ function ChartLegendContent({
 // Helper to extract item config from a payload.
 function getPayloadConfigFromPayload(
   config: ChartConfig,
-  payload: any,
+  payload: unknown,
   key: string
 ) {
   if (typeof payload !== "object" || payload === null) {

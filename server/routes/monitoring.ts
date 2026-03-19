@@ -22,7 +22,7 @@ export const monitoringRouter = router({
    * 获取当前团队的监控报告
    */
   getReport: protectedProcedure
-    .query(async ({ ctx }: any) => {
+    .query(async ({ ctx }: unknown) => {
       const teamId = ctx.user.id;
       if (!teamId) {
         return {
@@ -59,7 +59,7 @@ export const monitoringRouter = router({
    * 手动触发监控检查
    */
   runCheck: protectedProcedure
-    .mutation(async ({ ctx }: any) => {
+    .mutation(async ({ ctx }: unknown) => {
       const teamId = ctx.user.id;
       if (!teamId) {
         return {
@@ -103,10 +103,10 @@ export const monitoringRouter = router({
       accountId: z.number(),
       days: z.number().optional().default(7),
     }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       // v268 性能优化: 健康指标缓存（TTL 5分钟）
       const cacheKey = `monitoring.healthMetrics:${input.accountId}:${input.days}`;
-      const cached = apiCache.get<any>(cacheKey);
+      const cached = apiCache.get<unknown>(cacheKey);
       if (cached) return cached;
 
       try {
@@ -136,7 +136,7 @@ export const monitoringRouter = router({
     .query(async () => {
       // v268 性能优化: 部署纠错报告缓存（TTL 10分钟）
       const cacheKey = 'monitoring.deployCorrectionReport:global';
-      const cached = apiCache.get<any>(cacheKey);
+      const cached = apiCache.get<unknown>(cacheKey);
       if (cached) return cached;
 
       try {
@@ -186,7 +186,7 @@ export const monitoringRouter = router({
           .limit(5);
 
         const deployHistory = deployEvents.map(e => {
-          let detail: Record<string, any> = {};
+          let detail: Record<string, unknown> = {};
           try { detail = JSON.parse(e.actionDetail || '{}'); } catch {}
           return {
             id: e.id,
@@ -202,7 +202,7 @@ export const monitoringRouter = router({
         });
 
         const verifyHistory = verifyEvents.map(e => {
-          let detail: Record<string, any> = {};
+          let detail: Record<string, unknown> = {};
           try { detail = JSON.parse(e.actionDetail || '{}'); } catch {}
           return {
             id: e.id,
@@ -245,7 +245,7 @@ export const monitoringRouter = router({
   getSystemResources: protectedProcedure
     .query(async () => {
       const cacheKey = 'monitoring.systemResources:global';
-      const cached = apiCache.get<any>(cacheKey);
+      const cached = apiCache.get<unknown>(cacheKey);
       if (cached) return cached;
 
       try {
@@ -374,7 +374,7 @@ export const monitoringRouter = router({
    */
   getSLOTrend: protectedProcedure
     .input(z.object({ days: z.number().min(1).max(30).optional() }).optional())
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       try {
         const { getSLOTrend } = await import('../sync/infrastructure/sloMonitor');
         const trend = await getSLOTrend(input?.days || 7);
@@ -389,7 +389,7 @@ export const monitoringRouter = router({
    */
   getIntegrityReport: protectedProcedure
     .input(z.object({ daysToCheck: z.number().min(1).max(90).optional() }).optional())
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       try {
         const { checkAllAccountsIntegrity } = await import('../sync/infrastructure/dataIntegrityChecker');
         const report = await checkAllAccountsIntegrity(input?.daysToCheck || 14);

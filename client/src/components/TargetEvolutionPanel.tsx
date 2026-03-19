@@ -228,7 +228,7 @@ export default function TargetEvolutionPanel({ performanceGroupId }: TargetEvolu
                         </tr>
                       </thead>
                       <tbody>
-                        {evaluation.algorithmPerformance.map((ap: any) => (
+                        {evaluation.algorithmPerformance.map((ap: unknown) => (
                           <tr key={ap.algorithm} className="border-t">
                             <td className="p-2">{ap.algorithm}</td>
                             <td className="text-center p-2">{ap.count}</td>
@@ -270,7 +270,7 @@ export default function TargetEvolutionPanel({ performanceGroupId }: TargetEvolu
                         </tr>
                       </thead>
                       <tbody>
-                        {evaluation.rangePerformance.map((rp: any) => (
+                        {evaluation.rangePerformance.map((rp: unknown) => (
                           <tr key={rp.range} className="border-t">
                             <td className="p-2">{rp.range}</td>
                             <td className="text-center p-2">{rp.count}</td>

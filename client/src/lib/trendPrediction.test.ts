@@ -150,7 +150,7 @@ describe('trendPrediction', () => {
 
       const result = predictTrend(historicalData, 2);
 
-      result.predictions.forEach((prediction: any) => {
+      result.predictions.forEach((prediction: unknown) => {
         expect(prediction.lower).toBeLessThanOrEqual(prediction.value);
         expect(prediction.upper).toBeGreaterThanOrEqual(prediction.value);
       });
@@ -162,7 +162,7 @@ describe('trendPrediction', () => {
       const result = predictTrend(historicalData, 3);
 
       expect(result.predictions).toHaveLength(3);
-      result.predictions.forEach((prediction: any) => {
+      result.predictions.forEach((prediction: unknown) => {
         expect(prediction.value).toBeCloseTo(100, 1);
       });
     });

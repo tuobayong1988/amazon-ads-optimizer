@@ -56,7 +56,7 @@ export type AmazonNegativeKeywordId = string & { readonly __brand: unique symbol
  * 验证一个值是否是有效的Amazon ID格式
  * Amazon ID特征：纯数字字符串，通常10-20位
  */
-export function isValidAmazonId(value: Record<string, any>): boolean {
+export function isValidAmazonId(value: Record<string, unknown>): boolean {
   if (typeof value !== 'string' && typeof value !== 'number') return false;
   const str = String(value).trim();
   if (str === '' || str === '0' || str === 'null' || str === 'undefined') return false;
@@ -67,7 +67,7 @@ export function isValidAmazonId(value: Record<string, any>): boolean {
 /**
  * 验证一个值是否是本地数据库ID（正整数）
  */
-export function isValidLocalId(value: Record<string, any>): boolean {
+export function isValidLocalId(value: Record<string, unknown>): boolean {
   if (typeof value === 'number') return Number.isInteger(value) && value > 0;
   if (typeof value === 'string') {
     const num = parseInt(value, 10);
@@ -120,7 +120,7 @@ export function classifyCampaignId(value: string | number): 'amazon' | 'local' |
  * - Amazon API调用
  */
 export function assertAmazonCampaignId(
-  value: Record<string, any>,
+  value: Record<string, unknown>,
   context: string
 // @ts-expect-error - type assertion function
 ): asserts value is string {
@@ -142,7 +142,7 @@ export function assertAmazonCampaignId(
  * 断言一个值是有效的Amazon Ad Group ID
  */
 export function assertAmazonAdGroupId(
-  value: Record<string, any>,
+  value: Record<string, unknown>,
   context: string
 // @ts-expect-error - type assertion function
 ): asserts value is string {
@@ -164,7 +164,7 @@ export function assertAmazonAdGroupId(
  * 断言一个值是有效的本地ID（正整数）
  */
 export function assertLocalId(
-  value: Record<string, any>,
+  value: Record<string, unknown>,
   context: string
 // @ts-expect-error - type assertion function
 ): asserts value is number {
@@ -204,7 +204,7 @@ export interface AdGroupIds {
  * 
  * 用法：
  * ```typescript
- * for (const campaign of (campaigns as any[])) {
+ * for (const campaign of (campaigns as unknown[])) {
  *   const { localId: campaignLocalId, amazonId: campaignAmazonId } = extractCampaignIds(campaign);
  *   // 后续代码中只使用 campaignLocalId 和 campaignAmazonId
  * }
@@ -476,7 +476,7 @@ export function ensureLocalAdGroupId(value: string | number): number {
  */
 export function buildKeywordIdMap(keywords: Array<{ id: number; keywordId?: string | null }>): Map<number, string> {
   const map = new Map<number, string>();
-  for (const kw of (keywords as any[])) {
+  for (const kw of (keywords as unknown[])) {
     const amazonId = getKeywordAmazonId(kw);
     if (amazonId) {
       map.set(kw.id, amazonId);

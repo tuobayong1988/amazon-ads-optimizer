@@ -51,7 +51,7 @@ export default function HolidayCalendarManagement() {
   const queryClient = useQueryClient();
   const [selectedMarketplace, setSelectedMarketplace] = useState('US');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const [editingHoliday, setEditingHoliday] = useState<any>(null);
+  const [editingHoliday, setEditingHoliday] = useState<unknown>(null);
   const [formData, setFormData] = useState<HolidayFormData>({
     name: '',
     startDate: '',
@@ -74,7 +74,7 @@ export default function HolidayCalendarManagement() {
   });
 
   // 获取支持的站点列表
-  const { data: marketplaces } = trpc.holidayConfig.getMarketplaces.useQuery() as any;
+  const { data: marketplaces } = trpc.holidayConfig.getMarketplaces.useQuery() as unknown;
 
   // 初始化系统默认节假日
   const initializeMutation = trpc.holidayConfig.initializeDefaults.useMutation({
@@ -165,7 +165,7 @@ export default function HolidayCalendarManagement() {
     }
   };
 
-  const handleEdit = (holiday: any) => {
+  const handleEdit = (holiday: unknown) => {
     setEditingHoliday(holiday);
     setFormData({
       name: holiday.name,
@@ -374,7 +374,7 @@ export default function HolidayCalendarManagement() {
             </CardHeader>
             <CardContent>
               <div className="flex flex-wrap gap-3">
-                {upcomingHolidays.slice(0, 5).map((holiday: any) => {
+                {upcomingHolidays.slice(0, 5).map((holiday: unknown) => {
                   const daysUntil = getDaysUntil(holiday.startDate);
                   return (
                     <div
@@ -418,7 +418,7 @@ export default function HolidayCalendarManagement() {
 
           <TabsContent value="active">
             <HolidayTable
-              holidays={(holidays || []).filter((h: any) => h.isActive === 1)}
+              holidays={(holidays || []).filter((h: unknown) => h.isActive === 1)}
               isLoading={isLoading}
               onEdit={handleEdit}
               onDelete={handleDelete}
@@ -429,7 +429,7 @@ export default function HolidayCalendarManagement() {
 
           <TabsContent value="system">
             <HolidayTable
-              holidays={(holidays || []).filter((h: any) => h.isSystemDefault === 1)}
+              holidays={(holidays || []).filter((h: unknown) => h.isSystemDefault === 1)}
               isLoading={isLoading}
               onEdit={handleEdit}
               onDelete={handleDelete}
@@ -440,7 +440,7 @@ export default function HolidayCalendarManagement() {
 
           <TabsContent value="custom">
             <HolidayTable
-              holidays={(holidays || []).filter((h: any) => h.isSystemDefault !== 1)}
+              holidays={(holidays || []).filter((h: unknown) => h.isSystemDefault !== 1)}
               isLoading={isLoading}
               onEdit={handleEdit}
               onDelete={handleDelete}
@@ -507,9 +507,9 @@ function HolidayTable({
   onToggle,
   getPriorityBadge
 }: {
-  holidays: any[];
+  holidays: unknown[];
   isLoading: boolean;
-  onEdit: (holiday: any) => void;
+  onEdit: (holiday: unknown) => void;
   onDelete: (id: number) => void;
   onToggle: (id: number, currentState: number) => void;
   getPriorityBadge: (priority: string) => React.ReactNode;
@@ -553,7 +553,7 @@ function HolidayTable({
               </tr>
             </thead>
             <tbody>
-              {holidays.map((holiday: any) => (
+              {holidays.map((holiday: unknown) => (
                 <tr key={holiday.id} className="border-b border-gray-700/50 hover:bg-gray-700/30">
                   <td className="py-3 px-4">
                     <Switch

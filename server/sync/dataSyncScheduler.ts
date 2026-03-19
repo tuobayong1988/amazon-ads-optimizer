@@ -188,7 +188,7 @@ export async function startDataSyncScheduler(defaultIntervalMs: number = 60 * 60
  * v371: 停止调度任务（不停止Leader选举）
  */
 function stopSchedulerTasks(): void {
-  Object.keys(schedulerIntervals).forEach((tier: any) => {
+  Object.keys(schedulerIntervals).forEach((tier: unknown) => {
     const interval = schedulerIntervals[tier as SyncTier];
     if (interval) {
       clearInterval(interval);
@@ -259,11 +259,11 @@ async function startSchedulerTasks(defaultIntervalMs: number): Promise<void> {
   })();
   setTimeout(() => {
     log.info('[DataSyncScheduler] v406: 夜间同步首次执行（PST凌晨2点 = UTC 10:00）...');
-    executeUnifiedSync('nightly' as any);
+    executeUnifiedSync('nightly' as unknown);
     // 启动每24小时循环
     schedulerIntervals.nightly = setInterval(async () => {
       log.info('[DataSyncScheduler] v406: 夜间同步定时执行（PST凌晨2点）...');
-      await executeUnifiedSync('nightly' as any);
+      await executeUnifiedSync('nightly' as unknown);
     }, 24 * 60 * 60 * 1000);
   }, nightlyDelayMs);
   log.info(`[DataSyncScheduler] v406: 夜间同步已调度，首次执行将在 ${Math.round(nightlyDelayMs / 1000 / 60)} 分钟后（PST凌晨2点 = UTC 10:00）`);
@@ -279,7 +279,7 @@ async function startSchedulerTasks(defaultIntervalMs: number): Promise<void> {
   // v411: 启动后60秒检查是否有中断的同步任务需要接管恢复
   setTimeout(async () => {
     // v411: 任务接管机制 - 检查是否有被中断的同步任务需要从断点恢复
-    const interruptedJobs = (global as any).__interrupted_sync_jobs as Array<{
+    const interruptedJobs = (global as Record<string, unknown>).__interrupted_sync_jobs as Array<{
       id: number; accountId: number; syncType: string; 
       currentStep: string; currentStepIndex: number; totalSteps: number;
     }> | undefined;
@@ -296,14 +296,14 @@ async function startSchedulerTasks(defaultIntervalMs: number): Promise<void> {
           try {
             const { syncAllAccounts, SYNC_STEPS } = await import('./unifiedSyncEngine');
             // 获取从断点开始的步骤ID列表
-            const allStepIds = SYNC_STEPS.map((s: any) => s.id);
+            const allStepIds = SYNC_STEPS.map((s: unknown) => s.id);
             const remainingStepIds = allStepIds.slice(job.currentStepIndex);
             
             if (remainingStepIds.length > 0) {
               log.info(`[DataSyncScheduler] v411: 为账户${job.accountId}恢复执行剩余${remainingStepIds.length}个步骤`);
               // 使用syncAllAccounts触发full同步，它会为所有账户执行完整同步
               // 这比仅恢复单个账户更安全，因为其他账户也可能需要同步
-              const syncResult: any = await syncAllAccounts('full');
+              const syncResult: unknown = await syncAllAccounts('full');
               log.info(`[DataSyncScheduler] v411: 任务接管同步完成 - 成功: ${syncResult.successfulAccounts}/${syncResult.totalAccounts}, 失败: ${syncResult.failedAccounts}, 耗时: ${syncResult.durationMs}ms`);
             }
           } catch (resumeErr: unknown) {
@@ -316,7 +316,7 @@ async function startSchedulerTasks(defaultIntervalMs: number): Promise<void> {
       }
       
       // 清理全局变量
-      delete (global as any).__interrupted_sync_jobs;
+      delete (global as Record<string, unknown>).__interrupted_sync_jobs;
     } else {
       // 无中断任务，执行常规的启动后完整同步
       log.info('[DataSyncScheduler] v411: 无中断任务，执行常规启动后完整同步（60秒延迟）...');
@@ -505,10 +505,10 @@ async function executeUnifiedSync(tier: SyncTier): Promise<void> {
             ORDER BY id`
       );
       // Drizzle mysql2返回 [rows, fields]，取第一个元素
-      const runningRows = Array.isArray(runningJobs) ? (runningJobs as any[])[0] : ((runningJobs as any).rows || runningJobs);
+      const runningRows = Array.isArray(runningJobs) ? (runningJobs as Record<string, unknown>[])[0] : ((runningJobs as Record<string, unknown>).rows || runningJobs);
       if (runningRows && runningRows.length > 0) {
         // v411: 增强日志 - 添加心跳时间、进度百分比、预计完成时间
-        const jobSummary = runningRows.map((j: any) => {
+        const jobSummary = runningRows.map((j: unknown) => {
           const progress = j.total_steps > 0 ? Math.round((j.current_step_index / j.total_steps) * 100) : 0;
           const heartbeatAge = j.seconds_since_heartbeat || 0;
           return `Job${j.id}(账户${j.accountId},${j.current_step}[${j.current_step_index}/${j.total_steps}]=${progress}%,运行${j.running_minutes}分钟,心跳${heartbeatAge}秒前)`;
@@ -816,13 +816,13 @@ async function executeTieredSyncForAccount(request: QueuedRequest): Promise<void
         status: 'completed',
         startedAt: syncEndTime.toISOString().slice(0, 19).replace('T', ' '),
         completedAt: syncEndTime.toISOString().slice(0, 19).replace('T', ' '),
-        spCampaigns: (result as any)?.spCampaigns || (result as any)?.campaigns || 0,
-        sbCampaigns: (result as any)?.sbCampaigns || 0,
-        sdCampaigns: (result as any)?.sdCampaigns || 0,
-        adGroupsSynced: (result as any)?.adGroups || 0,
-        keywordsSynced: (result as any)?.keywords || 0,
-        targetsSynced: (result as any)?.targets || 0,
-        performanceSynced: (result as any)?.performance || 0,
+        spCampaigns: (result as unknown)?.spCampaigns || (result as unknown)?.campaigns || 0,
+        sbCampaigns: (result as unknown)?.sbCampaigns || 0,
+        sdCampaigns: (result as unknown)?.sdCampaigns || 0,
+        adGroupsSynced: (result as unknown)?.adGroups || 0,
+        keywordsSynced: (result as unknown)?.keywords || 0,
+        targetsSynced: (result as unknown)?.targets || 0,
+        performanceSynced: (result as unknown)?.performance || 0,
         // v364: 修复同步任务步骤计数缺失
         totalSteps: 7,
         currentStepIndex: 7,
@@ -1027,13 +1027,13 @@ async function executeSyncForAccount(schedule: db.DataSyncSchedule): Promise<voi
     const accountPGs = await db.getPerformanceGroupsByAccountId(schedule.accountId);
     for (const pg of accountPGs) {
       // 只检查当前已暂停的优化目标
-      if ((pg as Record<string, any>).autoOptimize === 0 || (pg as Record<string, any>).autoOptimize === false) {
+      if ((pg as Record<string, unknown>).autoOptimize === 0 || (pg as Record<string, unknown>).autoOptimize === false) {
         const pgCampaigns = await db.getCampaignsByPerformanceGroupId(pg.id);
-        const enabledCount = pgCampaigns.filter((c: Record<string, any>) => c.campaignStatus === 'enabled').length;
+        const enabledCount = pgCampaigns.filter((c: Record<string, unknown>) => c.campaignStatus === 'enabled').length;
         if (enabledCount > 0) {
           // 有广告活动恢复了enabled状态，自动恢复优化目标
           await db.updatePerformanceGroup(pg.id, { autoOptimize: 1 });
-          log.debug(`[DataSyncScheduler] v168: 优化目标"${(pg as Record<string, any>).name}"已自动恢复 - 检测到${enabledCount}个广告活动恢复enabled状态`);
+          log.debug(`[DataSyncScheduler] v168: 优化目标"${(pg as Record<string, unknown>).name}"已自动恢复 - 检测到${enabledCount}个广告活动恢复enabled状态`);
         }
       }
     }
@@ -1073,13 +1073,13 @@ async function executeSyncForAccount(schedule: db.DataSyncSchedule): Promise<voi
     const halfDaySlot = `${now.toISOString().slice(0, 10)}_${now.getHours() < 12 ? 'AM' : 'PM'}`;
     const lastEvolutionKey = `evolution_${schedule.accountId}_${halfDaySlot}`;
     // @ts-expect-error - dynamic property access
-    if (!(globalThis as unknown).__evolutionExecuted) {
+    if (!(globalThis as Record<string, unknown>).__evolutionExecuted) {
       // @ts-expect-error - dynamic property assignment
-      (globalThis as unknown).__evolutionExecuted = new Set();
+      (globalThis as Record<string, unknown>).__evolutionExecuted = new Set();
     }
     // v360: 限制Set大小，防止内存泄漏
     // @ts-expect-error - dynamic property access
-    const evoSet = (globalThis as unknown).__evolutionExecuted as Set<string>;
+    const evoSet = (globalThis as Record<string, unknown>).__evolutionExecuted as Set<string>;
     if (evoSet.size > 200) {
       const entries = Array.from(evoSet);
       entries.slice(0, 100).forEach(e => evoSet.delete(e));
@@ -1126,7 +1126,7 @@ export async function triggerManualSync(userId: number, accountId: number): Prom
 }> {
   try {
     const { triggerManualFullSync } = await import('./unifiedSyncEngine');
-    const syncResult: any = await triggerManualFullSync(accountId);
+    const syncResult: unknown = await triggerManualFullSync(accountId);
 
     if (!syncResult) {
       return { success: false, message: '账号不存在或未配置API凭证' };
@@ -1507,7 +1507,7 @@ export async function recordModuleExecution(targetId: number, moduleName: string
         const rawArr = Array.isArray(rowData) ? rowData : [rowData];
         for (const r of rawArr) {
           // @ts-expect-error - dynamic property access
-          const met = (r as unknown).module_execution_times;
+          const met = (r as Record<string, unknown>).module_execution_times;
           if (met) {
             try {
               executionTimes = JSON.parse(met);
@@ -1591,7 +1591,7 @@ export async function startOptimizationScheduler(): Promise<void> {
           // Drizzle mysql2返回 [rows, fields]，取第一个元素
           const resultRows = Array.isArray(rows) ? rows[0] : rows;
           const dataArr = Array.isArray(resultRows) ? resultRows : [resultRows];
-          for (const row of (dataArr as any[])) {
+          for (const row of (dataArr as unknown[])) {
             // @ts-expect-error - type assertion
             const met = (row as unknown)?.module_execution_times;
             if (met) {
@@ -1789,9 +1789,9 @@ export async function startOptimizationScheduler(): Promise<void> {
         const db = await import('../db');
         // 获取所有活跃账户
         const accounts = await db.getAdAccounts();
-        for (const account of (accounts as any[])) {
+        for (const account of (accounts as unknown[])) {
           const tests = await abTestService.getABTests(account.id);
-          const activeTests = tests.filter((t: Record<string, any>) => t.status === 'running');
+          const activeTests = tests.filter((t: Record<string, unknown>) => t.status === 'running');
           for (const test of activeTests) {
             try {
               // 收集每日指标
@@ -1836,19 +1836,19 @@ export async function startOptimizationScheduler(): Promise<void> {
           // 清理sync_conflicts
           const [r1] = await conn.execute(
             `DELETE FROM sync_conflicts WHERE created_at < DATE_SUB(NOW(), INTERVAL ${RETENTION_DAYS} DAY)`
-          ) as any[];
+          ) as unknown[];
           // 清理sync_change_records
           const [r2] = await conn.execute(
             `DELETE FROM sync_change_records WHERE created_at < DATE_SUB(NOW(), INTERVAL ${RETENTION_DAYS} DAY)`
-          ) as any[];
+          ) as unknown[];
           // 清理system_logs
           const [r3] = await conn.execute(
             `DELETE FROM system_logs WHERE timestamp < DATE_SUB(NOW(), INTERVAL ${RETENTION_DAYS} DAY)`
-          ) as any[];
+          ) as unknown[];
           // 清理已完成的optimization_tasks
           const [r4] = await conn.execute(
             `DELETE FROM optimization_tasks WHERE status IN ('synced', 'permanently_failed') AND created_at < DATE_SUB(NOW(), INTERVAL ${RETENTION_DAYS} DAY)`
-          ) as any[];
+          ) as unknown[];
           log.warn(`[DataCleanup] v350: 自动清理完成 - sync_conflicts:${r1.affectedRows}, sync_change_records:${r2.affectedRows}, system_logs:${r3.affectedRows}, optimization_tasks:${r4.affectedRows}`);
         } finally {
           conn.release();
@@ -1865,7 +1865,7 @@ export async function startOptimizationScheduler(): Promise<void> {
  * 停止优化调度器
  */
 export function stopOptimizationScheduler(): void {
-  Object.keys(optimizationIntervals).forEach((type: any) => {
+  Object.keys(optimizationIntervals).forEach((type: unknown) => {
     const interval = optimizationIntervals[type as OptimizationTaskType];
     if (interval) {
       clearInterval(interval);
@@ -1989,9 +1989,9 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
             
             try {
               const riskCampaigns = await db.getCampaignsByAccountId(target.accountId);
-              const enabledCampaigns = riskCampaigns.filter((c: Record<string, any>) => c.campaignStatus === 'enabled');
+              const enabledCampaigns = riskCampaigns.filter((c: Record<string, unknown>) => c.campaignStatus === 'enabled');
               let totalRisks = 0;
-              for (const campaign of (enabledCampaigns as any[])) {
+              for (const campaign of (enabledCampaigns as unknown[])) {
                 const riskResult = await detectRiskSignals(target.accountId, campaign.campaignId);
                 if (riskResult.hasRisk) {
                   totalRisks += riskResult.risks.length;
@@ -2373,9 +2373,9 @@ async function verifySyncHealth(): Promise<void> {
       LIMIT 20
     `);
     
-    const jobs = (recentJobs as Record<string, any>[])?.[0] || [];
-    const successCount = jobs.filter((j: Record<string, any>) => j.status === 'completed').length;
-    const failCount = jobs.filter((j: Record<string, any>) => j.status === 'failed').length;
+    const jobs = (recentJobs as Record<string, unknown>[])?.[0] || [];
+    const successCount = jobs.filter((j: Record<string, unknown>) => j.status === 'completed').length;
+    const failCount = jobs.filter((j: Record<string, unknown>) => j.status === 'failed').length;
     
     if (jobs.length === 0) {
       // 最近2小时没有任何同步记录，记录告警
@@ -2400,7 +2400,7 @@ async function verifySyncHealth(): Promise<void> {
         type: 'sync_health_alert',
         systemVersion: SYSTEM_VERSION,
         consecutiveFailures,
-        recentJobs: jobs.slice(0, 5).map((j: Record<string, any>) => ({
+        recentJobs: jobs.slice(0, 5).map((j: Record<string, unknown>) => ({
           accountId: j.account_id,
           status: j.status,
           syncType: j.sync_type,

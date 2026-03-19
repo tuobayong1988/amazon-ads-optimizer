@@ -81,7 +81,7 @@ const automationModes = [
 export default function AutomationControl() {
   // v399: 使用全局店铺选择器替代本地状态
   const { accountId: selectedAccountId, accounts, isLoading: accountsLoading } = useGlobalAccountId();
-  const setSelectedAccountId = (_: any) => {}; // v399: 由全局选择器控制，本地setter为no-op
+  const setSelectedAccountId = (_: unknown) => {}; // v399: 由全局选择器控制，本地setter为no-op
 const [activeTab, setActiveTab] = useState("overview");
   const [showEmergencyDialog, setShowEmergencyDialog] = useState(false);
   const [emergencyReason, setEmergencyReason] = useState("");
@@ -172,7 +172,7 @@ const [activeTab, setActiveTab] = useState("overview");
 
   const handleModeChange = (mode: string) => {
     if (!accountId) return;
-    updateConfig.mutate({ accountId, mode: mode as any });
+    updateConfig.mutate({ accountId, mode: mode as unknown });
   };
 
   const handleToggleType = (type: string, enabled: boolean) => {
@@ -180,7 +180,7 @@ const [activeTab, setActiveTab] = useState("overview");
     const newTypes = enabled
       ? [...config.enabledTypes, type]
       : config.enabledTypes.filter(t => t !== type);
-    updateConfig.mutate({ accountId, enabledTypes: newTypes as any });
+    updateConfig.mutate({ accountId, enabledTypes: newTypes as unknown });
   };
 
   const handleRunCycle = () => {
@@ -223,7 +223,7 @@ const [activeTab, setActiveTab] = useState("overview");
                 <SelectValue placeholder="选择账号" />
               </SelectTrigger>
               <SelectContent>
-                {accounts?.map((account: any) => (
+                {accounts?.map((account: unknown) => (
                   <SelectItem key={account.id} value={account.id.toString()}>
                     {account.accountName}
                   </SelectItem>
@@ -332,9 +332,9 @@ const [activeTab, setActiveTab] = useState("overview");
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  {executionTypes.map((type: any) => {
+                  {executionTypes.map((type: unknown) => {
                     const Icon = type.icon;
-                    const isEnabled = config?.enabledTypes?.includes(type.key as any) || false;
+                    const isEnabled = config?.enabledTypes?.includes(type.key as unknown) || false;
                     return (
                       <div
                         key={type.key}
@@ -372,7 +372,7 @@ const [activeTab, setActiveTab] = useState("overview");
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  {automationModes.map((mode: any) => (
+                  {automationModes.map((mode: unknown) => (
                     <div
                       key={mode.value}
                       onClick={() => handleModeChange(mode.value)}
@@ -571,7 +571,7 @@ const [activeTab, setActiveTab] = useState("overview");
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {executionHistory.map((batch: any) => (
+                      {executionHistory.map((batch: unknown) => (
                         <TableRow key={batch.id}>
                           <TableCell className="font-mono text-xs">{batch.id.slice(0, 12)}...</TableCell>
                           <TableCell>{safeToLocaleString(batch.startedAt)}</TableCell>

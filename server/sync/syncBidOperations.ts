@@ -141,7 +141,7 @@ AmazonSyncService.prototype.applyBidAdjustment = async function(this: AmazonSync
       }
       log.debug(`[applyBidAdjustment] 调用Amazon API: keywordId="${amazonId}", bid=${Number(newBid.toFixed(2))}`);
       // v333: 捕获API返回的requestId用于端到端追踪
-      const apiResult: any = await this.client.updateKeywordBids([{
+      const apiResult: unknown = await this.client.updateKeywordBids([{
         keywordId: amazonId,
         bid: Number(newBid.toFixed(2)),
       }]);
@@ -264,7 +264,7 @@ AmazonSyncService.prototype.applyBidAdjustment = async function(this: AmazonSync
         // v333: 记录Amazon API的requestId用于端到端追踪
         apiResponseId: _apiResponseId || null,
         createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
-      } as Record<string, any>);
+      } as Record<string, unknown>);
     } catch (logError: unknown) {
       log.error(`[applyBidAdjustment] ⚠️ 日志记录失败（API已成功）: ${(logError as Error).message}`);
       try {
@@ -281,7 +281,7 @@ AmazonSyncService.prototype.applyBidAdjustment = async function(this: AmazonSync
     return { success: true, apiResponseId: _apiResponseId || undefined };
   } catch (error: unknown) {
     // @ts-expect-error - error message access
-    const errorDetail = (error as any).response?.data ? JSON.stringify(error.response.data) : (error as Error).message;
+    const errorDetail = (error as Record<string, unknown>).response?.data ? JSON.stringify(error.response.data) : (error as Error).message;
     log.error(`[applyBidAdjustment] ❗ ${targetType} id=${targetId} 出价调整失败:`, errorDetail);
     // @ts-expect-error - Axios error response access
     log.error(`[applyBidAdjustment] 详细信息: newBid=${newBid}, campaignId=${campaignId}, HTTP状态=${(error as Error & { response?: unknown }).response?.status || 'N/A'}`);
@@ -361,7 +361,7 @@ AmazonSyncService.prototype.applyBatchBidAdjustments = async function(this: Amaz
  * v423: 支持Amazon SP API v3的dynamicBidding.placementBidding结构
  */
 AmazonSyncService.prototype.getPlacementMultiplier = function(this: AmazonSyncService, campaign: SpCampaign, placement: string): number {
-  const c = campaign as Record<string, any>;
+  const c = campaign as Record<string, unknown>;
   // v423: 优先从API v3的dynamicBidding.placementBidding中获取
   if (c.dynamicBidding?.placementBidding?.length > 0) {
     const placementMap: Record<string, string> = {
@@ -371,7 +371,7 @@ AmazonSyncService.prototype.getPlacementMultiplier = function(this: AmazonSyncSe
     };
     const v3Placement = placementMap[placement] || placement;
     const adjustment = c.dynamicBidding.placementBidding.find(
-      (a: any) => a.placement === v3Placement
+      (a: unknown) => a.placement === v3Placement
     );
     return adjustment ? Number(adjustment.percentage) : 0;
   }

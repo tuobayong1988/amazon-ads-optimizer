@@ -71,7 +71,7 @@ export function ComparisonAnalysis({ groups }: ComparisonAnalysisProps) {
 
     // 合并数据
     return sortedDates.map(date => {
-      const dataPoint: any = { date };
+      const dataPoint: unknown = { date };
       
       selectedGroupsData.forEach(group => {
         const dayData = group.data.find(d => d.date === date);
@@ -91,7 +91,7 @@ export function ComparisonAnalysis({ groups }: ComparisonAnalysisProps) {
       if (!group) return null;
 
       const values = group.data.map(d => Number(d[metric as keyof typeof d]) || 0);
-      const total = values.reduce((sum: any, v: any) => sum + v, 0);
+      const total = values.reduce((sum: number, v: Record<string, unknown>) => sum + v, 0);
       const avg = total / values.length;
       const max = Math.max(...values);
       const min = Math.min(...values);
@@ -99,8 +99,8 @@ export function ComparisonAnalysis({ groups }: ComparisonAnalysisProps) {
       // 计算趋势
       const firstHalf = values.slice(0, Math.floor(values.length / 2));
       const secondHalf = values.slice(Math.floor(values.length / 2));
-      const firstAvg = firstHalf.reduce((sum: any, v: any) => sum + v, 0) / firstHalf.length;
-      const secondAvg = secondHalf.reduce((sum: any, v: any) => sum + v, 0) / secondHalf.length;
+      const firstAvg = firstHalf.reduce((sum: number, v: Record<string, unknown>) => sum + v, 0) / firstHalf.length;
+      const secondAvg = secondHalf.reduce((sum: number, v: Record<string, unknown>) => sum + v, 0) / secondHalf.length;
       const trend = secondAvg > firstAvg ? 'up' : secondAvg < firstAvg ? 'down' : 'stable';
       const trendPercent = firstAvg === 0 ? 0 : ((secondAvg - firstAvg) / firstAvg) * 100;
 
@@ -124,7 +124,7 @@ export function ComparisonAnalysis({ groups }: ComparisonAnalysisProps) {
     const metrics = ['spend', 'sales', 'acos', 'orders'];
     
     return metrics.map(m => {
-      const dataPoint: any = { metric: m };
+      const dataPoint: unknown = { metric: m };
       
       selectedGroups.forEach(groupId => {
         const group = groups.find(g => g.id === groupId);
@@ -191,7 +191,7 @@ export function ComparisonAnalysis({ groups }: ComparisonAnalysisProps) {
                 <div className="flex items-center gap-4">
                   <div className="space-y-1">
                     <Label className="text-xs">对比指标</Label>
-                    <Select value={metric} onValueChange={(v: any) => setMetric(v)}>
+                    <Select value={metric} onValueChange={(v: unknown) => setMetric(v)}>
                       <SelectTrigger className="w-32">
                         <SelectValue />
                       </SelectTrigger>
@@ -206,7 +206,7 @@ export function ComparisonAnalysis({ groups }: ComparisonAnalysisProps) {
 
                   <div className="space-y-1">
                     <Label className="text-xs">图表类型</Label>
-                    <Select value={chartType} onValueChange={(v: any) => setChartType(v)}>
+                    <Select value={chartType} onValueChange={(v: unknown) => setChartType(v)}>
                       <SelectTrigger className="w-32">
                         <SelectValue />
                       </SelectTrigger>
@@ -221,7 +221,7 @@ export function ComparisonAnalysis({ groups }: ComparisonAnalysisProps) {
 
                 {/* 统计卡片 */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {statistics.map((stat: any, index: any) => (
+                  {statistics.map((stat: unknown, index: unknown) => (
                     <Card key={stat?.groupId}>
                       <CardHeader className="pb-2">
                         <CardTitle className="text-sm font-medium flex items-center justify-between">
@@ -285,7 +285,7 @@ export function ComparisonAnalysis({ groups }: ComparisonAnalysisProps) {
                               }}
                             />
                             <Legend />
-                            {selectedGroups.map((groupId: any, index: any) => {
+                            {selectedGroups.map((groupId: unknown, index: unknown) => {
                               const group = groups.find(g => g.id === groupId);
                               return (
                                 <Line
@@ -320,7 +320,7 @@ export function ComparisonAnalysis({ groups }: ComparisonAnalysisProps) {
                               }}
                             />
                             <Legend />
-                            {selectedGroups.map((groupId: any, index: any) => {
+                            {selectedGroups.map((groupId: unknown, index: unknown) => {
                               const group = groups.find(g => g.id === groupId);
                               return (
                                 <Bar
@@ -342,7 +342,7 @@ export function ComparisonAnalysis({ groups }: ComparisonAnalysisProps) {
                             <PolarRadiusAxis
                               tick={{ fill: 'hsl(var(--muted-foreground))' }}
                             />
-                            {selectedGroups.map((groupId: any, index: any) => {
+                            {selectedGroups.map((groupId: unknown, index: unknown) => {
                               const group = groups.find(g => g.id === groupId);
                               return (
                                 <Radar

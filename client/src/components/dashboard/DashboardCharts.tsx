@@ -21,9 +21,9 @@ import {
 import { BarChart3, Percent } from "lucide-react";
 
 interface DashboardChartsProps {
-  trendData: any[];
-  weeklyComparison: any[];
-  regionComparison: any[];
+  trendData: unknown[];
+  weeklyComparison: unknown[];
+  regionComparison: unknown[];
   currencySymbol: string;
 }
 
@@ -67,10 +67,10 @@ export default function DashboardCharts({
                   formatter={((value: number, name: string) => [
                     `$${value.toLocaleString()}`,
                     name === 'totalSales' ? '销售额' : '花费'
-                  ]) as any}
+                  ]) as unknown}
                 />
                 <Legend 
-                  formatter={((value: string) => value === 'totalSales' ? '销售额' : '花费') as any}
+                  formatter={((value: string) => value === 'totalSales' ? '销售额' : '花费') as unknown}
                 />
                 <Bar dataKey="totalSales" name="totalSales" fill="#3b82f6" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="totalSpend" name="totalSpend" fill="#a855f7" radius={[4, 4, 0, 0]} />
@@ -147,7 +147,7 @@ export default function DashboardCharts({
                       borderRadius: '8px',
                       boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
                     }}
-                    formatter={((value: number) => [`${currencySymbol}${value}`, '']) as any}
+                    formatter={((value: number) => [`${currencySymbol}${value}`, '']) as unknown}
                   />
                   <Area 
                     type="monotone" 
@@ -212,7 +212,7 @@ export default function DashboardCharts({
                       borderRadius: '8px',
                       boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
                     }}
-                    formatter={((value: number) => [`${value}%`, 'ACoS']) as any}
+                    formatter={((value: number) => [`${value}%`, 'ACoS']) as unknown}
                   />
                   <Line 
                     type="monotone" 
@@ -274,7 +274,7 @@ export default function DashboardCharts({
                     borderRadius: '8px',
                     boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
                   }}
-                  formatter={((value: number) => [`${currencySymbol}${value}`, '']) as any}
+                  formatter={((value: number) => [`${currencySymbol}${value}`, '']) as unknown}
                 />
                 <Bar dataKey="thisWeek" name="本周" fill="#3b82f6" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="lastWeek" name="上周" fill="#64748b" radius={[4, 4, 0, 0]} />

@@ -35,8 +35,8 @@ describe('profitEstimationService v272 修正版', () => {
     it('模块不应导出任何COGS相关函数', async () => {
       // 确保模块不再导出getRealProfitDataForAccount或getProfitMarginFromMarketCurve
       const moduleExports = await import('../profitEstimationService');
-      expect((moduleExports as any).getRealProfitDataForAccount).toBeUndefined();
-      expect((moduleExports as any).getProfitMarginFromMarketCurve).toBeUndefined();
+      expect((moduleExports as Record<string, unknown>).getRealProfitDataForAccount).toBeUndefined();
+      expect((moduleExports as Record<string, unknown>).getProfitMarginFromMarketCurve).toBeUndefined();
     });
   });
 

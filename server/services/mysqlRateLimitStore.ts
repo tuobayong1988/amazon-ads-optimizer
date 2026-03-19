@@ -109,7 +109,7 @@ export class MysqlRateLimitStore implements RateLimitStore {
       const { sql } = await import('drizzle-orm');
       const [rows] = await db.execute(
         sql`SELECT tokens, last_refill_time FROM rate_limit_buckets WHERE bucket_key = ${key}`
-      ) as any;
+      ) as unknown;
 
       if (rows && rows.length > 0) {
         return {
@@ -182,7 +182,7 @@ export class MysqlRateLimitStore implements RateLimitStore {
                 ${config.burstCapacity},
                 tokens + (${now} - last_refill_time) / 1000.0 * ${config.refillRatePerSecond}
               ) >= 1`
-      ) as any;
+      ) as unknown;
 
       if (result && result.affectedRows > 0) {
         // 成功消费令牌
@@ -233,7 +233,7 @@ export class MysqlRateLimitStore implements RateLimitStore {
       const [rows] = await db.execute(
         sql`SELECT SUM(count) as total FROM rate_limit_counters 
             WHERE counter_key = ${key} AND window_start >= ${now - windowMs}`
-      ) as any;
+      ) as unknown;
 
       return rows && rows.length > 0 ? parseInt(rows[0].total || '0') : 0;
     } catch (err) {
@@ -259,7 +259,7 @@ export class MysqlRateLimitStore implements RateLimitStore {
       const [rows] = await db.execute(
         sql`SELECT SUM(count) as total FROM rate_limit_counters 
             WHERE counter_key = ${key} AND window_start >= ${now - 60000}`
-      ) as any;
+      ) as unknown;
 
       return rows && rows.length > 0 ? parseInt(rows[0].total || '0') : 0;
     } catch (err) {

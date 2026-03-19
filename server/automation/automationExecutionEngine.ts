@@ -570,7 +570,7 @@ export async function executeOptimization(
               );
               await budgetSvc.client.updateSpCampaign(
                 String(budgetCampaign.campaignId),  // v356: 使用String()替代parseInt()，避免Amazon ID精度丢失
-                { dailyBudget: newValue } as Record<string, any>
+                { dailyBudget: newValue } as Record<string, unknown>
               );
               budgetApiSuccess = true;
             }
@@ -707,7 +707,7 @@ export async function executeOptimization(
                       },
                     ],
                   },
-                } as Record<string, any>
+                } as Record<string, unknown>
               );
               placementApiSuccess = true;
             }
@@ -760,7 +760,7 @@ export async function executeOptimization(
               // 分时策略通过调整日预算实现（newValue为调整后的日预算）
               await dpSvc.client.updateSpCampaign(
                 String(dpCampaign.campaignId),  // v356: 使用String()替代parseInt()，避免Amazon ID精度丢失
-                { dailyBudget: newValue } as Record<string, any>
+                { dailyBudget: newValue } as Record<string, unknown>
               );
               daypartingApiSuccess = true;
             }
@@ -922,7 +922,7 @@ export async function executeOptimization(
         let harvestAdGroupId: number = 0;
         let harvestAmazonAdGroupId: string = '';
         let harvestAmazonCampaignId: string = '';
-        let harvestSyncResult: any = null;  // v357: 提升作用域以便在try块外访问
+        let harvestSyncResult: unknown = null;  // v357: 提升作用域以便在try块外访问
         
         // 从Reason中解析目标campaign和adGroup信息
         // reason格式通常包含: "源Campaign=X → 目标Campaign=Y"
@@ -940,7 +940,7 @@ export async function executeOptimization(
             const harvestAdGroups = await db.getAdGroupsByCampaignId(harvestCampaign.campaignId);
             if (harvestAdGroups && harvestAdGroups.length > 0) {
               // 优先选择enabled状态的adGroup
-              const enabledAg = harvestAdGroups.find((ag: any) => ag.adGroupStatus === 'enabled') || harvestAdGroups[0];
+              const enabledAg = harvestAdGroups.find((ag: unknown) => ag.adGroupStatus === 'enabled') || harvestAdGroups[0];
               harvestAdGroupId = enabledAg.id;  // 本地内部ID
               harvestAmazonAdGroupId = String(enabledAg.adGroupId || '');  // Amazon adGroupId
               log.info(`[AutoExec] v400-fix: 搜索词收割解析到adGroup: localId=${harvestAdGroupId}, amazonAdGroupId=${harvestAmazonAdGroupId}`);
@@ -1182,7 +1182,7 @@ export async function runFullAutomationCycle(accountId: number): Promise<{
     {
       optimizationTypes: config.enabledTypes.filter(t => 
         ['bid_adjustment', 'placement_tilt', 'dayparting', 'negative_keyword'].includes(t)
-      ) as any[],
+      ) as unknown[],
     }
   );
   
@@ -1241,7 +1241,7 @@ export function getExecutionHistory(
   }
   
   // 按时间倒序
-  filtered.sort((a: any, b: any) => b.startedAt.getTime() - a.startedAt.getTime());
+  filtered.sort((a: unknown, b: unknown) => b.startedAt.getTime() - a.startedAt.getTime());
   
   if (options.limit) {
     filtered = filtered.slice(0, options.limit);
@@ -1273,7 +1273,7 @@ export function getDailyExecutionStats(accountId: number, date?: Date): {
   
   // 计算总数
   let totalCount = 0;
-  dailyExecutionCount.forEach((value: any, key: any) => {
+  dailyExecutionCount.forEach((value: unknown, key: unknown) => {
     if (key.startsWith(`${accountId}_${dateStr}_`)) {
       totalCount += value;
     }
@@ -1389,10 +1389,10 @@ export async function runNGramAnalysisTask(accountId: number): Promise<{
         
         try {
           // v195: 调用Amazon API同步否定词
-          const syncResult: any = await amazonApiHelper.syncNegativeKeywordsToAmazon(accountId, negativesToSync);
+          const syncResult: unknown = await amazonApiHelper.syncNegativeKeywordsToAmazon(accountId, negativesToSync);
           
           // v195: API成功后再写入本地DB，并回写amazon_negative_keyword_id
-          for (const campaign of (campaigns as any[])) {
+          for (const campaign of (campaigns as unknown[])) {
             const amazonCampaignId = String(campaign.campaignId);
             const mapKey = `campaign:${amazonCampaignId}:${suggestion.token.toLowerCase()}`;
             const amazonNegKeywordId = syncResult.keywordIdMap.get(mapKey);
@@ -1430,7 +1430,7 @@ export async function runNGramAnalysisTask(accountId: number): Promise<{
         } catch (apiError: unknown) {
           log.error(`[AutomationEngine] N-Gram否定词 API同步失败: ${(apiError as Error).message}`);
           // API失败时仍然写入本地DB，等待AutoCorrector重试
-          for (const campaign of (campaigns as any[])) {
+          for (const campaign of (campaigns as unknown[])) {
             try {
               await db.addNegativeKeyword({
                 campaignId: campaign.campaignId,
@@ -1537,7 +1537,7 @@ export async function runFunnelSyncTask(accountId: number): Promise<{
     }
     
     // 2. 同步漏斗否定词
-    const syncResult: any = await trafficIsolationService.syncFunnelNegatives(accountId, tierConfigs);
+    const syncResult: unknown = await trafficIsolationService.syncFunnelNegatives(accountId, tierConfigs);
     
     // 3. 发送通知
     const totalNegatives = syncResult.totalNegativesToAdd;
@@ -1667,7 +1667,7 @@ export async function runKeywordMigrationTask(accountId: number): Promise<{
         if (tier1AdGroups.length > 0) {
           const targetAdGroupId = tier1AdGroups[0].id;
           
-          for (const suggestion of (suggestions as any[])) {
+          for (const suggestion of (suggestions as unknown[])) {
             try {
               // 添加到精准层
               // 添加到精准层（使用现有的关键词添加逻辑）
@@ -1933,7 +1933,7 @@ export async function runFullTrafficIsolationCycle(
     totalNegativesAdded: ngramResult.appliedNegatives + (funnelResult.syncResult?.totalNegativesToAdd || 0),
     totalKeywordsMigrated: migrationResult.appliedMigrations,
     totalConflictsResolved: conflictResult.resolvedConflicts,
-    estimatedSavings: (ngramResult.analysisResult?.suggestedNegatives.reduce((sum: any, n: any) => sum + n.estimatedSavings, 0) || 0) +
+    estimatedSavings: (ngramResult.analysisResult?.suggestedNegatives.reduce((sum: number, n: Record<string, unknown>) => sum + n.estimatedSavings, 0) || 0) +
                       (conflictResult.conflictResult?.totalWastedSpend || 0),
   };
   

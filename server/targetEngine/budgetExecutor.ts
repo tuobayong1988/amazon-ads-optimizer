@@ -59,10 +59,10 @@ import type { OptimizationExecutionResult, OptimizationTargetConfig } from './ty
 
 export async function executeBudgetAllocation(
   config: OptimizationTargetConfig,
-  campaigns: any[],
+  campaigns: unknown[],
   dryRun: boolean
-): Promise<{ executed: boolean; adjustmentsCount: number; details: Record<string, any>[] }> {
-  const details: Record<string, any>[] = [];
+): Promise<{ executed: boolean; adjustmentsCount: number; details: Record<string, unknown>[] }> {
+  const details: Record<string, unknown>[] = [];
   let adjustmentsCount = 0;
   
   try {
@@ -124,7 +124,7 @@ export async function executeBudgetAllocation(
         log.debug(`[BudgetAllocation] v163: 渐进式预算 - Campaign ${campaign.campaignName}: $${suggestion.currentBudget.toFixed(0)}→$${finalBudget.toFixed(0)} (算法目标$${suggestion.suggestedBudget.toFixed(0)}, 订单保护=${gradualResult.orderProtectionActive})`);
       }
       
-      const adjustment: Record<string, any> = {
+      const adjustment: Record<string, unknown> = {
         accountId: config.accountId,
         campaignId: suggestion.campaignId, // v354: 本地ID
         amazonCampaignId: suggestion.amazonCampaignId, // v354: Amazon ID
@@ -135,7 +135,7 @@ export async function executeBudgetAllocation(
         changePercent: ((finalBudget - suggestion.currentBudget) / suggestion.currentBudget * 100).toFixed(2),
         reason: `[v163渐进] ${suggestion.reasons?.join(', ') || ''}`,
         // @ts-expect-error - dynamic property access
-        expectedImpact: (suggestion as unknown).expectedRoasChange || 0,
+        expectedImpact: (suggestion as Record<string, unknown>).expectedRoasChange || 0,
         algorithmUsed: 'budget_allocator', // v335
         apiSyncStatus: 'pending',
       };
@@ -170,7 +170,7 @@ export async function executeBudgetAllocation(
               lastOptimizedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
               pendingBudget: finalBudget.toFixed(2),
               budgetSyncStatus: 'pending_confirmation',
-            } as Record<string, any>);
+            } as Record<string, unknown>);
             adjustmentsCount++;
             adjustment.apiSyncStatus = 'synced';
             

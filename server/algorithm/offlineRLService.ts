@@ -112,7 +112,7 @@ function computeQ(weights: number[], state: number[]): number {
 function softmax(values: number[], temperature: number = 1.0): number[] {
   const maxVal = Math.max(...values);
   const exps = values.map(v => Math.exp((v - maxVal) / temperature));
-  const sumExps = exps.reduce((a: any, b: any) => a + b, 0);
+  const sumExps = exps.reduce((a: unknown, b: unknown) => a + b, 0);
   return exps.map(e => e / sumExps);
 }
 
@@ -218,8 +218,8 @@ export async function trainCQL(
   
   // v274: 奖励归一化 — 防止极端奖励主导训练
   const rewards = validData.map(d => Number(d.reward) || 0);
-  const rewardMean = rewards.reduce((a: any, b: any) => a + b, 0) / rewards.length;
-  const rewardStd = Math.sqrt(rewards.reduce((sum: any, r: any) => sum + (r - rewardMean) ** 2, 0) / rewards.length) || 1;
+  const rewardMean = rewards.reduce((a: unknown, b: unknown) => a + b, 0) / rewards.length;
+  const rewardStd = Math.sqrt(rewards.reduce((sum: number, r: Record<string, unknown>) => sum + (r - rewardMean) ** 2, 0) / rewards.length) || 1;
   
   // 使用validData替代trainingData进行后续处理
   const processedData = validData;
@@ -266,7 +266,7 @@ export async function trainCQL(
     actionCounts[sample.action]++;
     actionQSums[sample.action] += computeQ(model.weights[sample.action], sample.state);
   }
-  const dataAvgQ = actionQSums.map((sum: any, i: any) => actionCounts[i] > 0 ? sum / actionCounts[i] : 0);
+  const dataAvgQ = actionQSums.map((sum: unknown, i: unknown) => actionCounts[i] > 0 ? sum / actionCounts[i] : 0);
   
   let totalLoss = 0;
   let totalSteps = 0;
@@ -336,8 +336,8 @@ function evaluateModelQuality(model: CQLModel, samples: { state: number[]; actio
       qValues.push(computeQ(model.weights[a], sample.state));
     }
   }
-  const qMean = qValues.reduce((a: any, b: any) => a + b, 0) / qValues.length;
-  const qStd = Math.sqrt(qValues.reduce((sum: any, q: any) => sum + (q - qMean) ** 2, 0) / qValues.length);
+  const qMean = qValues.reduce((a: unknown, b: unknown) => a + b, 0) / qValues.length;
+  const qStd = Math.sqrt(qValues.reduce((sum: number, q: Record<string, unknown>) => sum + (q - qMean) ** 2, 0) / qValues.length);
   // Q值标准差在0.1-2.0之间为健康，过大或过小都不好
   const qValueStability = Math.max(0, Math.min(1, 1 - Math.abs(qStd - 0.5) / 2));
   
@@ -376,7 +376,7 @@ function evaluateModelQuality(model: CQLModel, samples: { state: number[]; actio
     const bestAction = qVals.indexOf(Math.max(...qVals));
     actionCounts[bestAction]++;
   }
-  const totalActions = actionCounts.reduce((a: any, b: any) => a + b, 0);
+  const totalActions = actionCounts.reduce((a: unknown, b: unknown) => a + b, 0);
   const maxActionPct = totalActions > 0 ? Math.max(...actionCounts) / totalActions : 1;
   const actionDiversity = 1 - maxActionPct; // 如果全选同一个动作，多样性为0
   
@@ -409,8 +409,8 @@ function evaluateModelQuality(model: CQLModel, samples: { state: number[]; actio
 function pearsonCorrelation(x: number[], y: number[]): number {
   const n = Math.min(x.length, y.length);
   if (n < 3) return 0;
-  const xMean = x.slice(0, n).reduce((a: any, b: any) => a + b, 0) / n;
-  const yMean = y.slice(0, n).reduce((a: any, b: any) => a + b, 0) / n;
+  const xMean = x.slice(0, n).reduce((a: unknown, b: unknown) => a + b, 0) / n;
+  const yMean = y.slice(0, n).reduce((a: unknown, b: unknown) => a + b, 0) / n;
   let num = 0, denX = 0, denY = 0;
   for (let i = 0; i < n; i++) {
     const dx = x[i] - xMean;
@@ -499,7 +499,7 @@ async function loadModelFromDb(accountId: number): Promise<CQLModel | null> {
     
     if (rows.length === 0) return null;
     
-    const row = rows[0] as any;
+    const row = rows[0] as unknown;
     const weights = JSON.parse(row.weights as string);
     
     // 验证权重矩阵维度
@@ -547,7 +547,7 @@ async function saveModelToDb(accountId: number, model: CQLModel): Promise<void> 
           avgLoss: String(model.avgLoss),
           lastTrainedAt: model.lastTrainedAt,
           modelVersion: (existing[0].modelVersion || 1) + 1,
-        } as Record<string, any>)
+        } as Record<string, unknown>)
         .where(eq(cqlModels.id, existing[0].id));
     } else {
       // 插入新模型
@@ -560,7 +560,7 @@ async function saveModelToDb(accountId: number, model: CQLModel): Promise<void> 
         avgLoss: String(model.avgLoss),
         lastTrainedAt: model.lastTrainedAt,
         modelVersion: 1,
-      } as Record<string, any>);
+      } as Record<string, unknown>);
     }
     
     log.info(`[CQL] v230: Model saved to DB for account ${accountId}, episodes=${model.trainingEpisodes}`);

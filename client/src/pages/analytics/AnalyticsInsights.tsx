@@ -46,7 +46,7 @@ import { useGlobalAccountId } from "@/hooks/useGlobalAccountId";
 export default function AnalyticsInsights() {
   // v399: 使用全局店铺选择器替代本地状态
   const { accountId: selectedAccountId, accounts, isLoading: accountsLoading } = useGlobalAccountId();
-  const setSelectedAccountId = (_: any) => {}; // v399: 由全局选择器控制，本地setter为no-op
+  const setSelectedAccountId = (_: unknown) => {}; // v399: 由全局选择器控制，本地setter为no-op
 const [activeTab, setActiveTab] = useState("overview");
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -108,7 +108,7 @@ const [activeTab, setActiveTab] = useState("overview");
     // 预算耗尽风险
     if (specialScenarioQuery.data?.budgetDepletion) {
       const highRisk = specialScenarioQuery.data.budgetDepletion.filter(
-        (b: any) => b.riskLevel === 'high' || b.riskLevel === 'critical'
+        (b: unknown) => b.riskLevel === 'high' || b.riskLevel === 'critical'
       );
       if (highRisk.length > 0) {
         critical.push(`${highRisk.length}个广告活动预算即将耗尽`);
@@ -130,7 +130,7 @@ const [activeTab, setActiveTab] = useState("overview");
 
     // 季节性调整
     if (seasonalQuery.data?.adjustments) {
-      const upcoming = seasonalQuery.data.adjustments.filter((a: any) => a.status === 'upcoming');
+      const upcoming = seasonalQuery.data.adjustments.filter((a: unknown) => a.status === 'upcoming');
       if (upcoming.length > 0) {
         suggestions.push(`${upcoming.length}个季节性调整计划待执行`);
       }
@@ -171,7 +171,7 @@ const [activeTab, setActiveTab] = useState("overview");
                 <SelectValue placeholder="选择账号" />
               </SelectTrigger>
               <SelectContent>
-                {accounts?.map((account: any) => (
+                {accounts?.map((account: unknown) => (
                   <SelectItem key={account.id} value={account.id.toString()}>
                     {account.accountName}
                   </SelectItem>
@@ -205,7 +205,7 @@ const [activeTab, setActiveTab] = useState("overview");
               </div>
               {insightsSummary.critical.length > 0 && (
                 <div className="mt-3 space-y-1">
-                  {insightsSummary.critical.map((item: any, idx: any) => (
+                  {insightsSummary.critical.map((item: unknown, idx: unknown) => (
                     <p key={idx} className="text-sm text-red-300">{item}</p>
                   ))}
                 </div>
@@ -226,7 +226,7 @@ const [activeTab, setActiveTab] = useState("overview");
               </div>
               {insightsSummary.warnings.length > 0 && (
                 <div className="mt-3 space-y-1">
-                  {insightsSummary.warnings.map((item: any, idx: any) => (
+                  {insightsSummary.warnings.map((item: unknown, idx: unknown) => (
                     <p key={idx} className="text-sm text-yellow-300">{item}</p>
                   ))}
                 </div>
@@ -247,7 +247,7 @@ const [activeTab, setActiveTab] = useState("overview");
               </div>
               {insightsSummary.suggestions.length > 0 && (
                 <div className="mt-3 space-y-1">
-                  {insightsSummary.suggestions.map((item: any, idx: any) => (
+                  {insightsSummary.suggestions.map((item: unknown, idx: unknown) => (
                     <p key={idx} className="text-sm text-blue-300">{item}</p>
                   ))}
                 </div>
@@ -294,7 +294,7 @@ const [activeTab, setActiveTab] = useState("overview");
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    {specialScenarioQuery.data?.budgetDepletion?.slice(0, 5).map((item: any, idx: number) => (
+                    {specialScenarioQuery.data?.budgetDepletion?.slice(0, 5).map((item: unknown, idx: number) => (
                       <div key={idx} className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
                         <div>
                           <p className="font-medium">{item.campaignName}</p>
@@ -337,7 +337,7 @@ const [activeTab, setActiveTab] = useState("overview");
                     </div>
                   </div>
                   <div className="space-y-2">
-                    {biddingEfficiencyQuery.data?.topOverbidding?.slice(0, 3).map((kw: any, idx: number) => (
+                    {biddingEfficiencyQuery.data?.topOverbidding?.slice(0, 3).map((kw: unknown, idx: number) => (
                       <div key={idx} className="flex items-center justify-between text-sm">
                         <span className="truncate max-w-[200px]">{kw.keyword}</span>
                         <span className="text-orange-400">-{kw.suggestedReduction?.toFixed(0)}%</span>
@@ -360,7 +360,7 @@ const [activeTab, setActiveTab] = useState("overview");
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {attributionQuery.data?.map((day: any, idx: number) => (
+                  {attributionQuery.data?.map((day: unknown, idx: number) => (
                     <div key={idx} className="p-4 rounded-lg border bg-card/50">
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-2">
@@ -409,7 +409,7 @@ const [activeTab, setActiveTab] = useState("overview");
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {biddingEfficiencyQuery.data?.topOverbidding?.map((kw: any, idx: number) => (
+                  {biddingEfficiencyQuery.data?.topOverbidding?.map((kw: unknown, idx: number) => (
                     <div key={idx} className="p-4 rounded-lg border bg-card/50">
                       <div className="flex items-center justify-between mb-2">
                         <span className="font-medium">{kw.keyword}</span>
@@ -467,7 +467,7 @@ const [activeTab, setActiveTab] = useState("overview");
                   </div>
                 </div>
                 <div className="space-y-3">
-                  {correctionsQuery.data?.corrections?.slice(0, 10).map((item: any, idx: number) => (
+                  {correctionsQuery.data?.corrections?.slice(0, 10).map((item: unknown, idx: number) => (
                     <div key={idx} className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
                       <div>
                         <p className="font-medium">{item.keyword}</p>
@@ -500,7 +500,7 @@ const [activeTab, setActiveTab] = useState("overview");
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {seasonalQuery.data?.adjustments?.map((item: any, idx: number) => (
+                  {seasonalQuery.data?.adjustments?.map((item: unknown, idx: number) => (
                     <div key={idx} className="p-4 rounded-lg border bg-card/50">
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-2">

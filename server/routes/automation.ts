@@ -15,7 +15,7 @@ export const automationRouter = router({
   // 获取账号自动化配置
   getConfig: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    .query(async ({ input, ctx }: any) => {
+    .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       return automationExecutionEngine.getAccountAutomationConfig(input.accountId);
     }),
@@ -47,7 +47,7 @@ export const automationRouter = router({
         supervisedConfidence: z.number().optional(),
       }).optional(),
     }))
-    .mutation(async ({ input, ctx }: any) => {
+    .mutation(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       return automationExecutionEngine.updateAccountAutomationConfig(input.accountId, {
         enabled: input.enabled,
@@ -61,7 +61,7 @@ export const automationRouter = router({
   // 运行完整自动化周期
   runFullCycle: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    .mutation(async ({ input, ctx }: any) => {
+    .mutation(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       return automationExecutionEngine.runFullAutomationCycle(input.accountId);
     }),
@@ -74,7 +74,7 @@ export const automationRouter = router({
       startDate: z.date().optional(),
       endDate: z.date().optional(),
     }))
-    .query(async ({ input, ctx }: any) => {
+    .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       return automationExecutionEngine.getExecutionHistory(input.accountId, {
         limit: input.limit,
@@ -89,7 +89,7 @@ export const automationRouter = router({
       accountId: z.number(),
       date: z.date().optional(),
     }))
-    .query(async ({ input, ctx }: any) => {
+    .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       return automationExecutionEngine.getDailyExecutionStats(input.accountId, input.date);
     }),
@@ -100,7 +100,7 @@ export const automationRouter = router({
       accountId: z.number(),
       reason: z.string(),
     }))
-    .mutation(async ({ input, ctx }: any) => {
+    .mutation(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       automationExecutionEngine.emergencyStop(input.accountId, input.reason);
       return { success: true };
@@ -109,7 +109,7 @@ export const automationRouter = router({
   // 恢复自动化
   resume: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    .mutation(async ({ input, ctx }: any) => {
+    .mutation(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       automationExecutionEngine.resumeAutomation(input.accountId);
       return { success: true };
@@ -137,7 +137,7 @@ export const automationRouter = router({
       confidence: z.number(),
       reason: z.string(),
     }))
-    .mutation(async ({ input, ctx }: any) => {
+    .mutation(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       return automationExecutionEngine.executeOptimization(
         input.accountId,
@@ -176,7 +176,7 @@ export const automationRouter = router({
         reason: z.string(),
       })),
     }))
-    .mutation(async ({ input, ctx }: any) => {
+    .mutation(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       return automationExecutionEngine.batchExecuteOptimizations(
         input.accountId,
@@ -191,7 +191,7 @@ export const autoOperationRouter = router({
   // 获取账号自动运营配置
   getConfig: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    .query(async ({ input, ctx }: any) => {
+    .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       return autoOperationService.autoOperationService.getConfig(input.accountId);
     }),
@@ -209,7 +209,7 @@ export const autoOperationRouter = router({
       enableMigrationSuggestion: z.boolean().optional(),
       enableBidOptimization: z.boolean().optional(),
     }))
-    .mutation(async ({ input, ctx }: any) => {
+    .mutation(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       return autoOperationService.autoOperationService.upsertConfig(input);
     }),
@@ -217,7 +217,7 @@ export const autoOperationRouter = router({
   // 执行完整的自动运营流程
   executeFullOperation: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    .mutation(async ({ input, ctx }: any) => {
+    .mutation(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       return autoOperationService.autoOperationService.executeFullOperation(input.accountId);
     }),
@@ -228,7 +228,7 @@ export const autoOperationRouter = router({
       accountId: z.number(),
       limit: z.number().optional(),
     }))
-    .query(async ({ input, ctx }: any) => {
+    .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       return autoOperationService.autoOperationService.getLogs(input.accountId, input.limit);
     }),

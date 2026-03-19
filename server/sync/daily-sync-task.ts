@@ -26,7 +26,7 @@ export interface SyncTaskConfig {
 /**
  * 将API返回的行数据转换为DailyPerformance插入格式
  */
-function buildPerformanceRecord(row: Record<string, any>, campaignId: string, date: string) {
+function buildPerformanceRecord(row: Record<string, unknown>, campaignId: string, date: string) {
   const impressions = parseInt(row.impressions || '0');
   const clicks = parseInt(row.clicks || '0');
   const spend = parseFloat(row.cost || '0');
@@ -66,7 +66,7 @@ export async function syncCampaignDailyData(
     // 查找该广告活动的数据
     const campaignData = apiData.find(
       // @ts-expect-error - runtime type mismatch
-      (row: Record<string, any>) => row.campaignId?.toString() === campaignId
+      (row: Record<string, unknown>) => row.campaignId?.toString() === campaignId
     );
     
     if (!campaignData) {
@@ -76,7 +76,7 @@ export async function syncCampaignDailyData(
     
     // 使用db封装函数存储到数据库
     const record = buildPerformanceRecord(campaignData, campaignId, date);
-    await db.createDailyPerformance(record as Record<string, any>);
+    await db.createDailyPerformance(record as Record<string, unknown>);
     
     log.info(`[Daily Sync] 成功同步广告活动 ${campaignId} 的数据`);
   } catch (error: unknown) {
@@ -114,10 +114,10 @@ export async function syncAllCampaignsDailyData(
     log.info(`[Daily Sync] SP报告下载完成, 共 ${spData.length} 条记录`);
     
     // 存储SP数据
-    for (const row of (spData as any[])) {
+    for (const row of (spData as unknown[])) {
       try {
         const record = buildPerformanceRecord(row, row.campaignId?.toString() || '', date);
-        await db.createDailyPerformance(record as Record<string, any>);
+        await db.createDailyPerformance(record as Record<string, unknown>);
         successCount++;
       } catch (error: unknown) {
         log.error(`[Daily Sync] 存储广告活动 ${row.campaignId} 失败:`, (error as Error).message);

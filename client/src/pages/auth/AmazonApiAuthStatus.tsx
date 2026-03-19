@@ -87,7 +87,7 @@ export default function AmazonApiAuthStatus() {
     return '授权状态未知';
   };
 
-  const safeSummary = summary as any;
+  const safeSummary = summary as unknown;
 
   if (isLoading) {
     return (
@@ -174,7 +174,7 @@ export default function AmazonApiAuthStatus() {
         <CardContent>
           <div className="space-y-4">
             {safeSummary?.accounts && safeSummary.accounts.length > 0 ? (
-              safeSummary.accounts.map((account: any) => (
+              safeSummary.accounts.map((account: unknown) => (
                 <div
                   key={account.accountId}
                   className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50/5 transition"

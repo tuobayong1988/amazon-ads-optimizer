@@ -135,7 +135,7 @@ export const smartCampaignRouter = router({
         daysOfHistory: z.number().default(7),
       })
     )
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       const { campaignId, goal, daysOfHistory } = input;
 
       // v451.2: 修复ID查找 - 使用Amazon campaignId查找，而非parseInt后用内部ID查找
@@ -197,7 +197,7 @@ export const smartCampaignRouter = router({
         daysOfHistory: z.number().default(7),
       })
     )
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       const { performanceGroupId, goal, daysOfHistory } = input;
 
       // v403: 数据隔离验证 - 验证performanceGroup是否属于当前用户
@@ -258,7 +258,7 @@ export const smartCampaignRouter = router({
         dryRun: z.boolean().default(true),
       })
     )
-    .mutation(async ({ ctx, input }: any) => {
+    .mutation(async ({ ctx, input }: unknown) => {
       const { campaignId, action, value, dryRun } = input;
 
       // v451.2: 修复ID查找 - 先用Amazon campaignId查找，再用内部ID验证权限
@@ -305,7 +305,7 @@ export const smartCampaignRouter = router({
       })
     )
     // @ts-expect-error - runtime type mismatch
-    .mutation(async ({ ctx, input }): Promise<{ summary: unknown; results: Record<string, any>[] }> => {
+    .mutation(async ({ ctx, input }): Promise<{ summary: unknown; results: Record<string, unknown>[] }> => {
       const { performanceGroupId, goal, daysOfHistory, dryRun, maxConcurrent } = input;
 
       // v403: 数据隔离验证 - 验证performanceGroup是否属于当前用户
@@ -313,7 +313,7 @@ export const smartCampaignRouter = router({
       await verifyPerformanceGroupAccess(ctx.user.id, parseInt(performanceGroupId, 10));
 
       // 先获取优化建议
-      const report = await smartCampaignRouter.createCaller({} as Record<string, any>).getBatchOptimizationRecommendations({
+      const report = await smartCampaignRouter.createCaller({} as Record<string, unknown>).getBatchOptimizationRecommendations({
         performanceGroupId,
         goal,
         daysOfHistory,

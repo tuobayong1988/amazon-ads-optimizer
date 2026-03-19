@@ -132,7 +132,7 @@ export default function LandingPage() {
 
             {/* 核心指标 */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-              {performanceMetrics.map((metric: any, i: any) => (
+              {performanceMetrics.map((metric: unknown, i: unknown) => (
                 <div key={i} className="bg-card/50 backdrop-blur-sm border border-border/50 rounded-lg p-4">
                   <div className="flex items-center gap-2 mb-1">
                     {metric.trend === "up" ? (
@@ -177,7 +177,7 @@ export default function LandingPage() {
           </div>
 
           <div className="grid md:grid-cols-2 gap-6 max-w-5xl mx-auto">
-            {highlights.map((item: any, i: any) => (
+            {highlights.map((item: unknown, i: unknown) => (
               <Card key={i} className={`${item.borderColor} hover:shadow-lg transition-all duration-300 group`}>
                 <CardHeader>
                   <div className={`w-12 h-12 rounded-lg ${item.bgColor} flex items-center justify-center mb-2 group-hover:scale-110 transition-transform`}>
@@ -211,7 +211,7 @@ export default function LandingPage() {
             <h2 className="text-3xl lg:text-4xl font-bold mb-4">支持所有Amazon广告类型</h2>
           </div>
           <div className="grid md:grid-cols-3 gap-8 max-w-3xl mx-auto">
-            {adTypes.map((ad: any, i: any) => (
+            {adTypes.map((ad: unknown, i: unknown) => (
               <div key={i} className="text-center p-8 rounded-2xl bg-card border border-border/50 hover:border-primary/30 transition-colors">
                 <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
                   <span className="text-2xl font-bold text-primary">{ad.abbr}</span>
@@ -236,7 +236,7 @@ export default function LandingPage() {
               </p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
-              {blogPosts.map((post: any) => (
+              {blogPosts.map((post: unknown) => (
                 <Link key={post.id} href={`/blog/${post.slug}`}>
                   <Card className="overflow-hidden hover:shadow-lg transition-all duration-300 group cursor-pointer h-full">
                     <div className="relative aspect-video overflow-hidden">
@@ -288,7 +288,7 @@ export default function LandingPage() {
             <h2 className="text-3xl lg:text-4xl font-bold mb-4">FAQ</h2>
           </div>
           <div className="max-w-3xl mx-auto space-y-4">
-            {faqs.map((faq: any, i: any) => (
+            {faqs.map((faq: unknown, i: unknown) => (
               <div key={i} className="bg-card border border-border/50 rounded-lg overflow-hidden">
                 <button
                   className="w-full px-6 py-4 text-left flex items-center justify-between hover:bg-muted/50 transition-colors"

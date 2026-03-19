@@ -257,7 +257,7 @@ export async function acquireAccountOptimizationLockWithRetry(
  * 注意：此API已被 Redis 分布式锁取代，保留仅为向后兼容。
  * 新代码应使用 RedisDistributedLock 或 acquireAccountOptimizationLock。
  */
-const distributedLockConnections: Map<string, any> = new Map();
+const distributedLockConnections: Map<string, unknown> = new Map();
 
 /**
  * 基于数据库的分布式锁获取 (MySQL GET_LOCK)
@@ -282,7 +282,7 @@ export async function acquireDistributedLock(lockName: string, timeoutSec: numbe
     const conn = await db.getDirectConnection(10000);
     
     // @ts-expect-error - MySQL connection method
-    const [rows] = await conn.execute('SELECT GET_LOCK(?, ?) as result', [fullLockName, timeoutSec]) as any[];
+    const [rows] = await conn.execute('SELECT GET_LOCK(?, ?) as result', [fullLockName, timeoutSec]) as unknown[];
     const result = rows?.[0]?.result;
     
     if (result === 1) {

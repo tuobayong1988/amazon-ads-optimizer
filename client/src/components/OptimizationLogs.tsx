@@ -245,7 +245,7 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
   // 获取日志列表
   const { data: logsData, isLoading: logsLoading, refetch: refetchLogs } = trpc.performanceGroup.getLogs.useQuery({
     performanceGroupId,
-    category: activeCategory as any,
+    category: activeCategory as unknown,
     page,
     pageSize,
   }, {
@@ -258,7 +258,7 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
     if (!searchQuery) return logsData.logs;
     
     const query = searchQuery.toLowerCase();
-    return logsData.logs.filter((log: any) => 
+    return logsData.logs.filter((log: unknown) => 
       log.performanceGroupName?.toLowerCase().includes(query) ||
       log.campaignName?.toLowerCase().includes(query) ||
       log.userName?.toLowerCase().includes(query) ||
@@ -294,7 +294,7 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
   };
 
   // 从actionDetail中提取关键词/目标名称
-  const getTargetName = (log: any): { name: string; isProductTarget: boolean } | null => {
+  const getTargetName = (log: unknown): { name: string; isProductTarget: boolean } | null => {
     const detail = parseActionDetail(log.actionDetail);
     if (!detail) return null;
     
@@ -337,7 +337,7 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
   };
 
   // ==================== v135: 算法层级徽章 ====================
-  const renderAlgorithmTierBadge = (actionDetail: any, compact: boolean = false) => {
+  const renderAlgorithmTierBadge = (actionDetail: unknown, compact: boolean = false) => {
     if (!actionDetail?.algorithmTier) return null;
     const tierConfig = ALGORITHM_TIER_CONFIG[actionDetail.algorithmTier];
     if (!tierConfig) return null;
@@ -410,7 +410,7 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
   };
 
   // ==================== v258: 护栏机制信息展示 ====================
-  const renderGuardrailInfo = (actionDetail: any) => {
+  const renderGuardrailInfo = (actionDetail: unknown) => {
     const gi = actionDetail?.guardrailInfo;
     if (!gi) return null;
     const hasGuardrail = gi.cooldownActive || gi.circuitBreakerTripped || gi.arbitrationApplied || gi.minAdjustmentFiltered || gi.maxBidCapped || gi.bidRecoveryTriggered || gi.exposureProtectionActive || gi.bidirectionalBid;
@@ -480,7 +480,7 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
   };
 
   // ==================== v135: 决策上下文面板 ====================
-  const renderDecisionContext = (actionDetail: any) => {
+  const renderDecisionContext = (actionDetail: unknown) => {
     if (!actionDetail?.reason) return null;
     const ctx = parseDecisionContext(actionDetail.reason);
     const hasContext = ctx.aovValue || ctx.spendRatio || ctx.actualAcos || ctx.isZeroImpression || 
@@ -586,7 +586,7 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
   };
 
   // ==================== v135: 归因保护指示器（摘要行） ====================
-  const renderAttributionProtectionBadge = (actionDetail: any) => {
+  const renderAttributionProtectionBadge = (actionDetail: unknown) => {
     if (!actionDetail?.reason) return null;
     const ctx = parseDecisionContext(actionDetail.reason);
     if (!ctx.isAttributionProtected) return null;
@@ -609,7 +609,7 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
 
   // 渲染API同步状态徽章
   // v253: 修复 null 值处理 — 区分“功能上线前的历史记录”和“真正待同步”
-  const renderApiSyncBadge = (log: any) => {
+  const renderApiSyncBadge = (log: unknown) => {
     let syncStatus = log.apiSyncStatus;
     if (!syncStatus) {
       // apiSyncStatus为null时，检查是否为API操作类型
@@ -636,7 +636,7 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
 
   // 渲染执行链路
   // v253: 同样修复 null 值处理
-  const renderExecutionPipeline = (log: any) => {
+  const renderExecutionPipeline = (log: unknown) => {
     let syncStatus = log.apiSyncStatus;
     if (!syncStatus) {
       const logTime = log.createdAt ? new Date(log.createdAt).getTime() : 0;
@@ -659,7 +659,7 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
     
     return (
       <div className="flex items-center gap-1 mt-2">
-        {steps.map((step: any, idx: any) => {
+        {steps.map((step: unknown, idx: unknown) => {
           const isLast = idx === steps.length - 1;
           let stepColor = 'text-gray-500';
           let dotColor = 'bg-gray-500';
@@ -692,7 +692,7 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
   };
 
   // 渲染出价变化标签
-  const renderBidChange = (log: any, compact: boolean = false) => {
+  const renderBidChange = (log: unknown, compact: boolean = false) => {
     if (!log.previousValue && !log.newValue) return null;
     
     const actionDetail = parseActionDetail(log.actionDetail);
@@ -723,7 +723,7 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
   };
 
   // 渲染关键词/目标名称标签
-  const renderTargetTag = (log: any, compact: boolean = false) => {
+  const renderTargetTag = (log: unknown, compact: boolean = false) => {
     const target = getTargetName(log);
     if (!target) return null;
     
@@ -738,7 +738,7 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
   };
 
   // 渲染单条日志
-  const renderLogItem = (log: any) => {
+  const renderLogItem = (log: unknown) => {
     const isExpanded = expandedLogId === log.id;
     const categoryConfig = LOG_CATEGORIES[log.logCategory as keyof typeof LOG_CATEGORIES] || LOG_CATEGORIES.all;
     const actionConfig = ACTION_TYPE_LABELS[log.actionType] || { label: log.actionType || '系统操作', color: 'bg-gray-500/20 text-gray-400' };
@@ -955,7 +955,7 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
                           {actionDetail.metaLearningDetail.candidateAlgorithms?.length > 0 && (
                             <div className="space-y-0.5">
                               <p className="text-xs text-muted-foreground">候选算法评分:</p>
-                              {actionDetail.metaLearningDetail.candidateAlgorithms.map((alg: any, idx: number) => (
+                              {actionDetail.metaLearningDetail.candidateAlgorithms.map((alg: unknown, idx: number) => (
                                 <div key={idx} className="flex items-center gap-2 text-xs">
                                   <span className={`font-mono ${alg.algorithm === actionDetail.metaLearningDetail.selectedAlgorithm ? 'text-primary font-bold' : 'text-muted-foreground'}`}>
                                     {alg.algorithm}

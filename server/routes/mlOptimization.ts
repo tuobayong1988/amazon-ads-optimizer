@@ -59,7 +59,7 @@ export const mlOptimizationRouter = router({
         daysOfHistory: z.number().default(30),
       })
     )
-    .mutation(async ({ ctx, input }: any) => {
+    .mutation(async ({ ctx, input }: unknown) => {
       const { campaignId, target, daysOfHistory } = input;
 
       // 获取广告活动信息以确定accountId
@@ -132,7 +132,7 @@ export const mlOptimizationRouter = router({
         daysOfHistory: z.number().default(30),
       })
     )
-    .mutation(async ({ ctx, input }: any) => {
+    .mutation(async ({ ctx, input }: unknown) => {
       const { campaignIds, target, daysOfHistory } = input;
 
       const results = await Promise.allSettled(
@@ -212,7 +212,7 @@ export const mlOptimizationRouter = router({
         daysOfHistory: z.number().default(30),
       })
     )
-    .mutation(async ({ ctx, input }: any) => {
+    .mutation(async ({ ctx, input }: unknown) => {
       const { performanceGroupId, totalBudget, daysOfHistory } = input;
 
       // 获取绩效组下的所有广告活动
@@ -229,7 +229,7 @@ export const mlOptimizationRouter = router({
 
       const campaignsWithData = await Promise.all(
         groupCampaigns.map(async (campaign: { id: number; accountId: number; campaignName: string; dailyBudget: string | null }) => {
-          const campaignIdStr = String((campaign as Record<string, any>).campaignId);
+          const campaignIdStr = String((campaign as Record<string, unknown>).campaignId);
           const historicalRecords = await db.getDailyPerformanceByDateRange(
             campaign.accountId,
             cutoffDate,
@@ -260,11 +260,11 @@ export const mlOptimizationRouter = router({
 
       // 计算总预期
       const totalExpectedSales = allocations.reduce(
-        (sum: number, a: any) => sum + a.expectedSales,
+        (sum: number, a: unknown) => sum + a.expectedSales,
         0
       );
       const totalAllocated = allocations.reduce(
-        (sum: number, a: any) => sum + a.allocatedBudget,
+        (sum: number, a: unknown) => sum + a.allocatedBudget,
         0
       );
       const overallROAS = totalAllocated === 0 ? 0 : totalExpectedSales / totalAllocated;
@@ -291,7 +291,7 @@ export const mlOptimizationRouter = router({
         testDays: z.number().default(14),
       })
     )
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       const { campaignId, trainingDays, testDays } = input;
 
       const campaign = await db.getCampaignById(parseInt(campaignId, 10));

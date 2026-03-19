@@ -18,7 +18,7 @@ const log = createModuleLogger('Route_keyword');
 export const keywordRouter = router({
   list: protectedProcedure
     .input(z.object({ adGroupId: z.number() }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       // v376: P1数据隔离修复 - 验证当前用户有权访问该adGroupId
       const { verifyAdGroupAccess } = await import('../utils/accessControl');
       await verifyAdGroupAccess(ctx.user.id, input.adGroupId);
@@ -30,7 +30,7 @@ export const keywordRouter = router({
   // v370.4: 数据隔离 - 验证keyword归属
   get: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       const { verifyKeywordAccess } = await import('../utils/accessControl');
       await verifyKeywordAccess(ctx.user.id, input.id);
       return db.getKeywordById(input.id);
@@ -77,7 +77,7 @@ export const keywordRouter = router({
       bid: z.string().optional(),
       status: z.enum(["enabled", "paused", "archived"]).optional(),
     }))
-    .mutation(async ({ ctx, input }: any) => {
+    .mutation(async ({ ctx, input }: unknown) => {
       // v385: 数据隔离 - 验证关键词归属
       const { verifyKeywordAccess } = await import('../utils/accessControl');
       await verifyKeywordAccess(ctx.user.id, input.id);
@@ -100,7 +100,7 @@ export const keywordRouter = router({
       
       // v426: 批量获取所有关键词（一次查询替代N次循环）
       const allKeywords = await db.getKeywordsByIds(input.ids);
-      const keywordMap = new Map(allKeywords.map((k: any) => [k.id, k]));
+      const keywordMap = new Map(allKeywords.map((k: unknown) => [k.id, k]));
       
       const results = [];
       for (const id of input.ids) {
@@ -182,11 +182,11 @@ export const keywordRouter = router({
             .where(inArray(keywordsTable.id, results.map(r => r.id)));
             
             const byAccount = new Map<number, Array<{ keywordId: number; newBid: number; campaignId: number }>>();
-            for (const kw of (kwDetails as any[])) {
+            for (const kw of (kwDetails as unknown[])) {
               const r = results.find(r => r.id === kw.kwId);
               if (!r) continue;
               if (!byAccount.has(kw.accountId)) byAccount.set(kw.accountId, []);
-              byAccount.get(kw.accountId)!.push({ keywordId: kw.kwId, newBid: r.newBid, campaignId: kw.campaignId } as Record<string, any>);
+              byAccount.get(kw.accountId)!.push({ keywordId: kw.kwId, newBid: r.newBid, campaignId: kw.campaignId } as Record<string, unknown>);
             }
             
             const { syncBidAdjustmentsToAmazon } = await import('../services/amazonApiHelper');
@@ -197,7 +197,7 @@ export const keywordRouter = router({
                 campaignId: kw.campaignId,
                 reason: `用户手动批量调整关键词出价`,
               }));
-              const syncResult: any = await syncBidAdjustmentsToAmazon(accountId, adjustments);
+              const syncResult: unknown = await syncBidAdjustmentsToAmazon(accountId, adjustments);
               log.info(`[Keyword.batchUpdateBid] v159: accountId=${accountId}, 同步结果: 成功=${syncResult.success}, 失败=${syncResult.failed}`);
               
               // v219: 出价同步后触发确认同步
@@ -224,7 +224,7 @@ export const keywordRouter = router({
       ids: z.array(z.number()),
       status: z.enum(["enabled", "paused"]),
     }))
-    .mutation(async ({ ctx, input }: any) => {
+    .mutation(async ({ ctx, input }: unknown) => {
       // v426: 批量验证关键词归属（一次性查询替代N次循环）
       const { verifyBatchKeywordAccess } = await import('../utils/accessControl');
       await verifyBatchKeywordAccess(ctx.user.id, input.ids);
@@ -254,9 +254,9 @@ export const keywordRouter = router({
           
           // 按accountId分组
           const byAccount = new Map<number, Array<{ keywordId: number; campaignId: number }>>();
-          for (const kw of (kwDetails as any[])) {
+          for (const kw of (kwDetails as unknown[])) {
             if (!byAccount.has(kw.accountId)) byAccount.set(kw.accountId, []);
-            byAccount.get(kw.accountId)!.push({ keywordId: kw.kwId, campaignId: kw.campaignId } as Record<string, any>);
+            byAccount.get(kw.accountId)!.push({ keywordId: kw.kwId, campaignId: kw.campaignId } as Record<string, unknown>);
           }
           
           // 按账号同步到Amazon
@@ -268,7 +268,7 @@ export const keywordRouter = router({
               campaignId: kw.campaignId,
               reason: `用户手动批量${input.status === 'enabled' ? '启用' : '暂停'}关键词`,
             }));
-            const syncResult: any = await syncKeywordStatusToAmazon(accountId, statusChanges);
+            const syncResult: unknown = await syncKeywordStatusToAmazon(accountId, statusChanges);
             log.info(`[Keyword.batchUpdateStatus] v159: accountId=${accountId}, 同步结果: 成功=${syncResult.success}, 失败=${syncResult.failed}`);
             
             // v219: 关键词状态同步后触发确认同步
@@ -291,7 +291,7 @@ export const keywordRouter = router({
   // v370.4: 数据隔离
   getMarketCurve: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       const { verifyKeywordAccess } = await import('../utils/accessControl');
       await verifyKeywordAccess(ctx.user.id, input.id);
       const keyword = await db.getKeywordById(input.id);
@@ -320,7 +320,7 @@ export const keywordRouter = router({
       id: z.number(),
       days: z.number().min(7).max(90).default(30),
     }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       const { verifyKeywordAccess } = await import('../utils/accessControl');
       await verifyKeywordAccess(ctx.user.id, input.id);
       const keyword = await db.getKeywordById(input.id);
@@ -368,7 +368,7 @@ export const keywordRouter = router({
         bid: z.string(),
       })),
     }))
-    .mutation(async ({ ctx, input }: any) => {
+    .mutation(async ({ ctx, input }: unknown) => {
       // v382: 数据隔离
       const results = [];
       const errors = [];
@@ -430,7 +430,7 @@ export const keywordRouter = router({
 export const productTargetRouter = router({
   list: protectedProcedure
     .input(z.object({ adGroupId: z.number() }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       // v382: 数据隔离
       // v381: productTargets.internalAdGroupId存储的是本地自增ID（String类型），前端传入的也是本地ID
       // 所以直接使用input.adGroupId查询即可，不需要转换为Amazon adGroupId
@@ -440,7 +440,7 @@ export const productTargetRouter = router({
   // v370.4: 数据隔离 - productTarget通过adGroup关联到用户
   get: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       // v382: 数据隔离
       // productTarget的所有权验证通过中间件的campaignId检查完成
       return db.getProductTargetById(input.id);
@@ -451,7 +451,7 @@ export const productTargetRouter = router({
       id: z.number(),
       bid: z.string(),
     }))
-    .mutation(async ({ ctx, input }: any) => {
+    .mutation(async ({ ctx, input }: unknown) => {
       // v382: 数据隔离
       await db.updateProductTargetBid(input.id, input.bid);
       return { success: true };
@@ -463,7 +463,7 @@ export const productTargetRouter = router({
       bid: z.string().optional(),
       status: z.enum(["enabled", "paused", "archived"]).optional(),
     }))
-    .mutation(async ({ ctx, input }: any) => {
+    .mutation(async ({ ctx, input }: unknown) => {
       // v382: 数据隔离
       const { id, ...data } = input;
       await db.updateProductTarget(id, data);
@@ -477,7 +477,7 @@ export const productTargetRouter = router({
       bidType: z.enum(["fixed", "increase_percent", "decrease_percent", "cpc_multiplier", "cpc_increase_percent", "cpc_decrease_percent"]),
       bidValue: z.number(),
     }))
-    .mutation(async ({ ctx, input }: any) => {
+    .mutation(async ({ ctx, input }: unknown) => {
       // v382: 数据隔离
       const results = [];
       for (const id of input.ids) {
@@ -534,7 +534,7 @@ export const productTargetRouter = router({
               const r = results.find(r => r.id === pt.ptId);
               if (!r) continue;
               if (!byAccount.has(pt.accountId)) byAccount.set(pt.accountId, []);
-              byAccount.get(pt.accountId)!.push({ keywordId: pt.ptId, newBid: r.newBid, campaignId: pt.campaignId } as Record<string, any>);
+              byAccount.get(pt.accountId)!.push({ keywordId: pt.ptId, newBid: r.newBid, campaignId: pt.campaignId } as Record<string, unknown>);
             }
             
             const { syncBidAdjustmentsToAmazon } = await import('../services/amazonApiHelper');
@@ -546,7 +546,7 @@ export const productTargetRouter = router({
                 reason: `用户手动批量调整商品定向出价`,
                 isProductTarget: true,
               }));
-              const syncResult: any = await syncBidAdjustmentsToAmazon(accountId, adjustments);
+              const syncResult: unknown = await syncBidAdjustmentsToAmazon(accountId, adjustments);
               log.info(`[ProductTarget.batchUpdateBid] v159: accountId=${accountId}, 同步结果: 成功=${syncResult.success}, 失败=${syncResult.failed}`);
             }
           }
@@ -564,7 +564,7 @@ export const productTargetRouter = router({
       ids: z.array(z.number()),
       status: z.enum(["enabled", "paused"]),
     }))
-    .mutation(async ({ ctx, input }: any) => {
+    .mutation(async ({ ctx, input }: unknown) => {
       // v382: 数据隔离
       // v159: 先更新本地数据库
       let updated = 0;
@@ -594,7 +594,7 @@ export const productTargetRouter = router({
           const byAccount = new Map<number, Array<{ keywordId: number; campaignId: number }>>();
           for (const pt of ptDetails) {
             if (!byAccount.has(pt.accountId)) byAccount.set(pt.accountId, []);
-            byAccount.get(pt.accountId)!.push({ keywordId: pt.ptId, campaignId: pt.campaignId } as Record<string, any>);
+            byAccount.get(pt.accountId)!.push({ keywordId: pt.ptId, campaignId: pt.campaignId } as Record<string, unknown>);
           }
           
           const { syncKeywordStatusToAmazon } = await import('../services/amazonApiHelper');
@@ -606,7 +606,7 @@ export const productTargetRouter = router({
               reason: `用户手动批量${input.status === 'enabled' ? '启用' : '暂停'}商品定向`,
               isProductTarget: true,
             }));
-            const syncResult: any = await syncKeywordStatusToAmazon(accountId, statusChanges);
+            const syncResult: unknown = await syncKeywordStatusToAmazon(accountId, statusChanges);
             log.info(`[ProductTarget.batchUpdateStatus] v159: accountId=${accountId}, 同步结果: 成功=${syncResult.success}, 失败=${syncResult.failed}`);
           }
         }
@@ -623,7 +623,7 @@ export const productTargetRouter = router({
       id: z.number(),
       days: z.number().min(7).max(90).default(30),
     }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       // v382: 数据隔离
       const target = await db.getProductTargetById(input.id);
       if (!target) {

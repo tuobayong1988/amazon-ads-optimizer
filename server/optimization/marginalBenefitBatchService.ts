@@ -140,7 +140,7 @@ export async function createBatchAnalysis(
     )
   `);
 
-  return (result as Record<string, any>[][])[0].insertId;
+  return (result as Record<string, unknown>[][])[0].insertId;
 }
 
 /**
@@ -173,7 +173,7 @@ export async function executeBatchAnalysis(
 
   const campaignMap = new Map(
     // @ts-expect-error - any type assertion
-    ((campaigns as unknown)[0] as any[]).map(c => [c.campaignId, c])
+    ((campaigns as Record<string, unknown>)[0] as unknown[]).map(c => [c.campaignId, c])
   );
 
   // 逐个分析广告活动
@@ -369,7 +369,7 @@ function generateBatchRecommendations(
   // 高潜力广告活动
   const highPotential = results
     .filter(r => r.optimization && (r.optimization.expectedSalesIncrease / (r.currentSales || 1)) * 100 > 10)
-    .sort((a: any, b: any) => {
+    .sort((a: unknown, b: unknown) => {
       const aPercent = a.optimization ? (a.optimization.expectedSalesIncrease / (a.currentSales || 1)) * 100 : 0;
       const bPercent = b.optimization ? (b.optimization.expectedSalesIncrease / (b.currentSales || 1)) * 100 : 0;
       return bPercent - aPercent;
@@ -411,7 +411,7 @@ export async function applyOptimization(
   `);
 
   // @ts-expect-error - any type assertion
-  const current = ((currentSettings as unknown)[0] as any[])[0] || {
+  const current = ((currentSettings as Record<string, unknown>)[0] as unknown[])[0] || {
     top_of_search_adjustment: 0,
     product_page_adjustment: 0
   };
@@ -439,7 +439,7 @@ export async function applyOptimization(
     )
   `);
 
-  const applicationId = (insertResult as Record<string, any>[])[0].insertId;
+  const applicationId = (insertResult as Record<string, unknown>[])[0].insertId;
 
   try {
     // 应用新设置
@@ -578,7 +578,7 @@ export async function rollbackApplication(
     WHERE id = ${applicationId}
   `);
 
-  const record = ((records as any[][])[0] as any[])[0];
+  const record = ((records as unknown[][])[0] as unknown[])[0];
   if (!record) {
     return { success: false, error: "找不到应用记录" };
   }
@@ -643,7 +643,7 @@ export async function getApplicationHistory(
   accountId: number,
   campaignId?: string,
   limit: number = 20
-): Promise<Record<string, any>[]> {
+): Promise<Record<string, unknown>[]> {
   const db = await getDb();
   if (!db) {
     return [];
@@ -668,7 +668,7 @@ export async function getApplicationHistory(
   }
 
   const result = await db.execute(query);
-  return ((result as Record<string, any>[][])[0] as any[]) || [];
+  return ((result as Record<string, unknown>[][])[0] as unknown[]) || [];
 }
 
 /**
@@ -677,7 +677,7 @@ export async function getApplicationHistory(
 export async function getBatchAnalysisHistory(
   accountId: number,
   limit: number = 10
-): Promise<Record<string, any>[]> {
+): Promise<Record<string, unknown>[]> {
   const db = await getDb();
   if (!db) {
     return [];
@@ -690,7 +690,7 @@ export async function getBatchAnalysisHistory(
     LIMIT ${limit}
   `);
 
-  return ((result as Record<string, any>[][])[0] as any[]) || [];
+  return ((result as Record<string, unknown>[][])[0] as unknown[]) || [];
 }
 
 /**
@@ -709,7 +709,7 @@ export async function getBatchAnalysisDetail(
     WHERE id = ${analysisId}
   `);
 
-  const record = ((result as Record<string, any>[][])[0] as any[])[0];
+  const record = ((result as Record<string, unknown>[][])[0] as unknown[])[0];
   if (!record) {
     return null;
   }

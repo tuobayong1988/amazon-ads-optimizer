@@ -198,7 +198,7 @@ function GroupOptimalBidCard({ groupId, accountId, onApplySuccess }: {
             {/* 广告活动明细 */}
             <div className="max-h-48 overflow-y-auto space-y-2">
               <p className="text-xs text-muted-foreground font-medium">广告活动明细</p>
-              {campaigns.map((campaign: any) => (
+              {campaigns.map((campaign: unknown) => (
                 <div key={campaign.campaignId} className="flex items-center justify-between text-xs p-2 bg-muted/20 rounded">
                   <span className="truncate max-w-[200px]" title={campaign.campaignName}>{campaign.campaignName}</span>
                   <div className="flex items-center gap-2">
@@ -273,14 +273,14 @@ const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
     const totalGroups = performanceGroups?.length || 0;
     const activeGroups = performanceGroups?.filter(g => g.status === 'active').length || 0;
     const pausedGroups = performanceGroups?.filter(g => g.status === 'paused').length || 0;
-    const managedCampaigns = campaigns?.filter(c => (c as any).performanceGroupId).length || 0;
+    const managedCampaigns = campaigns?.filter(c => (c as Record<string, unknown>).performanceGroupId).length || 0;
     const unmanagedCampaigns = (campaigns?.length || 0) - managedCampaigns;
     return { totalGroups, activeGroups, pausedGroups, managedCampaigns, unmanagedCampaigns };
   }, [performanceGroups, campaigns]);
 
   // 获取绩效组包含的广告活动数量
   const getCampaignCountByGroup = (groupId: number) => {
-    return campaigns?.filter(c => (c as any).performanceGroupId === groupId).length || 0;
+    return campaigns?.filter(c => (c as Record<string, unknown>).performanceGroupId === groupId).length || 0;
   };
 
   // Mutations
@@ -436,7 +436,7 @@ const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
           </div>
         ) : performanceGroups && performanceGroups.length > 0 ? (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {performanceGroups.map((group: any) => (
+            {performanceGroups.map((group: unknown) => (
               <Card key={group.id} className="relative overflow-hidden">
                 <div className={`absolute top-0 left-0 right-0 h-1 ${
                   group.status === 'active' ? 'bg-success' : 
@@ -605,7 +605,7 @@ function CreatePerformanceGroupForm({
   isLoading,
 }: {
   accountId: number;
-  onSubmit: (data: any) => void;
+  onSubmit: (data: unknown) => void;
   isLoading: boolean;
 }) {
   const [formData, setFormData] = useState({
@@ -624,7 +624,7 @@ function CreatePerformanceGroupForm({
       accountId,
       name: formData.name,
       description: formData.description || undefined,
-      optimizationGoal: formData.optimizationGoal as any,
+      optimizationGoal: formData.optimizationGoal as unknown,
       targetAcos: formData.targetAcos || undefined,
       targetRoas: formData.targetRoas || undefined,
       dailySpendLimit: formData.dailySpendLimit || undefined,

@@ -360,7 +360,7 @@ export async function triggerCollaborationNotification(params: {
   targetName?: string;
   accountId?: number;
   accountName?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   auditLogId?: number;
 }): Promise<number> {
   const db = await getDb();
@@ -411,7 +411,7 @@ export async function triggerCollaborationNotification(params: {
     .from(teamMembers)
     .where(and(eq(teamMembers.status, "active")));
   
-  const recipients = members.filter((m: any) => m.memberId !== actionUserId);
+  const recipients = members.filter((m: unknown) => m.memberId !== actionUserId);
   
   if (recipients.length === 0) {
     return 0;

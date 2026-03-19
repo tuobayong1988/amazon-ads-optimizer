@@ -177,7 +177,7 @@ describe('AutomationExecutionEngine', () => {
       const updated = updateAccountAutomationConfig(33333, {
         safetyBoundary: {
           maxBidChangePercent: 15,
-        } as any,
+        } as unknown,
       });
       
       expect(updated.safetyBoundary.maxBidChangePercent).toBe(15);

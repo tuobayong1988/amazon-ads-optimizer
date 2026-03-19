@@ -37,7 +37,7 @@ export default function AuditLogs() {
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
   const [page, setPage] = useState(1);
   const [pageSize] = useState(20);
-  const [selectedLog, setSelectedLog] = useState<any>(null);
+  const [selectedLog, setSelectedLog] = useState<unknown>(null);
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const [viewAll, setViewAll] = useState(true); // 管理员默认查看所有用户日志
   const [startDate, setStartDate] = useState<string>(""); // 开始日期
@@ -48,7 +48,7 @@ export default function AuditLogs() {
   const isAdmin = true; // 后端会根据用户角色判断是否有权限查看所有日志
 
   // 获取操作类型和描述
-  const { data: actionTypes } = trpc.audit.getActionTypes.useQuery() as any;
+  const { data: actionTypes } = trpc.audit.getActionTypes.useQuery() as unknown;
 
   // 计算日期范围
   const getDateRange = () => {
@@ -94,7 +94,7 @@ export default function AuditLogs() {
   });
 
   // 获取用户操作统计（管理员查看全部用户汇总）
-  const { data: userStats } = trpc.audit.userStats.useQuery({ days: 30, viewAll: true }) as any;
+  const { data: userStats } = trpc.audit.userStats.useQuery({ days: 30, viewAll: true }) as unknown;
 
   // 导出审计日志
   const exportMutation = trpc.audit.export.useMutation({
@@ -179,7 +179,7 @@ export default function AuditLogs() {
   }
 
   // 查看详情
-  function viewDetail(log: any) {
+  function viewDetail(log: unknown) {
     setSelectedLog(log);
     setDetailDialogOpen(true);
   }
@@ -304,10 +304,10 @@ export default function AuditLogs() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">全部类型</SelectItem>
-                      {actionCategories.map((category: any) => (
+                      {actionCategories.map((category: unknown) => (
                         <div key={category.key}>
                           <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">{category.label}</div>
-                          {category.actions.map((action: any) => (
+                          {category.actions.map((action: unknown) => (
                             <SelectItem key={action} value={action}>
                               {getActionDescription(action)}
                             </SelectItem>
@@ -428,7 +428,7 @@ export default function AuditLogs() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {logsData.logs.map((log: any) => (
+                        {logsData.logs.map((log: unknown) => (
                           <TableRow key={log.id}>
                             <TableCell className="text-sm text-muted-foreground">
                               <div className="flex items-center gap-1">
@@ -521,8 +521,8 @@ export default function AuditLogs() {
               <CardContent>
                 {userStats?.actionsByDay && userStats.actionsByDay.length > 0 ? (
                   <div className="h-[200px] flex items-end gap-1">
-                    {userStats.actionsByDay.map((day: any, index: any) => {
-                      const maxCount = Math.max(...userStats.actionsByDay.map((d: any) => d.count));
+                    {userStats.actionsByDay.map((day: unknown, index: unknown) => {
+                      const maxCount = Math.max(...userStats.actionsByDay.map((d: unknown) => d.count));
                       const height = maxCount > 0 ? (day.count / maxCount) * 100 : 0;
                       return (
                         <div
@@ -556,13 +556,13 @@ export default function AuditLogs() {
                       .sort(([, a], [, b]) => b - a)
                       .slice(0, 10)
                       .map(([actionType, count]) => {
-                        const total: any = Object.values(userStats.actionsByType).reduce((a: any, b: any) => a + b, 0);
+                        const total: unknown = Object.values(userStats.actionsByType).reduce((a: unknown, b: unknown) => a + b, 0);
                         const percentage = total > 0 ? ((count as number) / (total as number)) * 100 : 0;
                         return (
                           <div key={actionType} className="space-y-1">
                             <div className="flex items-center justify-between text-sm">
                               <span>{getActionDescription(actionType)}</span>
-                              <span className="text-muted-foreground">{count as any} 次 ({percentage.toFixed(1)}%)</span>
+                              <span className="text-muted-foreground">{count as unknown} 次 ({percentage.toFixed(1)}%)</span>
                             </div>
                             <div className="h-2 bg-muted rounded-full overflow-hidden">
                               <div
@@ -589,7 +589,7 @@ export default function AuditLogs() {
               <CardContent>
                 {userStats?.recentActions && userStats.recentActions.length > 0 ? (
                   <div className="space-y-3">
-                    {userStats.recentActions.map((log: any) => (
+                    {userStats.recentActions.map((log: unknown) => (
                       <div key={log.id} className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
                         <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
                           <Activity className="w-4 h-4 text-primary" />

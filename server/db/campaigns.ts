@@ -95,7 +95,7 @@ export async function getCampaignsWithPerformance(
   }
   
   // v426: 获取当前账户相关的优化目标组（通过campaigns关联过滤，避免加载全部组）
-  const accountGroupIds = [...new Set(campaignList.map((c: any) => c.performanceGroupId).filter(Boolean))];
+  const accountGroupIds = [...new Set(campaignList.map((c: unknown) => c.performanceGroupId).filter(Boolean))];
   let groupMap = new Map<number, { id: number; name: string; strategyTemplateId: number | null; strategyTemplateName: string | null }>();
   if (accountGroupIds.length > 0) {
     const relevantGroups = await db.select({
@@ -184,7 +184,7 @@ export interface CampaignPaginationParams {
 }
 
 export interface CampaignPaginatedResult {
-  data: any[];
+  data: unknown[];
   total: number;
   filteredTotal: number;
   page: number;
@@ -216,7 +216,7 @@ export async function getCampaignsWithPerformancePaginated(
   } = params;
   
   // ========== Step 1: 构建WHERE条件 ==========
-  const whereConditions: any[] = [eq(campaigns.accountId, accountId)];
+  const whereConditions: unknown[] = [eq(campaigns.accountId, accountId)];
   
   // 基础筛选 - 搜索
   if (search && search.trim()) {
@@ -283,7 +283,7 @@ export async function getCampaignsWithPerformancePaginated(
   
   // ========== Step 4: 构建排序 ==========
   // v402: 支持的排序字段映射
-  const sortFieldMap: Record<string, any> = {
+  const sortFieldMap: Record<string, unknown> = {
     campaignName: campaigns.campaignName,
     campaignType: campaigns.campaignType,
     status: campaigns.campaignStatus,
@@ -299,11 +299,11 @@ export async function getCampaignsWithPerformancePaginated(
   const isPerfSort = sortField && perfSortFields.includes(sortField);
   
   // ========== Step 5: 查询广告活动数据 ==========
-  let campaignList: any[];
+  let campaignList: unknown[];
   
   if (serverPagination && !isPerfSort) {
     // 服务端分页模式 - 非绩效字段排序时可以直接SQL分页
-    let query = db.select().from(campaigns).where(whereClause) as any;
+    let query = db.select().from(campaigns).where(whereClause) as unknown;
     
     // 添加排序
     if (sortField && sortFieldMap[sortField]) {
@@ -373,7 +373,7 @@ export async function getCampaignsWithPerformancePaginated(
   }
   
   // v426: 获取当前账户相关的优化目标组（通过campaigns关联过滤，避免加载全部组）
-  const accountGroupIds = [...new Set(campaignList.map((c: any) => c.performanceGroupId).filter(Boolean))];
+  const accountGroupIds = [...new Set(campaignList.map((c: unknown) => c.performanceGroupId).filter(Boolean))];
   let groupMap = new Map<number, { id: number; name: string; strategyTemplateId: number | null; strategyTemplateName: string | null }>();
   if (accountGroupIds.length > 0) {
     const relevantGroups = await db.select({
@@ -425,7 +425,7 @@ export async function getCampaignsWithPerformancePaginated(
   
   // ========== Step 8: 绩效字段排序（全量模式下） ==========
   if (isPerfSort && sortField) {
-    mergedData.sort((a: any, b: any) => {
+    mergedData.sort((a: unknown, b: unknown) => {
       let aVal: number, bVal: number;
       switch (sortField) {
         case 'impressions': aVal = a.impressions || 0; bVal = b.impressions || 0; break;

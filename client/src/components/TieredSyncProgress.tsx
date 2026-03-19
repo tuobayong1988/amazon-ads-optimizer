@@ -60,10 +60,10 @@ interface TierStats {
 
 export function TieredSyncProgress({ accountId, accountName }: TieredSyncProgressProps) {
   // 获取分层配置
-  const { data: tierConfig } = trpc.reportJobs.getTierConfig.useQuery() as any;
+  const { data: tierConfig } = trpc.reportJobs.getTierConfig.useQuery() as unknown;
 
   // 获取分层任务数量
-  const { data: taskCounts } = trpc.reportJobs.calculateTieredTaskCounts.useQuery() as any;
+  const { data: taskCounts } = trpc.reportJobs.calculateTieredTaskCounts.useQuery() as unknown;
 
   // 获取分层初始化进度
   const { data: tieredStats, isLoading, refetch } = trpc.reportJobs.getTieredInitializationStats.useQuery(
@@ -305,7 +305,7 @@ export function TieredSyncProgress({ accountId, accountName }: TieredSyncProgres
                   </tr>
                 </thead>
                 <tbody>
-                  {(tierConfig as any).tiers?.map((tier: TierConfig) => (
+                  {(tierConfig as Record<string, unknown>).tiers?.map((tier: TierConfig) => (
                     <tr key={tier.name} className="border-b">
                       <td className="py-2 px-3">
                         <div className="flex items-center gap-2">
@@ -360,32 +360,32 @@ export function TieredSyncProgress({ accountId, accountName }: TieredSyncProgres
                       {getTierIcon('realtime')}
                       <span>实时层</span>
                     </div>
-                    <span className="font-medium">{(taskCounts as any).realtime || 0} 任务</span>
+                    <span className="font-medium">{(taskCounts as Record<string, unknown>).realtime || 0} 任务</span>
                   </div>
                   <div className="flex justify-between items-center">
                     <div className="flex items-center gap-2">
                       {getTierIcon('hot')}
                       <span>热数据层</span>
                     </div>
-                    <span className="font-medium">{(taskCounts as any).hot || 0} 任务</span>
+                    <span className="font-medium">{(taskCounts as Record<string, unknown>).hot || 0} 任务</span>
                   </div>
                   <div className="flex justify-between items-center">
                     <div className="flex items-center gap-2">
                       {getTierIcon('warm')}
                       <span>温数据层</span>
                     </div>
-                    <span className="font-medium">{(taskCounts as any).warm || 0} 任务</span>
+                    <span className="font-medium">{(taskCounts as Record<string, unknown>).warm || 0} 任务</span>
                   </div>
                   <div className="flex justify-between items-center">
                     <div className="flex items-center gap-2">
                       {getTierIcon('cold')}
                       <span>冷数据层</span>
                     </div>
-                    <span className="font-medium">{(taskCounts as any).cold || 0} 任务</span>
+                    <span className="font-medium">{(taskCounts as Record<string, unknown>).cold || 0} 任务</span>
                   </div>
                   <div className="flex justify-between items-center pt-2 border-t font-medium">
                     <span>总计</span>
-                    <span>{(taskCounts as any).total || 0} 任务</span>
+                    <span>{(taskCounts as Record<string, unknown>).total || 0} 任务</span>
                   </div>
                 </div>
               </div>
@@ -403,7 +403,7 @@ export function TieredSyncProgress({ accountId, accountName }: TieredSyncProgres
                   </div>
                   <div className="flex justify-between text-green-600 font-medium">
                     <span>方案五（智能分层）</span>
-                    <span>{(taskCounts as any).total || 61} 任务</span>
+                    <span>{(taskCounts as Record<string, unknown>).total || 61} 任务</span>
                   </div>
                 </div>
                 <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">

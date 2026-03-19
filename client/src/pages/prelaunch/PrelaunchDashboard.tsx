@@ -187,7 +187,7 @@ function ModuleProgressBar({ moduleStats }: { moduleStats?: Record<string, numbe
   return (
     <div className="flex items-center gap-1.5">
       <div className="flex gap-0.5">
-        {modules.map((m: any) => (
+        {modules.map((m: unknown) => (
           <div
             key={m}
             className={`w-3 h-1.5 rounded-full ${(moduleStats[m] || 0) > 0 ? 'bg-green-400' : 'bg-muted/50'}`}
@@ -202,16 +202,16 @@ function ModuleProgressBar({ moduleStats }: { moduleStats?: Record<string, numbe
 
 // ==================== 数据流可视化组件 ====================
 function PipelineFlowVisualization({ pipelineStatus, modules, onModuleClick }: {
-  pipelineStatus: any;
-  modules: Record<string, any>;
+  pipelineStatus: unknown;
+  modules: Record<string, unknown>;
   onModuleClick: (route: string) => void;
 }) {
-  const psData = pipelineStatus as any;
+  const psData = pipelineStatus as unknown;
 
   return (
     <div className="w-full overflow-x-auto pb-4">
       <div className="flex items-center gap-0 min-w-[900px] px-4 py-6">
-        {MODULE_CONFIG.map((mod: any, idx: any) => {
+        {MODULE_CONFIG.map((mod: unknown, idx: unknown) => {
           const moduleStatus = psData?.data?.modules?.[mod.key]?.status || 'pending';
           const isActive = psData?.data?.currentModule === mod.key;
           const count = modules?.[mod.key]?.count ?? 0;
@@ -253,7 +253,7 @@ function PipelineFlowVisualization({ pipelineStatus, modules, onModuleClick }: {
 
 // ==================== 项目卡片组件 ====================
 function ProjectCard({ project, isSelected, onSelect, onEdit, onDelete }: {
-  project: any;
+  project: unknown;
   isSelected: boolean;
   onSelect: () => void;
   onEdit: () => void;
@@ -265,7 +265,7 @@ function ProjectCard({ project, isSelected, onSelect, onEdit, onDelete }: {
     ? project.seedKeywords
     : (typeof project.seedKeywords === 'string' ? (() => { try { return JSON.parse(project.seedKeywords); } catch { return []; } })() : []);
   const moduleStats = project.moduleStats || {};
-  const totalModuleData = Object.values(moduleStats).reduce((sum: number, v: any) => sum + (Number(v) || 0), 0);
+  const totalModuleData = Object.values(moduleStats).reduce((sum: number, v: unknown) => sum + (Number(v) || 0), 0);
 
   return (
     <Card
@@ -361,7 +361,7 @@ function ProjectCard({ project, isSelected, onSelect, onEdit, onDelete }: {
 
 // ==================== 项目详情/编辑弹窗 ====================
 function ProjectDetailDialog({ project, open, onClose, onSaved }: {
-  project: any;
+  project: unknown;
   open: boolean;
   onClose: () => void;
   onSaved: () => void;
@@ -381,7 +381,7 @@ function ProjectDetailDialog({ project, open, onClose, onSaved }: {
       onSaved();
       onClose(); // 保存成功后关闭弹窗，下次打开时使用最新数据
     },
-    onError: (err: any) => toast.error("更新失败: " + err.message),
+    onError: (err: unknown) => toast.error("更新失败: " + err.message),
   });
 
   // 当project变化时重置编辑状态
@@ -408,7 +408,7 @@ function ProjectDetailDialog({ project, open, onClose, onSaved }: {
       category: editCategory.trim() || undefined,
       marketplace: editMarketplace,
       seedKeywords: editKeywords.split(/[,，\n]/).map((s: string) => s.trim()).filter(Boolean),
-      status: editStatus as any,
+      status: editStatus as unknown,
     });
   }, [editName, editAsin, editCategory, editMarketplace, editKeywords, editStatus, project?.id, updateProject]);
 
@@ -557,7 +557,7 @@ function ProjectDetailDialog({ project, open, onClose, onSaved }: {
                 模块数据统计
               </h4>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {MODULE_CONFIG.map((mod: any) => {
+                {MODULE_CONFIG.map((mod: unknown) => {
                   const count = moduleStats[mod.key] || 0;
                   return (
                     <div key={mod.key} className={`flex items-center gap-2 p-2 rounded-lg border ${count > 0 ? 'border-green-500/20 bg-green-500/5' : 'border-border/30'}`}>
@@ -592,11 +592,11 @@ function CreateProjectWizard({ onClose, onCreated }: {
   const [selectedModules, setSelectedModules] = useState<string[]>(['M1', 'M2', 'M3', 'M4X', 'M5', 'M6', 'M7']);
 
   const createProject = trpc.prelaunch.createProject.useMutation({
-    onSuccess: (data: any) => {
+    onSuccess: (data: unknown) => {
       toast.success(`项目 "${projectName}" 创建成功`);
       onCreated(data.projectId || data.id);
     },
-    onError: (err: any) => toast.error("创建失败: " + err.message),
+    onError: (err: unknown) => toast.error("创建失败: " + err.message),
   });
 
   const toggleModule = useCallback((key: string) => {
@@ -625,7 +625,7 @@ function CreateProjectWizard({ onClose, onCreated }: {
             创建预发布项目
           </CardTitle>
           <div className="flex items-center gap-2">
-            {[1, 2, 3, 4].map((s: any) => (
+            {[1, 2, 3, 4].map((s: unknown) => (
               <div key={s} className={`flex items-center gap-1 ${s <= step ? 'text-blue-400' : 'text-muted-foreground'}`}>
                 <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold border ${
                   s === step ? 'bg-blue-500/20 border-blue-500' :
@@ -680,7 +680,7 @@ function CreateProjectWizard({ onClose, onCreated }: {
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">选择需要执行的模块（建议全选以获得最佳效果）</p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {MODULE_CONFIG.map((mod: any) => (
+              {MODULE_CONFIG.map((mod: unknown) => (
                 <div
                   key={mod.key}
                   className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
@@ -734,7 +734,7 @@ function CreateProjectWizard({ onClose, onCreated }: {
               <div>
                 <p className="text-xs text-muted-foreground mb-2">执行模块:</p>
                 <div className="flex flex-wrap gap-1">
-                  {selectedModules.map((key: any) => {
+                  {selectedModules.map((key: unknown) => {
                     const mod = MODULE_CONFIG.find(m => m.key === key);
                     return mod ? (
                       <Badge key={key} variant="secondary" className="text-xs">{mod.key}: {mod.name}</Badge>
@@ -746,7 +746,7 @@ function CreateProjectWizard({ onClose, onCreated }: {
               <div>
                 <p className="text-xs text-muted-foreground mb-1">种子关键词:</p>
                 <div className="flex flex-wrap gap-1">
-                  {seedKeywords.split(/[,，\n]/).map(s => s.trim()).filter(Boolean).map((kw: any, i: any) => (
+                  {seedKeywords.split(/[,，\n]/).map(s => s.trim()).filter(Boolean).map((kw: unknown, i: unknown) => (
                     <Badge key={i} variant="outline" className="text-xs">{kw}</Badge>
                   ))}
                 </div>
@@ -789,9 +789,9 @@ export default function PrelaunchDashboard() {
   const [showCreateWizard, setShowCreateWizard] = useState(false);
   const [projectSearch, setProjectSearch] = useState("");
   const [projectStatusFilter, setProjectStatusFilter] = useState<string>("all");
-  const [detailProject, setDetailProject] = useState<any>(null);
+  const [detailProject, setDetailProject] = useState<unknown>(null);
   const [showDetailDialog, setShowDetailDialog] = useState(false);
-  const [deleteProject, setDeleteProject] = useState<any>(null);
+  const [deleteProject, setDeleteProject] = useState<unknown>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // tRPC查询
@@ -800,7 +800,7 @@ export default function PrelaunchDashboard() {
     { refetchInterval: 5000 }
   );
   const projectsQuery = trpc.prelaunch.listProjects.useQuery({
-    status: projectStatusFilter !== 'all' ? projectStatusFilter as any : undefined,
+    status: projectStatusFilter !== 'all' ? projectStatusFilter as unknown : undefined,
     search: projectSearch || undefined,
     page: 1,
     pageSize: 50,
@@ -815,7 +815,7 @@ export default function PrelaunchDashboard() {
       toast.success("流水线已启动！正在依次执行M1→M7...");
       pipelineStatusQuery.refetch();
     },
-    onError: (err: any) => toast.error("启动失败: " + err.message),
+    onError: (err: unknown) => toast.error("启动失败: " + err.message),
   });
 
   const deleteProjectMutation = trpc.prelaunch.deleteProject.useMutation({
@@ -829,25 +829,25 @@ export default function PrelaunchDashboard() {
       projectsQuery.refetch();
       dashboardQuery.refetch();
     },
-    onError: (err: any) => toast.error("删除失败: " + err.message),
+    onError: (err: unknown) => toast.error("删除失败: " + err.message),
   });
 
   const dashboard = dashboardQuery.data;
   const projectsData = projectsQuery.data;
-  const projects = (projectsData && 'data' in projectsData ? (projectsData as any).data : projectsData) || [];
-  const projectsError = projectsData && 'success' in projectsData && !(projectsData as any).success ? (projectsData as any).error : null;
+  const projects = (projectsData && 'data' in projectsData ? (projectsData as Record<string, unknown>).data : projectsData) || [];
+  const projectsError = projectsData && 'success' in projectsData && !(projectsData as Record<string, unknown>).success ? (projectsData as Record<string, unknown>).error : null;
   const pipelineStatus = pipelineStatusQuery.data;
-  const modules = (dashboard as any)?.data?.modules || {};
+  const modules = (dashboard as unknown)?.data?.modules || {};
 
   // 统计数据
   const projectStats = useMemo(() => {
     const all = Array.isArray(projects) ? projects : [];
     return {
       total: all.length,
-      draft: all.filter((p: any) => p.status === 'draft').length,
-      running: all.filter((p: any) => p.status === 'running').length,
-      completed: all.filter((p: any) => p.status === 'completed').length,
-      archived: all.filter((p: any) => p.status === 'archived').length,
+      draft: all.filter((p: unknown) => p.status === 'draft').length,
+      running: all.filter((p: unknown) => p.status === 'running').length,
+      completed: all.filter((p: unknown) => p.status === 'completed').length,
+      archived: all.filter((p: unknown) => p.status === 'archived').length,
     };
   }, [projects]);
 
@@ -940,7 +940,7 @@ export default function PrelaunchDashboard() {
                   { key: 'running', label: '运行中', count: projectStats.running },
                   { key: 'completed', label: '已完成', count: projectStats.completed },
                   { key: 'archived', label: '已归档', count: projectStats.archived },
-                ].map((f: any) => (
+                ].map((f: unknown) => (
                   <Button
                     key={f.key}
                     variant={projectStatusFilter === f.key ? "default" : "ghost"}
@@ -974,7 +974,7 @@ export default function PrelaunchDashboard() {
               </div>
             ) : Array.isArray(projects) && projects.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-                {projects.map((p: any) => (
+                {projects.map((p: unknown) => (
                   <ProjectCard
                     key={p.id}
                     project={p}
@@ -1017,7 +1017,7 @@ export default function PrelaunchDashboard() {
 
         {/* 当前选中项目的快速信息栏 */}
         {selectedProjectId && (() => {
-          const selectedProject = Array.isArray(projects) ? projects.find((p: any) => p.id === selectedProjectId) : null;
+          const selectedProject = Array.isArray(projects) ? projects.find((p: unknown) => p.id === selectedProjectId) : null;
           if (!selectedProject) return null;
           return (
             <div className="flex items-center gap-3 px-4 py-2.5 rounded-lg bg-blue-500/5 border border-blue-500/20">
@@ -1055,10 +1055,10 @@ export default function PrelaunchDashboard() {
               </Card>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {MODULE_CONFIG.map((mod: any) => {
+                {MODULE_CONFIG.map((mod: unknown) => {
                   const moduleData = modules[mod.key];
                   const count = moduleData?.count ?? 0;
-                  const psData = pipelineStatus as any;
+                  const psData = pipelineStatus as unknown;
                   const pipelineModuleStatus = psData?.data?.modules?.[mod.key]?.status;
 
                   return (
@@ -1123,16 +1123,16 @@ export default function PrelaunchDashboard() {
                       modules={modules}
                       onModuleClick={(route) => setLocation(route)}
                     />
-                    {(pipelineStatus as any)?.data && (
+                    {(pipelineStatus as unknown)?.data && (
                       <div className="mt-2 px-4">
                         <div className="flex items-center justify-between text-sm mb-2">
                           <span className="text-muted-foreground">总进度</span>
-                          <span className="font-medium">{(pipelineStatus as any).data.progress}%</span>
+                          <span className="font-medium">{(pipelineStatus as Record<string, unknown>).data.progress}%</span>
                         </div>
                         <div className="w-full bg-muted/50 rounded-full h-2">
                           <div
                             className="bg-gradient-to-r from-blue-500 to-purple-500 h-2 rounded-full transition-all duration-500"
-                            style={{ width: `${(pipelineStatus as any).data.progress}%` }}
+                            style={{ width: `${(pipelineStatus as Record<string, unknown>).data.progress}%` }}
                           />
                         </div>
                       </div>
@@ -1150,8 +1150,8 @@ export default function PrelaunchDashboard() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-2">
-                    {MODULE_CONFIG.map((mod: any) => {
-                      const psData = pipelineStatus as any;
+                    {MODULE_CONFIG.map((mod: unknown) => {
+                      const psData = pipelineStatus as unknown;
                       const moduleStatus = psData?.data?.modules?.[mod.key];
                       const status = moduleStatus?.status || 'pending';
                       const isActive = psData?.data?.currentModule === mod.key;
@@ -1241,19 +1241,19 @@ export default function PrelaunchDashboard() {
 
 // ==================== 广告框架预览子组件 ====================
 function AdFrameworkPreview({ projectId }: { projectId: number }) {
-  const frameworksQuery = trpc.prelaunch.getAdFrameworks.useQuery({ projectId }) as any;
+  const frameworksQuery = trpc.prelaunch.getAdFrameworks.useQuery({ projectId }) as unknown;
   const deployMutation = trpc.prelaunch.deployAdFramework.useMutation({
-    onSuccess: (data: any) => {
+    onSuccess: (data: unknown) => {
       if (data.dryRun) {
         toast.success(`验证通过！预计 ${data.validation?.estimatedApiCalls} 次API调用`);
       } else {
         toast.success("广告框架已部署到Amazon！");
       }
     },
-    onError: (err: any) => toast.error("部署失败: " + err.message),
+    onError: (err: unknown) => toast.error("部署失败: " + err.message),
   });
 
-  const frameworks = (frameworksQuery.data as any)?.data || [];
+  const frameworks = (frameworksQuery.data as unknown)?.data || [];
 
   if (frameworks.length === 0) {
     return (
@@ -1274,7 +1274,7 @@ function AdFrameworkPreview({ projectId }: { projectId: number }) {
 
   return (
     <div className="space-y-3">
-      {frameworks.map((fw: any) => {
+      {frameworks.map((fw: unknown) => {
         const typeInfo = AD_TYPE_LABELS[fw.frameworkType] || { label: fw.frameworkType, color: 'bg-gray-500/20' };
         return (
           <div key={fw.id} className="flex items-center justify-between p-3 rounded-lg border border-border/50 hover:border-border transition-colors">

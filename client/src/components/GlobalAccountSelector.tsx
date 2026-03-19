@@ -140,7 +140,7 @@ export default function GlobalAccountSelector({ compact = false }: GlobalAccount
   const currentMarketplace = useCurrentMarketplace();
 
   // 获取账号列表
-  const { data: accounts, isLoading } = trpc.adAccount.list.useQuery() as any;
+  const { data: accounts, isLoading } = trpc.adAccount.list.useQuery() as unknown;
 
   // 获取唯一的店铺列表（trim空格避免匹配问题）
   const stores = useMemo(() => {
@@ -173,7 +173,7 @@ export default function GlobalAccountSelector({ compact = false }: GlobalAccount
     if (accounts && accounts.length > 0) {
       // 如果没有选中店铺，选择第一个（trim空格）
       if (!currentStore || !stores.includes(currentStore)) {
-        const firstAccount = accounts[0] as any;
+        const firstAccount = accounts[0] as unknown;
         const firstStore = (firstAccount.storeName || firstAccount.accountName).trim();
         const firstMarketplace = firstAccount.marketplace;
         setCurrentSelection(firstStore, firstMarketplace);
@@ -283,7 +283,7 @@ export default function GlobalAccountSelector({ compact = false }: GlobalAccount
         <DropdownMenuContent align="end" className="w-60">
           <DropdownMenuLabel>选择店铺</DropdownMenuLabel>
           <DropdownMenuSeparator />
-          {stores.map((store: any) => (
+          {stores.map((store: unknown) => (
             <DropdownMenuItem
               key={store}
               onClick={() => handleStoreChange(store)}
@@ -320,7 +320,7 @@ export default function GlobalAccountSelector({ compact = false }: GlobalAccount
         <DropdownMenuContent align="end" className="w-60">
           <DropdownMenuLabel>选择站点</DropdownMenuLabel>
           <DropdownMenuSeparator />
-          {marketplaces.map((marketplace: any) => (
+          {marketplaces.map((marketplace: unknown) => (
             <DropdownMenuItem
               key={marketplace}
               onClick={() => handleMarketplaceChange(marketplace)}

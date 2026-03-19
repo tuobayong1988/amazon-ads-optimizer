@@ -43,7 +43,7 @@ import { useGlobalAccountId } from "@/hooks/useGlobalAccountId";
 export default function OptimizationEngine() {
   // v399: 使用全局店铺选择器替代本地状态
   const { accountId: selectedAccountId, accounts, isLoading: accountsLoading } = useGlobalAccountId();
-  const setSelectedAccountId = (_: any) => {}; // v399: 由全局选择器控制，本地setter为no-op
+  const setSelectedAccountId = (_: unknown) => {}; // v399: 由全局选择器控制，本地setter为no-op
 const [activeTab, setActiveTab] = useState("recommendations");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isExecuting, setIsExecuting] = useState(false);
@@ -52,7 +52,7 @@ const [activeTab, setActiveTab] = useState("recommendations");
   // v399: accountId 已由全局选择器 Hook 提供（selectedAccountId）
   const accountId = selectedAccountId;
 // 获取优化建议 - 使用mutation作为查询
-  const [recommendations, setRecommendations] = useState<any[]>([]);
+  const [recommendations, setRecommendations] = useState<unknown[]>([]);
   const runAnalysisMutation = trpc.unifiedOptimization.runAnalysis.useMutation({
     onSuccess: (data) => {
       setRecommendations(data || []);
@@ -78,7 +78,7 @@ const [activeTab, setActiveTab] = useState("recommendations");
       runAnalysisMutation.mutate({ accountId: accountId! });
       summaryQuery.refetch();
     },
-    onError: (err: any) => {
+    onError: (err: unknown) => {
       toast.error(`执行失败: ${err.message}`);
     }
   });
@@ -127,8 +127,8 @@ const [activeTab, setActiveTab] = useState("recommendations");
 
   // 批量执行高置信度建议
   const handleBatchExecute = async () => {
-    const highConfidenceIds = recommendations?.filter((r: any) => r.confidence >= 0.8 && r.status === 'pending')
-      .map((r: any) => r.id) || [];
+    const highConfidenceIds = recommendations?.filter((r: unknown) => r.confidence >= 0.8 && r.status === 'pending')
+      .map((r: unknown) => r.id) || [];
     
     if (highConfidenceIds.length === 0) {
       toast.info("没有可执行的高置信度建议");
@@ -149,9 +149,9 @@ const [activeTab, setActiveTab] = useState("recommendations");
   // 计算优化摘要
   const optimizationSummary = useMemo(() => {
     const recs = recommendations || [];
-    const pending = recs.filter((r: any) => r.status === 'pending').length;
-    const highConfidence = recs.filter((r: any) => r.confidence >= 0.8 && r.status === 'pending').length;
-    const executed = (summaryQuery.data as any)?.executedCount || 0;
+    const pending = recs.filter((r: unknown) => r.status === 'pending').length;
+    const highConfidence = recs.filter((r: unknown) => r.confidence >= 0.8 && r.status === 'pending').length;
+    const executed = (summaryQuery.data as unknown)?.executedCount || 0;
 
     return {
       totalRecommendations: recs.length,
@@ -218,7 +218,7 @@ const [activeTab, setActiveTab] = useState("recommendations");
                 <SelectValue placeholder="选择账号" />
               </SelectTrigger>
               <SelectContent>
-                {accounts?.map((account: any) => (
+                {accounts?.map((account: unknown) => (
                   <SelectItem key={account.id} value={account.id.toString()}>
                     {account.accountName}
                   </SelectItem>
@@ -357,7 +357,7 @@ const [activeTab, setActiveTab] = useState("recommendations");
 
           {/* 优化建议Tab */}
           <TabsContent value="recommendations" className="space-y-4">
-            {recommendations?.filter((r: any) => r.status === 'pending').map((rec: any) => (
+            {recommendations?.filter((r: unknown) => r.status === 'pending').map((rec: unknown) => (
               <Card key={rec.id} className="hover:border-primary/50 transition-colors">
                 <CardContent className="py-4">
                   <div className="flex items-center justify-between">
@@ -409,7 +409,7 @@ const [activeTab, setActiveTab] = useState("recommendations");
 
           {/* 执行历史Tab */}
           <TabsContent value="history" className="space-y-4">
-            {((summaryQuery.data as any)?.recentExecutions || []).map((history: any) => (
+            {((summaryQuery.data as unknown)?.recentExecutions || []).map((history: unknown) => (
               <Card key={history.id}>
                 <CardContent className="py-4">
                   <div className="flex items-center justify-between">

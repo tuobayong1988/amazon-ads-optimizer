@@ -74,7 +74,7 @@ export async function getAverageSpend(
   const endDateStr = endDate.toISOString().split('T')[0];
   
   // v361: 重构为Drizzle参数化查询
-  const conditions: any[] = [
+  const conditions: unknown[] = [
     eq(dailyPerformance.accountId, accountId),
     gte(dailyPerformance.date, startDateStr),
     lte(dailyPerformance.date, endDateStr),
@@ -111,7 +111,7 @@ export async function getAverageCPC(
   const endDateStr = endDate.toISOString().split('T')[0];
   
   // v361: 重构为Drizzle参数化查询
-  const cpcConditions: any[] = [
+  const cpcConditions: unknown[] = [
     eq(dailyPerformance.accountId, accountId),
     gte(dailyPerformance.date, startDateStr),
     lte(dailyPerformance.date, endDateStr),

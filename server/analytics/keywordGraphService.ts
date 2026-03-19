@@ -136,7 +136,7 @@ export async function generateEmbeddings(texts: string[]): Promise<number[][]> {
 Output ONLY the JSON array, no explanation.`
         }, {
           role: 'user',
-          content: `Generate semantic embeddings for these keywords:\n${batch.map((t: any, idx: any) => `${idx + 1}. "${t}"`).join('\n')}\n\nOutput a JSON array of arrays, one 32-dim vector per keyword.`
+          content: `Generate semantic embeddings for these keywords:\n${batch.map((t: unknown, idx: unknown) => `${idx + 1}. "${t}"`).join('\n')}\n\nOutput a JSON array of arrays, one 32-dim vector per keyword.`
         }],
         temperature: 0,
         max_tokens: 2000,

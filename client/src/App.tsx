@@ -101,7 +101,7 @@ function PageLoading() {
 }
 
 // 懒加载包装组件
-function LazyRoute({ component: Component }: { component: React.LazyExoticComponent<React.ComponentType<any>> }) {
+function LazyRoute({ component: Component }: { component: React.LazyExoticComponent<React.ComponentType<unknown>> }) {
   return (
     <Suspense fallback={<PageLoading />}>
       <Component />

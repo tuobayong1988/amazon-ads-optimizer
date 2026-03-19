@@ -39,7 +39,7 @@ export async function backfillMatchType(): Promise<{ updated: number; errors: nu
     
     // 获取受影响的行数
     // @ts-expect-error - MySQL affectedRows
-    const affectedRows = (result as Record<string, any>[][])[0]?.affectedRows || (result as unknown)?.affectedRows || 0;
+    const affectedRows = (result as Record<string, unknown>[][])[0]?.affectedRows || (result as unknown)?.affectedRows || 0;
     updated = affectedRows;
     
     log.info(`[v257] match_type回填完成: 更新了${updated}条记录`);
@@ -54,7 +54,7 @@ export async function backfillMatchType(): Promise<{ updated: number; errors: nu
       WHERE event_category = 'bid_adjustment'
     `);
     
-    const coverage = (coverageResult as Record<string, any>[])[0] || {};
+    const coverage = (coverageResult as Record<string, unknown>[])[0] || {};
     const total = Number(coverage.total) || 0;
     const withMatchType = Number(coverage.with_match_type) || 0;
     const withKeyword = Number(coverage.with_keyword) || 0;

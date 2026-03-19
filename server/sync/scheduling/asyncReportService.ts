@@ -69,7 +69,7 @@ interface ExtendedReportJobInput {
   startDate: string;
   endDate: string;
   priority?: 'high' | 'low';
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 /**
@@ -314,7 +314,7 @@ export class AsyncReportService {
         
         // 如果payload中没有adType，尝试使用adProduct字段
         // @ts-expect-error - dynamic property access
-        const adType = payload.adType || (job as unknown).adProduct;
+        const adType = payload.adType || (job as Record<string, unknown>).adProduct;
 
         switch (adType) {
           case 'SP':
@@ -567,14 +567,14 @@ export class AsyncReportService {
   private async processReportData(
     accountId: number,
     adType: 'SP' | 'SB' | 'SD',
-    data: any[]
+    data: unknown[]
   ): Promise<number> {
     const db = await getDb();
     if (!db) throw new Error('Database not available');
 
     let processedCount = 0;
 
-    for (const row of (data as any[])) {
+    for (const row of (data as unknown[])) {
       try {
         const date = row.date;
         const campaignId = row.campaignId;
@@ -736,7 +736,7 @@ export class AsyncReportService {
         )
       );
 
-    return (result as any).rowsAffected || 0;
+    return (result as Record<string, unknown>).rowsAffected || 0;
   }
 }
 

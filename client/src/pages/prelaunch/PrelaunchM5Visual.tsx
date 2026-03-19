@@ -15,8 +15,8 @@ export default function PrelaunchM5Visual() {
   const [, setLocation] = useLocation();
   const [projectId, setProjectId] = useState<number | null>(null);
 
-  const projectsQuery = trpc.prelaunch.listProjects.useQuery() as any;
-  const projects = (() => { const d = projectsQuery.data; return (d && 'data' in (d as any) ? (d as any).data : d) || []; })();
+  const projectsQuery = trpc.prelaunch.listProjects.useQuery() as unknown;
+  const projects = (() => { const d = projectsQuery.data; return (d && 'data' in (d as unknown) ? (d as Record<string, unknown>).data : d) || []; })();
   if (!projectId && projects.length > 0) setProjectId(projects[0].id);
 
   const briefsQuery = trpc.prelaunch.getVisualBriefs.useQuery(
@@ -29,7 +29,7 @@ export default function PrelaunchM5Visual() {
     onError: (err) => toast.error("启动失败: " + err.message),
   });
 
-  const briefsData = (briefsQuery.data as any)?.data || [];
+  const briefsData = (briefsQuery.data as unknown)?.data || [];
 
   const positionLabels: Record<string, string> = {
     main: '主图', lifestyle_1: '场景图1', lifestyle_2: '场景图2',
@@ -59,7 +59,7 @@ export default function PrelaunchM5Visual() {
             <select className="h-8 rounded-md border border-input bg-transparent px-2 text-xs"
               value={projectId || ''} onChange={(e) => setProjectId(Number(e.target.value))}>
               <option value="">选择项目</option>
-              {projects.map((p: any) => <option key={p.id} value={p.id}>{p.projectName}</option>)}
+              {projects.map((p: unknown) => <option key={p.id} value={p.id}>{p.projectName}</option>)}
             </select>
             <Button variant="outline" size="sm" onClick={() => briefsQuery.refetch()} disabled={briefsQuery.isFetching}>
               <RefreshCw className={`w-3 h-3 mr-1 ${briefsQuery.isFetching ? 'animate-spin' : ''}`} />刷新
@@ -86,7 +86,7 @@ export default function PrelaunchM5Visual() {
           </Card>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {briefsData.map((brief: any) => (
+            {briefsData.map((brief: unknown) => (
               <Card key={brief.id} className="hover:border-pink-500/30 transition-colors overflow-hidden">
                 {brief.imageUrl ? (
                   <div className="aspect-square bg-muted/30 flex items-center justify-center overflow-hidden">

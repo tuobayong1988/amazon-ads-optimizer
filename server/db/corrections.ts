@@ -50,8 +50,8 @@ export async function addAttributionCorrectionRecord(data: {
   originalBid: number;
   adjustedBid: number;
   adjustmentReason?: string;
-  metricsAtAdjustment?: Record<string, any>;
-  metricsAfterAttribution?: Record<string, any>;
+  metricsAtAdjustment?: Record<string, unknown>;
+  metricsAfterAttribution?: Record<string, unknown>;
   wasIncorrect?: boolean;
   correctionType?: 'over_decreased' | 'over_increased' | 'correct';
   suggestedBid?: number;
@@ -82,7 +82,7 @@ export async function addAttributionCorrectionRecord(data: {
     suggestedBid: data.suggestedBid?.toString() || null,
     confidenceScore: data.confidenceScore?.toString() || null,
     correctionStatus: 'pending_review',
-  } as Record<string, any>);
+  } as Record<string, unknown>);
 }
 
 // Get correction review session
@@ -159,7 +159,7 @@ export async function updateCorrectionReviewSession(id: number, data: {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
-  const updateData: Record<string, any> = {};
+  const updateData: Record<string, unknown> = {};
   if (data.status !== undefined) updateData.status = data.status;
   if (data.totalAdjustmentsReviewed !== undefined) updateData.totalAdjustmentsReviewed = data.totalAdjustmentsReviewed;
   if (data.incorrectAdjustments !== undefined) updateData.incorrectAdjustments = data.incorrectAdjustments;

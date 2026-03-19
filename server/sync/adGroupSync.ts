@@ -38,7 +38,7 @@ const UPSERT_CHUNK_SIZE = 200;
  * v426: 预加载账户的所有campaigns到Map中（amazonCampaignId -> campaign）
  * 消除循环内逐条查询campaign的N+1问题
  */
-async function preloadCampaignMap(db: any, accountId: number): Promise<Map<string, { id: number; campaignId: string }>> {
+async function preloadCampaignMap(db: unknown, accountId: number): Promise<Map<string, { id: number; campaignId: string }>> {
   const allCampaigns = await db
     .select({ id: campaigns.id, campaignId: campaigns.campaignId })
     .from(campaigns)
@@ -55,7 +55,7 @@ async function preloadCampaignMap(db: any, accountId: number): Promise<Map<strin
  * v426: 预加载账户的所有adGroups到Map中（campaignId:adGroupId -> adGroup）
  * 消除循环内逐条查询existing adGroup的N+1问题
  */
-async function preloadAdGroupMap(db: any, accountId: number): Promise<Map<string, { id: number; campaignId: string; adGroupId: string }>> {
+async function preloadAdGroupMap(db: unknown, accountId: number): Promise<Map<string, { id: number; campaignId: string; adGroupId: string }>> {
   const allAdGroups = await db
     .select({ id: adGroups.id, campaignId: adGroups.campaignId, adGroupId: adGroups.adGroupId })
     .from(adGroups)
@@ -87,8 +87,8 @@ export async function syncSpAdGroups(service: SyncContext, lastSyncTime?: string
     const adGroupMap = await preloadAdGroupMap(db, service.accountId);
     
     const nowStr = new Date().toISOString().slice(0, 19).replace('T', ' ');
-    const toInsert: any[] = [];
-    const toUpdate: Array<{ id: number; data: any }> = [];
+    const toInsert: unknown[] = [];
+    const toUpdate: Array<{ id: number; data: unknown }> = [];
 
     for (const apiAdGroup of apiAdGroups) {
       // v426: O(1) Map查找替代数据库查询
@@ -161,8 +161,8 @@ export async function syncSbAdGroups(service: SyncContext): Promise<{ synced: nu
     const adGroupMap = await preloadAdGroupMap(db, service.accountId);
     
     const nowStr = new Date().toISOString().slice(0, 19).replace('T', ' ');
-    const toInsert: any[] = [];
-    const toUpdate: Array<{ id: number; data: any }> = [];
+    const toInsert: unknown[] = [];
+    const toUpdate: Array<{ id: number; data: unknown }> = [];
 
     for (const apiAdGroup of apiAdGroups) {
       const campaign = campaignMap.get(String(apiAdGroup.campaignId));
@@ -234,8 +234,8 @@ export async function syncSdAdGroups(service: SyncContext): Promise<{ synced: nu
     const adGroupMap = await preloadAdGroupMap(db, service.accountId);
     
     const nowStr = new Date().toISOString().slice(0, 19).replace('T', ' ');
-    const toInsert: any[] = [];
-    const toUpdate: Array<{ id: number; data: any }> = [];
+    const toInsert: unknown[] = [];
+    const toUpdate: Array<{ id: number; data: unknown }> = [];
 
     for (const apiAdGroup of apiAdGroups) {
       const campaign = campaignMap.get(String(apiAdGroup.campaignId));
@@ -440,12 +440,12 @@ export async function syncAdGroupPerformanceData(service: SyncContext, days: num
      * 消除了三段重复代码，同时使用预加载的Map消除N+1查询
      */
     function processAdGroupReport(
-      data: any[],
+      data: unknown[],
       adType: 'SP' | 'SB' | 'SD',
       salesField: string,
       ordersField: string,
-    ): Array<{ id: number; data: any }> {
-      const updates: Array<{ id: number; data: any }> = [];
+    ): Array<{ id: number; data: unknown }> {
+      const updates: Array<{ id: number; data: unknown }> = [];
       for (const row of data) {
         const adGroupId = String(row.adGroupId);
         // v426: O(1) Map查找替代数据库查询
@@ -458,7 +458,7 @@ export async function syncAdGroupPerformanceData(service: SyncContext, days: num
         const impressions = Number(row.impressions || 0);
         const clicks = Number(row.clicks || 0);
 
-        const perfData: any = {
+        const perfData: unknown = {
           impressions,
           clicks,
           spend: String(cost),

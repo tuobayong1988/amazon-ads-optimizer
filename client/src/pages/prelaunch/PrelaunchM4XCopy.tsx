@@ -18,8 +18,8 @@ export default function PrelaunchM4XCopy() {
   const [activeTab, setActiveTab] = useState("copies");
   const [generation, setGeneration] = useState<number | undefined>(undefined);
 
-  const projectsQuery = trpc.prelaunch.listProjects.useQuery() as any;
-  const projects = (() => { const d = projectsQuery.data; return (d && 'data' in (d as any) ? (d as any).data : d) || []; })();
+  const projectsQuery = trpc.prelaunch.listProjects.useQuery() as unknown;
+  const projects = (() => { const d = projectsQuery.data; return (d && 'data' in (d as unknown) ? (d as Record<string, unknown>).data : d) || []; })();
   if (!projectId && projects.length > 0) setProjectId(projects[0].id);
 
   const copiesQuery = trpc.prelaunch.getCopyVersions.useQuery(
@@ -42,8 +42,8 @@ export default function PrelaunchM4XCopy() {
     onError: (err) => toast.error("进化失败: " + err.message),
   });
 
-  const copiesData = (copiesQuery.data as any)?.data || [];
-  const qnaData = (qnaQuery.data as any)?.data || [];
+  const copiesData = (copiesQuery.data as unknown)?.data || [];
+  const qnaData = (qnaQuery.data as unknown)?.data || [];
 
   const copyTypeLabels: Record<string, { label: string; color: string }> = {
     title: { label: 'Title', color: 'bg-blue-500/20 text-blue-400' },
@@ -74,7 +74,7 @@ export default function PrelaunchM4XCopy() {
             <select className="h-8 rounded-md border border-input bg-transparent px-2 text-xs"
               value={projectId || ''} onChange={(e) => setProjectId(Number(e.target.value))}>
               <option value="">选择项目</option>
-              {projects.map((p: any) => <option key={p.id} value={p.id}>{p.projectName}</option>)}
+              {projects.map((p: unknown) => <option key={p.id} value={p.id}>{p.projectName}</option>)}
             </select>
             <Button variant="outline" size="sm" onClick={() => copiesQuery.refetch()} disabled={copiesQuery.isFetching}>
               <RefreshCw className={`w-3 h-3 mr-1 ${copiesQuery.isFetching ? 'animate-spin' : ''}`} />刷新
@@ -112,7 +112,7 @@ export default function PrelaunchM4XCopy() {
               </Card>
             ) : (
               <div className="space-y-4">
-                {copiesData.map((copy: any) => {
+                {copiesData.map((copy: unknown) => {
                   const typeInfo = copyTypeLabels[copy.copyType] || { label: copy.copyType, color: 'bg-gray-500/20 text-gray-400' };
                   return (
                     <Card key={copy.id} className="hover:border-amber-500/20 transition-colors">
@@ -153,7 +153,7 @@ export default function PrelaunchM4XCopy() {
               </Card>
             ) : (
               <div className="space-y-3">
-                {qnaData.map((qna: any, i: number) => (
+                {qnaData.map((qna: unknown, i: number) => (
                   <Card key={i}>
                     <CardContent className="py-4">
                       <p className="text-sm font-medium">Q: {qna.question}</p>

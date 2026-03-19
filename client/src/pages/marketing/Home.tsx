@@ -311,7 +311,7 @@ function MarketingPage() {
             
             {/* 核心指标展示 */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-              {performanceMetrics.map((metric: any, i: any) => (
+              {performanceMetrics.map((metric: unknown, i: unknown) => (
                 <div key={i} className="bg-card/50 backdrop-blur-sm border border-border/50 rounded-lg p-4">
                   <div className="flex items-center gap-2 mb-1">
                     {metric.trend === "up" ? (
@@ -368,7 +368,7 @@ function MarketingPage() {
               </div>
             </div>
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {mlEngines.map((feature: any, i: any) => (
+              {mlEngines.map((feature: unknown, i: unknown) => (
                 <Card key={i} className="bg-card/50 border-blue-500/20 hover:border-blue-500/50 transition-colors group">
                   <CardHeader>
                     <div className="w-12 h-12 rounded-lg bg-blue-500/10 flex items-center justify-center mb-4 group-hover:bg-blue-500/20 transition-colors">
@@ -380,7 +380,7 @@ function MarketingPage() {
                   <CardContent>
                     <p className="text-sm text-muted-foreground mb-4">{feature.description}</p>
                     <ul className="space-y-2">
-                      {feature.benefits.map((benefit: any, j: any) => (
+                      {feature.benefits.map((benefit: unknown, j: unknown) => (
                         <li key={j} className="flex items-center gap-2 text-sm">
                           <CheckCircle2 className="w-4 h-4 text-blue-500 flex-shrink-0" />
                           <span>{benefit}</span>
@@ -418,7 +418,7 @@ function MarketingPage() {
               </div>
             </div>
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {gtoEngines.map((feature: any, i: any) => (
+              {gtoEngines.map((feature: unknown, i: unknown) => (
                 <Card key={i} className="bg-card/50 border-amber-500/20 hover:border-amber-500/50 transition-colors group">
                   <CardHeader>
                     <div className="w-12 h-12 rounded-lg bg-amber-500/10 flex items-center justify-center mb-4 group-hover:bg-amber-500/20 transition-colors">
@@ -430,7 +430,7 @@ function MarketingPage() {
                   <CardContent>
                     <p className="text-sm text-muted-foreground mb-4">{feature.description}</p>
                     <ul className="space-y-2">
-                      {feature.benefits.map((benefit: any, j: any) => (
+                      {feature.benefits.map((benefit: unknown, j: unknown) => (
                         <li key={j} className="flex items-center gap-2 text-sm">
                           <CheckCircle2 className="w-4 h-4 text-amber-500 flex-shrink-0" />
                           <span>{benefit}</span>
@@ -457,7 +457,7 @@ function MarketingPage() {
           </div>
           
           <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-6">
-            {algorithmSteps.map((step: any, i: any) => (
+            {algorithmSteps.map((step: unknown, i: unknown) => (
               <div key={i} className="relative">
                 {/* 连接线 */}
                 {i < algorithmSteps.length - 1 && (
@@ -476,7 +476,7 @@ function MarketingPage() {
                   <h3 className="text-lg font-semibold mb-2">{step.title}</h3>
                   <p className="text-sm text-muted-foreground mb-4">{step.description}</p>
                   <div className="flex flex-wrap justify-center gap-2">
-                    {step.details.map((detail: any, j: any) => (
+                    {step.details.map((detail: unknown, j: unknown) => (
                       <Badge key={j} variant="secondary" className="text-xs">
                         {detail}
                       </Badge>
@@ -533,7 +533,7 @@ function MarketingPage() {
                   traditional: "缺乏降级机制，算法失效时无兜底",
                   ours: "三层降级 + GTO安全边界(0.6~1.4) + 预算熔断，永不失控"
                 }
-              ].map((item: any, i: any) => (
+              ].map((item: unknown, i: unknown) => (
                 <div key={i} className="grid md:grid-cols-3 gap-4 p-4 rounded-lg bg-card border border-border/50">
                   <div className="font-medium text-primary">{item.aspect}</div>
                   <div className="flex items-start gap-2">
@@ -582,7 +582,7 @@ function MarketingPage() {
                 description: "展示型推广广告，站内外精准触达消费者",
                 features: ["受众定向优化", "再营销策略", "跨渠道追踪"]
               }
-            ].map((ad: any, i: any) => (
+            ].map((ad: unknown, i: unknown) => (
               <Card key={i} className="text-center">
                 <CardHeader>
                   <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
@@ -593,7 +593,7 @@ function MarketingPage() {
                 </CardHeader>
                 <CardContent>
                   <ul className="space-y-2 text-left">
-                    {ad.features.map((feature: any, j: any) => (
+                    {ad.features.map((feature: unknown, j: unknown) => (
                       <li key={j} className="flex items-center gap-2 text-sm">
                         <CheckCircle2 className="w-4 h-4 text-green-500" />
                         <span>{feature}</span>
@@ -618,7 +618,7 @@ function MarketingPage() {
             </p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
-            {getAllPosts().slice(0, 6).map((post: any) => (
+            {getAllPosts().slice(0, 6).map((post: unknown) => (
               <Link key={post.id} href={`/blog/${post.slug}`}>
                 <Card className="overflow-hidden hover:shadow-lg transition-all duration-300 group cursor-pointer h-full">
                   <div className="relative aspect-video overflow-hidden">
@@ -673,7 +673,7 @@ function MarketingPage() {
           </div>
           
           <div className="max-w-3xl mx-auto space-y-4">
-            {faqs.map((faq: any, i: any) => (
+            {faqs.map((faq: unknown, i: unknown) => (
               <div 
                 key={i} 
                 className="bg-card border border-border/50 rounded-lg overflow-hidden"
@@ -842,7 +842,7 @@ function DashboardContent() {
   // P1优化: 检查是否需要显示Onboarding引导
   useEffect(() => {
     if (userPreferences) {
-      const onboardingCompleted = (userPreferences as any).onboardingCompleted;
+      const onboardingCompleted = (userPreferences as Record<string, unknown>).onboardingCompleted;
       if (!onboardingCompleted) {
         setShowOnboarding(true);
       }
@@ -850,8 +850,8 @@ function DashboardContent() {
   }, [userPreferences]);
 
   useEffect(() => {
-    if (userPreferences && (userPreferences as any).dashboardCardOrder) {
-      const savedOrder = (userPreferences as any).dashboardCardOrder as string[];
+    if (userPreferences && (userPreferences as Record<string, unknown>).dashboardCardOrder) {
+      const savedOrder = (userPreferences as Record<string, unknown>).dashboardCardOrder as string[];
       // 确保所有默认卡片都存在（防止新增卡片丢失）
       const mergedOrder = [...savedOrder];
       DEFAULT_CARD_ORDER.forEach(id => {
@@ -903,13 +903,13 @@ function DashboardContent() {
   
   // 获取账户列表及绩效数据
   const { data: accountsWithPerformance, refetch: refetchAccounts, isLoading: isAccountsLoading } = trpc.adAccount.listWithPerformance.useQuery(
-    { timeRange: timeRange as any, days, startDate, endDate },
+    { timeRange: timeRange as unknown, days, startDate, endDate },
     { enabled: !!user }
   );
   
   // 获取图表趋势数据
   const { data: trendData } = trpc.adAccount.getDailyTrend.useQuery(
-    { days, timeRange: timeRange as any, startDate, endDate },
+    { days, timeRange: timeRange as unknown, startDate, endDate },
     { enabled: !!user }
   );
   
@@ -949,7 +949,7 @@ function DashboardContent() {
   
   // v233: 合并图表数据 - 花费/销售额柱状图 + ACoS折线图
   const combinedChartData = useMemo(() => {
-    return chartData.map((d: any) => ({
+    return chartData.map((d: unknown) => ({
       ...d,
       profit: d.sales - d.spend,
     }));
@@ -958,26 +958,26 @@ function DashboardContent() {
   // 按ACoS从高到低排序（风险排行）
   const accountsData = useMemo(() => {
     if (!accountsWithPerformance || accountsWithPerformance.length === 0) return [];
-    return [...accountsWithPerformance].sort((a: any, b: any) => b.acos - a.acos);
+    return [...accountsWithPerformance].sort((a: unknown, b: unknown) => b.acos - a.acos);
   }, [accountsWithPerformance]);
   
   // 计算汇总数据
   const summary = useMemo(() => {
-    const totalSpend = accountsData.reduce((sum: any, a: any) => sum + a.spend, 0);
-    const totalSales = accountsData.reduce((sum: any, a: any) => sum + a.sales, 0);
-    const totalOrders = accountsData.reduce((sum: any, a: any) => sum + a.orders, 0);
+    const totalSpend = accountsData.reduce((sum: number, a: Record<string, unknown>) => sum + a.spend, 0);
+    const totalSales = accountsData.reduce((sum: number, a: Record<string, unknown>) => sum + a.sales, 0);
+    const totalOrders = accountsData.reduce((sum: number, a: Record<string, unknown>) => sum + a.orders, 0);
     const avgAcos = totalSpend > 0 && totalSales > 0 ? (totalSpend / totalSales) * 100 : 0;
     const avgRoas = totalSpend > 0 ? totalSales / totalSpend : 0;
     const profit = totalSales - totalSpend;
     
     const spendChange = accountsData.length > 0 
-      ? accountsData.reduce((sum: any, a: any) => sum + (a.change?.spend || 0) * a.spend, 0) / Math.max(totalSpend, 1)
+      ? accountsData.reduce((sum: number, a: Record<string, unknown>) => sum + (a.change?.spend || 0) * a.spend, 0) / Math.max(totalSpend, 1)
       : 0;
     const salesChange = accountsData.length > 0
-      ? accountsData.reduce((sum: any, a: any) => sum + (a.change?.sales || 0) * a.sales, 0) / Math.max(totalSales, 1)
+      ? accountsData.reduce((sum: number, a: Record<string, unknown>) => sum + (a.change?.sales || 0) * a.sales, 0) / Math.max(totalSales, 1)
       : 0;
     const acosChange = accountsData.length > 0
-      ? accountsData.reduce((sum: any, a: any) => sum + (a.change?.acos || 0), 0) / accountsData.length
+      ? accountsData.reduce((sum: number, a: Record<string, unknown>) => sum + (a.change?.acos || 0), 0) / accountsData.length
       : 0;
     const roasChange = -acosChange;
     
@@ -997,12 +997,12 @@ function DashboardContent() {
   // 不应计入同步成功率的分母。纠错监控页面已正确排除，首页需要对齐。
   const syncStats = useMemo(() => {
     if (!correctionDashboard?.statusDistribution) return { synced: 0, pending: 0, failed: 0, total: 0, notApplicable: 0 };
-    const dist = correctionDashboard.statusDistribution as any[];
-    const synced = Number(dist.find((d: any) => d.api_sync_status === 'synced')?.count || 0);
-    const pending = Number(dist.find((d: any) => d.api_sync_status === 'pending_sync' || d.api_sync_status === 'pending')?.count || 0);
-    const failed = Number(dist.find((d: any) => d.api_sync_status === 'failed')?.count || 0);
-    const notApplicable = Number(dist.find((d: any) => d.api_sync_status === 'not_applicable')?.count || 0)
-      + Number(dist.find((d: any) => d.api_sync_status === 'invalid_legacy')?.count || 0);
+    const dist = correctionDashboard.statusDistribution as unknown[];
+    const synced = Number(dist.find((d: unknown) => d.api_sync_status === 'synced')?.count || 0);
+    const pending = Number(dist.find((d: unknown) => d.api_sync_status === 'pending_sync' || d.api_sync_status === 'pending')?.count || 0);
+    const failed = Number(dist.find((d: unknown) => d.api_sync_status === 'failed')?.count || 0);
+    const notApplicable = Number(dist.find((d: unknown) => d.api_sync_status === 'not_applicable')?.count || 0)
+      + Number(dist.find((d: unknown) => d.api_sync_status === 'invalid_legacy')?.count || 0);
     // v235: total只统计需要同步的事件（synced + pending + failed），排除not_applicable和invalid_legacy
     const syncableTotal = synced + pending + failed;
     return { synced, pending, failed, total: syncableTotal, notApplicable };
@@ -1011,9 +1011,9 @@ function DashboardContent() {
   // v233: 算法使用统计
   const algorithmSummary = useMemo(() => {
     if (!algorithmStats || algorithmStats.length === 0) return { totalOps: 0, avgPositiveRate: 0, bestAlgorithm: '无数据', algorithms: [] };
-    const totalOps = algorithmStats.reduce((sum: any, a: any) => sum + a.count, 0);
-    const avgPositiveRate = algorithmStats.reduce((sum: any, a: any) => sum + a.positiveRate * a.count, 0) / Math.max(totalOps, 1);
-    const best = [...algorithmStats].sort((a: any, b: any) => b.positiveRate - a.positiveRate)[0];
+    const totalOps = algorithmStats.reduce((sum: number, a: Record<string, unknown>) => sum + a.count, 0);
+    const avgPositiveRate = algorithmStats.reduce((sum: number, a: Record<string, unknown>) => sum + a.positiveRate * a.count, 0) / Math.max(totalOps, 1);
+    const best = [...algorithmStats].sort((a: unknown, b: unknown) => b.positiveRate - a.positiveRate)[0];
     return { totalOps, avgPositiveRate, bestAlgorithm: best?.algorithm || '无数据', algorithms: algorithmStats };
   }, [algorithmStats]);
   
@@ -1107,7 +1107,7 @@ function DashboardContent() {
                 {...provided.droppableProps}
                 className={`grid gap-6 items-stretch ${isMobile ? 'grid-cols-1' : 'grid-cols-1 lg:grid-cols-3'} ${snapshot.isDraggingOver ? 'bg-primary/5 rounded-xl transition-colors' : ''}`}
               >
-                {cardOrder.map((cardId: any, index: any) => {
+                {cardOrder.map((cardId: unknown, index: unknown) => {
                   // v251: full-width卡片跨全列，compact卡片自然流入grid列
                   const sizeType = CARD_SIZE_TYPE[cardId] || 'full';
                   const isFullWidth = sizeType === 'full';
@@ -1136,7 +1136,7 @@ function DashboardContent() {
                               value={`$${summary.totalSpend.toFixed(0)}`}
                               icon={<DollarSign className="w-4 h-4 text-blue-500" />}
                               change={summary.spendChange}
-                              sparklineData={(trendData || []).map((d: any) => ({ value: d.spend }))}
+                              sparklineData={(trendData || []).map((d: unknown) => ({ value: d.spend }))}
                               isRealtime={true}
                               realtimeDelay="<5分钟"
                               gradientFrom="blue-500"
@@ -1149,7 +1149,7 @@ function DashboardContent() {
                               value={`$${summary.totalSales.toFixed(0)}`}
                               icon={<ShoppingCart className="w-4 h-4 text-green-500" />}
                               change={summary.salesChange}
-                              sparklineData={(trendData || []).map((d: any) => ({ value: d.sales }))}
+                              sparklineData={(trendData || []).map((d: unknown) => ({ value: d.sales }))}
                               isRealtime={true}
                               realtimeDelay="<5分钟"
                               gradientFrom="green-500"
@@ -1163,7 +1163,7 @@ function DashboardContent() {
                               icon={<Percent className="w-4 h-4 text-orange-500" />}
                               change={summary.acosChange}
                               isInverse={true}
-                              sparklineData={(trendData || []).map((d: any) => ({ value: d.acos }))}
+                              sparklineData={(trendData || []).map((d: unknown) => ({ value: d.acos }))}
                               gradientFrom="orange-500"
                               gradientTo="orange-600"
                               borderColor="orange-500"
@@ -1450,7 +1450,7 @@ function DashboardContent() {
                             </CardHeader>
                             <CardContent className="flex-1">
                               <div className="space-y-3">
-                                {accountsData.map((account: any, idx: any) => (
+                                {accountsData.map((account: unknown, idx: unknown) => (
                                   <div 
                                     key={account.id}
                                     className={`p-3 rounded-lg border ${getStatusColor(account.status)} flex items-center gap-4`}
@@ -1601,7 +1601,7 @@ function DashboardContent() {
                               {algorithmSummary.algorithms.length > 0 && (
                                 <div className="pt-2 border-t border-border/50 space-y-2">
                                   <div className="text-xs text-muted-foreground">各算法表现</div>
-                                  {algorithmSummary.algorithms.map((alg: any) => (
+                                  {algorithmSummary.algorithms.map((alg: unknown) => (
                                     <div key={alg.algorithm} className="flex items-center gap-2">
                                       <span className="text-xs w-24 truncate" title={getAlgorithmNameCN(alg.algorithm)}>{getAlgorithmNameCN(alg.algorithm)}</span>
                                       <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">

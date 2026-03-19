@@ -103,7 +103,7 @@ describe('WeightAutoTuningService', () => {
       expect(result.adjustments.length).toBe(7);
       
       // 权重总和应约等于1
-      const totalWeight = Object.values(result.newWeights).reduce((s: any, w: any) => s + w, 0);
+      const totalWeight = Object.values(result.newWeights).reduce((s: unknown, w: unknown) => s + w, 0);
       expect(totalWeight).toBeCloseTo(1.0, 2);
       
       // 所有权重应大于最小下限

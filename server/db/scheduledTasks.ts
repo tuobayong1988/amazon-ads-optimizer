@@ -46,7 +46,7 @@ export async function createScheduledTask(data: {
   enabled?: boolean;
   autoApply?: boolean;
   requireApproval?: boolean;
-  parameters?: Record<string, any>;
+  parameters?: Record<string, unknown>;
 }) {
   const db = await getDb();
   if (!db) return 0;
@@ -80,12 +80,12 @@ export async function updateScheduledTask(id: number, data: {
   enabled?: boolean;
   autoApply?: boolean;
   requireApproval?: boolean;
-  parameters?: Record<string, any>;
+  parameters?: Record<string, unknown>;
 }) {
   const db = await getDb();
   if (!db) return;
   
-  const updateData: Record<string, any> = { updatedAt: new Date() };
+  const updateData: Record<string, unknown> = { updatedAt: new Date() };
   if (data.name !== undefined) updateData.name = data.name;
   if (data.description !== undefined) updateData.description = data.description;
   if (data.schedule !== undefined) updateData.schedule = data.schedule;
@@ -122,7 +122,7 @@ export async function recordTaskExecution(data: {
   suggestionsGenerated?: number;
   suggestionsApplied?: number;
   errorMessage?: string;
-  resultSummary?: Record<string, any>;
+  resultSummary?: Record<string, unknown>;
 }) {
   const db = await getDb();
   if (!db) return;

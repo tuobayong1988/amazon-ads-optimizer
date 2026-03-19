@@ -406,7 +406,7 @@ export interface StepResult {
   success: boolean;
   synced: number;
   errors: string[];
-  details?: Record<string, any>;
+  details?: Record<string, unknown>;
 }
 
 /** 同步上下文（用于检查点和进度追踪） */
@@ -420,7 +420,7 @@ export interface SyncContext {
   currentStep: string | null;
   totalSynced: number;
   totalErrors: number;
-  checkpoint: Record<string, any>;
+  checkpoint: Record<string, unknown>;
 }
 
 /** 账户同步结果 */
@@ -867,7 +867,7 @@ const SYNC_STEPS: SyncStep[] = [
     execute: async (service, ctx) => {
       try {
         const result = await service.syncSpBidRecommendations();
-        const synced = typeof result === 'number' ? result : (result as any).synced || 0;
+        const synced = typeof result === 'number' ? result : (result as Record<string, unknown>).synced || 0;
         return { success: true, synced, errors: [] };
       } catch (e: unknown) {
         return { success: false, synced: 0, errors: [(e as Error).message] };
@@ -881,7 +881,7 @@ const SYNC_STEPS: SyncStep[] = [
     execute: async (service, ctx) => {
       try {
         const result = await service.syncSbBidRecommendations();
-        const synced = typeof result === 'number' ? result : (result as any).synced || 0;
+        const synced = typeof result === 'number' ? result : (result as Record<string, unknown>).synced || 0;
         return { success: true, synced, errors: [] };
       } catch (e: unknown) {
         return { success: false, synced: 0, errors: [(e as Error).message] };
@@ -895,7 +895,7 @@ const SYNC_STEPS: SyncStep[] = [
     execute: async (service, ctx) => {
       try {
         const result = await service.syncSdBidRecommendations();
-        const synced = typeof result === 'number' ? result : (result as any).synced || 0;
+        const synced = typeof result === 'number' ? result : (result as Record<string, unknown>).synced || 0;
         return { success: true, synced, errors: [] };
       } catch (e: unknown) {
         return { success: false, synced: 0, errors: [(e as Error).message] };
@@ -1379,7 +1379,7 @@ export async function syncAccount(
         const safeSynced = typeof stepResult.synced === 'number' ? stepResult.synced : 
           (typeof stepResult.synced === 'object' && stepResult.synced !== null ? 
             // @ts-expect-error - dynamic property access
-            Object.values(stepResult.synced as unknown).reduce((s: number, v: Record<string, any>) => s + (typeof v === 'number' ? v : 0), 0) : 0);
+            Object.values(stepResult.synced as Record<string, unknown>).reduce((s: number, v: Record<string, unknown>) => s + (typeof v === 'number' ? v : 0), 0) : 0);
         // @ts-expect-error - runtime type mismatch
         stepResult.synced = safeSynced;
 
@@ -1506,7 +1506,7 @@ export async function syncAccount(
     // v426: P3-3 同步数据校验摘要日志
     const durationSec = (result.durationMs / 1000).toFixed(1);
     const stepSummary = Object.entries(result.stepResults)
-      .map(([step, r]: [string, any]) => `${step}:${r.synced ?? r.result ?? '?'}`)
+      .map(([step, r]: [string, unknown]) => `${step}:${r.synced ?? r.result ?? '?'}`)
       .join(', ');
     const errorSummary = result.errors.length > 0 ? ` | 错误: ${result.errors.slice(0, 3).join('; ')}` : '';
     log.info(
@@ -1542,7 +1542,7 @@ function interleaveAccountsByUser(accounts: SyncableAccount[]): SyncableAccount[
   
   // 按userId分组
   const groups = new Map<number, SyncableAccount[]>();
-  for (const account of (accounts as any[])) {
+  for (const account of (accounts as unknown[])) {
     const userId = account.userId;
     if (!groups.has(userId)) groups.set(userId, []);
     groups.get(userId)!.push(account);
@@ -1702,7 +1702,7 @@ export async function syncAllAccounts(tier: SyncTier): Promise<BatchSyncResult> 
   engineStatus.lastSyncTime[tier] = batchResult.endTime;
 
   // v222: 记录同步日志（安全数字提取，防止[object Object]拼接）
-  const totalSynced = batchResult.accountResults.reduce((sum: any, r: any) => {
+  const totalSynced = batchResult.accountResults.reduce((sum: unknown, r: unknown) => {
     const synced = typeof r.totalSynced === 'number' ? r.totalSynced : 0;
     return sum + synced;
   }, 0);
@@ -1860,11 +1860,11 @@ export function getAllSyncSteps(): { id: string; name: string; tier: SyncTier }[
  */
 async function recordBatchSyncResult(batchResult: BatchSyncResult): Promise<void> {
   // v222: 安全提取数字值，防止[object Object]写入数据库
-  const safeNum = (val: Record<string, any>): number => {
+  const safeNum = (val: Record<string, unknown>): number => {
     if (typeof val === 'number' && !isNaN(val)) return val;
     if (typeof val === 'object' && val !== null) {
       // 尝试从对象中提取数字值并求和
-      return Object.values(val).reduce((s: number, v: Record<string, any>) => s + (typeof v === 'number' ? v : 0), 0) as number;
+      return Object.values(val).reduce((s: number, v: Record<string, unknown>) => s + (typeof v === 'number' ? v : 0), 0) as number;
     }
     return 0;
   };
@@ -1934,17 +1934,17 @@ async function recordBatchSyncResult(batchResult: BatchSyncResult): Promise<void
             safeNum(accountResult.stepResults['performance_95d']?.synced),
           // v256: 修复 recordsSynced 字段映射 — 计算所有步骤的同步记录总数
           recordsSynced: Object.values(accountResult.stepResults).reduce(
-            (total: number, step: any) => total + safeNum(step?.synced), 0
+            (total: number, step: unknown) => total + safeNum(step?.synced), 0
           ),
           // v364: 修复同步任务步骤计数缺失 - 添加totalSteps和currentStepIndex
           totalSteps: accountResult.totalSteps || Object.keys(accountResult.stepResults).length,
           currentStepIndex: accountResult.totalSteps || Object.keys(accountResult.stepResults).length,
           currentStep: accountResult.success ? '完成' : '失败',
           progressPercent: accountResult.success ? 100 : Math.round(
-            (Object.values(accountResult.stepResults).filter((s: any) => s?.success).length / 
+            (Object.values(accountResult.stepResults).filter((s: unknown) => s?.success).length / 
              Math.max(Object.keys(accountResult.stepResults).length, 1)) * 100
           ),
-        } as Record<string, any>);
+        } as Record<string, unknown>);
       } catch (insertErr: unknown) {
         log.warn(`[UnifiedSync] 记录账户 ${accountResult.accountId} 同步结果失败: ${(insertErr as Error).message}`);
       }
@@ -2019,7 +2019,7 @@ export async function triggerManualFullSync(
   if (options?.jobId && result) {
     try {
       const { updateSyncJob } = await import('../db/syncJobs');
-      const safeNum = (v: any) => (typeof v === 'number' && !isNaN(v) ? v : 0);
+      const safeNum = (v: unknown) => (typeof v === 'number' && !isNaN(v) ? v : 0);
       await updateSyncJob(options.jobId, {
         status: result.success ? 'completed' : 'failed',
         errorMessage: result.errors.length > 0 ? result.errors.slice(0, 3).join('; ') : undefined,

@@ -12,7 +12,7 @@ export interface FilterConfig<T> {
   deserialize?: (value: string) => T;
 }
 
-export function useUrlFilters<T extends Record<string, any>>(
+export function useUrlFilters<T extends Record<string, unknown>>(
   configs: FilterConfig<T[keyof T]>[],
   options?: {
     debounceMs?: number;
@@ -24,7 +24,7 @@ export function useUrlFilters<T extends Record<string, any>>(
   // 从URL读取初始值
   const getInitialValues = useCallback(() => {
     const params = new URLSearchParams(window.location.search);
-    const values: Record<string, any> = {};
+    const values: Record<string, unknown> = {};
     configs.forEach(config => {
       const urlValue = params.get(config.key);
       if (urlValue !== null) {
@@ -111,7 +111,7 @@ export function useUrlFilters<T extends Record<string, any>>(
 
   // 重置所有筛选条件
   const resetFilters = useCallback(() => {
-    const defaultValues: Record<string, any> = {};
+    const defaultValues: Record<string, unknown> = {};
     configs.forEach(config => {
       defaultValues[config.key] = config.defaultValue;
     });

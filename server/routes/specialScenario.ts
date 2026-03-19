@@ -15,7 +15,7 @@ export const specialScenarioRouter = router({
   // 预算耗尽风险分析
   analyzeBudgetDepletionRisk: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    .query(async ({ input, ctx }: any) => {
+    .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       return specialScenarioOptimizationService.analyzeBudgetDepletionRisk(input.accountId);
     }),
@@ -28,7 +28,7 @@ export const specialScenarioRouter = router({
       dailyBudget: z.number(),
       currentHour: z.number().optional(),
     }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       return specialScenarioOptimizationService.predictBudgetDepletion(
         input.campaignId,
         input.currentSpend,
@@ -43,11 +43,11 @@ export const specialScenarioRouter = router({
       accountId: z.number(),
       days: z.number().optional(),
     }))
-    .query(async ({ input, ctx }: any) => {
+    .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       
       const cacheKey = apiCache.generateKey('specialScenario.getAttributionAdjustedData', ctx.user.id, input);
-      const cached = apiCache.get<any>(cacheKey);
+      const cached = apiCache.get<unknown>(cacheKey);
       if (cached) return cached;
       
       const result = await specialScenarioOptimizationService.adjustRecentPerformanceData(
@@ -62,7 +62,7 @@ export const specialScenarioRouter = router({
   // 获取归因模型
   getAttributionModel: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    .query(async ({ input, ctx }: any) => {
+    .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       return specialScenarioOptimizationService.getAttributionModel(input.accountId);
     }),
@@ -75,7 +75,7 @@ export const specialScenarioRouter = router({
       profitMargin: z.number().optional(),
       minClicks: z.number().optional(),
     }))
-    .query(async ({ input, ctx }: any) => {
+    .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       return specialScenarioOptimizationService.analyzeBidEfficiency(
         input.accountId,
@@ -91,7 +91,7 @@ export const specialScenarioRouter = router({
       accountId: z.number(),
       targetDate: z.string().optional(),
     }))
-    .query(async ({ input, ctx }: any) => {
+    .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       const date = input.targetDate ? new Date(input.targetDate) : new Date();
       return specialScenarioOptimizationService.generateSeasonalStrategy(
@@ -106,7 +106,7 @@ export const specialScenarioRouter = router({
       accountId: z.number(),
       metric: z.enum(['sales', 'roas', 'spend']).optional(),
     }))
-    .query(async ({ input, ctx }: any) => {
+    .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       return specialScenarioOptimizationService.learnSeasonalPatterns(
         input.accountId,
@@ -122,7 +122,7 @@ export const specialScenarioRouter = router({
       baseBudget: z.number(),
       baseBid: z.number(),
     }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       return specialScenarioOptimizationService.generateEventTransitionPlan(
         input.eventName,
         new Date(input.eventDate),
@@ -134,7 +134,7 @@ export const specialScenarioRouter = router({
   // 获取即将到来的大促事件
   getUpcomingEvents: protectedProcedure
     .input(z.object({ daysAhead: z.number().optional() }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       return specialScenarioOptimizationService.getUpcomingPromotionalEvents(
         input.daysAhead || 30
       );
@@ -148,7 +148,7 @@ export const specialScenarioRouter = router({
       profitMargin: z.number().optional(),
       minClicks: z.number().optional(),
     }))
-    .query(async ({ input, ctx }: any) => {
+    .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       return specialScenarioOptimizationService.runSpecialScenarioAnalysis(
         input.accountId,

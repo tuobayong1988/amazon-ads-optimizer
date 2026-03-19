@@ -9,8 +9,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Loader2, Tag } from 'lucide-react';
 import { trpc } from '@/lib/trpc';
 
-export function KeywordsList({ adGroups }: { adGroups: any[] }) {
-  const [allKeywords, setAllKeywords] = useState<any[]>([]);
+export function KeywordsList({ adGroups }: { adGroups: unknown[] }) {
+  const [allKeywords, setAllKeywords] = useState<unknown[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   
   // 为每个广告组获取关键词
@@ -20,15 +20,15 @@ export function KeywordsList({ adGroups }: { adGroups: any[] }) {
   
   // 合并所有关键词
   useEffect(() => {
-    const keywords: any[] = [];
+    const keywords: unknown[] = [];
     let loading = false;
     
-    keywordQueries.forEach((query: any, index: any) => {
+    keywordQueries.forEach((query: unknown, index: unknown) => {
       if (query.isLoading) {
         loading = true;
       }
       if (query.data) {
-        keywords.push(...query.data.map((k: any) => ({
+        keywords.push(...query.data.map((k: unknown) => ({
           ...k,
           adGroupName: adGroups[index]?.adGroupName
         })));
@@ -40,7 +40,7 @@ export function KeywordsList({ adGroups }: { adGroups: any[] }) {
   }, [keywordQueries.map(q => q.data).join(",")]);
   
   // 按销售额排序
-  const sortedKeywords = [...allKeywords].sort((a: any, b: any) => 
+  const sortedKeywords = [...allKeywords].sort((a: unknown, b: unknown) => 
     parseFloat(b.sales || "0") - parseFloat(a.sales || "0")
   );
   
@@ -75,7 +75,7 @@ export function KeywordsList({ adGroups }: { adGroups: any[] }) {
         </TableRow>
       </TableHeader>
       <TableBody>
-        {sortedKeywords.slice(0, 20).map((keyword: any) => {
+        {sortedKeywords.slice(0, 20).map((keyword: unknown) => {
           const kwSpend = parseFloat(keyword.spend || "0");
           const kwSales = parseFloat(keyword.sales || "0");
           const kwAcos = kwSales > 0 ? (kwSpend / kwSales * 100) : 0;

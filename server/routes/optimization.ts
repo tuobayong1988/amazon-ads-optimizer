@@ -20,7 +20,7 @@ const log = createModuleLogger('Route_optimization');
 // ==================== Optimization Router ====================
 export const optimizationRouter = router({
   // v230: 新增getMetrics、getRecentActions、getTrends方法，修复前端AutoOptimizationDashboard页面失效问题
-  getMetrics: protectedProcedure.query(async ({ ctx }: any) => {
+  getMetrics: protectedProcedure.query(async ({ ctx }: unknown) => {
     const dbInstance = await db.getDb();
     if (!dbInstance) {
       return { totalActionsToday: 0, completedActions: 0, failedActions: 0, pendingActions: 0, totalROIImprovement: 0, totalCostSavings: 0, averageActionDuration: 0, successRate: 0 };
@@ -34,7 +34,7 @@ export const optimizationRouter = router({
       
       // v370.4: 多租户数据隔离 - 只查询当前用户的账户数据
       const userAccountRows = await dbInstance.select({ id: adAccounts.id }).from(adAccounts).where(sqlTag`${adAccounts.userId} = ${ctx.user.id}`);
-      const userAccountIds = userAccountRows.map((r: any) => r.id);
+      const userAccountIds = userAccountRows.map((r: unknown) => r.id);
       if (userAccountIds.length === 0) {
         return { totalActionsToday: 0, completedActions: 0, failedActions: 0, pendingActions: 0, totalROIImprovement: 0, totalCostSavings: 0, averageActionDuration: 0, successRate: 0 };
       }
@@ -69,7 +69,7 @@ export const optimizationRouter = router({
 
   getRecentActions: protectedProcedure
     .input(z.object({ limit: z.number().optional().default(10) }))
-    .query(async ({ input, ctx }: any) => {
+    .query(async ({ input, ctx }: unknown) => {
       const dbInstance = await db.getDb();
       if (!dbInstance) return [];
       try {
@@ -78,7 +78,7 @@ export const optimizationRouter = router({
         
         // v370.4: 多租户数据隔离
         const userAccountRows = await dbInstance.select({ id: adAccounts.id }).from(adAccounts).where(sqlTag`${adAccounts.userId} = ${ctx.user.id}`);
-        const userAccountIds = userAccountRows.map((r: any) => r.id);
+        const userAccountIds = userAccountRows.map((r: unknown) => r.id);
         if (userAccountIds.length === 0) return [];
         const accountFilter = sqlTag`account_id IN (${sqlTag.raw(userAccountIds.join(','))})`;
         
@@ -109,7 +109,7 @@ export const optimizationRouter = router({
 
   getTrends: protectedProcedure
     .input(z.object({ days: z.number().optional().default(7) }))
-    .query(async ({ input, ctx }: any) => {
+    .query(async ({ input, ctx }: unknown) => {
       const dbInstance = await db.getDb();
       if (!dbInstance) return [];
       try {
@@ -121,7 +121,7 @@ export const optimizationRouter = router({
         
         // v370.4: 多租户数据隔离
         const userAccountRows = await dbInstance.select({ id: adAccounts.id }).from(adAccounts).where(sqlTag`${adAccounts.userId} = ${ctx.user.id}`);
-        const userAccountIds = userAccountRows.map((r: any) => r.id);
+        const userAccountIds = userAccountRows.map((r: unknown) => r.id);
         if (userAccountIds.length === 0) return [];
         const accountFilter = sqlTag`account_id IN (${sqlTag.raw(userAccountIds.join(','))})`;
         
@@ -151,7 +151,7 @@ export const optimizationRouter = router({
       performanceGroupId: z.number(),
       dryRun: z.boolean().optional().default(true),
     }))
-    .mutation(async ({ ctx, input }: any) => {
+    .mutation(async ({ ctx, input }: unknown) => {
       const group = await db.getPerformanceGroupById(input.performanceGroupId);
       if (!group) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Performance group not found" });
@@ -170,7 +170,7 @@ export const optimizationRouter = router({
         maxBid: group.maxBid ? parseFloat(group.maxBid) : 10.00,
       };
       
-      for (const campaign of (campaigns as any[])) {
+      for (const campaign of (campaigns as unknown[])) {
         // v206: getAdGroupsByCampaignId需要Amazon campaignId（varchar）
         const adGroups = await db.getAdGroupsByCampaignId(campaign.campaignId);
         const maxBidLimit = campaign.maxBid ? parseFloat(campaign.maxBid) : (groupConfig.maxBid || 10.00);
@@ -317,12 +317,12 @@ export const optimizationRouter = router({
             try {
               // v125: Amazon SP API v3 要求ID为字符串类型
               if (result.targetType === "keyword") {
-                await (syncService as any).client.updateKeywordBids([{
+                await (syncService as Record<string, unknown>).client.updateKeywordBids([{
                   keywordId: String(amazonId),
                   bid: Number(result.newBid.toFixed(2)),
                 }]);
               } else {
-                await (syncService as any).client.updateProductTargetBids([{
+                await (syncService as Record<string, unknown>).client.updateProductTargetBids([{
                   targetId: String(amazonId),
                   bid: Number(result.newBid.toFixed(2)),
                 }]);
@@ -376,7 +376,7 @@ export const optimizationRouter = router({
       campaignId: z.number(),
       targetAcos: z.number().optional(),
     }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       // In a real implementation, this would fetch placement-level performance data
       // For now, return default adjustments
       return {
@@ -393,14 +393,14 @@ export const unifiedOptimizationRouter = router({
   // 获取广告活动的优化状态
   getCampaignState: protectedProcedure
     .input(z.object({ campaignId: z.number() }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       return unifiedOptimizationEngine.getCampaignOptimizationState(input.campaignId);
     }),
   
   // 获取绩效组的优化状态
   getPerformanceGroupState: protectedProcedure
     .input(z.object({ groupId: z.number() }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       return unifiedOptimizationEngine.getPerformanceGroupOptimizationState(input.groupId);
     }),
   
@@ -421,7 +421,7 @@ export const unifiedOptimizationRouter = router({
         'traffic_isolation'
       ])).optional()
     }))
-    .mutation(async ({ ctx, input }: any) => {
+    .mutation(async ({ ctx, input }: unknown) => {
       return unifiedOptimizationEngine.runUnifiedOptimizationAnalysis(
         input.accountId,
         {
@@ -438,7 +438,7 @@ export const unifiedOptimizationRouter = router({
       decisionId: z.string(),
       executedBy: z.enum(['auto', 'manual']).optional()
     }))
-    .mutation(async ({ ctx, input }: any) => {
+    .mutation(async ({ ctx, input }: unknown) => {
       return unifiedOptimizationEngine.executeOptimizationDecision(
         input.decisionId,
         input.executedBy || 'manual'
@@ -451,7 +451,7 @@ export const unifiedOptimizationRouter = router({
       decisionIds: z.array(z.string()),
       executedBy: z.enum(['auto', 'manual']).optional()
     }))
-    .mutation(async ({ ctx, input }: any) => {
+    .mutation(async ({ ctx, input }: unknown) => {
       return unifiedOptimizationEngine.batchExecuteOptimizationDecisions(
         input.decisionIds,
         input.executedBy || 'manual'
@@ -465,7 +465,7 @@ export const unifiedOptimizationRouter = router({
       campaignId: z.number().optional(),
       performanceGroupId: z.number().optional()
     }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       return unifiedOptimizationEngine.getOptimizationSummary(
         input.accountId,
         {
@@ -488,7 +488,7 @@ export const unifiedOptimizationRouter = router({
         negativeKeyword: z.boolean().optional()
       }).optional()
     }))
-    .mutation(async ({ ctx, input }: any) => {
+    .mutation(async ({ ctx, input }: unknown) => {
       return unifiedOptimizationEngine.updateCampaignOptimizationSettings(
         input.campaignId,
         {
@@ -508,7 +508,7 @@ export const unifiedOptimizationRouter = router({
       targetAcos: z.number().optional(),
       targetRoas: z.number().optional()
     }))
-    .mutation(async ({ ctx, input }: any) => {
+    .mutation(async ({ ctx, input }: unknown) => {
       return unifiedOptimizationEngine.updatePerformanceGroupOptimizationSettings(
         input.groupId,
         {

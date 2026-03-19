@@ -204,7 +204,7 @@ async function processReportData(service: SyncContext, db: DbInstance, reportDat
     
     // v364: 批量预查询已存在的绩效数据 - 收集所有报告日期的数据
     const reportDates = new Set<string>();
-    for (const row of (reportData as any[])) {
+    for (const row of (reportData as unknown[])) {
       const d = row.date ? new Date(row.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
       reportDates.add(d);
     }
@@ -233,9 +233,9 @@ async function processReportData(service: SyncContext, db: DbInstance, reportDat
     
     // v423: 批量UPSERT - 收集所有待写入数据，分批执行
     const BATCH_SIZE = 500;
-    const upsertBatch: Array<Record<string, any>> = [];
+    const upsertBatch: Array<Record<string, unknown>> = [];
     
-    for (const row of (reportData as any[])) {
+    for (const row of (reportData as unknown[])) {
       // 策略：先用campaignId匹配，失败后用campaignName匹配
       let campaign = campaignByIdMap.get(String(row.campaignId)) || null;
 
@@ -396,16 +396,16 @@ async function processReportData(service: SyncContext, db: DbInstance, reportDat
  */
 async function flushPerfBatch(
   db: DbInstance,
-  batch: Array<Record<string, any>>,
-  existingPerfMap: Map<string, any>,
+  batch: Array<Record<string, unknown>>,
+  existingPerfMap: Map<string, unknown>,
   nowStr: string
 ): Promise<number> {
   if (batch.length === 0) return 0;
   
   try {
     // 分离更新和插入
-    const toInsert: Array<Record<string, any>> = [];
-    const toUpdate: Array<{ id: number; data: Record<string, any> }> = [];
+    const toInsert: Array<Record<string, unknown>> = [];
+    const toUpdate: Array<{ id: number; data: Record<string, unknown> }> = [];
     
     for (const perfData of batch) {
       const existingKey = `${perfData.campaignId}|${perfData.date}`;
@@ -428,7 +428,7 @@ async function flushPerfBatch(
         const chunk = toInsert.slice(i, i + INSERT_CHUNK);
         try {
           await db.insert(dailyPerformance)
-            .values(chunk as any)
+            .values(chunk as unknown)
             .onDuplicateKeyUpdate({
               set: {
                 impressions: sql`VALUES(${dailyPerformance.impressions})`,
@@ -463,7 +463,7 @@ async function flushPerfBatch(
           log.warn(`v423: 批量INSERT失败(${chunk.length}条)，回退逐条: ${(insertErr as Error).message}`);
           for (const item of chunk) {
             try {
-              await db.insert(dailyPerformance).values(item as any)
+              await db.insert(dailyPerformance).values(item as unknown)
                 .onDuplicateKeyUpdate({
                   set: {
                     impressions: sql`VALUES(${dailyPerformance.impressions})`,
@@ -498,7 +498,7 @@ async function flushPerfBatch(
           try {
             await db
               .update(dailyPerformance)
-              .set(item.data as any)
+              .set(item.data as unknown)
               .where(eq(dailyPerformance.id, item.id));
             synced++;
           } catch (updateErr: unknown) {
@@ -516,7 +516,7 @@ async function flushPerfBatch(
     let synced = 0;
     for (const perfData of batch) {
       try {
-        await db.insert(dailyPerformance).values({ ...perfData, createdAt: nowStr } as any)
+        await db.insert(dailyPerformance).values({ ...perfData, createdAt: nowStr } as unknown)
           .onDuplicateKeyUpdate({
             set: {
               impressions: sql`VALUES(${dailyPerformance.impressions})`,
@@ -564,7 +564,7 @@ export async function generateMockPerformanceData(service: SyncContext,days: num
     const marketplaceToday = getMarketplaceCurrentDate(service.marketplace);
     log.debug(`站点${service.marketplace}当前日期: ${marketplaceToday}`);
     
-    for (const campaign of (accountCampaigns as any[])) {
+    for (const campaign of (accountCampaigns as unknown[])) {
       // v440: 命名物理隔离
       const { amazonId: amazonCampaignId } = extractCampaignIds(campaign, 'generateMockPerformanceData');
       // 为每个广告活动生成最近N天的模拟数据
@@ -671,7 +671,7 @@ export async function generateHourlyFromDaily(service: SyncContext,startDate: st
         AND hp.dt IS NULL
     `);
     
-    const rows = (dailyData as Record<string, any>[])?.[0] || dailyData;
+    const rows = (dailyData as Record<string, unknown>[])?.[0] || dailyData;
     if (!rows || !Array.isArray(rows) || rows.length === 0) {
       log.debug('v195: 没有新的daily数据需要生成hourly');
       return 0;
@@ -680,7 +680,7 @@ export async function generateHourlyFromDaily(service: SyncContext,startDate: st
     log.debug(`v195: 找到 ${rows.length} 条缺少hourly数据的daily记录`);
     
     let insertedCount = 0;
-    let batch: any[] = [];
+    let batch: unknown[] = [];
     
     for (const daily of rows) {
       const dateObj = new Date(daily.date);
@@ -699,7 +699,7 @@ export async function generateHourlyFromDaily(service: SyncContext,startDate: st
         if (isWeekend) return base * 0.7 + (1/24) * 0.3;
         return base;
       });
-      const distSum = dist.reduce((a: any, b: any) => a + b, 0);
+      const distSum = dist.reduce((a: unknown, b: unknown) => a + b, 0);
       
       const dateStr = typeof daily.date === 'string' 
         ? daily.date.split('T')[0].split(' ')[0]
@@ -805,10 +805,10 @@ export async function syncPlacementPerformance(service: SyncContext,days: number
     log.info(`v364批量预查询完成: campaigns=${allCampaigns.length}, existingPlacements=${existingPlacements.length}`);
 
     // v426: 收集新记录用于批量insert
-    const toInsertPlacement: any[] = [];
+    const toInsertPlacement: unknown[] = [];
     const nowStr = new Date().toISOString().slice(0, 19).replace('T', ' ');
 
-    for (const row of (reportData as any[])) {
+    for (const row of (reportData as unknown[])) {
       // v364: 使用预查询Map替代循环内DB查询
       const campaign = campaignByIdMap.get(String(row.campaignId));
 
@@ -957,7 +957,7 @@ export async function updateCampaignPerformanceSummary(service: SyncContext,): P
     
     log.info(`v364批量汇总完成: ${dailySummaries.length}个campaign有绩效数据`);
 
-    for (const campaign of (accountCampaigns as any[])) {
+    for (const campaign of (accountCampaigns as unknown[])) {
       // v364: 使用预查询Map替代循环内DB查询
       const dailySummary = dailySummaryMap.get(String(campaign.campaignId));
 
@@ -1094,7 +1094,7 @@ export async function syncSbPlacementPerformance(service: SyncContext,days: numb
     const reportData = await service.client.waitAndDownloadReport(reportId);
     log.debug(`SB广告位报告获取到 ${reportData.length} 条记录`);
     
-    for (const row of (reportData as any[])) {
+    for (const row of (reportData as unknown[])) {
       const campaignIdStr = String(row.campaignId);
       const [campaign] = await db
         .select()

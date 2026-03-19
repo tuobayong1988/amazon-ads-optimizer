@@ -44,11 +44,11 @@ export function OrganizationManagement() {
   const [inviteRole, setInviteRole] = useState<'member' | 'admin'>('member');
 
   // 获取组织信息
-  const { data: org, isLoading: orgLoading } = trpc.multiTenant.getOrganization.useQuery() as any;
+  const { data: org, isLoading: orgLoading } = trpc.multiTenant.getOrganization.useQuery() as unknown;
 
   // 获取成员列表
   const { data: members, isLoading: membersLoading, refetch: refetchMembers } = 
-    trpc.multiTenant.getMembers.useQuery() as any;
+    trpc.multiTenant.getMembers.useQuery() as unknown;
 
   // 邀请成员
   const inviteMutation = trpc.multiTenant.inviteMember.useMutation({
@@ -163,7 +163,7 @@ export function OrganizationManagement() {
                   </div>
                   <div>
                     <Label>角色</Label>
-                    <Select value={inviteRole} onValueChange={(v: any) => setInviteRole(v)}>
+                    <Select value={inviteRole} onValueChange={(v: unknown) => setInviteRole(v)}>
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
@@ -199,7 +199,7 @@ export function OrganizationManagement() {
             </TableHeader>
             <TableBody>
               {members && members.length > 0 ? (
-                members.map((member: any) => (
+                members.map((member: unknown) => (
                   <TableRow key={member.id}>
                     <TableCell>
                       <div>

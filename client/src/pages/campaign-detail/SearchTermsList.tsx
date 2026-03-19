@@ -55,7 +55,7 @@ export function SearchTermsList({ campaignId }: { campaignId: number }) {
   
   // 否定词弹窗状态
   const [negateDialogOpen, setNegateDialogOpen] = useState(false);
-  const [selectedTerm, setSelectedTerm] = useState<any>(null);
+  const [selectedTerm, setSelectedTerm] = useState<unknown>(null);
   const [negateMatchType, setNegateMatchType] = useState<"phrase" | "exact">("phrase");
   
   // 添加为投放词弹窗状态
@@ -73,7 +73,7 @@ export function SearchTermsList({ campaignId }: { campaignId: number }) {
       setNegateDialogOpen(false);
       setSelectedTerm(null);
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       toast.error(`添加失败: ${error.message}`);
     }
   });
@@ -91,7 +91,7 @@ export function SearchTermsList({ campaignId }: { campaignId: number }) {
       setSelectedTermIds(new Set());
       refetch();
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       toast.error(`添加失败: ${error.message}`);
     }
   });
@@ -108,9 +108,9 @@ export function SearchTermsList({ campaignId }: { campaignId: number }) {
   };
   
   // 全选/取消全选
-  const handleSelectAll = (checked: boolean, terms: any[]) => {
+  const handleSelectAll = (checked: boolean, terms: unknown[]) => {
     if (checked) {
-      setSelectedTermIds(new Set(terms.map((t: any) => t.id)));
+      setSelectedTermIds(new Set(terms.map((t: unknown) => t.id)));
     } else {
       setSelectedTermIds(new Set());
     }
@@ -136,8 +136,8 @@ export function SearchTermsList({ campaignId }: { campaignId: number }) {
       return;
     }
     
-    const selectedTerms = searchTerms?.filter((t: any) => selectedTermIds.has(t.id)) || [];
-    const keywords = selectedTerms.map((term: any) => ({
+    const selectedTerms = searchTerms?.filter((t: unknown) => selectedTermIds.has(t.id)) || [];
+    const keywords = selectedTerms.map((term: unknown) => ({
       keywordText: term.searchTerm,
       matchType: addKeywordConfig.matchType,
       bid: addKeywordConfig.bid,
@@ -150,7 +150,7 @@ export function SearchTermsList({ campaignId }: { campaignId: number }) {
   };
   
   // 处理否定词操作
-  const handleNegate = (term: any) => {
+  const handleNegate = (term: unknown) => {
     setSelectedTerm(term);
     setNegateDialogOpen(true);
   };
@@ -226,7 +226,7 @@ export function SearchTermsList({ campaignId }: { campaignId: number }) {
   }
   
   // 筛选搜索词
-  const filteredTerms = searchTerms.filter((term: any) => {
+  const filteredTerms = searchTerms.filter((term: unknown) => {
     const stSpend = parseFloat(term.spend || "0");
     const stSales = parseFloat(term.sales || "0");
     const stAcos = stSales > 0 ? (stSpend / stSales * 100) : 0;
@@ -269,7 +269,7 @@ export function SearchTermsList({ campaignId }: { campaignId: number }) {
   });
   
   // 按销售额排序
-  const sortedTerms = [...filteredTerms].sort((a: any, b: any) => 
+  const sortedTerms = [...filteredTerms].sort((a: unknown, b: unknown) => 
     parseFloat(b.sales || "0") - parseFloat(a.sales || "0")
   );
   
@@ -323,7 +323,7 @@ export function SearchTermsList({ campaignId }: { campaignId: number }) {
               {/* 匹配类型 */}
               <div>
                 <Label className="text-xs">匹配类型</Label>
-                <Select value={stFilters.matchType} onValueChange={(v: any) => setStFilters({...stFilters, matchType: v})}>
+                <Select value={stFilters.matchType} onValueChange={(v: unknown) => setStFilters({...stFilters, matchType: v})}>
                   <SelectTrigger className="h-9 mt-1">
                     <SelectValue />
                   </SelectTrigger>
@@ -513,7 +513,7 @@ export function SearchTermsList({ campaignId }: { campaignId: number }) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {sortedTerms.map((term: any, index: number) => {
+            {sortedTerms.map((term: unknown, index: number) => {
               const stSpend = parseFloat(term.spend || "0");
               const stSales = parseFloat(term.sales || "0");
               const stAcos = stSales > 0 ? (stSpend / stSales * 100) : 0;
@@ -730,7 +730,7 @@ export function SearchTermsList({ campaignId }: { campaignId: number }) {
                   <SelectValue placeholder="选择广告组" />
                 </SelectTrigger>
                 <SelectContent>
-                  {adGroups?.map((ag: any) => (
+                  {adGroups?.map((ag: unknown) => (
                     <SelectItem key={ag.id} value={ag.id.toString()}>
                       {ag.adGroupName}
                     </SelectItem>
@@ -790,7 +790,7 @@ export function SearchTermsList({ campaignId }: { campaignId: number }) {
               <Label>选中的搜索词</Label>
               <div className="bg-muted p-3 rounded-lg max-h-[150px] overflow-y-auto">
                 <div className="flex flex-wrap gap-2">
-                  {searchTerms?.filter((t: any) => selectedTermIds.has(t.id)).map((term: any) => (
+                  {searchTerms?.filter((t: unknown) => selectedTermIds.has(t.id)).map((term: unknown) => (
                     <Badge key={term.id} variant="secondary" className="text-xs">
                       {term.searchTerm}
                     </Badge>

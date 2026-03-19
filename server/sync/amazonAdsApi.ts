@@ -108,7 +108,7 @@ export interface SpCampaign {
     budgetType: string;
   } | number;
   portfolioId?: string;
-  extendedData?: Record<string, any>;
+  extendedData?: Record<string, unknown>;
 }
 
 export interface SpAdGroup {
@@ -233,7 +233,7 @@ export class AmazonAdsApiClient {
       },
       async (error) => {
         const config = error.config;
-        const status = (error as any).response?.status;
+        const status = (error as Record<string, unknown>).response?.status;
         
         // v347: 防护config为undefined的情况（axios在某些错误类型下不携带config）
         if (!config) {
@@ -322,7 +322,7 @@ export class AmazonAdsApiClient {
           let baseDelay = status === 429 ? 5000 : 2000;
           
           // 尊重Retry-After头
-          const retryAfter = (error as any).response?.headers?.['retry-after'];
+          const retryAfter = (error as Record<string, unknown>).response?.headers?.['retry-after'];
           if (retryAfter) {
             const retryAfterMs = parseInt(retryAfter) * 1000;
             if (!isNaN(retryAfterMs) && retryAfterMs > 0) {
@@ -339,8 +339,8 @@ export class AmazonAdsApiClient {
         
         // v148: 检查是否返回HTML而不是JSON
         if (error.response) {
-          const contentType = (error as any).response.headers?.['content-type'] || '';
-          const data = (error as any).response.data;
+          const contentType = (error as Record<string, unknown>).response.headers?.['content-type'] || '';
+          const data = (error as Record<string, unknown>).response.data;
           
           if (contentType.includes('text/html') || (typeof data === 'string' && data.startsWith('<'))) {
             log.error(`[Amazon API] v148: HTML响应 status=${status}, URL=${config?.url}`);
@@ -359,17 +359,17 @@ export class AmazonAdsApiClient {
             }
             
             const enhancedError = new Error(errorMessage);
-            (enhancedError as any).originalError = error;
-            (enhancedError as any).status = status;
-            (enhancedError as any).isHtmlResponse = true;
-            (enhancedError as any).retryCount = config._retryCount;
+            (enhancedError as Record<string, unknown>).originalError = error;
+            (enhancedError as Record<string, unknown>).status = status;
+            (enhancedError as Record<string, unknown>).isHtmlResponse = true;
+            (enhancedError as Record<string, unknown>).retryCount = config._retryCount;
             throw enhancedError;
           }
         }
         
         // v148: 非HTML错误也添加重试信息
         if (config._retryCount > 0) {
-          (error as any).retryCount = config._retryCount;
+          (error as Record<string, unknown>).retryCount = config._retryCount;
         }
         throw error;
       }
@@ -665,7 +665,7 @@ export class AmazonAdsApiClient {
           
           // @ts-expect-error - Axios error response access
           if (error.response.status === 400) {
-            const errorData = (error as any).response.data;
+            const errorData = (error as Record<string, unknown>).response.data;
             if (errorData?.error === 'invalid_grant') {
               this.accessToken = null;
               this.tokenExpiry = null;
@@ -675,10 +675,10 @@ export class AmazonAdsApiClient {
           
           // 401/403 也是认证错误，不重试
           // @ts-expect-error - Axios error response access
-          if (error.response.status === 401 || (error as any).response.status === 403) {
+          if (error.response.status === 401 || (error as Record<string, unknown>).response.status === 403) {
             this.accessToken = null;
             this.tokenExpiry = null;
-            throw new Error(`Token刷新认证失败(${(error as any).response.status})，请检查API凭证`);
+            throw new Error(`Token刷新认证失败(${(error as Record<string, unknown>).response.status})，请检查API凭证`);
           }
         }
         
@@ -742,7 +742,7 @@ export class AmazonAdsApiClient {
     let lastError: Error | null = null;
     
     do {
-      const body: Record<string, any> = { 
+      const body: Record<string, unknown> = { 
         maxResults: 100,
         // 请求扩展字段，包括startDate和endDate
         includeExtendedDataFields: true
@@ -830,7 +830,7 @@ export class AmazonAdsApiClient {
    */
   async updateSpCampaign(campaignId: string, updates: Partial<SpCampaign>): Promise<void> {  // v356: 统一ID参数类型为string
     // v125: Amazon SP API v3 要求campaignId为字符串类型，dailyBudget四舍五入到两位小数
-    const formattedUpdates: Record<string, any> = { ...updates };
+    const formattedUpdates: Record<string, unknown> = { ...updates };
     if (formattedUpdates.dailyBudget !== undefined) {
       formattedUpdates.dailyBudget = Number(Number(formattedUpdates.dailyBudget).toFixed(2));
     }
@@ -861,7 +861,7 @@ export class AmazonAdsApiClient {
     let lastError: Error | null = null;
     
     do {
-      const body: Record<string, any> = { maxResults: 100 };
+      const body: Record<string, unknown> = { maxResults: 100 };
       if (campaignId) {
         body.campaignIdFilter = { include: [String(campaignId)] };
       }
@@ -928,7 +928,7 @@ export class AmazonAdsApiClient {
     let lastError: Error | null = null;
     
     do {
-      const body: Record<string, any> = { maxResults: 100 };
+      const body: Record<string, unknown> = { maxResults: 100 };
       if (adGroupId) {
         // v129: Amazon SP API v3要求adGroupId为字符串类型
         body.adGroupIdFilter = { include: [String(adGroupId)] };
@@ -948,7 +948,7 @@ export class AmazonAdsApiClient {
           log.debug(`[SP API] Fetched ${keywords.length} keywords, total: ${allKeywords.length}, hasMore: ${!!nextToken}`);
         } catch (error: unknown) {
           // @ts-expect-error - error message access
-          log.error(`[SP API] Error fetching keywords: ${(error as Error).message} ${(error as any).response?.data ? JSON.stringify(error.response.data).slice(0, 200) : ''}`);
+          log.error(`[SP API] Error fetching keywords: ${(error as Error).message} ${(error as Record<string, unknown>).response?.data ? JSON.stringify(error.response.data).slice(0, 200) : ''}`);
           throw error;
         }
       } else {
@@ -964,7 +964,7 @@ export class AmazonAdsApiClient {
           } catch (error: unknown) {
             lastError = error;
             // @ts-expect-error - error message access
-            log.warn(`[SP API] listSpKeywords header variant failed (status=${(error as any).response?.status}):`, (error as any).response?.data ? JSON.stringify(error.response.data).slice(0, 200) : (error as Error).message);
+            log.warn(`[SP API] listSpKeywords header variant failed (status=${(error as Record<string, unknown>).response?.status}):`, (error as Record<string, unknown>).response?.data ? JSON.stringify(error.response.data).slice(0, 200) : (error as Error).message);
             // v129: 400和415错误都尝试下一种header格式
             // @ts-expect-error - Axios error response access
             if ((error as Error & { response?: unknown }).response?.status === 415 || (error as Error & { response?: unknown }).response?.status === 400) {
@@ -1001,7 +1001,7 @@ export class AmazonAdsApiClient {
     const BATCH_SIZE = 1000;
     const BATCH_DELAY_MS = 300;
     const allCreatedKeywords: Array<{ keywordId: unknown; keywordText: string; code: string }> = [];
-    const allErrors: any[] = [];
+    const allErrors: unknown[] = [];
     
     const totalBatches = Math.ceil(keywords.length / BATCH_SIZE);
     log.info(`[SP API] v199: createSpKeywords 分批处理: 总计${keywords.length}个, 分${totalBatches}批`);
@@ -1063,8 +1063,8 @@ export class AmazonAdsApiClient {
           }
         }
       } catch (error: unknown) {
-        log.error(`[SP API] v199: 第${batchIdx + 1}批关键词创建API调用失败: ${(error as any).response?.data || (error as Error).message}`);
-        for (const kw of (batchKeywords as any[])) {
+        log.error(`[SP API] v199: 第${batchIdx + 1}批关键词创建API调用失败: ${(error as Record<string, unknown>).response?.data || (error as Error).message}`);
+        for (const kw of (batchKeywords as unknown[])) {
           allCreatedKeywords.push({ keywordId: null, keywordText: kw.keywordText, code: 'BATCH_ERROR' });
           allErrors.push({ keywordText: kw.keywordText, code: 'BATCH_ERROR', details: (error as Error).message });
         }
@@ -1088,7 +1088,7 @@ export class AmazonAdsApiClient {
     // v333: 增强日志记录 - 提取并返回Amazon API的requestId用于端到端追踪
     const BATCH_SIZE = 1000;
     const BATCH_DELAY_MS = 300;
-    const allErrors: any[] = [];
+    const allErrors: unknown[] = [];
     const allRequestIds: string[] = [];
     let totalSuccess = 0;
     
@@ -1161,7 +1161,7 @@ export class AmazonAdsApiClient {
       } catch (batchErr: unknown) {
         log.error(`[SP API] v199: 第${batchIdx + 1}批出价更新API调用失败: ${(batchErr as Error).message}`);
         // v333: 尝试从错误响应中提取requestId
-        const errResponse = (batchErr as any)?.response;
+        const errResponse = (batchErr as unknown)?.response;
         const errRequestId = errResponse?.headers?.['x-amzn-requestid'] || errResponse?.headers?.['x-amz-request-id'] || '';
         if (errRequestId) {
           allRequestIds.push(errRequestId);
@@ -1192,7 +1192,7 @@ export class AmazonAdsApiClient {
     // v199: 添加分批处理，确保大批量状态更新不会被截断
     const BATCH_SIZE = 1000;
     const BATCH_DELAY_MS = 300;
-    const allErrors: any[] = [];
+    const allErrors: unknown[] = [];
     let totalSuccess = 0;
     
     const formattedAll = updates.map(u => ({
@@ -1264,7 +1264,7 @@ export class AmazonAdsApiClient {
     // v199: 添加分批处理
     const BATCH_SIZE = 1000;
     const BATCH_DELAY_MS = 300;
-    const allErrors: any[] = [];
+    const allErrors: unknown[] = [];
     let totalSuccess = 0;
     
     const formattedAll = updates.map(u => ({
@@ -1325,7 +1325,7 @@ export class AmazonAdsApiClient {
     // v199: 添加分批处理
     const BATCH_SIZE = 1000;
     const BATCH_DELAY_MS = 300;
-    const allErrors: any[] = [];
+    const allErrors: unknown[] = [];
     let totalSuccess = 0;
     
     const formattedAll = updates.map(u => ({
@@ -1403,7 +1403,7 @@ export class AmazonAdsApiClient {
     let lastError: Error | null = null;
     
     do {
-      const body: Record<string, any> = { maxResults: 100 };
+      const body: Record<string, unknown> = { maxResults: 100 };
       if (adGroupId) {
         body.adGroupIdFilter = { include: [String(adGroupId)] };
       }
@@ -1460,7 +1460,7 @@ export class AmazonAdsApiClient {
     // v333: 增强日志记录 - 提取并返回Amazon API的requestId用于端到端追踪
     const BATCH_SIZE = 1000;
     const BATCH_DELAY_MS = 300;
-    const allErrors: any[] = [];
+    const allErrors: unknown[] = [];
     const allRequestIds: string[] = [];
     let totalSuccess = 0;
     
@@ -1521,7 +1521,7 @@ export class AmazonAdsApiClient {
       } catch (batchErr: unknown) {
         log.error(`[SP API] v199: 第${batchIdx + 1}批商品定位出价更新失败: ${(batchErr as Error).message}`);
         // v333: 尝试从错误响应中提取requestId
-        const errResponse = (batchErr as any)?.response;
+        const errResponse = (batchErr as unknown)?.response;
         const errRequestId = errResponse?.headers?.['x-amzn-requestid'] || errResponse?.headers?.['x-amz-request-id'] || '';
         if (errRequestId) {
           allRequestIds.push(errRequestId);
@@ -1559,7 +1559,7 @@ export class AmazonAdsApiClient {
     const BATCH_SIZE = 100; // Amazon SP API v3 targeting clauses 单次最多100个
     const BATCH_DELAY_MS = 500;
     const allCreatedTargets: Array<{ targetId: number | null; expression: unknown; code: string }> = [];
-    const allErrors: any[] = [];
+    const allErrors: unknown[] = [];
     
     const totalBatches = Math.ceil(targets.length / BATCH_SIZE);
     log.info(`[SP API] v310: createSpProductTargets 分批处理: 总计${targets.length}个, 分${totalBatches}批`);
@@ -1620,7 +1620,7 @@ export class AmazonAdsApiClient {
           }
         }
       } catch (error: unknown) {
-        log.error(`[SP API] v310: 第${batchIdx + 1}批商品定向创建API调用失败: ${(error as any).response?.data || (error as Error).message}`);
+        log.error(`[SP API] v310: 第${batchIdx + 1}批商品定向创建API调用失败: ${(error as Record<string, unknown>).response?.data || (error as Error).message}`);
         for (const t of batchTargets) {
           allCreatedTargets.push({ targetId: null, expression: t.expression, code: 'BATCH_ERROR' });
           allErrors.push({ expression: t.expression, code: 'BATCH_ERROR', details: (error as Error).message });
@@ -1666,7 +1666,7 @@ export class AmazonAdsApiClient {
     metrics: string[] = ['impressions', 'clicks', 'cost', 'attributedSales7d', 'attributedConversions7d']
   ): Promise<string> {
     // v356: 将requestBody声明提升到try块外部，使catch块中的错误诊断日志可以正确引用
-    let requestBody: Record<string, any> | null = null;
+    let requestBody: Record<string, unknown> | null = null;
     try {
       log.debug(`[Amazon API] 请求SP广告活动报告: ${startDate} - ${endDate}`);
       
@@ -1814,7 +1814,7 @@ export class AmazonAdsApiClient {
       log.info(`[Amazon API] 关键词报告请求成功, reportId: ${response.data.reportId}`);
       return response.data.reportId;
     } catch (error: unknown) {
-      log.error('[Amazon API] 请求SP关键词报告失败:', (error as any).response?.data || (error as Error).message);
+      log.error('[Amazon API] 请求SP关键词报告失败:', (error as Record<string, unknown>).response?.data || (error as Error).message);
       throw error;
     }
   }
@@ -1838,7 +1838,7 @@ export class AmazonAdsApiClient {
     metrics: string[] = ['impressions', 'clicks', 'cost', 'attributedConversions14d', 'attributedSales14d']
   ): Promise<string> {
     // v356: 将requestBody声明提升到try块外部，使catch块中的错误诊断日志可以正确引用
-    let requestBody: Record<string, any> | null = null;
+    let requestBody: Record<string, unknown> | null = null;
     try {
       log.debug(`[Amazon API] 请求SB品牌广告活动报告: ${startDate} - ${endDate}`);
       
@@ -1970,7 +1970,7 @@ export class AmazonAdsApiClient {
     metrics: string[] = ['impressions', 'clicks', 'cost', 'attributedConversions14d', 'attributedSales14d', 'viewAttributedSales14d']
   ): Promise<string> {
     // v356: 将requestBody声明提升到try块外部，使catch块中的错误诊断日志可以正确引用
-    let requestBody: Record<string, any> | null = null;
+    let requestBody: Record<string, unknown> | null = null;
     try {
       log.debug(`[Amazon API] 请求SD展示广告活动报告: ${startDate} - ${endDate}`);
       
@@ -2135,7 +2135,7 @@ export class AmazonAdsApiClient {
       log.info(`[Amazon API] SP位置报告请求成功, reportId: ${response.data.reportId}`);
       return response.data.reportId;
     } catch (error: unknown) {
-      log.error('[Amazon API] 请求SP位置报告失败:', (error as any).response?.data || (error as Error).message);
+      log.error('[Amazon API] 请求SP位置报告失败:', (error as Record<string, unknown>).response?.data || (error as Error).message);
       throw error;
     }
   }
@@ -2209,7 +2209,7 @@ export class AmazonAdsApiClient {
       log.info(`[Amazon API] SP搜索词报告请求成功, reportId: ${response.data.reportId}`);
       return response.data.reportId;
     } catch (error: unknown) {
-      log.error('[Amazon API] 请求SP搜索词报告失败:', (error as any).response?.data || (error as Error).message);
+      log.error('[Amazon API] 请求SP搜索词报告失败:', (error as Record<string, unknown>).response?.data || (error as Error).message);
       throw error;
     }
   }
@@ -2280,7 +2280,7 @@ export class AmazonAdsApiClient {
       log.info(`[Amazon API] SP已推广商品报告请求成功, reportId: ${response.data.reportId}`);
       return response.data.reportId;
     } catch (error: unknown) {
-      log.error('[Amazon API] 请求SP已推广商品报告失败:', (error as any).response?.data || (error as Error).message);
+      log.error('[Amazon API] 请求SP已推广商品报告失败:', (error as Record<string, unknown>).response?.data || (error as Error).message);
       throw error;
     }
   }
@@ -2338,7 +2338,7 @@ export class AmazonAdsApiClient {
       log.info(`[Amazon API] SP已购买商品报告请求成功, reportId: ${response.data.reportId}`);
       return response.data.reportId;
     } catch (error: unknown) {
-      log.error('[Amazon API] 请求SP已购买商品报告失败:', (error as any).response?.data || (error as Error).message);
+      log.error('[Amazon API] 请求SP已购买商品报告失败:', (error as Record<string, unknown>).response?.data || (error as Error).message);
       throw error;
     }
   }
@@ -2403,7 +2403,7 @@ export class AmazonAdsApiClient {
       log.info(`[Amazon API] SP自动定向报告请求成功, reportId: ${response.data.reportId}`);
       return response.data.reportId;
     } catch (error: unknown) {
-      log.error('[Amazon API] 请求SP自动定向报告失败:', (error as any).response?.data || (error as Error).message);
+      log.error('[Amazon API] 请求SP自动定向报告失败:', (error as Record<string, unknown>).response?.data || (error as Error).message);
       throw error;
     }
   }
@@ -2459,7 +2459,7 @@ export class AmazonAdsApiClient {
       log.info(`[Amazon API] SP广告组报告请求成功, reportId: ${response.data.reportId}`);
       return response.data.reportId;
     } catch (error: unknown) {
-      log.error('[Amazon API] 请求SP广告组报告失败:', (error as any).response?.data || (error as Error).message);
+      log.error('[Amazon API] 请求SP广告组报告失败:', (error as Record<string, unknown>).response?.data || (error as Error).message);
       throw error;
     }
   }
@@ -2514,7 +2514,7 @@ export class AmazonAdsApiClient {
       log.info(`[Amazon API] SB广告组报告请求成功, reportId: ${response.data.reportId}`);
       return response.data.reportId;
     } catch (error: unknown) {
-      log.error('[Amazon API] 请求SB广告组报告失败:', (error as any).response?.data || (error as Error).message);
+      log.error('[Amazon API] 请求SB广告组报告失败:', (error as Record<string, unknown>).response?.data || (error as Error).message);
       throw error;
     }
   }
@@ -2568,7 +2568,7 @@ export class AmazonAdsApiClient {
       log.info(`[Amazon API] SD广告组报告请求成功, reportId: ${response.data.reportId}`);
       return response.data.reportId;
     } catch (error: unknown) {
-      log.error('[Amazon API] 请求SD广告组报告失败:', (error as any).response?.data || (error as Error).message);
+      log.error('[Amazon API] 请求SD广告组报告失败:', (error as Record<string, unknown>).response?.data || (error as Error).message);
       throw error;
     }
   }
@@ -2644,7 +2644,7 @@ export class AmazonAdsApiClient {
       log.info(`[Amazon API] SD定向报告请求成功, reportId: ${response.data.reportId}`);
       return response.data.reportId;
     } catch (error: unknown) {
-      log.error('[Amazon API] 请求SD定向报告失败:', (error as any).response?.data || (error as Error).message);
+      log.error('[Amazon API] 请求SD定向报告失败:', (error as Record<string, unknown>).response?.data || (error as Error).message);
       throw error;
     }
   }
@@ -2723,7 +2723,7 @@ export class AmazonAdsApiClient {
       log.info(`[Amazon API] SD已推广商品报告请求成功, reportId: ${response.data.reportId}`);
       return response.data.reportId;
     } catch (error: unknown) {
-      log.error('[Amazon API] 请求SD已推广商品报告失败:', (error as any).response?.data || (error as Error).message);
+      log.error('[Amazon API] 请求SD已推广商品报告失败:', (error as Record<string, unknown>).response?.data || (error as Error).message);
       throw error;
     }
   }
@@ -2783,7 +2783,7 @@ export class AmazonAdsApiClient {
       log.info(`[Amazon API] SD匹配目标报告请求成功, reportId: ${response.data.reportId}`);
       return response.data.reportId;
     } catch (error: unknown) {
-      log.error('[Amazon API] 请求SD匹配目标报告失败:', (error as any).response?.data || (error as Error).message);
+      log.error('[Amazon API] 请求SD匹配目标报告失败:', (error as Record<string, unknown>).response?.data || (error as Error).message);
       throw error;
     }
   }
@@ -2877,7 +2877,7 @@ export class AmazonAdsApiClient {
       log.info(`[Amazon API] SB定向报告请求成功, reportId: ${response.data.reportId}`);
       return response.data.reportId;
     } catch (error: unknown) {
-      log.error('[Amazon API] 请求SB定向报告失败:', (error as any).response?.data || (error as Error).message);
+      log.error('[Amazon API] 请求SB定向报告失败:', (error as Record<string, unknown>).response?.data || (error as Error).message);
       throw error;
     }
   }
@@ -2946,7 +2946,7 @@ export class AmazonAdsApiClient {
       log.info(`[Amazon API] SB搜索词报告请求成功, reportId: ${response.data.reportId}`);
       return response.data.reportId;
     } catch (error: unknown) {
-      log.error('[Amazon API] 请求SB搜索词报告失败:', (error as any).response?.data || (error as Error).message);
+      log.error('[Amazon API] 请求SB搜索词报告失败:', (error as Record<string, unknown>).response?.data || (error as Error).message);
       throw error;
     }
   }
@@ -3042,7 +3042,7 @@ export class AmazonAdsApiClient {
       log.info(`[Amazon API] SB广告位置报告请求成功, reportId: ${response.data.reportId}`);
       return response.data.reportId;
     } catch (error: unknown) {
-      log.error('[Amazon API] 请求SB广告位置报告失败:', (error as any).response?.data || (error as Error).message);
+      log.error('[Amazon API] 请求SB广告位置报告失败:', (error as Record<string, unknown>).response?.data || (error as Error).message);
       throw error;
     }
   }
@@ -3117,7 +3117,7 @@ export class AmazonAdsApiClient {
       log.info(`[Amazon API] SB广告报告请求成功, reportId: ${response.data.reportId}`);
       return response.data.reportId;
     } catch (error: unknown) {
-      log.error('[Amazon API] 请求SB广告报告失败:', (error as any).response?.data || (error as Error).message);
+      log.error('[Amazon API] 请求SB广告报告失败:', (error as Record<string, unknown>).response?.data || (error as Error).message);
       throw error;
     }
   }
@@ -3191,7 +3191,7 @@ export class AmazonAdsApiClient {
       log.info(`[Amazon API] SD广告组报告请求成功, reportId: ${response.data.reportId}`);
       return response.data.reportId;
     } catch (error: unknown) {
-      log.error('[Amazon API] 请求SD广告组报告失败:', (error as any).response?.data || (error as Error).message);
+      log.error('[Amazon API] 请求SD广告组报告失败:', (error as Record<string, unknown>).response?.data || (error as Error).message);
       throw error;
     }
   }
@@ -3248,7 +3248,7 @@ export class AmazonAdsApiClient {
       log.info(`[Amazon API] SD已购买商品报告请求成功, reportId: ${response.data.reportId}`);
       return response.data.reportId;
     } catch (error: unknown) {
-      log.error('[Amazon API] 请求SD已购买商品报告失败:', (error as any).response?.data || (error as Error).message);
+      log.error('[Amazon API] 请求SD已购买商品报告失败:', (error as Record<string, unknown>).response?.data || (error as Error).message);
       throw error;
     }
   }
@@ -3302,7 +3302,7 @@ export class AmazonAdsApiClient {
       log.info(`[Amazon API] SP无效流量报告请求成功, reportId: ${response.data.reportId}`);
       return response.data.reportId;
     } catch (error: unknown) {
-      log.error('[Amazon API] 请求SP无效流量报告失败:', (error as any).response?.data || (error as Error).message);
+      log.error('[Amazon API] 请求SP无效流量报告失败:', (error as Record<string, unknown>).response?.data || (error as Error).message);
       throw error;
     }
   }
@@ -3356,7 +3356,7 @@ export class AmazonAdsApiClient {
       log.info(`[Amazon API] SB无效流量报告请求成功, reportId: ${response.data.reportId}`);
       return response.data.reportId;
     } catch (error: unknown) {
-      log.error('[Amazon API] 请求SB无效流量报告失败:', (error as any).response?.data || (error as Error).message);
+      log.error('[Amazon API] 请求SB无效流量报告失败:', (error as Record<string, unknown>).response?.data || (error as Error).message);
       throw error;
     }
   }
@@ -3405,7 +3405,7 @@ export class AmazonAdsApiClient {
       log.info(`[Amazon API] SD无效流量报告请求成功, reportId: ${response.data.reportId}`);
       return response.data.reportId;
     } catch (error: unknown) {
-      log.error('[Amazon API] 请求SD无效流量报告失败:', (error as any).response?.data || (error as Error).message);
+      log.error('[Amazon API] 请求SD无效流量报告失败:', (error as Record<string, unknown>).response?.data || (error as Error).message);
       throw error;
     }
   }
@@ -3423,7 +3423,7 @@ export class AmazonAdsApiClient {
         failureReason: response.data.failureReason,
       };
     } catch (error: unknown) {
-      log.error(`[Amazon API] 获取报告状态失败:`, (error as any).response?.data || (error as Error).message);
+      log.error(`[Amazon API] 获取报告状态失败:`, (error as Record<string, unknown>).response?.data || (error as Error).message);
       throw error;
     }
   }
@@ -3431,7 +3431,7 @@ export class AmazonAdsApiClient {
   /**
    * 下载报告数据
    */
-  async downloadReport(url: string, retries: number = 3): Promise<Record<string, any>[]> {
+  async downloadReport(url: string, retries: number = 3): Promise<Record<string, unknown>[]> {
     // v449: 增强报告下载 — 添加超时、重试机制，解决SB搜索词报告下载超时问题
     for (let attempt = 1; attempt <= retries; attempt++) {
       try {
@@ -3442,7 +3442,7 @@ export class AmazonAdsApiClient {
         
         const zlib = await import('zlib');
         
-        const data = await new Promise<Record<string, any>[]>((resolve, reject) => {
+        const data = await new Promise<Record<string, unknown>[]>((resolve, reject) => {
           const chunks: Buffer[] = [];
           let totalSize = 0;
           const MAX_SIZE = 500 * 1024 * 1024; // 500MB限制
@@ -3510,7 +3510,7 @@ export class AmazonAdsApiClient {
    * 等待报告完成并下载
    * v413: 智能退避优化 — 指数退避轮询(5s→10s→20s→30s) + 缩短默认超时(15分钟→5分钟) + 连续PENDING检测
    */
-  async waitAndDownloadReport(reportId: string, maxWaitMs: number = 300000): Promise<Record<string, any>[]> {
+  async waitAndDownloadReport(reportId: string, maxWaitMs: number = 300000): Promise<Record<string, unknown>[]> {
     const startTime = Date.now();
     let pollCount = 0;
     // v413: 指数退避轮询间隔：5s → 10s → 20s → 30s(封顶)
@@ -3572,14 +3572,14 @@ export class AmazonAdsApiClient {
    * 获取SB广告活动列表
    * 注意：SB v4 API需要特定的Content-Type header
    */
-  async listSbCampaigns(): Promise<Record<string, any>[]> {
+  async listSbCampaigns(): Promise<Record<string, unknown>[]> {
     // SB API maxResults最大为100，需要分页获取
-    const allCampaigns: any[] = [];
+    const allCampaigns: unknown[] = [];
     let nextToken: string | undefined;
     let pageCount = 0;
     
     do {
-      const body: Record<string, any> = { maxResults: 100 };
+      const body: Record<string, unknown> = { maxResults: 100 };
       if (nextToken) {
         body.nextToken = nextToken;
       }
@@ -3624,12 +3624,12 @@ export class AmazonAdsApiClient {
    * 获取SB广告组列表
    * 已修复：添加分页逻辑，确保获取所有数据
    */
-  async listSbAdGroups(campaignId?: string): Promise<Record<string, any>[]> {
-    const allAdGroups: any[] = [];
+  async listSbAdGroups(campaignId?: string): Promise<Record<string, unknown>[]> {
+    const allAdGroups: unknown[] = [];
     let nextToken: string | undefined;
     
     do {
-      const body: Record<string, any> = { maxResults: 100 };
+      const body: Record<string, unknown> = { maxResults: 100 };
       if (campaignId) {
         body.campaignIdFilter = { include: [String(campaignId)] };
       }
@@ -3661,12 +3661,12 @@ export class AmazonAdsApiClient {
    * 获取SB关键词列表
    * 已修复：添加分页逻辑，确保获取所有数据
    */
-  async listSbKeywords(adGroupId?: string): Promise<Record<string, any>[]> {
-    const allKeywords: any[] = [];
+  async listSbKeywords(adGroupId?: string): Promise<Record<string, unknown>[]> {
+    const allKeywords: unknown[] = [];
     let nextToken: string | undefined;
     
     do {
-      const body: Record<string, any> = { maxResults: 100 };
+      const body: Record<string, unknown> = { maxResults: 100 };
       if (adGroupId) {
         body.adGroupIdFilter = { include: [String(adGroupId)] };
       }
@@ -3708,12 +3708,12 @@ export class AmazonAdsApiClient {
    * 获取SB商品定位列表
    * 已修复：添加分页逻辑，确保获取所有数据
    */
-  async listSbTargets(adGroupId?: string): Promise<Record<string, any>[]> {
-    const allTargets: any[] = [];
+  async listSbTargets(adGroupId?: string): Promise<Record<string, unknown>[]> {
+    const allTargets: unknown[] = [];
     let nextToken: string | undefined;
     
     do {
-      const body: Record<string, any> = { maxResults: 100 };
+      const body: Record<string, unknown> = { maxResults: 100 };
       if (adGroupId) {
         body.adGroupIdFilter = { include: [String(adGroupId)] };
       }
@@ -3755,7 +3755,7 @@ export class AmazonAdsApiClient {
   /**
    * 更新SB广告活动
    */
-  async updateSbCampaign(campaignId: string, updates: any): Promise<void> {
+  async updateSbCampaign(campaignId: string, updates: unknown): Promise<void> {
     await this.axiosInstance.put('/sb/v4/campaigns', 
       { campaigns: [{ campaignId, ...updates }] },
       {
@@ -3790,14 +3790,14 @@ export class AmazonAdsApiClient {
    * 
    * 策略: 单一v3端点，正确的Content-Type和Accept headers
    */
-  async updateSbKeywordBids(updates: Array<{ keywordId: string; bid: number; adGroupId: string; campaignId: string }>): Promise<{ successes: any[]; errors: any[] }> {
+  async updateSbKeywordBids(updates: Array<{ keywordId: string; bid: number; adGroupId: string; campaignId: string }>): Promise<{ successes: unknown[]; errors: unknown[] }> {
     const BATCH_SIZE = 100;
     const BATCH_DELAY_MS = 500;
     const totalBatches = Math.ceil(updates.length / BATCH_SIZE);
     log.info(`[SB API] v429.5: updateSbKeywordBids 官方文档修复: 总计${updates.length}个, 分${totalBatches}批`);
     
-    const allSuccesses: any[] = [];
-    const allErrors: any[] = [];
+    const allSuccesses: unknown[] = [];
+    const allErrors: unknown[] = [];
     
     // v429.5: Amazon SB v3 API要求keywordId/adGroupId/campaignId为integer<int64>类型
     const toInt = (v: string | number): number => typeof v === 'number' ? v : Number(v);
@@ -3850,9 +3850,9 @@ export class AmazonAdsApiClient {
         }
         
       } catch (err: unknown) {
-        const statusCode = (err as any)?.response?.status || 0;
-        const responseBody = (err as any)?.response?.data;
-        const responseHeaders = (err as any)?.response?.headers;
+        const statusCode = (err as unknown)?.response?.status || 0;
+        const responseBody = (err as unknown)?.response?.data;
+        const responseHeaders = (err as unknown)?.response?.headers;
         const errMsg = (err as Error).message;
         const bodyStr = responseBody ? JSON.stringify(responseBody).substring(0, 500) : 'no body';
         const headerStr = responseHeaders ? JSON.stringify(responseHeaders).substring(0, 300) : 'no headers';
@@ -3861,7 +3861,7 @@ export class AmazonAdsApiClient {
         
         // 429限流：等待后重试
         if (statusCode === 429) {
-          const retryAfter = (err as any)?.response?.headers?.['retry-after'] || 5;
+          const retryAfter = (err as unknown)?.response?.headers?.['retry-after'] || 5;
           log.info(`[SB API] v429.5: 限流，等待${retryAfter}秒后重试...`);
           await new Promise(resolve => setTimeout(resolve, Number(retryAfter) * 1000));
           batchIdx--; // 重试当前批次
@@ -3889,8 +3889,8 @@ export class AmazonAdsApiClient {
    * 使用extended端点获取更多字段，包括startDate
    * 已修复：添加分页逻辑，确保获取所有数据
    */
-  async listSdCampaigns(): Promise<Record<string, any>[]> {
-    const allCampaigns: any[] = [];
+  async listSdCampaigns(): Promise<Record<string, unknown>[]> {
+    const allCampaigns: unknown[] = [];
     let startIndex = 0;
     const count = 100;
     
@@ -3936,13 +3936,13 @@ export class AmazonAdsApiClient {
    * 获取SD广告组列表
    * 已修复：添加分页逻辑，确保获取所有数据
    */
-  async listSdAdGroups(campaignId?: number): Promise<Record<string, any>[]> {
-    const allAdGroups: any[] = [];
+  async listSdAdGroups(campaignId?: number): Promise<Record<string, unknown>[]> {
+    const allAdGroups: unknown[] = [];
     let startIndex = 0;
     const count = 100;
     
     while (true) {
-      const params: Record<string, any> = { startIndex, count };
+      const params: Record<string, unknown> = { startIndex, count };
       if (campaignId) {
         params.campaignIdFilter = campaignId;
       }
@@ -3966,13 +3966,13 @@ export class AmazonAdsApiClient {
    * 获取SD商品定位列表
    * 已修复：添加分页逻辑，确保获取所有数据
    */
-  async listSdTargets(adGroupId?: number): Promise<Record<string, any>[]> {
-    const allTargets: any[] = [];
+  async listSdTargets(adGroupId?: number): Promise<Record<string, unknown>[]> {
+    const allTargets: unknown[] = [];
     let startIndex = 0;
     const count = 100;
     
     while (true) {
-      const params: Record<string, any> = { startIndex, count };
+      const params: Record<string, unknown> = { startIndex, count };
       if (adGroupId) {
         params.adGroupIdFilter = adGroupId;
       }
@@ -3995,7 +3995,7 @@ export class AmazonAdsApiClient {
   /**
    * 更新SD广告活动
    */
-  async updateSdCampaign(campaignId: string, updates: any): Promise<void> {  // v356: 统一ID参数类型为string
+  async updateSdCampaign(campaignId: string, updates: unknown): Promise<void> {  // v356: 统一ID参数类型为string
     await this.axiosInstance.put('/sd/campaigns', [{ campaignId: String(campaignId), ...updates }]);
   }
 
@@ -4031,7 +4031,7 @@ export class AmazonAdsApiClient {
     // 且缺少Content-Type header，导致所有18次adgroup_pause全部失败返回"Unknown error"
     const BATCH_SIZE = 100;
     const BATCH_DELAY_MS = 300;
-    const allErrors: any[] = [];
+    const allErrors: unknown[] = [];
     let totalSuccess = 0;
     
     // v328-fix: 使用String类型adGroupId避免大数字精度丢失（如517951489093036是15位数字）
@@ -4059,17 +4059,17 @@ export class AmazonAdsApiClient {
         log.info(`[SD API] v328: 第${batchIdx + 1}批响应: status=${response.status}, data=${JSON.stringify(response.data).substring(0, 500)}`);
         
         if (Array.isArray(response.data)) {
-          const errors = response.data.filter((r: Record<string, any>) => r.code && r.code !== 'SUCCESS');
-          const successes = response.data.filter((r: Record<string, any>) => !r.code || r.code === 'SUCCESS');
+          const errors = response.data.filter((r: Record<string, unknown>) => r.code && r.code !== 'SUCCESS');
+          const successes = response.data.filter((r: Record<string, unknown>) => !r.code || r.code === 'SUCCESS');
           totalSuccess += successes.length;
           for (const err of errors) {
-            allErrors.push({ adGroupId: err.adGroupId, code: (err as any).code || 'ERROR', details: err.details || err.description || JSON.stringify(err) });
+            allErrors.push({ adGroupId: err.adGroupId, code: (err as Record<string, unknown>).code || 'ERROR', details: err.details || err.description || JSON.stringify(err) });
           }
         } else if (response.data && typeof response.data === 'object') {
           // 某些SD API版本可能返回对象格式
           if (response.data.errors) {
             for (const err of (Array.isArray(response.data.errors) ? response.data.errors : [response.data.errors])) {
-              allErrors.push({ adGroupId: err.adGroupId, code: (err as any).code || 'ERROR', details: err.details || err.description || JSON.stringify(err) });
+              allErrors.push({ adGroupId: err.adGroupId, code: (err as Record<string, unknown>).code || 'ERROR', details: err.details || err.description || JSON.stringify(err) });
             }
           } else {
             totalSuccess += batch.length;
@@ -4104,12 +4104,12 @@ export class AmazonAdsApiClient {
    * 获取SP活动级别否定关键词列表
    * 已修复：添加分页逻辑，确保获取所有数据
    */
-  async listSpCampaignNegativeKeywords(campaignId?: string): Promise<Record<string, any>[]> {  // v356: 统一ID参数类型为string
-    const allNegatives: any[] = [];
+  async listSpCampaignNegativeKeywords(campaignId?: string): Promise<Record<string, unknown>[]> {  // v356: 统一ID参数类型为string
+    const allNegatives: unknown[] = [];
     let nextToken: string | undefined;
     
     do {
-      const body: Record<string, any> = { maxResults: 100 };
+      const body: Record<string, unknown> = { maxResults: 100 };
       if (campaignId) {
         body.campaignIdFilter = { include: [String(campaignId)] };
       }
@@ -4197,7 +4197,7 @@ export class AmazonAdsApiClient {
           });
         }
         for (const e of errorItems) {
-          const errorMsg = e.errors?.map((err: Record<string, any>) => {
+          const errorMsg = e.errors?.map((err: Record<string, unknown>) => {
             const val = err.errorValue || {};
             // v445: 增强错误解析 — 覆盖所有Amazon API错误类型
             const errorType = err.errorType || 'unknownError';
@@ -4292,12 +4292,12 @@ export class AmazonAdsApiClient {
    * 获取SP广告组级别否定关键词列表
    * 已修复：添加分页逻辑，确保获取所有数据
    */
-  async listSpNegativeKeywords(adGroupId?: number): Promise<Record<string, any>[]> {
-    const allNegatives: any[] = [];
+  async listSpNegativeKeywords(adGroupId?: number): Promise<Record<string, unknown>[]> {
+    const allNegatives: unknown[] = [];
     let nextToken: string | undefined;
     
     do {
-      const body: Record<string, any> = { maxResults: 100 };
+      const body: Record<string, unknown> = { maxResults: 100 };
       if (adGroupId) {
         body.adGroupIdFilter = { include: [String(adGroupId)] };
       }
@@ -4354,7 +4354,7 @@ export class AmazonAdsApiClient {
     // v199: 添加分批处理，确保大批量广告组级否定词创建不会被截断
     const BATCH_SIZE = 1000;
     const BATCH_DELAY_MS = 300;
-    const allResults: any[] = [];
+    const allResults: unknown[] = [];
     const totalBatches = Math.ceil(formattedNegatives.length / BATCH_SIZE);
     log.info(`[SP API] v199: createSpNegativeKeywords 分批处理: 总计${formattedNegatives.length}个, 分${totalBatches}批`);
     
@@ -4375,7 +4375,7 @@ export class AmazonAdsApiClient {
         allResults.push(...batchResults);
         log.info(`[SP API] v199: 第${batchIdx + 1}批完成: ${batchResults.length}个结果`);
       } catch (err: unknown) {
-        log.error(`[SP API] v199: 第${batchIdx + 1}批失败: ${(err as any).response?.status} ${(err as Error).message}`);
+        log.error(`[SP API] v199: 第${batchIdx + 1}批失败: ${(err as Record<string, unknown>).response?.status} ${(err as Error).message}`);
         // 记录本批失败
         for (let i = 0; i < batch.length; i++) {
           allResults.push({ keywordId: 0, code: 'BATCH_ERROR', details: (err as Error).message });
@@ -4417,13 +4417,13 @@ export class AmazonAdsApiClient {
   /**
    * 获取SP否定商品定位列表（活动级别）
    */
-  async listSpCampaignNegativeTargets(campaignId?: number): Promise<Record<string, any>[]> {
+  async listSpCampaignNegativeTargets(campaignId?: number): Promise<Record<string, unknown>[]> {
     // v199: 添加分页循环，确保获取所有否定商品定位
-    const allTargets: any[] = [];
+    const allTargets: unknown[] = [];
     let nextToken: string | undefined;
     
     do {
-      const body: Record<string, any> = { maxResults: 100 };
+      const body: Record<string, unknown> = { maxResults: 100 };
       if (campaignId) {
         body.campaignIdFilter = { include: [String(campaignId)] };
       }
@@ -4474,13 +4474,13 @@ export class AmazonAdsApiClient {
   /**
    * 获取SP否定商品定位列表（广告组级别）
    */
-  async listSpNegativeTargets(adGroupId?: number): Promise<Record<string, any>[]> {
+  async listSpNegativeTargets(adGroupId?: number): Promise<Record<string, unknown>[]> {
     // v199: 添加分页循环，确保获取所有广告组级否定商品定位
-    const allTargets: any[] = [];
+    const allTargets: unknown[] = [];
     let nextToken: string | undefined;
     
     do {
-      const body: Record<string, any> = { maxResults: 100 };
+      const body: Record<string, unknown> = { maxResults: 100 };
       if (adGroupId) {
         body.adGroupIdFilter = { include: [String(adGroupId)] };
       }
@@ -4565,7 +4565,7 @@ export class AmazonAdsApiClient {
       }));
       
       // v437: 修复 — campaignId和adGroupId是必需参数，recommendationType也是必需的
-      const requestBody: any = {
+      const requestBody: unknown = {
         targetingExpressions,
         recommendationType: 'BIDS_FOR_EXISTING_AD_GROUP',
         adGroupId: String(adGroupId),
@@ -4646,7 +4646,7 @@ export class AmazonAdsApiClient {
           keywords,
         });
         const recs = response.data.recommendations || [];
-        return recs.map((rec: any) => ({
+        return recs.map((rec: unknown) => ({
           keyword: rec.keyword || '',
           matchType: rec.matchType || '',
           suggestedBid: Number(rec.suggestedBid) || 0,
@@ -4684,7 +4684,7 @@ export class AmazonAdsApiClient {
         value: expr.value || '',
       }));
       
-      const requestBody: any = {
+      const requestBody: unknown = {
         targetingExpressions,
         recommendationType: 'BIDS_FOR_EXISTING_AD_GROUP',
         adGroupId: String(adGroupId),
@@ -4736,7 +4736,7 @@ export class AmazonAdsApiClient {
           adGroupId: String(adGroupId),
           expressions,
         });
-        return (response.data.recommendations || []).map((rec: any) => ({
+        return (response.data.recommendations || []).map((rec: unknown) => ({
           expression: rec.expression,
           suggestedBid: Number(rec.suggestedBid) || 0,
           rangeLow: Number(rec.rangeStart) || 0,
@@ -4766,7 +4766,7 @@ export class AmazonAdsApiClient {
       });
       const rawRecs = response.data?.recommendations || response.data || [];
       log.debug(`[SB] 获取到 ${rawRecs.length} 个关键词建议竞价 (campaignId=${campaignId})`);
-      return rawRecs.map((rec: any) => ({
+      return rawRecs.map((rec: unknown) => ({
         keyword: rec.keyword || '',
         matchType: rec.matchType || '',
         suggestedBid: Number(rec.suggestedBid || rec.bid) || 0,
@@ -4794,7 +4794,7 @@ export class AmazonAdsApiClient {
       });
       const rawRecs = response.data?.recommendations || response.data || [];
       log.debug(`[SB] 获取到 ${rawRecs.length} 个商品定位建议竞价 (campaignId=${campaignId})`);
-      return rawRecs.map((rec: any) => ({
+      return rawRecs.map((rec: unknown) => ({
         suggestedBid: Number(rec.suggestedBid || rec.bid) || 0,
         rangeStart: Number(rec.rangeStart || rec.bidRangeLow || rec.rangeLow) || 0,
         rangeEnd: Number(rec.rangeEnd || rec.bidRangeHigh || rec.rangeHigh) || 0,
@@ -4819,7 +4819,7 @@ export class AmazonAdsApiClient {
       });
       const rawRecs = response.data?.recommendations || response.data || [];
       log.debug(`[SD] 获取到 ${rawRecs.length} 个投放对象建议竞价`);
-      return rawRecs.map((rec: any) => ({
+      return rawRecs.map((rec: unknown) => ({
         targetId: rec.targetId || '',
         suggestedBid: Number(rec.suggestedBid || rec.bid) || 0,
         bidRangeLow: Number(rec.bidRangeLow || rec.rangeStart || rec.rangeLow) || 0,
@@ -5005,7 +5005,7 @@ export class AmazonAdsApiClient {
         log.error(`[AMS] 创建订阅 ${dataSetId} 失败:`, (error as Error).message);
         failed.push({
           dataSetId,
-          error: (error as any).response?.data?.message || (error as Error).message,
+          error: (error as Record<string, unknown>).response?.data?.message || (error as Error).message,
         });
       }
     }
@@ -5076,7 +5076,7 @@ export class AmazonAdsApiClient {
    * 等待并下载V2报告
    * v413: 智能退避优化 — 指数退避轮询 + 减少日志刷屏
    */
-  async waitAndDownloadReportV2(reportId: string, maxWaitMs: number = 300000): Promise<Record<string, any>[]> {
+  async waitAndDownloadReportV2(reportId: string, maxWaitMs: number = 300000): Promise<Record<string, unknown>[]> {
     const startTime = Date.now();
     let pollCount = 0;
     // v413: 指数退避轮询间隔：3s → 6s → 15s → 30s(封顶)
@@ -5133,8 +5133,8 @@ export class AmazonAdsApiClient {
   /**
    * 获取完整的SB广告活动报告（结合V2和V3）
    */
-  async getCompleteSbCampaignReport(startDate: string, endDate: string): Promise<Record<string, any>[]> {
-    const allData: any[] = [];
+  async getCompleteSbCampaignReport(startDate: string, endDate: string): Promise<Record<string, unknown>[]> {
+    const allData: unknown[] = [];
     const seenCampaignIds = new Set<string>();
     
     // 1. 先尝试V3 API
@@ -5143,7 +5143,7 @@ export class AmazonAdsApiClient {
       const v3ReportId = await this.requestSbCampaignReport(startDate, endDate);
       const v3Data = await this.waitAndDownloadReport(v3ReportId);
       
-      for (const row of (v3Data as any[])) {
+      for (const row of (v3Data as unknown[])) {
         const campaignId = row.campaignId?.toString();
         if (campaignId && !seenCampaignIds.has(campaignId)) {
           seenCampaignIds.add(campaignId);
@@ -5169,7 +5169,7 @@ export class AmazonAdsApiClient {
           const v2Report = await this.requestSbCampaignReportV2(dateStr);
           const v2Data = await this.waitAndDownloadReportV2(v2Report.reportId);
           
-          for (const row of (v2Data as any[])) {
+          for (const row of (v2Data as unknown[])) {
             const campaignId = row.campaignId?.toString();
             if (campaignId && !seenCampaignIds.has(campaignId + '_' + dateStr)) {
               seenCampaignIds.add(campaignId + '_' + dateStr);
@@ -5181,7 +5181,7 @@ export class AmazonAdsApiClient {
           const v2VideoReport = await this.requestSbVideoCampaignReportV2(dateStr);
           const v2VideoData = await this.waitAndDownloadReportV2(v2VideoReport.reportId);
           
-          for (const row of (v2VideoData as any[])) {
+          for (const row of (v2VideoData as unknown[])) {
             const campaignId = row.campaignId?.toString();
             if (campaignId && !seenCampaignIds.has(campaignId + '_video_' + dateStr)) {
               seenCampaignIds.add(campaignId + '_video_' + dateStr);
@@ -5204,12 +5204,12 @@ export class AmazonAdsApiClient {
    * 获取SB广告素材列表（品牌广告的创意素材）
    * 包含headline, brandLogo, customImage, video等素材信息
    */
-  async listSbAds(campaignId?: string): Promise<Record<string, any>[]> {
-    const allAds: any[] = [];
+  async listSbAds(campaignId?: string): Promise<Record<string, unknown>[]> {
+    const allAds: unknown[] = [];
     let nextToken: string | undefined;
     
     do {
-      const body: Record<string, any> = { maxResults: 100 };
+      const body: Record<string, unknown> = { maxResults: 100 };
       if (campaignId) {
         body.campaignIdFilter = { include: [String(campaignId)] };
       }
@@ -5245,12 +5245,12 @@ export class AmazonAdsApiClient {
   /**
    * 获取SB否定关键词列表
    */
-  async listSbNegativeKeywords(campaignId?: string): Promise<Record<string, any>[]> {
-    const allNegatives: any[] = [];
+  async listSbNegativeKeywords(campaignId?: string): Promise<Record<string, unknown>[]> {
+    const allNegatives: unknown[] = [];
     let nextToken: string | undefined;
     
     do {
-      const body: Record<string, any> = { maxResults: 100 };
+      const body: Record<string, unknown> = { maxResults: 100 };
       if (campaignId) {
         body.campaignIdFilter = { include: [String(campaignId)] };
       }
@@ -5291,12 +5291,12 @@ export class AmazonAdsApiClient {
   /**
    * 获取SB否定商品定向列表
    */
-  async listSbNegativeTargets(campaignId?: string): Promise<Record<string, any>[]> {
-    const allNegatives: any[] = [];
+  async listSbNegativeTargets(campaignId?: string): Promise<Record<string, unknown>[]> {
+    const allNegatives: unknown[] = [];
     let nextToken: string | undefined;
     
     do {
-      const body: Record<string, any> = { maxResults: 100 };
+      const body: Record<string, unknown> = { maxResults: 100 };
       if (campaignId) {
         body.campaignIdFilter = { include: [String(campaignId)] };
       }
@@ -5353,9 +5353,9 @@ export class AmazonAdsApiClient {
       matchType: 'negativeExact' | 'negativePhrase';
       state?: 'enabled' | 'paused';
     }>
-  ): Promise<Record<string, any>[]> {
+  ): Promise<Record<string, unknown>[]> {
     const BATCH_SIZE = 100;
-    const allResults: any[] = [];
+    const allResults: unknown[] = [];
     const totalBatches = Math.ceil(negatives.length / BATCH_SIZE);
     log.info(`[SB API] v2: createSbNegativeKeywords 分批处理: 总计${negatives.length}个, 分${totalBatches}批`);
     
@@ -5416,9 +5416,9 @@ export class AmazonAdsApiClient {
       expression: Array<{ type: string; value?: string }>;
       state?: 'enabled' | 'paused';
     }>
-  ): Promise<Record<string, any>[]> {
+  ): Promise<Record<string, unknown>[]> {
     const BATCH_SIZE = 100;
-    const allResults: any[] = [];
+    const allResults: unknown[] = [];
     const totalBatches = Math.ceil(negatives.length / BATCH_SIZE);
     log.info(`[SB API] v2: createSbNegativeTargets 分批处理: 总计${negatives.length}个, 分${totalBatches}批`);
     
@@ -5472,14 +5472,14 @@ export class AmazonAdsApiClient {
    * SD不支持否定关键词，仅支持否定产品定向
    * 使用 POST /sd/negativeTargets/list 端点
    */
-  async listSdNegativeTargets(adGroupId?: number): Promise<Record<string, any>[]> {
-    const allTargets: any[] = [];
+  async listSdNegativeTargets(adGroupId?: number): Promise<Record<string, unknown>[]> {
+    const allTargets: unknown[] = [];
     let startIndex = 0;
     const count = 100;
     
     while (true) {
       try {
-        const params: Record<string, any> = { startIndex, count };
+        const params: Record<string, unknown> = { startIndex, count };
         if (adGroupId) {
           params.adGroupIdFilter = adGroupId;
         }
@@ -5525,9 +5525,9 @@ export class AmazonAdsApiClient {
       expression: Array<{ type: string; value?: string }>;
       state?: 'enabled' | 'paused';
     }>
-  ): Promise<Record<string, any>[]> {
+  ): Promise<Record<string, unknown>[]> {
     const BATCH_SIZE = 100;
-    const allResults: any[] = [];
+    const allResults: unknown[] = [];
     const totalBatches = Math.ceil(negatives.length / BATCH_SIZE);
     log.info(`[SD API] v2: createSdNegativeTargets 分批处理: 总计${negatives.length}个, 分${totalBatches}批`);
     
@@ -5575,7 +5575,7 @@ export class AmazonAdsApiClient {
    * GET /assets?assetId={assetId}
    * 返回素材的完整URL（包括视频URL、缩略图等）
    */
-  async getAssetDetails(assetId: string): Promise<any> {
+  async getAssetDetails(assetId: string): Promise<unknown> {
     try {
       const headers = await this.getHeaders();
       const response = await this.axiosInstance.get('/assets', {
@@ -5587,7 +5587,7 @@ export class AmazonAdsApiClient {
       });
       return response.data;
     } catch (error: unknown) {
-      log.error(`[Assets API] Failed to get asset ${assetId}:`, (error as any).response?.data || (error as Error).message);
+      log.error(`[Assets API] Failed to get asset ${assetId}:`, (error as Record<string, unknown>).response?.data || (error as Error).message);
       return null;
     }
   }
@@ -5677,9 +5677,9 @@ export class AmazonAdsApiClient {
     }>,
     maxWaitMs: number = 300000,
     submitDelayMs: number = 2000
-  ): Promise<Array<{ name: string; data: Record<string, any>[] | null; error?: string }>> {
+  ): Promise<Array<{ name: string; data: Record<string, unknown>[] | null; error?: string }>> {
     const startTime = Date.now();
-    const results: Array<{ name: string; data: Record<string, any>[] | null; error?: string }> = [];
+    const results: Array<{ name: string; data: Record<string, unknown>[] | null; error?: string }> = [];
     
     // 第一阶段：批量提交所有报告请求
     interface PendingReport {
@@ -5687,7 +5687,7 @@ export class AmazonAdsApiClient {
       reportId: string;
       index: number;
       completed: boolean;
-      data: Record<string, any>[] | null;
+      data: Record<string, unknown>[] | null;
       error?: string;
     }
     const pendingReports: PendingReport[] = [];
@@ -5825,7 +5825,7 @@ export class AmazonAdsApiClient {
    * 端点: GET /sp/campaigns/{campaignId}/budgetRules
    * 参考: https://advertising.amazon.com/API/docs/en-us/sponsored-products/3-0/openapi/prod
    */
-  async listSpCampaignBudgetRules(campaignId: string): Promise<Record<string, any>[]> {
+  async listSpCampaignBudgetRules(campaignId: string): Promise<Record<string, unknown>[]> {
     try {
       const response = await this.axiosInstance.get(
         `/sp/campaigns/${campaignId}/budgetRules`,
@@ -5863,8 +5863,8 @@ export class AmazonAdsApiClient {
   async listSpCampaignsBudgetRules(
     campaignIds: string[],
     onProgress?: (completed: number, total: number) => void
-  ): Promise<Map<string, Record<string, any>[]>> {
-    const result = new Map<string, Record<string, any>[]>();
+  ): Promise<Map<string, Record<string, unknown>[]>> {
+    const result = new Map<string, Record<string, unknown>[]>();
     const batchSize = 5; // 每批处理5个广告活动
     
     for (let i = 0; i < campaignIds.length; i += batchSize) {
@@ -5979,7 +5979,7 @@ export interface AmsMessage {
   subscriptionId: string;
   dataSetId: AmsDatasetType;
   timestamp: string;
-  data: Record<string, any>;  // 具体数据结构根据dataSetId不同而不同
+  data: Record<string, unknown>;  // 具体数据结构根据dataSetId不同而不同
 }
 
 /**

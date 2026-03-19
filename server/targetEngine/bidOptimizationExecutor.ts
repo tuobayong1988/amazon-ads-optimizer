@@ -60,16 +60,16 @@ import type { OptimizationExecutionResult, OptimizationTargetConfig } from './ty
 
 export async function executeBidOptimization(
   config: OptimizationTargetConfig,
-  campaigns: any[],
+  campaigns: unknown[],
   dryRun: boolean
-): Promise<{ executed: boolean; adjustmentsCount: number; details: Record<string, any>[]; apiSyncResult?: unknown; apiSyncStatus?: string; emergencyPause?: boolean; emergencyReason?: string }> {
-  const details: Record<string, any>[] = [];
+): Promise<{ executed: boolean; adjustmentsCount: number; details: Record<string, unknown>[]; apiSyncResult?: unknown; apiSyncStatus?: string; emergencyPause?: boolean; emergencyReason?: string }> {
+  const details: Record<string, unknown>[] = [];
   let adjustmentsCount = 0;
   let safetyPausedCampaignCount = 0; // v244: 记录安全检查触发暂停的campaign数量
   
   // v122h: 计算广告组平均CVR、CPC、AOV作为贝叶斯先验数据
   let totalClicks = 0, totalOrders = 0, totalSpend = 0, totalSales = 0;
-  for (const c of (campaigns as any[])) {
+  for (const c of (campaigns as unknown[])) {
     totalClicks += (c.clicks || 0);
     totalOrders += (c.orders || 0);
     totalSpend += parseFloat(c.spend || '0');
@@ -128,7 +128,7 @@ export async function executeBidOptimization(
         }
       }
       if (earlyCategory === 'default') {
-        for (const campaign of (campaigns as any[])) {
+        for (const campaign of (campaigns as unknown[])) {
           const campName = (campaign.campaignName || '').toLowerCase();
           for (const [cat, kws] of Object.entries(categoryKeywordsForCvr)) {
             if (kws.some(kw => campName.includes(kw))) {
@@ -181,7 +181,7 @@ export async function executeBidOptimization(
   
   // v436: 策略一 — 从数据库读取已同步的建议竞价（优先）
   try {
-    const firstCampaign = campaigns[0] as any;
+    const firstCampaign = campaigns[0] as unknown;
     if (firstCampaign && firstCampaign.adGroups && firstCampaign.adGroups.length > 0) {
       const firstAdGroup = firstCampaign.adGroups[0];
       // 检查该adGroup下的keyword/target是否有已同步的建议竞价
@@ -220,18 +220,18 @@ export async function executeBidOptimization(
   if (!suggestedBidData && totalClicks === 0) {
     try {
       const syncService = await amazonApiHelper.getAmazonSyncService(config.accountId);
-      if (syncService && (syncService as any).client) {
-        const firstCampaign = campaigns[0] as any;
+      if (syncService && (syncService as Record<string, unknown>).client) {
+        const firstCampaign = campaigns[0] as unknown;
         if (firstCampaign && firstCampaign.adGroups && firstCampaign.adGroups.length > 0) {
           const adGroupId = String(firstCampaign.adGroups[0].amazonAdGroupId || firstCampaign.adGroups[0].adGroupId);
           if (adGroupId) {
             try {
-              const keywordRecs = await (syncService as any).client.getKeywordBidRecommendations(
+              const keywordRecs = await (syncService as Record<string, unknown>).client.getKeywordBidRecommendations(
                 adGroupId,
                 [{ keyword: config.name || 'product', matchType: 'BROAD' }]
               );
               if (keywordRecs && keywordRecs.length > 0) {
-                const rec = keywordRecs[0] as any;
+                const rec = keywordRecs[0] as unknown;
                 suggestedBidData = {
                   suggestedBid: rec.suggestedBid,
                   rangeStart: rec.rangeStart,
@@ -277,7 +277,7 @@ export async function executeBidOptimization(
     }
     if (inferredCategory === 'default') {
       // 尝试从Campaign名称中推断
-      for (const campaign of (campaigns as any[])) {
+      for (const campaign of (campaigns as unknown[])) {
         const campName = (campaign.campaignName || '').toLowerCase();
         for (const [cat, keywords] of Object.entries(categoryKeywords)) {
           if (keywords.some(kw => campName.includes(kw))) {
@@ -335,7 +335,7 @@ export async function executeBidOptimization(
   log.info(`[BidOptimization] v165: CPC最高出价=$${cpcMaxBidLimit} | VCPM最高出价=$${vcpmMaxBidLimit} (用户设置max_bid=${config.maxBid || '未设置'})`);
   log.debug(`[BidOptimization] v165: 日预算=${config.dailyBudget || '未设置'}, 目标ACoS=${config.targetAcos || '未设置'}`);
   
-  for (const campaign of (campaigns as any[])) {
+  for (const campaign of (campaigns as unknown[])) {
     // v206: 统一ID提取 — 在循环开头一次性提取，后续代码统一使用
     const campaignLocalId = getCampaignLocalId(campaign);   // int PK，用于本地DB更新
     const campaignAmazonId = getCampaignAmazonId(campaign); // varchar，用于查询和API调用
@@ -400,7 +400,7 @@ export async function executeBidOptimization(
     }
     
     // v165: 根据campaign的costType动态设置maxBidLimit（CPC vs VCPM）
-    const isVcpmCampaign = (campaign as Record<string, any>).costType === 'vcpm';
+    const isVcpmCampaign = (campaign as Record<string, unknown>).costType === 'vcpm';
     const maxBidLimit = isVcpmCampaign ? vcpmMaxBidLimit : cpcMaxBidLimit;
     if (isVcpmCampaign) {
       log.info(`[BidOptimization] v165: Campaign ${campaignLocalId} 识别为VCPM广告，使用VCPM最高出价$${maxBidLimit}`);
@@ -417,12 +417,12 @@ export async function executeBidOptimization(
       
       // v166: 关键词级别冷却期检查 - 避免重复优化
       // 如果该keyword在过去24小时内已被优化，且出价同步状态仍为pending_confirmation，则跳过
-      const kwLastOptimized = (keyword as Record<string, any>).lastOptimizedAt ? new Date((keyword as Record<string, any>).lastOptimizedAt) : null;
-      const kwBidSyncStatus = (keyword as Record<string, any>).bidSyncStatus || 'synced';
+      const kwLastOptimized = (keyword as Record<string, unknown>).lastOptimizedAt ? new Date((keyword as Record<string, unknown>).lastOptimizedAt) : null;
+      const kwBidSyncStatus = (keyword as Record<string, unknown>).bidSyncStatus || 'synced';
       if (kwLastOptimized && kwBidSyncStatus === 'pending_confirmation') {
         const hoursSinceOptimized = (Date.now() - kwLastOptimized.getTime()) / (1000 * 60 * 60);
         if (hoursSinceOptimized < 24) {
-          log.info(`[BidOptimization] v166: 跳过关键词 ${keyword.id} "${keyword.keywordText}" - 冷却期内(${hoursSinceOptimized.toFixed(1)}h), 出价待确认 pending=$${(keyword as Record<string, any>).pendingBid}`);
+          log.info(`[BidOptimization] v166: 跳过关键词 ${keyword.id} "${keyword.keywordText}" - 冷却期内(${hoursSinceOptimized.toFixed(1)}h), 出价待确认 pending=$${(keyword as Record<string, unknown>).pendingBid}`);
           continue;
         }
       }
@@ -459,9 +459,9 @@ export async function executeBidOptimization(
         
         // v434: 绝对红线校验 — 使用bid constraints模块动态获取最低/最高竞价
         // 根据campaign类型(SP/SB/SD)、计费方式(CPC/vCPM)、广告格式(Standard/Video)和市场确定正确约束
-        const campType = (campaign as any).campaignType || 'sp_manual';
-        const campCostType = (campaign as any).costType || 'cpc';
-        const campAdFormat = (campaign as any).ad_format || (campaign as any).adFormat || null;
+        const campType = (campaign as Record<string, unknown>).campaignType || 'sp_manual';
+        const campCostType = (campaign as Record<string, unknown>).costType || 'cpc';
+        const campAdFormat = (campaign as Record<string, unknown>).ad_format || (campaign as Record<string, unknown>).adFormat || null;
         const campMarketplace = config.marketplace || 'US';
         const { clampedBid: kwClampedBid, wasAdjusted: kwWasAdjusted, constraint: kwConstraint, adTypeKey: kwAdTypeKey } = clampBidToConstraint(finalBid, campType, campMarketplace, campCostType, campAdFormat);
         finalBid = Math.min(kwClampedBid, maxBidLimit);
@@ -504,7 +504,7 @@ export async function executeBidOptimization(
     // v122h: 商品定向也使用UCB增强版算法
     const adGroupsList = await db.getAdGroupsByCampaignId(campaignAmazonId);
     const productTargets: bidOptimizer.EnhancedOptimizationTarget[] = [];
-    const allTargets: any[] = [];
+    const allTargets: unknown[] = [];
     
     // v345: 优化N+1查询 — 批量获取所有广告组的商品定向
     const adGroupIds = adGroupsList.map(ag => ag.id);
@@ -545,9 +545,9 @@ export async function executeBidOptimization(
         let finalBid = nextGenResult.newBid;
         
         // v434: 绝对红线校验 — 商品定向也使用bid constraints模块
-        const ptCampType = (campaign as any).campaignType || 'sp_manual';
-        const ptCostType = (campaign as any).costType || 'cpc';
-        const ptAdFormat = (campaign as any).ad_format || (campaign as any).adFormat || null;
+        const ptCampType = (campaign as Record<string, unknown>).campaignType || 'sp_manual';
+        const ptCostType = (campaign as Record<string, unknown>).costType || 'cpc';
+        const ptAdFormat = (campaign as Record<string, unknown>).ad_format || (campaign as Record<string, unknown>).adFormat || null;
         const ptMarketplace = config.marketplace || 'US';
         const { clampedBid: ptClampedBid, wasAdjusted: ptWasAdjusted, constraint: ptConstraint, adTypeKey: ptAdTypeKey } = clampBidToConstraint(finalBid, ptCampType, ptMarketplace, ptCostType, ptAdFormat);
         finalBid = Math.min(ptClampedBid, maxBidLimit);
@@ -609,7 +609,7 @@ export async function executeBidOptimization(
       
       if (nonSyncableDetails.length > 0) {
         log.info(`[BidOptimization] v224: ${nonSyncableDetails.length}条非出价调整记录(safety_pause等)已跳过API同步`);
-        for (const d of (nonSyncableDetails as any[])) {
+        for (const d of (nonSyncableDetails as unknown[])) {
           d.apiSyncStatus = 'not_applicable';
           d.apiSyncDetail = JSON.stringify({ status: 'not_applicable', error: null, reason: '非出价调整记录(safety_pause)' });
         }
@@ -670,7 +670,7 @@ export async function executeBidOptimization(
                       lastOptimizedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
                       pendingBid: (typeof detail.newBid === 'number' ? detail.newBid : 0).toFixed(2),
                       bidSyncStatus: 'pending_confirmation',
-                    } as Record<string, any>)
+                    } as Record<string, unknown>)
                     .where(eq(keywordsTable.id, detail.keywordId));
                 }
               }
@@ -679,7 +679,7 @@ export async function executeBidOptimization(
               const nowStr = new Date().toISOString().slice(0, 19).replace('T', ' ');
               for (const cid of affectedCampaignIds) {
                 await tx.update(campaignsTable)
-                  .set({ lastOptimizedAt: nowStr } as Record<string, any>)
+                  .set({ lastOptimizedAt: nowStr } as Record<string, unknown>)
                   .where(eq(campaignsTable.id, cid));
               }
             });

@@ -28,8 +28,8 @@ export default function InviteCodeManagement() {
   const [batchCount, setBatchCount] = useState(5);
 
   // 获取邀请码列表
-  const inviteCodesQuery = trpc.inviteCode.list.useQuery() as any;
-  const statsQuery = trpc.inviteCode.stats.useQuery() as any;
+  const inviteCodesQuery = trpc.inviteCode.list.useQuery() as unknown;
+  const statsQuery = trpc.inviteCode.stats.useQuery() as unknown;
 
   // 创建邀请码
   const createMutation = trpc.inviteCode.create.useMutation({
@@ -119,7 +119,7 @@ export default function InviteCodeManagement() {
     const codes = inviteCodesQuery.data || [];
     const csv = [
       ["邀请码", "类型", "状态", "已使用/最大次数", "创建时间", "过期时间", "备注"].join(","),
-      ...codes.map((code: any) => [
+      ...codes.map((code: unknown) => [
         code.code,
         code.inviteType === "external_user" ? "外部用户" : "团队成员",
         code.status === "active" ? "有效" : code.status === "disabled" ? "已禁用" : "已过期",
@@ -184,7 +184,7 @@ export default function InviteCodeManagement() {
                   <Label className="text-gray-300">邀请类型</Label>
                   <Select
                     value={createForm.inviteType}
-                    onValueChange={(v) => setCreateForm({ ...createForm, inviteType: v as any })}
+                    onValueChange={(v) => setCreateForm({ ...createForm, inviteType: v as unknown })}
                   >
                     <SelectTrigger className="bg-gray-700/50 border-gray-600 text-white">
                       <SelectValue />
@@ -223,7 +223,7 @@ export default function InviteCodeManagement() {
                   <Label className="text-gray-300">邀请类型</Label>
                   <Select
                     value={createForm.inviteType}
-                    onValueChange={(v) => setCreateForm({ ...createForm, inviteType: v as any })}
+                    onValueChange={(v) => setCreateForm({ ...createForm, inviteType: v as unknown })}
                   >
                     <SelectTrigger className="bg-gray-700/50 border-gray-600 text-white">
                       <SelectValue />
@@ -360,7 +360,7 @@ export default function InviteCodeManagement() {
             </div>
           ) : (
             <div className="space-y-3">
-              {inviteCodes.map((code: any) => (
+              {inviteCodes.map((code: unknown) => (
                 <div
                   key={code.id}
                   className="flex items-center justify-between p-4 bg-gray-700/30 rounded-lg hover:bg-gray-700/50 transition-colors"

@@ -27,7 +27,7 @@ export function Sparkline({
       return { path: "", areaPath: "", minY: 0, maxY: 0 };
     }
 
-    const values = data.map((d: any) => d.value);
+    const values = data.map((d: unknown) => d.value);
     const min = Math.min(...values);
     const max = Math.max(...values);
     const range = max - min || 1;
@@ -36,14 +36,14 @@ export function Sparkline({
     const chartWidth = width - padding * 2;
     const chartHeight = height - padding * 2;
 
-    const points = values.map((value: any, index: any) => {
+    const points = values.map((value: unknown, index: unknown) => {
       const x = padding + (index / (values.length - 1)) * chartWidth;
       const y = padding + chartHeight - ((value - min) / range) * chartHeight;
       return { x, y };
     });
 
     const linePath = points
-      .map((point: any, index: any) => (index === 0 ? `M ${point.x} ${point.y}` : `L ${point.x} ${point.y}`))
+      .map((point: unknown, index: unknown) => (index === 0 ? `M ${point.x} ${point.y}` : `L ${point.x} ${point.y}`))
       .join(" ");
 
     const areaPathStr = showArea
@@ -108,7 +108,7 @@ export function MiniSparkline({ data, trend, size = "sm" }: MiniSparklineProps) 
 
   return (
     <Sparkline
-      data={data.map((value: any) => ({ value }))}
+      data={data.map((value: unknown) => ({ value }))}
       color={color}
       width={dimensions.width}
       height={dimensions.height}

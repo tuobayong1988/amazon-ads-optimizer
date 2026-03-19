@@ -87,7 +87,7 @@ export class SmartSyncService {
     if (mode === 'initialization') {
       // 初始化模式：启动或继续初始化流程
       const result = await accountInitializationService.startInitialization(accountId);
-      const totalTasks = result.phases?.reduce((sum: any, p: any) => sum + p.totalTasks, 0) || 0;
+      const totalTasks = result.phases?.reduce((sum: number, p: Record<string, unknown>) => sum + p.totalTasks, 0) || 0;
       
       return {
         mode: 'initialization',

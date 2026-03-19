@@ -171,7 +171,7 @@ export function recommendStrategyTemplate(campaign: CampaignPerformanceData): St
   // 数据不足时默认推荐平衡增长
   if (impressions < 100 || clicks < 10 || spend < 5) {
     return {
-      campaignId: (campaign as Record<string, any>).campaignId,
+      campaignId: (campaign as Record<string, unknown>).campaignId,
       recommendedTemplateId: 'aggressive-growth',
       recommendedTemplateName: '激进增长',
       reason: '数据量不足（曝光<100或点击<10），建议采用激进增长策略积累数据',
@@ -282,8 +282,8 @@ export function recommendStrategyTemplate(campaign: CampaignPerformanceData): St
   }
 
   // 选择得分最高的策略模板
-  scores.sort((a: any, b: any) => b.score - a.score);
-  const best = scores[0] as any;
+  scores.sort((a: unknown, b: unknown) => b.score - a.score);
+  const best = scores[0] as unknown;
   const template = STRATEGY_TEMPLATES.find(t => t.id === best.templateId)!;
 
   // 计算置信度：最高分与第二高分的差距越大，置信度越高
@@ -292,7 +292,7 @@ export function recommendStrategyTemplate(campaign: CampaignPerformanceData): St
   const confidence = Math.min(95, Math.max(20, 40 + scoreDiff * 2));
 
   return {
-    campaignId: (campaign as Record<string, any>).campaignId,
+    campaignId: (campaign as Record<string, unknown>).campaignId,
     recommendedTemplateId: best.templateId,
     recommendedTemplateName: template.name,
     reason: best.reasons.slice(0, 3).join('；'),
@@ -330,7 +330,7 @@ export async function updateAllCampaignRecommendations(accountId: number): Promi
       .where(eq(campaigns.accountId, accountId));
 
     let updated = 0;
-    for (const campaign of (allCampaigns as any[])) {
+    for (const campaign of (allCampaigns as unknown[])) {
       const perfData: CampaignPerformanceData = {
         id: campaign.id,
         campaignName: campaign.campaignName,

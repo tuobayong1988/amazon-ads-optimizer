@@ -126,7 +126,7 @@ export function MobileActiveFilters({
   return (
     <div className="flex flex-wrap items-center gap-2 py-2">
       <span className="text-xs text-muted-foreground">当前筛选:</span>
-      {filters.map((filter: any) => (
+      {filters.map((filter: unknown) => (
         <Badge
           key={filter.key}
           variant="secondary"

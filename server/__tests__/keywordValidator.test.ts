@@ -117,7 +117,7 @@ describe('keywordValidator', () => {
     });
 
     it('should handle null/undefined input gracefully', () => {
-      const result = sanitizeAndValidateKeyword(null as any);
+      const result = sanitizeAndValidateKeyword(null as unknown);
       expect(result.isValid).toBe(false);
     });
 

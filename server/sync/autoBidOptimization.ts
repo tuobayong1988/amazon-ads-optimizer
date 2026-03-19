@@ -63,12 +63,12 @@ export async function runAutoBidOptimization(
     const nextGenResults = await batchCalculateNextGenBids(accountId, batchItems as unknown, context);
     
     for (const ngResult of nextGenResults) {
-      if ((ngResult as Record<string, any>[]).action === 'hold') {
+      if ((ngResult as Record<string, unknown>[]).action === 'hold') {
         results.skipped++;
         continue;
       }
       
-      const kw = keywordsToOptimize.find(k => k.id === (ngResult as Record<string, any>[]).keywordId);
+      const kw = keywordsToOptimize.find(k => k.id === (ngResult as Record<string, unknown>[]).keywordId);
       if (!kw) { results.skipped++; continue; }
       
       const [adGroup] = await db
@@ -82,7 +82,7 @@ export async function runAutoBidOptimization(
           'keyword',
           kw.id,
           ngResult.newBid,
-          `NextGen[${(ngResult as Record<string, any>[]).algorithm}]: ${ngResult.reason}`,
+          `NextGen[${(ngResult as Record<string, unknown>[]).algorithm}]: ${ngResult.reason}`,
           adGroup.campaignId
         );
         
@@ -103,7 +103,7 @@ export async function runAutoBidOptimization(
   }
 
   // v230: 回退到旧算法
-  for (const kw of (keywordsToOptimize as any[])) {
+  for (const kw of (keywordsToOptimize as unknown[])) {
     const target: OptimizationTarget = {
       id: kw.id,
       type: 'keyword',

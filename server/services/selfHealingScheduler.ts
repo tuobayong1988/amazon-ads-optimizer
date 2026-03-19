@@ -527,10 +527,10 @@ export function createDefaultSelfHealingScheduler(): SelfHealingScheduler {
           `),
         ]);
         
-        const row90 = (recentJobs90 as any[][])?.[0]?.[0] as Record<string, number> || {};
+        const row90 = (recentJobs90 as unknown[][])?.[0]?.[0] as Record<string, number> || {};
         const total90 = Number(row90.total || 0);
         
-        const row30 = (recentJobs30 as any[][])?.[0]?.[0] as Record<string, number> || {};
+        const row30 = (recentJobs30 as unknown[][])?.[0]?.[0] as Record<string, number> || {};
         const total30 = Number(row30.total || 0);
         const failCount30 = Number(row30.fail_count || 0);
         
@@ -598,7 +598,7 @@ export function createDefaultSelfHealingScheduler(): SelfHealingScheduler {
               : table === 'keywords' ? sql`SELECT MAX(updatedAt) as latest FROM keywords LIMIT 1`
               : sql`SELECT MAX(updatedAt) as latest FROM daily_performance LIMIT 1`;
             const result = await database.execute(safeQuery);
-            const latest = (result as any[][])?.[0]?.[0] as Record<string, any>;
+            const latest = (result as unknown[][])?.[0]?.[0] as Record<string, unknown>;
             const latestTime = latest?.latest as string;
             
             if (latestTime) {
@@ -693,7 +693,7 @@ export function createDefaultSelfHealingScheduler(): SelfHealingScheduler {
           SELECT COUNT(*) as cnt FROM daily_performance 
           WHERE campaign_id IS NOT NULL AND LENGTH(campaign_id) < 8
         `);
-        const dpCount = Number((dpShortIds as any)?.[0]?.cnt || 0);
+        const dpCount = Number((dpShortIds as unknown)?.[0]?.cnt || 0);
         if (dpCount > 0) {
           totalIssues += dpCount;
           issueDetails.push(`daily_performance: ${dpCount}条短 campaignId`);
@@ -704,7 +704,7 @@ export function createDefaultSelfHealingScheduler(): SelfHealingScheduler {
           SELECT COUNT(*) as cnt FROM keyword_placement_hourly_performance 
           WHERE campaign_id IS NOT NULL AND LENGTH(campaign_id) < 8
         `);
-        const kphCount = Number((kphShortIds as any)?.[0]?.cnt || 0);
+        const kphCount = Number((kphShortIds as unknown)?.[0]?.cnt || 0);
         if (kphCount > 0) {
           totalIssues += kphCount;
           issueDetails.push(`keyword_placement_hourly_performance: ${kphCount}条短 campaignId`);
@@ -715,7 +715,7 @@ export function createDefaultSelfHealingScheduler(): SelfHealingScheduler {
           SELECT COUNT(*) as cnt FROM campaigns 
           WHERE campaign_id IS NOT NULL AND LENGTH(campaign_id) < 8
         `);
-        const campCount = Number((campShortIds as any)?.[0]?.cnt || 0);
+        const campCount = Number((campShortIds as unknown)?.[0]?.cnt || 0);
         if (campCount > 0) {
           totalIssues += campCount;
           issueDetails.push(`campaigns: ${campCount}条短 campaignId`);
@@ -726,7 +726,7 @@ export function createDefaultSelfHealingScheduler(): SelfHealingScheduler {
           SELECT COUNT(*) as cnt FROM ad_groups 
           WHERE ad_group_id IS NOT NULL AND LENGTH(ad_group_id) < 8
         `);
-        const agCount = Number((agShortIds as any)?.[0]?.cnt || 0);
+        const agCount = Number((agShortIds as unknown)?.[0]?.cnt || 0);
         if (agCount > 0) {
           totalIssues += agCount;
           issueDetails.push(`ad_groups: ${agCount}条短 adGroupId`);
@@ -737,7 +737,7 @@ export function createDefaultSelfHealingScheduler(): SelfHealingScheduler {
           SELECT COUNT(*) as cnt FROM product_targets 
           WHERE account_id IS NULL
         `);
-        const ptCount = Number((ptNullAccount as any)?.[0]?.cnt || 0);
+        const ptCount = Number((ptNullAccount as unknown)?.[0]?.cnt || 0);
         if (ptCount > 0) {
           totalIssues += ptCount;
           issueDetails.push(`product_targets: ${ptCount}条NULL accountId`);
@@ -748,7 +748,7 @@ export function createDefaultSelfHealingScheduler(): SelfHealingScheduler {
           SELECT COUNT(*) as cnt FROM placement_performance 
           WHERE campaign_id IS NOT NULL AND LENGTH(campaign_id) < 8
         `);
-        const ppCount = Number((ppShortIds as any)?.[0]?.cnt || 0);
+        const ppCount = Number((ppShortIds as unknown)?.[0]?.cnt || 0);
         if (ppCount > 0) {
           totalIssues += ppCount;
           issueDetails.push(`placement_performance: ${ppCount}条短 campaignId`);
@@ -759,7 +759,7 @@ export function createDefaultSelfHealingScheduler(): SelfHealingScheduler {
           SELECT COUNT(*) as cnt FROM search_terms 
           WHERE campaign_id IS NOT NULL AND LENGTH(campaign_id) < 8
         `);
-        const stCount = Number((stShortIds as any)?.[0]?.cnt || 0);
+        const stCount = Number((stShortIds as unknown)?.[0]?.cnt || 0);
         if (stCount > 0) {
           totalIssues += stCount;
           issueDetails.push(`search_terms: ${stCount}条短 campaignId`);

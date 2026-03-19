@@ -113,8 +113,8 @@ function evaluateAlerts(
   memUsage: NodeJS.MemoryUsage,
   dbStatus: string,
   dbLatencyMs: number,
-  loggerStatus: any,
-  opsSummary: any,
+  loggerStatus: unknown,
+  opsSummary: unknown,
   uptimeSec: number,
 ): { overallLevel: AlertLevel; alerts: AlertItem[] } {
   const alerts: AlertItem[] = [];
@@ -253,7 +253,7 @@ router.get('/status', async (req: Request, res: Response) => {
       const dbStart = Date.now();
       const db = await getDb();
       if (db) {
-        await db.execute(sql.raw('SELECT 1') as any);
+        await db.execute(sql.raw('SELECT 1') as unknown);
         dbLatencyMs = Date.now() - dbStart;
         dbStatus = 'connected';
       } else {
@@ -418,7 +418,7 @@ router.get('/data-integrity', async (req: Request, res: Response) => {
       return;
     }
     
-    const checks: Record<string, any> = {};
+    const checks: Record<string, unknown> = {};
     
     // 检查1: campaigns表中campaignId格式
     try {
@@ -499,9 +499,9 @@ router.get('/data-integrity', async (req: Request, res: Response) => {
     
     // 总体判定
     const allChecks = Object.values(checks);
-    const hasFailure = allChecks.some((c: Record<string, any>) => c.verdict === 'FAIL');
-    const hasWarning = allChecks.some((c: Record<string, any>) => c.verdict === 'WARN');
-    const hasError = allChecks.some((c: Record<string, any>) => c.status === 'error');
+    const hasFailure = allChecks.some((c: Record<string, unknown>) => c.verdict === 'FAIL');
+    const hasWarning = allChecks.some((c: Record<string, unknown>) => c.verdict === 'WARN');
+    const hasError = allChecks.some((c: Record<string, unknown>) => c.status === 'error');
     
     res.json({
       overallStatus: hasFailure ? 'FAIL' : hasError ? 'ERROR' : hasWarning ? 'WARN' : 'PASS',
@@ -621,7 +621,7 @@ router.get('/optimization-events', async (req: Request, res: Response) => {
     ));
     
     // v249: 增加API同步状态统计，方便监控优化指令是否实际传达到Amazon
-    let apiSyncStats: any[] = [];
+    let apiSyncStats: unknown[] = [];
     try {
       const [syncRows] = await db.execute(sql.raw(
         `SELECT 
@@ -633,7 +633,7 @@ router.get('/optimization-events', async (req: Request, res: Response) => {
            AND event_category = 'bid_adjustment'
          GROUP BY event_category, api_sync_status`
       ));
-      apiSyncStats = Array.isArray(syncRows) ? syncRows as any[] : [];
+      apiSyncStats = Array.isArray(syncRows) ? syncRows as unknown[] : [];
     } catch (syncErr) {
       // api_sync_status字段可能不存在，忽略
     }
@@ -685,7 +685,7 @@ router.get('/id-audit', async (req: Request, res: Response) => {
     `));
     
     // 获取各表的campaignId样本
-    const tableSamples: Record<string, any> = {};
+    const tableSamples: Record<string, unknown> = {};
     const tables = ['negative_keywords', 'bidding_logs', 'ad_groups'];
     
     for (const table of tables) {
@@ -933,11 +933,11 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
 }
 
-function extractCount(result: Record<string, any>): number {
+function extractCount(result: Record<string, unknown>): number {
   if (!result) return 0;
   // Drizzle ORM 返回格式可能是 [{cnt: N}] 或 [[{cnt: N}]] 或 {cnt: N}
   if (Array.isArray(result)) {
-    const first = result[0] as any;
+    const first = result[0] as unknown;
     if (first) {
       return first.cnt ?? first.total ?? first.count ?? 0;
     }
@@ -1199,7 +1199,7 @@ router.get('/rl-diagnostics', opsAuth, async (req: Request, res: Response) => {
       LIMIT 30
     `));
     
-    const extractRows = (result: Record<string, any>) => {
+    const extractRows = (result: Record<string, unknown>) => {
       if (Array.isArray(result) && Array.isArray(result[0])) return result[0];
       if (Array.isArray(result)) return result;
       return [result];
@@ -1309,7 +1309,7 @@ router.post('/force-sync', async (req: Request, res: Response) => {
         if (jobId) {
           try {
             const { updateSyncJob } = await import('../db/syncJobs');
-            const safeNum = (v: any) => (typeof v === 'number' && !isNaN(v)) ? v : 0;
+            const safeNum = (v: unknown) => (typeof v === 'number' && !isNaN(v)) ? v : 0;
             await updateSyncJob(jobId, {
               status: result.success ? 'completed' : 'failed',
               durationMs,
@@ -1408,7 +1408,7 @@ router.post('/reactivate-account', async (req: Request, res: Response) => {
     // 检查账户当前状态
     const [account] = await database.execute(sql`
       SELECT id, accountName, marketplace, status FROM ad_accounts WHERE id = ${accountId}
-    `) as any;
+    `) as unknown;
     const row = Array.isArray(account) ? account[0] : account;
     if (!row) {
       return res.status(404).json({ error: `账户${accountId}不存在` });

@@ -92,7 +92,7 @@ const executionModes = [
 export default function OptimizationCenter() {
   // v399: 使用全局店铺选择器替代本地状态
   const { accountId: selectedAccountId, accounts, isLoading: accountsLoading } = useGlobalAccountId();
-  const setSelectedAccountId = (_: any) => {}; // v399: 由全局选择器控制，本地setter为no-op
+  const setSelectedAccountId = (_: unknown) => {}; // v399: 由全局选择器控制，本地setter为no-op
 const [activeTab, setActiveTab] = useState("overview");
   const [isRunningAnalysis, setIsRunningAnalysis] = useState(false);
   const [selectedDecisions, setSelectedDecisions] = useState<string[]>([]);
@@ -176,7 +176,7 @@ const [activeTab, setActiveTab] = useState("overview");
                 <SelectValue placeholder="选择账号" />
               </SelectTrigger>
               <SelectContent>
-                {accounts?.map((account: any) => (
+                {accounts?.map((account: unknown) => (
                   <SelectItem key={account.id} value={account.id.toString()}>
                     {account.accountName}
                   </SelectItem>
@@ -272,7 +272,7 @@ const [activeTab, setActiveTab] = useState("overview");
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  {optimizationTypes.map((type: any) => {
+                  {optimizationTypes.map((type: unknown) => {
                     const stats = summary?.byType?.[type.key as keyof typeof summary.byType];
                     const Icon = type.icon;
                     return (
@@ -325,7 +325,7 @@ const [activeTab, setActiveTab] = useState("overview");
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {summary.recentDecisions.map((decision: any) => (
+                      {summary.recentDecisions.map((decision: unknown) => (
                         <TableRow key={decision.id}>
                           <TableCell>
                             <Badge variant="outline">{decision.type}</Badge>
@@ -432,7 +432,7 @@ const [activeTab, setActiveTab] = useState("overview");
                 <div>
                   <h4 className="font-medium mb-3">全局执行模式</h4>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    {executionModes.map((mode: any) => (
+                    {executionModes.map((mode: unknown) => (
                       <div
                         key={mode.value}
                         className={`p-4 rounded-lg border cursor-pointer transition-colors ${
@@ -452,7 +452,7 @@ const [activeTab, setActiveTab] = useState("overview");
                 <div>
                   <h4 className="font-medium mb-3">优化类型开关</h4>
                   <div className="space-y-3">
-                    {optimizationTypes.map((type: any) => {
+                    {optimizationTypes.map((type: unknown) => {
                       const Icon = type.icon;
                       return (
                         <div key={type.key} className="flex items-center justify-between p-3 rounded-lg border">

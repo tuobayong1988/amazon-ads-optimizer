@@ -16,7 +16,7 @@ import { createModuleLogger } from '../utils/logger';
 
 const log = createModuleLogger('Migration-v361-indexes');
 
-export async function runV361CoreTableIndexes(db: any): Promise<void> {
+export async function runV361CoreTableIndexes(db: unknown): Promise<void> {
   log.info('[v361] 开始创建核心表索引...');
 
   const indexDefinitions = [
@@ -53,7 +53,7 @@ export async function runV361CoreTableIndexes(db: any): Promise<void> {
       await db.execute(sql.raw(idx.sql));
       created++;
       log.info(`[v361] 索引 ${idx.name} 创建成功`);
-    } catch (error: any) {
+    } catch (error: unknown) {
       if (error.message?.includes('Duplicate') || error.code === 'ER_DUP_KEYNAME') {
         skipped++;
         log.debug(`[v361] 索引 ${idx.name} 已存在，跳过`);

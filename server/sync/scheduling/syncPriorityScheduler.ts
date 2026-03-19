@@ -122,8 +122,8 @@ export async function calculateAccountPriorities(
             GROUP BY account_id`
       );
       const rows = Array.isArray(targetResults) ? targetResults : 
-                   (targetResults as any)?.[0] || [];
-      for (const row of rows as any[]) {
+                   (targetResults as unknown)?.[0] || [];
+      for (const row of rows as unknown[]) {
         activeTargetCounts.set(Number(row.account_id), Number(row.target_count));
       }
     } catch (err) {
@@ -141,8 +141,8 @@ export async function calculateAccountPriorities(
             WHERE created_at > DATE_SUB(NOW(), INTERVAL 30 MINUTE)`
       );
       const rows = Array.isArray(activityResults) ? activityResults : 
-                   (activityResults as any)?.[0] || [];
-      for (const row of rows as any[]) {
+                   (activityResults as unknown)?.[0] || [];
+      for (const row of rows as unknown[]) {
         recentlyActiveAccounts.add(Number(row.account_id));
       }
     } catch (err) {

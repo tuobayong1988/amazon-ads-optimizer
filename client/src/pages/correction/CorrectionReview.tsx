@@ -58,7 +58,7 @@ export default function CorrectionReview() {
   // v399: 使用全局店铺选择器替代本地状态
   const { accountId: selectedAccountId, accounts, isLoading: accountsLoading } = useGlobalAccountId();
   const adAccounts = accounts; // v399-fix3: 修复变量声明顺序，accounts必须在useGlobalAccountId之后使用
-  const setSelectedAccountId = (_: any) => {}; // v399: 由全局选择器控制，本地setter为no-op
+  const setSelectedAccountId = (_: unknown) => {}; // v399: 由全局选择器控制，本地setter为no-op
 const { data: sessions, isLoading: sessionsLoading, refetch: refetchSessions } = trpc.correction.listSessions.useQuery({
     accountId: selectedAccountId || undefined,
   });
@@ -229,7 +229,7 @@ const { data: sessions, isLoading: sessionsLoading, refetch: refetchSessions } =
                       <SelectValue placeholder="选择广告账户" />
                     </SelectTrigger>
                     <SelectContent>
-                      {adAccounts?.map((account: any) => (
+                      {adAccounts?.map((account: unknown) => (
                         <SelectItem key={account.id} value={account.id.toString()}>
                           {account.accountName}
                         </SelectItem>
@@ -297,7 +297,7 @@ const { data: sessions, isLoading: sessionsLoading, refetch: refetchSessions } =
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    {sessions.map((session: any) => (
+                    {sessions.map((session: unknown) => (
                       <div
                         key={session.id}
                         className={`p-3 rounded-lg border cursor-pointer transition-colors ${
@@ -440,7 +440,7 @@ const { data: sessions, isLoading: sessionsLoading, refetch: refetchSessions } =
                     </CardHeader>
                     <CardContent>
                       <ul className="space-y-2">
-                        {recommendations.map((rec: any, index: any) => (
+                        {recommendations.map((rec: unknown, index: unknown) => (
                           <li key={index} className="flex items-start gap-2 text-sm">
                             <ArrowRight className="h-4 w-4 mt-0.5 text-primary flex-shrink-0" />
                             <span>{rec}</span>
@@ -512,7 +512,7 @@ const { data: sessions, isLoading: sessionsLoading, refetch: refetchSessions } =
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {corrections.map((correction: any) => (
+                          {corrections.map((correction: unknown) => (
                             <TableRow key={correction.id}>
                               <TableCell>
                                 {correction.wasIncorrect && (

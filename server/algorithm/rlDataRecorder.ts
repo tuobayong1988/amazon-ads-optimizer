@@ -195,7 +195,7 @@ export async function recordBidAction(action: BidAction): Promise<void> {
       actionBidAfter: String(action.bidAfter),
       actionBidDelta: String(action.bidAfter - action.bidBefore),
       actionSource: action.actionSource,
-    } as Record<string, any>);
+    } as Record<string, unknown>);
     
   } catch (error) {
     // v369: 增强错误日志，记录完整的错误上下文以便排查
@@ -503,7 +503,7 @@ export async function backfillRewards(accountId: number): Promise<number> {
     
     rlLog.info(`[backfillRewards] 账户${accountId}: 找到${pendingLogs.length}条待回填记录`);
     
-    for (const log of (pendingLogs as any[])) {
+    for (const log of (pendingLogs as unknown[])) {
       try {
         const logDate = new Date(log.createdAt as string);
         const logAgeHours = (Date.now() - logDate.getTime()) / 3600000;
@@ -801,7 +801,7 @@ export async function backfillRewards(accountId: number): Promise<number> {
 export async function getTrainingDataset(
   accountId: number,
   limit: number = 10000
-): Promise<Record<string, any>[]> {
+): Promise<Record<string, unknown>[]> {
   const db = await getDbInstance();
   
   const data = await db.select().from(rlTrainingLogs)
@@ -888,7 +888,7 @@ export async function recordBidPerformanceHistory(params: {
       roas: String(roas),
       revenue: String(revenue),
       profit: String(profit),
-    } as Record<string, any>);
+    } as Record<string, unknown>);
     
     rlLog.info(`[RLDataRecorder] v230: bidPerformanceHistory recorded: account=${params.accountId}, type=${params.bidObjectType}, id=${params.bidObjectId}, bid=${params.bid}`);
   } catch (error) {
@@ -916,7 +916,7 @@ export async function batchRecordBidPerformanceHistory(records: Array<{
   let recorded = 0;
   let failed = 0;
   
-  for (const record of (records as any[])) {
+  for (const record of (records as unknown[])) {
     try {
       await recordBidPerformanceHistory(record);
       recorded++;
@@ -958,9 +958,9 @@ export async function backfillBidPerformanceResults(): Promise<{ updated: number
     let updated = 0;
     let skipped = 0;
     
-    for (const record of (staleRecords as any[])) {
+    for (const record of (staleRecords as unknown[])) {
       try {
-        let perfData: any = null;
+        let perfData: unknown = null;
         
         if (record.bidObjectType === 'keyword') {
           const [kw] = await db.select({
@@ -1012,7 +1012,7 @@ export async function backfillBidPerformanceResults(): Promise<{ updated: number
               roas: String(roas),
               revenue: String(sales),
               profit: String(sales - spend),
-            } as Record<string, any>)
+            } as Record<string, unknown>)
             .where(eq(bidPerformanceHistory.id, record.id));
           
           updated++;

@@ -369,7 +369,7 @@ export async function getAccountLevelMetrics(accountId: number): Promise<{
         )
       );
     
-    const row = result[0] as any;
+    const row = result[0] as unknown;
     if (!row || row.totalClicks === 0) return null;
     
     const totalClicks = Number(row.totalClicks);
@@ -435,7 +435,7 @@ export async function getCrossCampaignCategoryMetrics(
         )
       );
     
-    const row = result[0] as any;
+    const row = result[0] as unknown;
     if (!row || Number(row.totalClicks) === 0) return null;
     
     const totalClicks = Number(row.totalClicks);

@@ -193,7 +193,7 @@ export async function checkAllCampaignsPacing(
     const campaigns = Array.isArray(rows) ? rows : [];
     const results: IntradayAdjustment[] = [];
     
-    for (const campaign of (campaigns as any[])) {
+    for (const campaign of (campaigns as unknown[])) {
       const adjustment = await adjustIntradayPacing(
         campaign.campaignId,
         accountId

@@ -411,7 +411,7 @@ export default function AmazonApiSettings() {
   );
 
   // Fetch regions info
-  const { data: regionsInfo } = trpc.amazonApi.getRegions.useQuery() as any;
+  const { data: regionsInfo } = trpc.amazonApi.getRegions.useQuery() as unknown;
 
   // 当获取到已保存的凭证状态时，自动填充表单
   useEffect(() => {
@@ -540,7 +540,7 @@ export default function AmazonApiSettings() {
               })),
             });
             toast.success(`授权完成！已处理 ${profiles.length} 个站点账号。`);
-          } catch (saveError: any) {
+          } catch (saveError: unknown) {
             console.warn('[v343 OAuth Callback] saveMultipleProfiles失败:', saveError.message);
             toast.error('授权成功，但账户创建失败，请手动添加站点。');
           }
@@ -559,7 +559,7 @@ export default function AmazonApiSettings() {
               region: credentials.region,
             });
             toast.success('授权完成！已自动保存凭证。');
-          } catch (saveError: any) {
+          } catch (saveError: unknown) {
             console.warn('[v343 OAuth Callback] saveCredentials失败:', saveError.message);
             toast.success('授权成功！凭证已由后端自动保存。');
           }
@@ -583,7 +583,7 @@ export default function AmazonApiSettings() {
           setAuthStep('idle');
           setAuthProgress(0);
         }, 5000);
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('[v343 OAuth Callback] 处理失败:', error);
         setAuthStep('complete');
         setAuthProgress(100);
@@ -1175,7 +1175,7 @@ export default function AmazonApiSettings() {
       } else {
         throw new Error(pollResult.error || '同步失败');
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(`同步站点 ${siteName} 失败:`, error);
       
       // 更新站点状态为失败
@@ -1293,7 +1293,7 @@ export default function AmazonApiSettings() {
       });
       
       toast.success(`${siteName} 重试同步成功`);
-    } catch (error: any) {
+    } catch (error: unknown) {
       // 更新站点状态为失败
       setSyncProgress(prev => {
         const updatedSiteStatuses = (prev.siteStatuses || []).map(s => 
@@ -1402,7 +1402,7 @@ export default function AmazonApiSettings() {
 
     try {
       // 创建同步任务列表
-      const syncTasks = storeSites.map((site: any, index: any) => {
+      const syncTasks = storeSites.map((site: unknown, index: unknown) => {
         const mp = MARKETPLACES.find(m => m.id === site.marketplace);
         const siteName = mp?.name || site.marketplace;
         const siteFlag = mp?.flag || '🌐';
@@ -1505,7 +1505,7 @@ export default function AmazonApiSettings() {
             }));
 
             return { site, result: siteResults };
-          } catch (siteError: any) {
+          } catch (siteError: unknown) {
             console.error(`同步站点 ${siteName} 失败:`, siteError);
             
             // 更新站点状态为失败
@@ -1588,7 +1588,7 @@ export default function AmazonApiSettings() {
           });
         }, 10000);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       setSyncProgress(prev => ({
         ...prev,
         step: 'error',
@@ -1725,7 +1725,7 @@ export default function AmazonApiSettings() {
                 <div className="space-y-2">
                   <Label>店铺标识颜色（可选）</Label>
                   <div className="flex gap-2 flex-wrap">
-                    {PRESET_COLORS.map((color: any) => (
+                    {PRESET_COLORS.map((color: unknown) => (
                       <button
                         key={color}
                         type="button"
@@ -1847,7 +1847,7 @@ export default function AmazonApiSettings() {
                 {/* 按店铺名称分组显示多站点 */}
                 {(() => {
                   // 按storeName分组，过滤掉空站点记录（marketplace为空的占位记录）
-                  const groupedAccounts = accounts.reduce((groups: any, account: any) => {
+                  const groupedAccounts = accounts.reduce((groups: unknown, account: unknown) => {
                     const groupKey = account.storeName || account.accountName || 'default';
                     if (!groups[groupKey]) {
                       groups[groupKey] = { accounts: [], emptyStore: null as typeof account | null };
@@ -1991,7 +1991,7 @@ export default function AmazonApiSettings() {
                                   </Badge>
                                 </div>
                               )}
-                              {storeAccounts.map((account: any) => {
+                              {storeAccounts.map((account: unknown) => {
                                 const marketplace = MARKETPLACES.find(m => m.id === account.marketplace);
                                 const isSelected = selectedAccountId === account.id;
                                 return (
@@ -2401,8 +2401,8 @@ export default function AmazonApiSettings() {
                                     profiles: result.profiles.map(p => ({
                                       profileId: p.profileId,
                                       countryCode: p.countryCode,
-                                      currencyCode: (p as any).currencyCode || 'USD',
-                                      accountName: (p as any).accountInfo?.name || p.accountName || storeName,
+                                      currencyCode: (p as Record<string, unknown>).currencyCode || 'USD',
+                                      accountName: (p as Record<string, unknown>).accountInfo?.name || p.accountName || storeName,
                                     })),
                                   });
                                 } else if (selectedAccountId) {
@@ -2430,7 +2430,7 @@ export default function AmazonApiSettings() {
                                   setAuthProgress(0);
                                 }, 3000);
                               }
-                            } catch (error: any) {
+                            } catch (error: unknown) {
                               setAuthStep('error');
                               setAuthError({
                                 step: '换取Token',
@@ -2768,7 +2768,7 @@ export default function AmazonApiSettings() {
                               { flag: '🇸🇬', name: '新加坡', code: 'SG' },
                             ]
                           },
-                        ].map((item: any) => {
+                        ].map((item: unknown) => {
                           const authUrl = `${item.url}?client_id=${import.meta.env.VITE_AMAZON_ADS_CLIENT_ID || 'amzn1.application-oa2-client.e6536f0b89044ae4a40a9289efc33053'}&scope=advertising::campaign_management&redirect_uri=${encodeURIComponent('https://www.ppcopt.com/api/auth/callback')}&response_type=code`;
                           const isSelected = credentials.region === item.region;
                           return (
@@ -2802,7 +2802,7 @@ export default function AmazonApiSettings() {
                                       <div>
                                         <strong>{item.name}</strong>授权链接已复制！<br/>
                                         <span className="text-sm">授权后将获得以下站点数据访问权限：<br/>
-                                        {item.sites.map((s: any) => `${s.flag} ${s.name}`).join('、')}</span>
+                                        {item.sites.map((s: unknown) => `${s.flag} ${s.name}`).join('、')}</span>
                                       </div>
                                     );
                                   }}
@@ -2813,7 +2813,7 @@ export default function AmazonApiSettings() {
                               </div>
                               <div className="text-xs text-purple-400 mb-2">{item.desc}</div>
                               <div className="flex flex-wrap gap-1">
-                                {item.sites.map((site: any) => (
+                                {item.sites.map((site: unknown) => (
                                   <span key={site.code} className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-900/40 rounded text-xs text-purple-300">
                                     {site.flag} {site.name}
                                   </span>
@@ -2961,8 +2961,8 @@ export default function AmazonApiSettings() {
                                   profiles: result.profiles.map(p => ({
                                     profileId: p.profileId,
                                     countryCode: p.countryCode,
-                                    currencyCode: (p as any).currencyCode || 'USD',
-                                    accountName: (p as any).accountInfo?.name || p.accountName || finalStoreName,
+                                    currencyCode: (p as Record<string, unknown>).currencyCode || 'USD',
+                                    accountName: (p as Record<string, unknown>).accountInfo?.name || p.accountName || finalStoreName,
                                   })),
                                 });
                               } else if (selectedAccountId) {
@@ -2989,7 +2989,7 @@ export default function AmazonApiSettings() {
                                 setAuthProgress(0);
                               }, 3000);
                             }
-                          } catch (error: any) {
+                          } catch (error: unknown) {
                             setAuthStep('error');
                             setAuthError({
                               step: '换取Token',
@@ -3416,7 +3416,7 @@ export default function AmazonApiSettings() {
                         <div className="mb-4 space-y-2">
                           <div className="text-sm font-medium text-muted-foreground mb-2">站点同步详情</div>
                           <div className="grid gap-2">
-                            {syncProgress.siteStatuses.map((site: any) => (
+                            {syncProgress.siteStatuses.map((site: unknown) => (
                               <div 
                                 key={site.id}
                                 className={`flex items-center justify-between p-3 rounded-lg border ${
@@ -3441,7 +3441,7 @@ export default function AmazonApiSettings() {
                                         {/* v407: 动态步骤进度条 - 根据后端返回的totalSteps动态生成 */}
                                         {site.currentStepIndex !== undefined && site.totalSteps && site.totalSteps > 0 && (
                                           <div className="flex gap-0.5">
-                                            {Array.from({length: Math.min(site.totalSteps, 31)}).map((_: any, idx: any) => {
+                                            {Array.from({length: Math.min(site.totalSteps, 31)}).map((_: unknown, idx: unknown) => {
                                               const isComplete = idx < (site.currentStepIndex || 0);
                                               const isCurrent = idx === (site.currentStepIndex || 0);
                                               return (
@@ -3775,7 +3775,7 @@ export default function AmazonApiSettings() {
                     {/* 同步历史列表 */}
                     <div className="space-y-2">
                       {syncHistory && syncHistory.jobs && syncHistory.jobs.length > 0 ? (
-                        syncHistory.jobs.map((job: any) => (
+                        syncHistory.jobs.map((job: unknown) => (
                           <div key={job.id} className="flex items-center justify-between p-3 bg-muted/20 rounded-lg border">
                             <div className="flex items-center gap-3">
                               <div className={`w-2 h-2 rounded-full ${
@@ -3947,7 +3947,7 @@ export default function AmazonApiSettings() {
                   </CardHeader>
                   <CardContent className="space-y-4">
                     {syncConflicts && syncConflicts.length > 0 ? (
-                      syncConflicts.map((conflict: any) => (
+                      syncConflicts.map((conflict: unknown) => (
                         <div key={conflict.id} className="p-4 bg-yellow-500/5 rounded-lg border border-yellow-500/20">
                           <div className="flex items-start justify-between mb-3">
                             <div>
@@ -4056,7 +4056,7 @@ export default function AmazonApiSettings() {
                               createScheduleMutation.mutate({
                                 accountId: selectedAccountId,
                                 syncType: 'all',
-                                frequency: scheduleFrequency as any,
+                                frequency: scheduleFrequency as unknown,
                                 isEnabled: true,
                               });
                             }
@@ -4082,7 +4082,7 @@ export default function AmazonApiSettings() {
                           if (scheduleConfig && scheduleConfig.length > 0) {
                             updateScheduleMutation.mutate({
                               id: scheduleConfig[0].id!,
-                              frequency: value as any,
+                              frequency: value as unknown,
                             });
                           }
                         }}
@@ -4194,7 +4194,7 @@ export default function AmazonApiSettings() {
                     {/* 队列列表 */}
                     <div className="space-y-2">
                       {syncQueue && syncQueue.length > 0 ? (
-                        syncQueue.map((task: any) => (
+                        syncQueue.map((task: unknown) => (
                           <div key={task.id} className="flex items-center justify-between p-3 bg-muted/20 rounded-lg border">
                             <div className="flex items-center gap-3">
                               <div className={`w-2 h-2 rounded-full ${
@@ -4371,7 +4371,7 @@ export default function AmazonApiSettings() {
                 <div className="space-y-2">
                   <Label>店铺标识颜色</Label>
                   <div className="flex gap-2 flex-wrap">
-                    {PRESET_COLORS.map((color: any) => (
+                    {PRESET_COLORS.map((color: unknown) => (
                       <button
                         key={color}
                         type="button"
@@ -4493,7 +4493,7 @@ export default function AmazonApiSettings() {
                 <div className="border rounded-lg p-4 space-y-2">
                   <p className="text-sm font-medium">预览结果 ({importPreview.length} 个账号)</p>
                   <div className="max-h-48 overflow-y-auto space-y-2">
-                    {importPreview.map((account: any, index: any) => (
+                    {importPreview.map((account: unknown, index: unknown) => (
                       <div key={index} className="flex items-center justify-between text-sm p-2 bg-muted/50 rounded">
                         <div className="flex items-center gap-2">
                           <span className="font-medium">{account.storeName || account.accountName}</span>

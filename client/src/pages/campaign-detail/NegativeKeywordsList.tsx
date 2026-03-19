@@ -42,8 +42,8 @@ export function NegativeKeywordsList({ campaignId }: { campaignId: number }) {
   }
   
   // 分类：否定关键词 vs 否定商品
-  const negKeywords = negatives.filter((n: any) => n.negativeType === 'keyword');
-  const negProducts = negatives.filter((n: any) => n.negativeType === 'product');
+  const negKeywords = negatives.filter((n: unknown) => n.negativeType === 'keyword');
+  const negProducts = negatives.filter((n: unknown) => n.negativeType === 'product');
   
   return (
     <div className="space-y-6">
@@ -62,7 +62,7 @@ export function NegativeKeywordsList({ campaignId }: { campaignId: number }) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {negKeywords.map((neg: any) => (
+              {negKeywords.map((neg: unknown) => (
                 <TableRow key={neg.id}>
                   <TableCell className="font-medium">{neg.negativeText}</TableCell>
                   <TableCell>
@@ -106,7 +106,7 @@ export function NegativeKeywordsList({ campaignId }: { campaignId: number }) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {negProducts.map((neg: any) => (
+              {negProducts.map((neg: unknown) => (
                 <TableRow key={neg.id}>
                   <TableCell className="font-medium">{neg.negativeText}</TableCell>
                   <TableCell>

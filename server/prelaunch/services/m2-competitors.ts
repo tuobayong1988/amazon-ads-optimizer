@@ -32,7 +32,7 @@ export class M2CompetitorService {
 
     try {
       const conditions = [eq(prelaunchCompetitors.projectId, input.projectId)];
-      if (input.tier) conditions.push(eq(prelaunchCompetitors.tier, input.tier as any));
+      if (input.tier) conditions.push(eq(prelaunchCompetitors.tier, input.tier as unknown));
 
       const page = input.page ?? 1;
       const pageSize = input.pageSize ?? 30;
@@ -129,7 +129,7 @@ export class M2CompetitorService {
           .limit(10);
 
         if (keywords.length > 0) {
-          const kwList = keywords.map((k: Record<string, any>) => k.keyword);
+          const kwList = keywords.map((k: Record<string, unknown>) => k.keyword);
 
           // 优先使用 Oxylabs 真实数据源
           const oxylabsHealth = await checkServiceHealth();
@@ -175,7 +175,7 @@ export class M2CompetitorService {
             console.warn(`[M2] Oxylabs unavailable (${oxylabsHealth.message}), falling back to Gemini`);
 
             const kwJoined = kwList.join(', ');
-            const discovered = await geminiStructuredOutput<Record<string, any>[]>('',
+            const discovered = await geminiStructuredOutput<Record<string, unknown>[]>('',
               `Given these Amazon search keywords: ${kwJoined}
               
 Identify 15-25 competitor ASINs that would appear in search results. For each, provide:
@@ -189,10 +189,10 @@ Identify 15-25 competitor ASINs that would appear in search results. For each, p
 
 Return JSON array.`, { temperature: 0.3 });
 
-            asins = discovered.map((d: Record<string, any>) => d.asin);
+            asins = discovered.map((d: Record<string, unknown>) => d.asin);
 
             // 写入竞品基础数据（Gemini模拟数据）
-            for (const comp of (discovered as any[])) {
+            for (const comp of (discovered as unknown[])) {
               await db.insert(prelaunchCompetitors).values({
                 projectId,
                 asin: comp.asin,
@@ -249,7 +249,7 @@ Return JSON array.`, { temperature: 0.3 });
         .from(prelaunchCompetitors)
         .where(eq(prelaunchCompetitors.projectId, projectId));
 
-      for (const comp of (competitors as any[])) {
+      for (const comp of (competitors as unknown[])) {
         const trs = this.calculateTRS(comp);
         await db.update(prelaunchCompetitors)
           .set({
@@ -273,10 +273,10 @@ Return JSON array.`, { temperature: 0.3 });
         success: true,
         summary: {
           totalCompetitors: competitors.length,
-          t1Count: competitors.filter((c: Record<string, any>) => c.tier === 'T1_head').length,
-          t2Count: competitors.filter((c: Record<string, any>) => c.tier === 'T2_waist').length,
-          t3Count: competitors.filter((c: Record<string, any>) => c.tier === 'T3_niche').length,
-          dataSource: (competitors[0] as any)?.dataSource || 'unknown',
+          t1Count: competitors.filter((c: Record<string, unknown>) => c.tier === 'T1_head').length,
+          t2Count: competitors.filter((c: Record<string, unknown>) => c.tier === 'T2_waist').length,
+          t3Count: competitors.filter((c: Record<string, unknown>) => c.tier === 'T3_niche').length,
+          dataSource: (competitors[0] as unknown)?.dataSource || 'unknown',
         },
       };
     } catch (error: unknown) {
@@ -285,7 +285,7 @@ Return JSON array.`, { temperature: 0.3 });
   }
 
   /** TRS评分计算（白盒化） */
-  private calculateTRS(comp: any) {
+  private calculateTRS(comp: unknown) {
     const rating = parseFloat(comp.rating) || 0;
     const reviewCount = comp.reviewCount || 0;
     const bsr = comp.bsr || 999999;
@@ -317,7 +317,7 @@ Return JSON array.`, { temperature: 0.3 });
   private async analyzeCompetitorReviews(db: DbInstance, projectId: number, competitors: unknown[]) {
     const topCompetitors = competitors.slice(0, 10);
 
-    for (const comp of (topCompetitors as any[])) {
+    for (const comp of (topCompetitors as unknown[])) {
       const prompt = `Analyze the likely customer reviews for this Amazon product:
 Title: ${comp.title || 'Unknown'}
 Brand: ${comp.brand || 'Unknown'}
@@ -332,7 +332,7 @@ Generate realistic user language phrases that customers would use in reviews. Fo
 Generate 10-20 diverse phrases. Return JSON array:
 [{"phraseType":"...","phrase":"...","sentiment":"..."}]`;
 
-      const phrases = await geminiStructuredOutput<Record<string, any>[]>('', prompt, { temperature: 0.4 });
+      const phrases = await geminiStructuredOutput<Record<string, unknown>[]>('', prompt, { temperature: 0.4 });
 
       for (const p of phrases) {
         // @ts-expect-error - Drizzle query builder type
@@ -350,7 +350,7 @@ Generate 10-20 diverse phrases. Return JSON array:
   }
 
   /** 竞品场景矩阵 */
-  private async buildScenarioMatrix(db: DbInstance, projectId: number, competitors: any[]) {
+  private async buildScenarioMatrix(db: DbInstance, projectId: number, competitors: unknown[]) {
     const scenarios = [
       'S01', 'S02', 'S03', 'S04', 'S05', 'S06',
       'S07', 'S08', 'S09', 'S10', 'S11', 'S12',
@@ -371,7 +371,7 @@ For each scenario, estimate:
 
 Return JSON array: [{"scenarioCode":"S01","trafficShare":0.25,"attackFeasibility":0.6,"suggestedStrategy":"..."}]`;
 
-      const matrix = await geminiStructuredOutput<Record<string, any>[]>('', prompt, { temperature: 0.2 });
+      const matrix = await geminiStructuredOutput<Record<string, unknown>[]>('', prompt, { temperature: 0.2 });
 
       for (const entry of matrix) {
         if (scenarios.includes(entry.scenarioCode)) {

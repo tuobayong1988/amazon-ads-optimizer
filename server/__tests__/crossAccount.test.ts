@@ -9,7 +9,7 @@ describe('Cross Account Summary', () => {
         { spend: 200, sales: 800 },
         { spend: 150, sales: 600 },
       ];
-      const totalSpend = accountsData.reduce((sum: any, a: any) => sum + a.spend, 0);
+      const totalSpend = accountsData.reduce((sum: number, a: Record<string, unknown>) => sum + a.spend, 0);
       expect(totalSpend).toBe(450);
     });
 
@@ -19,7 +19,7 @@ describe('Cross Account Summary', () => {
         { spend: 200, sales: 800 },
         { spend: 150, sales: 600 },
       ];
-      const totalSales = accountsData.reduce((sum: any, a: any) => sum + a.sales, 0);
+      const totalSales = accountsData.reduce((sum: number, a: Record<string, unknown>) => sum + a.sales, 0);
       expect(totalSales).toBe(1900);
     });
 
@@ -62,7 +62,7 @@ describe('Cross Account Summary', () => {
       ];
 
       const distribution: Record<string, { count: number; spend: number; sales: number }> = {};
-      for (const account of (accounts as any[])) {
+      for (const account of (accounts as unknown[])) {
         if (!distribution[account.marketplace]) {
           distribution[account.marketplace] = { count: 0, spend: 0, sales: 0 };
         }
@@ -82,7 +82,7 @@ describe('Cross Account Summary', () => {
       const accounts: Array<{ marketplace: string; spend: number; sales: number }> = [];
       const distribution: Record<string, { count: number; spend: number; sales: number }> = {};
       
-      for (const account of (accounts as any[])) {
+      for (const account of (accounts as unknown[])) {
         if (!distribution[account.marketplace]) {
           distribution[account.marketplace] = { count: 0, spend: 0, sales: 0 };
         }
@@ -101,7 +101,7 @@ describe('Cross Account Summary', () => {
         { id: 3, name: 'Store C', spend: 150 },
       ];
 
-      const sorted = [...accounts].sort((a: any, b: any) => b.spend - a.spend);
+      const sorted = [...accounts].sort((a: unknown, b: unknown) => b.spend - a.spend);
       expect(sorted[0].name).toBe('Store B');
       expect(sorted[1].name).toBe('Store C');
       expect(sorted[2].name).toBe('Store A');
@@ -114,7 +114,7 @@ describe('Cross Account Summary', () => {
         { id: 3, name: 'Store C', acos: 30 },
       ];
 
-      const sorted = [...accounts].sort((a: any, b: any) => a.acos - b.acos);
+      const sorted = [...accounts].sort((a: unknown, b: unknown) => a.acos - b.acos);
       expect(sorted[0].name).toBe('Store B'); // Lowest ACoS is best
       expect(sorted[2].name).toBe('Store C'); // Highest ACoS is worst
     });
@@ -191,7 +191,7 @@ describe('Account Import/Export', () => {
       for (let i = 1; i < lines.length; i++) {
         const values = lines[i].split(',').map(v => v.trim());
         const row: Record<string, string> = {};
-        headers.forEach((h: any, idx: any) => {
+        headers.forEach((h: unknown, idx: unknown) => {
           row[h] = values[idx] || '';
         });
         accounts.push(row);
@@ -236,7 +236,7 @@ describe('Account Import/Export', () => {
       let imported = 0;
       let skipped = 0;
 
-      for (const account of (toImport as any[])) {
+      for (const account of (toImport as unknown[])) {
         if (existingIds.has(account.accountId)) {
           if (overwrite) {
             // Would update
@@ -260,7 +260,7 @@ describe('Account Import/Export', () => {
       let imported = 0;
       let updated = 0;
 
-      for (const account of (toImport as any[])) {
+      for (const account of (toImport as unknown[])) {
         if (existingIds.has(account.accountId)) {
           if (overwrite) {
             updated++;

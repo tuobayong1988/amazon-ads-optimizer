@@ -93,7 +93,7 @@ function euclideanDistance(a: number[], b: number[]): number {
  * 计算加权均值
  */
 function weightedMean(values: number[], weights: number[]): number {
-  const totalWeight = weights.reduce((a: any, b: any) => a + b, 0);
+  const totalWeight = weights.reduce((a: unknown, b: unknown) => a + b, 0);
   if (totalWeight === 0) return 0;
   return values.reduce((sum, val, i) => sum + val * weights[i], 0) / totalWeight;
 }
@@ -109,10 +109,10 @@ function bootstrapCI(values: number[], confidence: number = 0.95, nBootstrap: nu
     const sample = Array.from({ length: values.length }, () =>
       values[Math.floor(Math.random() * values.length)]
     );
-    bootstrapMeans.push(sample.reduce((a: any, b: any) => a + b, 0) / sample.length);
+    bootstrapMeans.push(sample.reduce((a: unknown, b: unknown) => a + b, 0) / sample.length);
   }
   
-  bootstrapMeans.sort((a: any, b: any) => a - b);
+  bootstrapMeans.sort((a: unknown, b: unknown) => a - b);
   const alpha = (1 - confidence) / 2;
   const lower = bootstrapMeans[Math.floor(alpha * nBootstrap)];
   const upper = bootstrapMeans[Math.floor((1 - alpha) * nBootstrap)];
@@ -164,11 +164,11 @@ function propensityScoreMatch(
 ): number[][][] {
   // 返回每个处理组样本匹配的对照组索引
   return treatmentFeatures.map(treatFeat => {
-    const distances = controlFeatures.map((ctrlFeat: any, idx: any) => ({
+    const distances = controlFeatures.map((ctrlFeat: unknown, idx: unknown) => ({
       idx,
       dist: euclideanDistance(treatFeat, ctrlFeat),
     }));
-    distances.sort((a: any, b: any) => a.dist - b.dist);
+    distances.sort((a: unknown, b: unknown) => a.dist - b.dist);
     return distances.slice(0, k).map(d => [d.idx, 1 / (1 + d.dist)]);
   });
 }
@@ -256,11 +256,11 @@ export async function estimateCausalEffect(
       iteValues.push(did.ite);
     }
     
-    const avgITE = iteValues.reduce((a: any, b: any) => a + b, 0) / iteValues.length;
+    const avgITE = iteValues.reduce((a: unknown, b: unknown) => a + b, 0) / iteValues.length;
     const ci = bootstrapCI(iteValues);
     
     // 计算增量利润
-    const latestEvent = events[0] as any;
+    const latestEvent = events[0] as unknown;
     const avgClicks = (latestEvent.perfAfter.clicks + latestEvent.perfBefore.clicks) / 2;
     const avgAOV = latestEvent.perfAfter.sales > 0 && latestEvent.perfAfter.orders > 0
       ? latestEvent.perfAfter.sales / latestEvent.perfAfter.orders
@@ -333,7 +333,7 @@ async function getAggregatedPerf(
       lte(dailyPerformance.date, endDate)
     ));
   
-  const r = results[0] as any;
+  const r = results[0] as unknown;
   if (!r) return null;
   
   const impressions = Number(r.totalImpressions) || 0;
@@ -409,7 +409,7 @@ async function saveCausalResult(db: DbInstance, accountId: number, result: Causa
     optimalBidUpper: String(result.optimalBidUpper),
     modelVersion: 'did_v1',
     sampleSize: result.sampleSize,
-  } as Record<string, any>);
+  } as Record<string, unknown>);
 }
 
 /**

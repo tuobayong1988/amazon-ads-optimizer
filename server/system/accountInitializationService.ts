@@ -500,7 +500,7 @@ export async function initializeMultipleAccounts(accounts: Array<{
   
   const results: AccountInitializationResult[] = [];
   
-  for (const account of (accounts as any[])) {
+  for (const account of (accounts as unknown[])) {
     try {
       const result = await initializeAccount(account);
       results.push(result);

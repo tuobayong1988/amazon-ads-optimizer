@@ -78,7 +78,7 @@ export async function updateSyncJob(jobId: number, data: {
   const db = await getDb();
   if (!db) return;
   
-  const updateData: Record<string, any> = { ...data };
+  const updateData: Record<string, unknown> = { ...data };
   if (data.status === 'completed' || data.status === 'failed') {
     updateData.completedAt = new Date().toISOString().slice(0, 19).replace('T', ' ');
   }
@@ -657,7 +657,7 @@ export async function updateSyncTaskStatus(
   const db = await getDb();
   if (!db) return false;
   
-  const updateData: Record<string, any> = { status };
+  const updateData: Record<string, unknown> = { status };
   
   if (status === 'running' && !updates?.startedAt) {
     updateData.startedAt = new Date().toISOString().slice(0, 19).replace('T', ' ');
@@ -893,7 +893,7 @@ export async function updateSyncSchedule(scheduleId: number, data: {
   const db = await getDb();
   if (!db) return false;
   
-  const updateData: Record<string, any> = {
+  const updateData: Record<string, unknown> = {
     updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
   };
   

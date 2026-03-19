@@ -22,7 +22,7 @@ export default function BudgetAutoExecution() {
   // toast from sonner
   // v399: 使用全局店铺选择器替代本地状态
   const { accountId: selectedAccountId, accounts, isLoading: accountsLoading } = useGlobalAccountId();
-  const setSelectedAccountId = (_: any) => {}; // v399: 由全局选择器控制，本地setter为no-op
+  const setSelectedAccountId = (_: unknown) => {}; // v399: 由全局选择器控制，本地setter为no-op
 const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [selectedExecutionId, setSelectedExecutionId] = useState<number | null>(null);
 
@@ -159,7 +159,7 @@ const [createDialogOpen, setCreateDialogOpen] = useState(false);
                 <SelectValue placeholder="选择账号" />
               </SelectTrigger>
               <SelectContent>
-                {accounts?.map((account: any) => (
+                {accounts?.map((account: unknown) => (
                   <SelectItem key={account.id} value={account.id.toString()}>
                     {account.accountName}
                   </SelectItem>
@@ -225,7 +225,7 @@ const [createDialogOpen, setCreateDialogOpen] = useState(false);
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          {dayOfWeekLabels.map((label: any, index: any) => (
+                          {dayOfWeekLabels.map((label: unknown, index: unknown) => (
                             <SelectItem key={index} value={index.toString()}>{label}</SelectItem>
                           ))}
                         </SelectContent>
@@ -324,7 +324,7 @@ const [createDialogOpen, setCreateDialogOpen] = useState(false);
                 </CardContent>
               </Card>
             )}
-            {configs?.map((config: any) => (
+            {configs?.map((config: unknown) => (
               <Card key={config.id}>
                 <CardHeader>
                   <div className="flex items-center justify-between">
@@ -420,7 +420,7 @@ const [createDialogOpen, setCreateDialogOpen] = useState(false);
                         </TableCell>
                       </TableRow>
                     )}
-                    {history?.map((execution: any) => (
+                    {history?.map((execution: unknown) => (
                       <TableRow key={execution.id}>
                         <TableCell>
                           {execution.executionStartAt ? safeToLocaleString(execution.executionStartAt) : '-'}
@@ -513,7 +513,7 @@ const [createDialogOpen, setCreateDialogOpen] = useState(false);
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {executionDetails.details.map((detail: any) => (
+                        {executionDetails.details.map((detail: unknown) => (
                           <TableRow key={detail.id}>
                             <TableCell className="font-medium">{detail.campaignName}</TableCell>
                             <TableCell>${parseFloat(detail.budgetBefore || '0').toFixed(2)}</TableCell>

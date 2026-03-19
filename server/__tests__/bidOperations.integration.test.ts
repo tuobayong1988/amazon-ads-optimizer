@@ -14,7 +14,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 // ==================== 使用 vi.hoisted 定义可在 vi.mock 中引用的变量 ====================
 
 const { mockDb, mockGetDb } = vi.hoisted(() => {
-  const db: any = {
+  const db: unknown = {
     select: vi.fn().mockReturnThis(),
     from: vi.fn().mockReturnThis(),
     where: vi.fn().mockReturnThis(),
@@ -54,12 +54,12 @@ vi.mock('../../drizzle/schema', () => ({
 }));
 
 vi.mock('drizzle-orm', () => ({
-  eq: vi.fn((...args: any[]) => ({ type: 'eq', args })),
-  and: vi.fn((...args: any[]) => ({ type: 'and', args })),
+  eq: vi.fn((...args: unknown[]) => ({ type: 'eq', args })),
+  and: vi.fn((...args: unknown[]) => ({ type: 'and', args })),
   sql: vi.fn(),
-  gte: vi.fn((...args: any[]) => ({ type: 'gte', args })),
-  lte: vi.fn((...args: any[]) => ({ type: 'lte', args })),
-  inArray: vi.fn((...args: any[]) => ({ type: 'inArray', args })),
+  gte: vi.fn((...args: unknown[]) => ({ type: 'gte', args })),
+  lte: vi.fn((...args: unknown[]) => ({ type: 'lte', args })),
+  inArray: vi.fn((...args: unknown[]) => ({ type: 'inArray', args })),
   desc: vi.fn(),
   asc: vi.fn(),
   isNull: vi.fn(),
@@ -125,7 +125,7 @@ import '../sync/syncBidOperations';
 
 describe('bidOperations 集成测试（纯 Mock，不触及真实数据）', () => {
   let syncService: AmazonSyncService;
-  let mockClient: any;
+  let mockClient: unknown;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -335,7 +335,7 @@ describe('bidOperations 集成测试（纯 Mock，不触及真实数据）', () 
 
   describe('getPlacementMultiplier', () => {
     it('应正确提取 placementTop 调整系数', () => {
-      const campaign: any = {
+      const campaign: unknown = {
         bidding: {
           adjustments: [
             { predicate: 'placementTop', percentage: 80 },
@@ -347,7 +347,7 @@ describe('bidOperations 集成测试（纯 Mock，不触及真实数据）', () 
     });
 
     it('应正确提取 placementProductPage 调整系数', () => {
-      const campaign: any = {
+      const campaign: unknown = {
         bidding: {
           adjustments: [
             { predicate: 'placementTop', percentage: 50 },
@@ -359,36 +359,36 @@ describe('bidOperations 集成测试（纯 Mock，不触及真实数据）', () 
     });
 
     it('应在没有调整时返回 0', () => {
-      const campaign: any = { bidding: {} };
+      const campaign: unknown = { bidding: {} };
       expect(syncService.getPlacementMultiplier(campaign, 'placementTop')).toBe(0);
     });
 
     it('应在 bidding 为 undefined 时返回 0', () => {
-      const campaign: any = {};
+      const campaign: unknown = {};
       expect(syncService.getPlacementMultiplier(campaign, 'placementTop')).toBe(0);
     });
 
     it('应在 adjustments 为空数组时返回 0', () => {
-      const campaign: any = { bidding: { adjustments: [] } };
+      const campaign: unknown = { bidding: { adjustments: [] } };
       expect(syncService.getPlacementMultiplier(campaign, 'placementTop')).toBe(0);
     });
 
     it('应在找不到匹配的 predicate 时返回 0', () => {
-      const campaign: any = {
+      const campaign: unknown = {
         bidding: { adjustments: [{ predicate: 'placementTop', percentage: 50 }] },
       };
       expect(syncService.getPlacementMultiplier(campaign, 'placementProductPage')).toBe(0);
     });
 
     it('应正确处理 percentage 为字符串的情况', () => {
-      const campaign: any = {
+      const campaign: unknown = {
         bidding: { adjustments: [{ predicate: 'placementTop', percentage: '75' }] },
       };
       expect(syncService.getPlacementMultiplier(campaign, 'placementTop')).toBe(75);
     });
 
     it('应正确处理 percentage 为 0 的情况', () => {
-      const campaign: any = {
+      const campaign: unknown = {
         bidding: { adjustments: [{ predicate: 'placementTop', percentage: 0 }] },
       };
       expect(syncService.getPlacementMultiplier(campaign, 'placementTop')).toBe(0);

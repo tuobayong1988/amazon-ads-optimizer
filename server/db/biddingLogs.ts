@@ -21,9 +21,9 @@ export async function createBiddingLog(log: InsertBiddingLog) {
     campaignId: log.campaignId,
     targetLocalId: log.targetId ? Number(log.targetId) : undefined,
     // @ts-expect-error - dynamic property access
-    targetType: (log as unknown).logTargetType || 'keyword',
+    targetType: (log as Record<string, unknown>).logTargetType || 'keyword',
     // @ts-expect-error - dynamic property access
-    adGroupId: (log as unknown).internalAdGroupId ? Number((log as unknown).internalAdGroupId) : undefined,
+    adGroupId: (log as Record<string, unknown>).internalAdGroupId ? Number((log as Record<string, unknown>).internalAdGroupId) : undefined,
     caller: 'createBiddingLog',
   });
   // @ts-expect-error - type assertion
@@ -42,10 +42,10 @@ export async function createBiddingLog(log: InsertBiddingLog) {
       // v438: campaignId存储为字符串，避免Amazon ID转Number时精度丢失或溢出
       campaignId: safeCampaignId != null ? String(safeCampaignId) : null,
       // @ts-expect-error - dynamic property access
-      campaignName: (log as unknown).campaignName as string || null,
+      campaignName: (log as Record<string, unknown>).campaignName as string || null,
       keywordId: log.targetId,
       // @ts-expect-error - dynamic property access
-      keywordText: (log as unknown).keywordText as string || null,
+      keywordText: (log as Record<string, unknown>).keywordText as string || null,
       matchType: log.logMatchType as string || null,
       previousBid: String(log.previousBid || 0),
       newBid: String(log.newBid || 0),
@@ -59,7 +59,7 @@ export async function createBiddingLog(log: InsertBiddingLog) {
     });
   } catch (e) {
     // @ts-expect-error - dynamic property access
-    (log as unknown).error('[v145] 双写optimization_events失败(biddingLog):', e);
+    (log as Record<string, unknown>).error('[v145] 双写optimization_events失败(biddingLog):', e);
   }
   
   return logId;

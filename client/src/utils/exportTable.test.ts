@@ -27,9 +27,9 @@ describe('exportTable', () => {
     
     // Use a spy on createElement that only intercepts 'a' tags
     const origCreateElement = document.createElement.bind(document);
-    vi.spyOn(document, 'createElement').mockImplementation((tag: string, options?: any) => {
+    vi.spyOn(document, 'createElement').mockImplementation((tag: string, options?: unknown) => {
       if (tag === 'a') {
-        return mockLink as any;
+        return mockLink as unknown;
       }
       return origCreateElement(tag, options);
     });

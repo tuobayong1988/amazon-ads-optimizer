@@ -160,7 +160,7 @@ export class PrelaunchProjectService {
   /**
    * 更新项目
    */
-  async updateProject(projectId: number, updates: Record<string, any>) {
+  async updateProject(projectId: number, updates: Record<string, unknown>) {
     const db = await getDb();
     if (!db) return { success: false, error: 'Database not available' };
 
@@ -252,7 +252,7 @@ export class PrelaunchProjectService {
   /**
    * 安全解析seedKeywords
    */
-  private parseSeedKeywords(raw: any): string[] {
+  private parseSeedKeywords(raw: unknown): string[] {
     if (!raw) return [];
     if (Array.isArray(raw)) return raw;
     if (typeof raw === 'string') {

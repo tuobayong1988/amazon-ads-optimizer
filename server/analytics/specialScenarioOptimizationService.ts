@@ -178,7 +178,7 @@ export interface DailyAdjustment {
 
 function average(arr: number[]): number {
   if (arr.length === 0) return 0;
-  return arr.reduce((a: any, b: any) => a + b, 0) / arr.length;
+  return arr.reduce((a: unknown, b: unknown) => a + b, 0) / arr.length;
 }
 
 function standardDeviation(arr: number[]): number {
@@ -232,7 +232,7 @@ export async function learnCampaignSpendPattern(
     return {
       campaignId,
       weekdayPatterns: Array(7).fill(null).map(() => 
-        DEFAULT_HOURLY_PATTERN.map((pct: any, hour: any) => ({
+        DEFAULT_HOURLY_PATTERN.map((pct: unknown, hour: unknown) => ({
           hour,
           avgSpendPercent: pct,
           stdDev: pct * 0.2,
@@ -273,8 +273,8 @@ export async function learnCampaignSpendPattern(
   });
 
   // 生成每天每小时的模式
-  const weekdayPatterns: HourlySpendPattern[][] = weekdayFactors.map((factor: any, weekday: any) => {
-    return DEFAULT_HOURLY_PATTERN.map((basePct: any, hour: any) => ({
+  const weekdayPatterns: HourlySpendPattern[][] = weekdayFactors.map((factor: unknown, weekday: unknown) => {
+    return DEFAULT_HOURLY_PATTERN.map((basePct: unknown, hour: unknown) => ({
       hour,
       avgSpendPercent: basePct * factor,
       stdDev: basePct * factor * 0.2,
@@ -341,7 +341,7 @@ export async function predictBudgetDepletion(
   
   // 计算剩余时间的总预期消耗百分比
   const remainingHoursPattern = patterns.slice(currentHour + 1);
-  const totalRemainingPercent = remainingHoursPattern.reduce((sum: any, p: any) => sum + p.avgSpendPercent, 0);
+  const totalRemainingPercent = remainingHoursPattern.reduce((sum: number, p: Record<string, unknown>) => sum + p.avgSpendPercent, 0);
   
   // 归一化剩余时间的消耗比例
   for (let h = currentHour + 1; h < 24; h++) {
@@ -441,7 +441,7 @@ export async function analyzeBudgetDepletionRisk(
   
   const predictions: BudgetDepletionPrediction[] = [];
 
-  for (const campaign of (activeCampaigns as any[])) {
+  for (const campaign of (activeCampaigns as unknown[])) {
     // 获取今日消耗
     const [todayPerf] = await db.select()
       .from(dailyPerformance)
@@ -467,7 +467,7 @@ export async function analyzeBudgetDepletionRisk(
   // 按风险等级排序
   const riskOrder = { critical: 0, warning: 1, safe: 2 };
   // @ts-expect-error - runtime type mismatch
-  predictions.sort((a: any, b: any) => riskOrder[a.riskLevel] - riskOrder[b.riskLevel]);
+  predictions.sort((a: unknown, b: unknown) => riskOrder[a.riskLevel] - riskOrder[b.riskLevel]);
 
   return predictions;
 }
@@ -864,7 +864,7 @@ export async function analyzeBidEfficiency(
   let overbiddingCount = 0;
 
   // 分析关键词
-  for (const kw of (keywordData as any[])) {
+  for (const kw of (keywordData as unknown[])) {
     const clicks = Number(kw.clicks) || 0;
     if (clicks < minClicks) continue;
     
@@ -915,7 +915,7 @@ export async function analyzeBidEfficiency(
   }
 
   // 按过度竞价程度排序
-  analyses.sort((a: any, b: any) => b.overbiddingScore - a.overbiddingScore);
+  analyses.sort((a: unknown, b: unknown) => b.overbiddingScore - a.overbiddingScore);
 
   // 计算平均效率评分
   const avgEfficiencyScore = analyses.length > 0 
@@ -1195,7 +1195,7 @@ export function generateEventTransitionPlan(
   }
   
   // 计算预估额外花费和销售
-  const estimatedAdditionalSpend = plan.reduce((sum: any, day: any) => {
+  const estimatedAdditionalSpend = plan.reduce((sum: unknown, day: unknown) => {
     return sum + (day.recommendedBudget - baseBudget);
   }, 0);
   
@@ -1228,7 +1228,7 @@ export function getUpcomingPromotionalEvents(
     }
   }
   
-  return events.sort((a: any, b: any) => a.daysUntil - b.daysUntil);
+  return events.sort((a: unknown, b: unknown) => a.daysUntil - b.daysUntil);
 }
 
 // ============================================================================
@@ -1320,7 +1320,7 @@ export async function runSpecialScenarioAnalysis(
   
   // 分析即将到来的大促
   if (upcomingEvents.length > 0) {
-    const nearestEvent = upcomingEvents[0] as any;
+    const nearestEvent = upcomingEvents[0] as unknown;
     if (nearestEvent.daysUntil <= 7) {
       criticalIssues.push(`${nearestEvent.event.name}即将在${nearestEvent.daysUntil}天后到来`);
       recommendations.push(`建议立即准备${nearestEvent.event.name}的预算和出价调整计划`);

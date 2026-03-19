@@ -50,7 +50,7 @@ export default function SellerOnboarding() {
   const [isSyncing, setIsSyncing] = useState(false);
 
   // 获取账号列表
-  const { data: accounts, refetch: refetchAccounts } = trpc.adAccount.list.useQuery() as any;
+  const { data: accounts, refetch: refetchAccounts } = trpc.adAccount.list.useQuery() as unknown;
 
   // 获取Amazon OAuth URL
   const getOAuthUrl = (clientId: string, redirectUri: string, region?: 'NA' | 'EU' | 'FE') => {
@@ -71,7 +71,7 @@ export default function SellerOnboarding() {
   const getCurrentStep = () => {
     if (!user) return 1;
     if (!accounts || accounts.length === 0) return 2;
-    const hasData = accounts.some((acc: any) => acc.lastSyncTime);
+    const hasData = accounts.some((acc: unknown) => acc.lastSyncTime);
     if (!hasData) return 3;
     return 4;
   };
@@ -127,7 +127,7 @@ export default function SellerOnboarding() {
               </div>
               <Progress value={progress} className="h-2" />
               <div className="flex justify-between mt-6">
-                {onboardingSteps.map((step: any) => {
+                {onboardingSteps.map((step: unknown) => {
                   const StepIcon = step.icon;
                   const isCompleted = step.id < currentStep;
                   const isCurrent = step.id === currentStep;
@@ -225,7 +225,7 @@ export default function SellerOnboarding() {
             <CardHeader><CardTitle className="text-lg">已绑定店铺</CardTitle></CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {accounts.map((account: any) => (
+                {accounts.map((account: unknown) => (
                   <div key={account.id} className="flex items-center justify-between p-3 rounded-lg border bg-card">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold"
@@ -249,7 +249,7 @@ export default function SellerOnboarding() {
 
         {/* 功能亮点 */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {features.map((feature: any, index: any) => {
+          {features.map((feature: unknown, index: unknown) => {
             const FeatureIcon = feature.icon;
             return (
               <Card key={index} className="bg-gradient-to-br from-muted/50 to-muted/30">

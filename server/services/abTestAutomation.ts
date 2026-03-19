@@ -32,9 +32,9 @@ export interface AutoExperimentPlan {
   /** 实验描述 */
   description: string;
   /** 控制组参数 */
-  controlParams: Record<string, any>;
+  controlParams: Record<string, unknown>;
   /** 实验组参数 */
-  treatmentParams: Record<string, any>;
+  treatmentParams: Record<string, unknown>;
   /** 目标指标 */
   targetMetric: 'roas' | 'acos' | 'conversions' | 'revenue' | 'profit';
   /** 最小样本量（天数） */
@@ -161,7 +161,7 @@ export class ABTestAutomationScheduler {
    */
   submitPlan(plan: AutoExperimentPlan): void {
     this.pendingPlans.push(plan);
-    this.pendingPlans.sort((a: any, b: any) => a.priority - b.priority);
+    this.pendingPlans.sort((a: unknown, b: unknown) => a.priority - b.priority);
     
     log.info(`[ABTestAutomation] 提交实验计划: ${plan.name}, 类型=${plan.experimentType}, 账户=${plan.accountId}`);
   }
@@ -238,7 +238,7 @@ export class ABTestAutomationScheduler {
   private async evaluateExperiment(planId: string, execution: ExperimentExecution): Promise<void> {
     try {
       const { analyzeABTestResults } = await import('../analytics/abTestService');
-      const analysis = await analyzeABTestResults(execution.testId) as any;
+      const analysis = await analyzeABTestResults(execution.testId) as unknown;
       
       if (!analysis) return;
       
@@ -334,9 +334,9 @@ export class ABTestAutomationScheduler {
         LIMIT 5
       `);
       
-      const accountRows = (accounts as any[][])?.[0] || [];
+      const accountRows = (accounts as unknown[][])?.[0] || [];
       
-      for (const row of accountRows as Record<string, any>[]) {
+      for (const row of accountRows as Record<string, unknown>[]) {
         const accountId = Number(row.account_id);
         
         // 检查该账户是否已有待处理的计划
@@ -428,11 +428,11 @@ export class ABTestAutomationScheduler {
           experimentType: plan.experimentType,
           controlConfig: {
             algorithmMode: 'single' as const,
-            customParams: plan.controlParams as Record<string, any>,
+            customParams: plan.controlParams as Record<string, unknown>,
           },
           treatmentConfig: {
             algorithmMode: 'cascade_ensemble' as const,
-            customParams: plan.treatmentParams as Record<string, any>,
+            customParams: plan.treatmentParams as Record<string, unknown>,
           },
           targetMetric: plan.targetMetric,
           durationDays: plan.maxDurationDays,
@@ -476,9 +476,9 @@ export class ABTestAutomationScheduler {
         SELECT id, accountId FROM ab_tests WHERE status = 'running'
       `);
       
-      const tests = (runningTests as any[][])?.[0] || [];
+      const tests = (runningTests as unknown[][])?.[0] || [];
       
-      for (const test of tests as Record<string, any>[]) {
+      for (const test of tests as Record<string, unknown>[]) {
         try {
           const { recordExperimentDailyMetrics } = await import('../analytics/abTestIntegration');
           await recordExperimentDailyMetrics(Number(test.accountId));

@@ -57,7 +57,7 @@ export async function ensureAmazonIdsReady(accountId: number): Promise<IdResolut
 
   log.info(`========== 开始Pre-Sync ID Resolution: accountId=${accountId} ==========`);
 
-  let directConn: any = null;
+  let directConn: unknown = null;
   try {
     // v350: 使用连接池获取直接连接，替代独立createConnection
     directConn = await db.getDirectConnection(60_000); // 60秒超时，ID解析可能较长
@@ -137,8 +137,8 @@ async function resolveKeywordIds(
   log.info(`Keywords: 发现${missingKws.length}个关键词缺少Amazon keywordId`);
 
   // 按adGroupId分组
-  const groupedByAdGroup = new Map<number, Record<string, any>[]>();
-  for (const kw of (missingKws as any[])) {
+  const groupedByAdGroup = new Map<number, Record<string, unknown>[]>();
+  for (const kw of (missingKws as unknown[])) {
     // v429: 修复字段名bug — SQL返回的是internal_ad_group_id而非adGroupId
     const group = groupedByAdGroup.get(kw.internal_ad_group_id) || [];
     group.push(kw);
@@ -187,8 +187,8 @@ async function resolveKeywordIds(
 
       // v224: 通过Amazon API查询该adGroup下的所有keywords - 根据campaign类型选择API
       const amazonKeywords = isAdGroupSb
-        ? await (syncService as any).client.listSbKeywords(String(amazonAdGroupId))
-        : await (syncService as any).client.listSpKeywords(amazonAdGroupId);
+        ? await (syncService as Record<string, unknown>).client.listSbKeywords(String(amazonAdGroupId))
+        : await (syncService as Record<string, unknown>).client.listSpKeywords(amazonAdGroupId);
       if (isAdGroupSb) {
         log.info(`[IdResolver] v224: SB广告组 adGroup=${adGroupLocalId}(Amazon:${amazonAdGroupId}): 使用SB API查找关键词, 找到${amazonKeywords.length}个`);
       }
@@ -198,16 +198,16 @@ async function resolveKeywordIds(
       const amazonKwMap = new Map<string, string>();
       for (const ak of amazonKeywords) {
         // @ts-expect-error - dynamic property access
-        const key = `${(ak as unknown).keywordText?.toLowerCase()}|${(ak as unknown).matchType?.toLowerCase()}`;
+        const key = `${(ak as Record<string, unknown>).keywordText?.toLowerCase()}|${(ak as Record<string, unknown>).matchType?.toLowerCase()}`;
         // @ts-expect-error - dynamic property access
-        amazonKwMap.set(key, String((ak as unknown).keywordId));
+        amazonKwMap.set(key, String((ak as Record<string, unknown>).keywordId));
       }
 
       // v194: 检查广告组是否已有product targets
       const hasProductTargets = await adGroupHasProductTargets(adGroupLocalId, conn);
       if (hasProductTargets) {
         log.info(`⚠️ adGroup=${adGroupLocalId}: 广告组已有product targets，清理${kwsInGroup.length}个无效keyword记录`);
-        for (const kw of (kwsInGroup as any[])) {
+        for (const kw of (kwsInGroup as unknown[])) {
           await conn.execute('DELETE FROM keywords WHERE id = ? AND keywordId IS NULL', [kw.id]);
           result.keywordsCleanedUp++;
         }
@@ -215,9 +215,9 @@ async function resolveKeywordIds(
       }
 
       // 需要创建的关键词列表
-      const toCreate: any[] = [];
+      const toCreate: unknown[] = [];
 
-      for (const kw of (kwsInGroup as any[])) {
+      for (const kw of (kwsInGroup as unknown[])) {
         // v194: ASIN格式的搜索词不应该作为keyword，清理
         if (isAsinSearchTerm(kw.keywordText || '')) {
           log.debug(`⚠️ 清理ASIN格式关键词 id=${kw.id} "${kw.keywordText}"`);
@@ -290,14 +290,14 @@ async function resolveKeywordIds(
           // v192: 自动广告活动不允许创建正面关键词
           log.info(`⚠️ adGroup=${adGroupLocalId} 属于auto-targeting广告活动，跳过${toCreate.length}个正面关键词创建（自动广告只能添加否定关键词）`);
           // 清理这些不应该存在的关键词记录
-          for (const kw of (toCreate as any[])) {
+          for (const kw of (toCreate as unknown[])) {
             await conn.execute('DELETE FROM keywords WHERE id = ? AND keywordId IS NULL', [kw.id]);
             result.keywordsCleanedUp++;
           }
         } else if (amazonCampaignId) {
           // v192: 批量校验关键词数据质量
-          const validatedBatch: any[] = [];
-          for (const kw of (toCreate as any[])) {
+          const validatedBatch: unknown[] = [];
+          for (const kw of (toCreate as unknown[])) {
             const validation = sanitizeAndValidateKeyword(kw.keywordText || '', 'positive');
             if (validation.isValid) {
               kw.keywordText = validation.sanitizedText; // 使用清洗后的文本
@@ -318,8 +318,8 @@ async function resolveKeywordIds(
           for (let i = 0; i < validatedBatch.length; i += batchSize) {
             const batch = validatedBatch.slice(i, i + batchSize);
             try {
-              const createResults = await (syncService as any).client.createSpKeywords(
-                batch.map((kw: Record<string, any>) => ({
+              const createResults = await (syncService as Record<string, unknown>).client.createSpKeywords(
+                batch.map((kw: Record<string, unknown>) => ({
                   campaignId: amazonCampaignId,
                   adGroupId: amazonAdGroupId,
                   keywordText: kw.keywordText,
@@ -375,9 +375,9 @@ async function resolveKeywordIds(
                     try {
                       // v224: 根据campaign类型选择正确的API
                       const amazonKeywords = isAdGroupSb
-                        ? await (syncService as any).client.listSbKeywords(String(amazonAdGroupId))
-                        : await (syncService as any).client.listSpKeywords(Number(amazonAdGroupId));
-                      const matchedKw = amazonKeywords.find((ak: Record<string, any>) => 
+                        ? await (syncService as Record<string, unknown>).client.listSbKeywords(String(amazonAdGroupId))
+                        : await (syncService as Record<string, unknown>).client.listSpKeywords(Number(amazonAdGroupId));
+                      const matchedKw = amazonKeywords.find((ak: Record<string, unknown>) => 
                         ak.keywordText?.toLowerCase() === original.keywordText?.toLowerCase() && 
                         ak.matchType?.toUpperCase() === (original.matchType || 'broad').toUpperCase()
                       );
@@ -402,7 +402,7 @@ async function resolveKeywordIds(
                   if (!resolved) {
                     result.keywordsFailed++;
                     // @ts-expect-error - dynamic property access
-                    const errDetail = (created as unknown).details || created.code || 'Unknown';
+                    const errDetail = (created as Record<string, unknown>).details || created.code || 'Unknown';
                     log.error(`❌ 创建keyword失败 id=${original.id} "${original.keywordText?.substring(0, 25)}": ${errDetail}`);
                   }
                 }
@@ -463,7 +463,7 @@ async function resolveProductTargetIds(
   log.info(`ProductTargets: 发现${missingPts.length}个product_targets缺少Amazon targetId`);
 
   // 按adGroupId分组
-  const ptGroupedByAdGroup = new Map<number, Record<string, any>[]>();
+  const ptGroupedByAdGroup = new Map<number, Record<string, unknown>[]>();
   for (const pt of missingPts) {
     const group = ptGroupedByAdGroup.get(pt.internal_ad_group_id) || [];
     group.push(pt);
@@ -492,7 +492,7 @@ async function resolveProductTargetIds(
       const amazonAdGroupId = Number(agRows[0].adGroupId);
 
       // 通过Amazon API查询该adGroup下的所有product targets
-      const amazonTargets = await (syncService as any).client.listSpProductTargets(amazonAdGroupId);
+      const amazonTargets = await (syncService as Record<string, unknown>).client.listSpProductTargets(amazonAdGroupId);
       log.debug(`adGroup=${adGroupLocalId}(Amazon:${amazonAdGroupId}): Amazon返回${amazonTargets.length}个targets, 本地缺失${ptsInGroup.length}个`);
 
       // 构建匹配索引
@@ -597,7 +597,7 @@ export async function resolveKeywordIdOnDemand(
     );
 
     if (kwRows.length === 0) return null;
-    const kw = kwRows[0] as any;
+    const kw = kwRows[0] as unknown;
     if (!kw.amazonAdGroupId) return null;
 
     // v194: ASIN格式的关键词不应该存在于keywords表
@@ -634,8 +634,8 @@ export async function resolveKeywordIdOnDemand(
 
     const amazonAdGroupId = Number(kw.amazonAdGroupId);
     const amazonKeywords = isSbCampaign
-      ? await (syncService as any).client.listSbKeywords(String(amazonAdGroupId))
-      : await (syncService as any).client.listSpKeywords(amazonAdGroupId);
+      ? await (syncService as Record<string, unknown>).client.listSbKeywords(String(amazonAdGroupId))
+      : await (syncService as Record<string, unknown>).client.listSpKeywords(amazonAdGroupId);
     
     if (isSbCampaign) {
       log.info(`[IdResolver] v224: SB关键词ID解析 - 使用SB API, adGroupId=${amazonAdGroupId}, 找到${amazonKeywords.length}个关键词`);
@@ -645,10 +645,10 @@ export async function resolveKeywordIdOnDemand(
     const key = `${kw.keywordText?.toLowerCase()}|${kw.matchType?.toLowerCase()}`;
     for (const ak of amazonKeywords) {
       // @ts-expect-error - dynamic property access
-      const akKey = `${(ak as unknown).keywordText?.toLowerCase()}|${(ak as unknown).matchType?.toLowerCase()}`;
+      const akKey = `${(ak as Record<string, unknown>).keywordText?.toLowerCase()}|${(ak as Record<string, unknown>).matchType?.toLowerCase()}`;
       if (akKey === key) {
         // @ts-expect-error - dynamic property access
-        const amazonKeywordId = String((ak as unknown).keywordId);
+        const amazonKeywordId = String((ak as Record<string, unknown>).keywordId);
         try {
           await conn.execute(
             'UPDATE keywords SET keywordId = ? WHERE id = ? AND keywordId IS NULL',
@@ -697,7 +697,7 @@ export async function resolveKeywordIdOnDemand(
       }
       
       try {
-        const createResults = await (syncService as any).client.createSpKeywords([{
+        const createResults = await (syncService as Record<string, unknown>).client.createSpKeywords([{
           campaignId: amazonCampaignId,
           adGroupId: amazonAdGroupId,
           keywordText: kwValidation.sanitizedText,
@@ -761,14 +761,14 @@ export async function resolveProductTargetIdOnDemand(
     );
 
     if (ptRows.length === 0) return null;
-    const pt = ptRows[0] as any;
+    const pt = ptRows[0] as unknown;
     if (!pt.amazonAdGroupId) return null;
 
     const syncService = await getAmazonSyncService(accountId);
     if (!syncService) return null;
 
     const amazonAdGroupId = Number(pt.amazonAdGroupId);
-    const amazonTargets = await (syncService as any).client.listSpProductTargets(amazonAdGroupId);
+    const amazonTargets = await (syncService as Record<string, unknown>).client.listSpProductTargets(amazonAdGroupId);
 
     for (const at of amazonTargets) {
       const atAny = at as unknown;

@@ -52,15 +52,15 @@ function aggregateTrackingStats(records: Array<{ estimatedProfitIncrease: number
     return { totalEstimated: 0, totalActual: 0, recordCount: 0, averageAccuracy: 0 };
   }
   
-  const totalEstimated = records.reduce((sum: any, r: any) => sum + (r.estimatedProfitIncrease || 0), 0);
-  const totalActual = records.reduce((sum: any, r: any) => sum + (r.actual7DayProfit || 0), 0);
+  const totalEstimated = records.reduce((sum: number, r: Record<string, unknown>) => sum + (r.estimatedProfitIncrease || 0), 0);
+  const totalActual = records.reduce((sum: number, r: Record<string, unknown>) => sum + (r.actual7DayProfit || 0), 0);
   
   const accuracies = records
     .filter(r => r.actual7DayProfit !== null)
     .map(r => calculateProfitAccuracy(r.estimatedProfitIncrease, r.actual7DayProfit!));
   
   const averageAccuracy = accuracies.length > 0 
-    ? accuracies.reduce((sum: any, a: any) => sum + a, 0) / accuracies.length 
+    ? accuracies.reduce((sum: number, a: Record<string, unknown>) => sum + a, 0) / accuracies.length 
     : 0;
   
   return { totalEstimated, totalActual, recordCount: records.length, averageAccuracy };

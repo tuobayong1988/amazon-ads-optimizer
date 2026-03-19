@@ -77,8 +77,8 @@ export interface TrainingData {
  */
 function calculateVariance(values: number[]): number {
   if (values.length === 0) return 0;
-  const mean = values.reduce((a: any, b: any) => a + b, 0) / values.length;
-  return values.reduce((sum: any, v: any) => sum + Math.pow(v - mean, 2), 0) / values.length;
+  const mean = values.reduce((a: unknown, b: unknown) => a + b, 0) / values.length;
+  return values.reduce((sum: number, v: Record<string, unknown>) => sum + Math.pow(v - mean, 2), 0) / values.length;
 }
 
 /**
@@ -86,7 +86,7 @@ function calculateVariance(values: number[]): number {
  */
 function calculateMean(values: number[]): number {
   if (values.length === 0) return 0;
-  return values.reduce((a: any, b: any) => a + b, 0) / values.length;
+  return values.reduce((a: unknown, b: unknown) => a + b, 0) / values.length;
 }
 
 /**
@@ -126,7 +126,7 @@ function findBestNumericSplit(
   const values = data
     .map(d => ({ value: d.features[feature] as number, target: d[target] }))
     .filter(v => typeof v.value === 'number')
-    .sort((a: any, b: any) => a.value - b.value);
+    .sort((a: unknown, b: unknown) => a.value - b.value);
   
   if (values.length < 2) return null;
   
@@ -161,7 +161,7 @@ function findBestCategoricalSplit(
 ): { values: string[]; gain: number } | null {
   const categories = new Map<string, number[]>();
   
-  for (const d of (data as any[])) {
+  for (const d of (data as unknown[])) {
     const value = String(d.features[feature]);
     if (!categories.has(value)) {
       categories.set(value, []);
@@ -443,7 +443,7 @@ export async function trainDecisionTreeModel(
   const importance = new Map<string, number>();
   calculateFeatureImportance(tree, importance, trainingData.length);
   const featureImportance: Record<string, number> = {};
-  importance.forEach((value: any, key: any) => {
+  importance.forEach((value: unknown, key: unknown) => {
     featureImportance[key] = Math.round(value * 1000) / 1000;
   });
   
@@ -451,7 +451,7 @@ export async function trainDecisionTreeModel(
   const predictions = trainingData.map(d => predictWithTree(tree, d.features).prediction);
   const actuals = trainingData.map(d => d[target]);
   const meanActual = calculateMean(actuals);
-  const ssTotal = actuals.reduce((sum: any, a: any) => sum + Math.pow(a - meanActual, 2), 0);
+  const ssTotal = actuals.reduce((sum: number, a: Record<string, unknown>) => sum + Math.pow(a - meanActual, 2), 0);
   const ssResidual = actuals.reduce((sum, a, i) => sum + Math.pow(a - predictions[i], 2), 0);
   const trainingR2 = 1 - ssResidual / ssTotal;
   
@@ -625,7 +625,7 @@ export async function batchPredictAndSaveKeywords(accountId: number): Promise<{
     .where(eq(keywords.keywordStatus, 'enabled'))
     .limit(5000);
   
-  for (const kw of (allKeywords as any[])) {
+  for (const kw of (allKeywords as unknown[])) {
     try {
       const wordCount = kw.keywordText.split(' ').length;
       
@@ -751,9 +751,9 @@ export async function getKeywordPredictionSummary(accountId: number): Promise<{
   }
   
   const totalPredictions = predictions.length;
-  const avgConfidence = predictions.reduce((sum: any, p: any) => sum + Number(p.confidence), 0) / totalPredictions;
-  const avgPredictedCR = predictions.reduce((sum: any, p: any) => sum + Number(p.predictedCr), 0) / totalPredictions;
-  const avgPredictedCV = predictions.reduce((sum: any, p: any) => sum + Number(p.predictedCv), 0) / totalPredictions;
+  const avgConfidence = predictions.reduce((sum: number, p: Record<string, unknown>) => sum + Number(p.confidence), 0) / totalPredictions;
+  const avgPredictedCR = predictions.reduce((sum: number, p: Record<string, unknown>) => sum + Number(p.predictedCr), 0) / totalPredictions;
+  const avgPredictedCV = predictions.reduce((sum: number, p: Record<string, unknown>) => sum + Number(p.predictedCv), 0) / totalPredictions;
   
   // 计算预测准确率
   const validPredictions = predictions.filter(p => Number(p.actualCr) > 0);
@@ -762,7 +762,7 @@ export async function getKeywordPredictionSummary(accountId: number): Promise<{
     const errors = validPredictions.map(p => 
       Math.abs(Number(p.predictedCr) - Number(p.actualCr)) / Math.max(Number(p.actualCr), 0.001)
     );
-    predictionAccuracy = 1 - (errors.reduce((a: any, b: any) => a + b, 0) / errors.length);
+    predictionAccuracy = 1 - (errors.reduce((a: unknown, b: unknown) => a + b, 0) / errors.length);
   }
   
   // 按匹配类型分组

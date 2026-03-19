@@ -62,7 +62,7 @@ export async function syncSbProductTargets(service: SyncContext,): Promise<{ syn
       let targetMatchType: 'exact' | 'expanded' | 'category_exact' | 'brand_exact' | 'substitute' | 'accessory' | 'loose' | 'close' = 'exact';
       let categoryName: string | null = null;
       let categoryRefinements: string | null = null;
-      const refinements: Record<string, any> = {};
+      const refinements: Record<string, unknown> = {};
 
       const exprArray = apiTarget.expression || apiTarget.expressions || [];
       if (Array.isArray(exprArray) && exprArray.length > 0) {
@@ -205,7 +205,7 @@ export async function syncSdProductTargets(service: SyncContext,): Promise<{ syn
       let targetMatchType: 'exact' | 'expanded' | 'category_exact' | 'brand_exact' | 'substitute' | 'accessory' | 'loose' | 'close' = 'exact';
       let categoryName: string | null = null;
       let categoryRefinements: string | null = null;
-      const refinements: Record<string, any> = {};
+      const refinements: Record<string, unknown> = {};
 
       const exprArray = apiTarget.expression || [];
       if (Array.isArray(exprArray) && exprArray.length > 0) {
@@ -349,7 +349,7 @@ export async function syncSpNegativeProductTargets(service: SyncContext,): Promi
       const negState = (neg.state || 'enabled').toLowerCase();
       if (negState === 'archived') continue;
       const expression = neg.expression || [];
-      const asinExpr = expression.find((e: Record<string, any>) => e.type?.toLowerCase().includes('asin'));
+      const asinExpr = expression.find((e: Record<string, unknown>) => e.type?.toLowerCase().includes('asin'));
       const negativeText = asinExpr?.value || JSON.stringify(expression);
       const amazonTargetId = String(neg.targetId || '');
       const [existing] = await db
@@ -405,7 +405,7 @@ export async function syncSpNegativeProductTargets(service: SyncContext,): Promi
         .limit(1);
       if (!campaign) continue;
       const expression = neg.expression || [];
-      const asinExpr = expression.find((e: Record<string, any>) => e.type?.toLowerCase().includes('asin'));
+      const asinExpr = expression.find((e: Record<string, unknown>) => e.type?.toLowerCase().includes('asin'));
       const negativeText = asinExpr?.value || JSON.stringify(expression);
       const amazonTargetId = String(neg.targetId || '');
       const [existing] = await db
@@ -507,7 +507,7 @@ export async function syncSpProductTargets(service: SyncContext,lastSyncTime?: s
       let categoryRefinements: string | null = null;
       
       // 收集品类细化条件
-      const refinements: Record<string, any> = {};
+      const refinements: Record<string, unknown> = {};
       
       for (const expr of (apiTarget.expression || [])) {
         const et = (expr.type || '').toLowerCase();
@@ -562,8 +562,8 @@ export async function syncSpProductTargets(service: SyncContext,lastSyncTime?: s
       }
       
       // 如果没有从expression中提取到值，尝试从resolvedExpression获取
-      if (!targetValue && (apiTarget as Record<string, any>).resolvedExpression) {
-        const resolved = (apiTarget as Record<string, any>).resolvedExpression;
+      if (!targetValue && (apiTarget as Record<string, unknown>).resolvedExpression) {
+        const resolved = (apiTarget as Record<string, unknown>).resolvedExpression;
         if (Array.isArray(resolved)) {
           for (const re of resolved) {
             const ret = (re.type || '').toLowerCase();
@@ -635,7 +635,7 @@ export async function syncSpProductTargets(service: SyncContext,lastSyncTime?: s
           const hasRecentOpt = protectedTargetIds.has(existing.id);
           if (hasRecentOpt) {
             log.debug(`v150: 出价保护生效 - target=${existing.targetValue}, local=$${localBid}, api=$${apiBid}, 保留本地优化出价`);
-            delete (targetData as Record<string, any>[]).bid;
+            delete (targetData as Record<string, unknown>[]).bid;
             protectionStats.bidProtected++;
             protectionStats.protectedEntities.push(`tgt:${existing.targetValue}`);
           } else {

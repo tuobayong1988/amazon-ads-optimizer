@@ -30,9 +30,9 @@ async function getLastSyncTimeForAccount(accountId: number): Promise<Date | null
   try {
     const account = await db.getAdAccountById(accountId);
     // @ts-expect-error - dynamic property access
-    if (account && (account as unknown).lastSyncAt) {
+    if (account && (account as Record<string, unknown>).lastSyncAt) {
       // @ts-expect-error - dynamic property access
-      return new Date((account as unknown).lastSyncAt);
+      return new Date((account as Record<string, unknown>).lastSyncAt);
     }
     // 备用：从同步日志表查询
     const { getEngineStatus } = await import('../sync/unifiedSyncEngine');
@@ -40,7 +40,7 @@ async function getLastSyncTimeForAccount(accountId: number): Promise<Date | null
     // @ts-expect-error - string type assertion
     if ((status as string).lastSyncResults) {
       // @ts-expect-error - string type assertion
-      const accountResult = ((status as string).lastSyncResults as any[])?.find((r: Record<string, any>) => r.accountId === accountId);
+      const accountResult = ((status as string).lastSyncResults as unknown[])?.find((r: Record<string, unknown>) => r.accountId === accountId);
       if (accountResult?.completedAt) {
         return new Date(accountResult.completedAt);
       }
@@ -63,46 +63,46 @@ export interface OptimizationExecutionResult {
   bidOptimization: {
     executed: boolean;
     adjustmentsCount: number;
-    details: Record<string, any>[];
+    details: Record<string, unknown>[];
   };
   
   placementOptimization: {
     executed: boolean;
     adjustmentsCount: number;
-    details: Record<string, any>[];
+    details: Record<string, unknown>[];
   };
   
   daypartingOptimization: {
     executed: boolean;
     adjustmentsCount: number;
-    details: Record<string, any>[];
+    details: Record<string, unknown>[];
   };
   
   // v179: 分时预算优化
   daypartingBudgetOptimization: {
     executed: boolean;
     adjustmentsCount: number;
-    details: Record<string, any>[];
+    details: Record<string, unknown>[];
   };
   
   searchTermAnalysis: {
     executed: boolean;
     negativeKeywordsAdded: number;
     newKeywordsAdded: number;
-    details: Record<string, any>[];
+    details: Record<string, unknown>[];
   };
   
   budgetAllocation: {
     executed: boolean;
     adjustmentsCount: number;
-    details: Record<string, any>[];
+    details: Record<string, unknown>[];
   };
   
   keywordStatusChanges: {
     executed: boolean;
     pausedCount: number;
     enabledCount: number;
-    details: Record<string, any>[];
+    details: Record<string, unknown>[];
   };
   
   // v135: 广告活动状态变更
@@ -110,7 +110,7 @@ export interface OptimizationExecutionResult {
     executed: boolean;
     pausedCount: number;
     enabledCount: number;
-    details: Record<string, any>[];
+    details: Record<string, unknown>[];
   };
   
   // v135: 广告组状态变更
@@ -118,7 +118,7 @@ export interface OptimizationExecutionResult {
     executed: boolean;
     pausedCount: number;
     enabledCount: number;
-    details: Record<string, any>[];
+    details: Record<string, unknown>[];
   };
   
   // 多维度智能优化结果
@@ -126,7 +126,7 @@ export interface OptimizationExecutionResult {
     executed: boolean;
     campaignsAnalyzed: number;
     rulesGenerated: number;
-    details: Record<string, any>[];
+    details: Record<string, unknown>[];
   };
   
   // 中央竞价协调器执行结果
@@ -134,7 +134,7 @@ export interface OptimizationExecutionResult {
     executed: boolean;
     campaignsCoordinated: number;
     circuitBreakerTriggered: number;
-    details: Record<string, any>[];
+    details: Record<string, unknown>[];
   };
   
   errors: string[];

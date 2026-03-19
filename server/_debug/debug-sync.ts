@@ -18,7 +18,7 @@ export const debugSyncRouter = router({
     .input(z.object({
       accountId: z.number(),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ input }: unknown) => {
       try {
         // 获取API凭证
         const credentials = await db.getAmazonApiCredentials(input.accountId);
@@ -46,7 +46,7 @@ export const debugSyncRouter = router({
 
         // 调用API
         // @ts-expect-error - dynamic property access
-        const apiResponse = await (syncService as unknown).client.listSpCampaigns();
+        const apiResponse = await (syncService as Record<string, unknown>).client.listSpCampaigns();
 
         return {
           success: true,
@@ -78,7 +78,7 @@ export const debugSyncRouter = router({
     .input(z.object({
       accountId: z.number(),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ input }: unknown) => {
       try {
         const campaigns = await db.getCampaignsByAccountId(input.accountId);
         
@@ -108,11 +108,11 @@ export const debugSyncRouter = router({
       accountId: z.number(),
       limit: z.number().default(10),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ input }: unknown) => {
       try {
         // 直接查询sync_tasks表
         // @ts-expect-error - dynamic property access
-        const tasks = await (db as unknown).query(
+        const tasks = await (db as Record<string, unknown>).query(
           `SELECT * FROM sync_tasks 
            WHERE account_id = ? 
            ORDER BY created_at DESC 
@@ -145,7 +145,7 @@ export const debugSyncRouter = router({
     .input(z.object({
       accountId: z.number(),
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ input }: unknown) => {
       try {
         const credentials = await db.getAmazonApiCredentials(input.accountId);
         if (!credentials) {
@@ -170,7 +170,7 @@ export const debugSyncRouter = router({
 
         // 异步执行全量同步，立即返回
         const startTime = new Date().toISOString();
-        syncService.syncAll({ syncMode: 'recovery' }).then((result: Record<string, any>) => {
+        syncService.syncAll({ syncMode: 'recovery' }).then((result: Record<string, unknown>) => {
           log.info(`[FullSync] Account ${input.accountId} (${account?.storeName} ${marketplace}) completed:`, 
             JSON.stringify(result).substring(0, 500));
         }).catch((err: Error) => {
@@ -198,14 +198,14 @@ export const debugSyncRouter = router({
     .mutation(async () => {
       try {
         const accounts = await db.getAdAccounts();
-        const activeAccounts = accounts.filter((a: Record<string, any>) => 
+        const activeAccounts = accounts.filter((a: Record<string, unknown>) => 
           a.marketplace && a.marketplace !== '' && a.connectionStatus === 'connected'
         );
 
-        const results: any[] = [];
+        const results: unknown[] = [];
         const startTime = new Date().toISOString();
 
-        for (const account of (activeAccounts as any[])) {
+        for (const account of (activeAccounts as unknown[])) {
           try {
             const credentials = await db.getAmazonApiCredentials(account.id);
             if (!credentials) {
@@ -227,7 +227,7 @@ export const debugSyncRouter = router({
             );
 
             // 异步执行，不等待完成
-            syncService.syncAll({ syncMode: 'recovery' }).then((result: Record<string, any>) => {
+            syncService.syncAll({ syncMode: 'recovery' }).then((result: Record<string, unknown>) => {
               log.info(`[FullSyncAll] Account ${account.id} (${account.storeName} ${account.marketplace}) completed`);
             }).catch((err: Error) => {
               log.error(`[FullSyncAll] Account ${account.id} (${account.storeName} ${account.marketplace}) failed:`, (err as Error).message);

@@ -337,7 +337,7 @@ export default function PerformanceGroupDetail() {
     }
     
     // 添加预测数据点
-    const predictionData = trendPrediction.spend.prediction.map((pred: any, i: any) => ({
+    const predictionData = trendPrediction.spend.prediction.map((pred: unknown, i: unknown) => ({
       date: pred.date,
       spend: pred.predicted,
       sales: trendPrediction.sales.prediction[i]?.predicted || 0,
@@ -400,7 +400,7 @@ export default function PerformanceGroupDetail() {
   const filteredAvailableCampaigns = useMemo(() => {
     if (!availableCampaigns) return [];
     
-    return availableCampaigns.filter((c: any) => {
+    return availableCampaigns.filter((c: unknown) => {
       // 搜索关键词筛选(支持模糊搜索)
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
@@ -475,7 +475,7 @@ export default function PerformanceGroupDetail() {
   }, [availableCampaigns, searchQuery, filterCampaignType, filterBiddingStrategy, filterState, filterMinSpend, filterMaxSpend, filterMinAcos, filterMaxAcos, filterMinOrders, filterMaxOrders, filterMinRoas, filterMaxRoas, filterMinClicks, filterMaxClicks, filterMinCpc, filterMaxCpc, filterMinImpressions, filterMaxImpressions, filterMinBudget, filterMaxBudget]);
 
   // 计算广告活动的排序值
-  const getCampaignSortValue = (campaign: any, field: DialogSortField): number | string => {
+  const getCampaignSortValue = (campaign: unknown, field: DialogSortField): number | string => {
     const spend = Number(campaign.spend || 0);
     const sales = Number(campaign.sales || 0);
     const clicks = Number(campaign.clicks || 0);
@@ -502,7 +502,7 @@ export default function PerformanceGroupDetail() {
   // 对话框排序后的广告活动列表
   const sortedFilteredAvailableCampaigns = useMemo(() => {
     if (!dialogSortField) return filteredAvailableCampaigns;
-    return [...filteredAvailableCampaigns].sort((a: any, b: any) => {
+    return [...filteredAvailableCampaigns].sort((a: unknown, b: unknown) => {
       const aVal = getCampaignSortValue(a, dialogSortField);
       const bVal = getCampaignSortValue(b, dialogSortField);
       if (typeof aVal === 'string' && typeof bVal === 'string') {
@@ -515,7 +515,7 @@ export default function PerformanceGroupDetail() {
   // 广告活动管理表格排序后的数据
   const sortedGroupCampaigns = useMemo(() => {
     if (!groupCampaigns || !campaignSortField) return groupCampaigns || [];
-    return [...groupCampaigns].sort((a: any, b: any) => {
+    return [...groupCampaigns].sort((a: unknown, b: unknown) => {
       const aVal = getCampaignSortValue(a, campaignSortField);
       const bVal = getCampaignSortValue(b, campaignSortField);
       if (typeof aVal === 'string' && typeof bVal === 'string') {
@@ -528,7 +528,7 @@ export default function PerformanceGroupDetail() {
   // v154: 广告活动管理表格筛选逻辑
   const filteredGroupCampaigns = useMemo(() => {
     if (!sortedGroupCampaigns) return [];
-    return sortedGroupCampaigns.filter((c: any) => {
+    return sortedGroupCampaigns.filter((c: unknown) => {
       // 名称搜索
       if (mgSearchQuery && !c.campaignName?.toLowerCase().includes(mgSearchQuery.toLowerCase())) return false;
       // 状态筛选
@@ -631,7 +631,7 @@ export default function PerformanceGroupDetail() {
 
   // 修复选中计数：只统计当前筛选结果中的选中项
   const visibleSelectedCount = useMemo(() => {
-    const filteredIds = new Set(filteredAvailableCampaigns.map((c: any) => c.id));
+    const filteredIds = new Set(filteredAvailableCampaigns.map((c: unknown) => c.id));
     return selectedCampaigns.filter(id => filteredIds.has(id)).length;
   }, [selectedCampaigns, filteredAvailableCampaigns]);
 
@@ -667,7 +667,7 @@ export default function PerformanceGroupDetail() {
   // v153: 全选/取消全选（v154: 基于筛选结果）
   const toggleSelectAllManageCampaigns = () => {
     if (!groupCampaigns) return;
-    const allIds = filteredGroupCampaigns.map((c: any) => c.id);
+    const allIds = filteredGroupCampaigns.map((c: unknown) => c.id);
     if (selectedManageCampaigns.length === allIds.length) {
       setSelectedManageCampaigns([]);
     } else {
@@ -733,8 +733,8 @@ export default function PerformanceGroupDetail() {
         targetValue: group.targetAcos?.toString() || group.targetRoas?.toString() || '',
         dailyBudget: group.dailyBudget?.toString() || '',
         maxBid: group.maxBid?.toString() || '',
-        strategyTemplateName: (group as any).strategyTemplateId || (group as any).strategyTemplateName || '',
-        autoOptimize: (group as any).autoOptimize !== 0 && (group as any).autoOptimize !== false,
+        strategyTemplateName: (group as Record<string, unknown>).strategyTemplateId || (group as Record<string, unknown>).strategyTemplateName || '',
+        autoOptimize: (group as Record<string, unknown>).autoOptimize !== 0 && (group as Record<string, unknown>).autoOptimize !== false,
       });
     }
     setShowEditGoalDialog(true);
@@ -976,8 +976,8 @@ export default function PerformanceGroupDetail() {
                         const firstHalf = data.slice(0, mid);
                         const secondHalf = data.slice(mid);
                         const calcChange = (arr1: typeof data, arr2: typeof data, key: string) => {
-                          const avg1 = arr1.length > 0 ? arr1.reduce((s: any, d: any) => s + ((d as any)[key] || 0), 0) / arr1.length : 0;
-                          const avg2 = arr2.length > 0 ? arr2.reduce((s: any, d: any) => s + ((d as any)[key] || 0), 0) / arr2.length : 0;
+                          const avg1 = arr1.length > 0 ? arr1.reduce((s: unknown, d: unknown) => s + ((d as Record<string, unknown>)[key] || 0), 0) / arr1.length : 0;
+                          const avg2 = arr2.length > 0 ? arr2.reduce((s: unknown, d: unknown) => s + ((d as Record<string, unknown>)[key] || 0), 0) / arr2.length : 0;
                           return avg1 > 0 ? ((avg2 - avg1) / avg1) * 100 : 0;
                         };
                         const spendChange = data.length >= 4 ? calcChange(firstHalf, secondHalf, 'spend') : null;
@@ -1027,7 +1027,7 @@ export default function PerformanceGroupDetail() {
                     {/* 图表类型和时间范围选择器 */}
                     <div className="flex items-center gap-2 justify-between flex-wrap">
                       <div className="flex items-center gap-2">
-                        <Select value={chartType} onValueChange={(v: any) => setChartType(v)}>
+                        <Select value={chartType} onValueChange={(v: unknown) => setChartType(v)}>
                           <SelectTrigger className="w-32">
                             <SelectValue />
                           </SelectTrigger>
@@ -1313,20 +1313,20 @@ export default function PerformanceGroupDetail() {
                           <PieChart>
                             <Pie
                               data={[
-                                { name: '花费', value: performanceTrendData.reduce((sum: any, d: any) => sum + (d.spend || 0), 0), fill: '#8b5cf6' },
-                                { name: '销售额', value: performanceTrendData.reduce((sum: any, d: any) => sum + (d.sales || 0), 0), fill: '#10b981' },
+                                { name: '花费', value: performanceTrendData.reduce((sum: number, d: Record<string, unknown>) => sum + (d.spend || 0), 0), fill: '#8b5cf6' },
+                                { name: '销售额', value: performanceTrendData.reduce((sum: number, d: Record<string, unknown>) => sum + (d.sales || 0), 0), fill: '#10b981' },
                               ]}
                               cx="50%"
                               cy="50%"
                               labelLine={false}
-                              label={({ name, percent }: any) => `${name}: ${((percent || 0) * 100).toFixed(1)}%`}
+                              label={({ name, percent }: unknown) => `${name}: ${((percent || 0) * 100).toFixed(1)}%`}
                               outerRadius={80}
                               dataKey="value"
                             >
                               {[
-                                { name: '花费', value: performanceTrendData.reduce((sum: any, d: any) => sum + (d.spend || 0), 0), fill: '#8b5cf6' },
-                                { name: '销售额', value: performanceTrendData.reduce((sum: any, d: any) => sum + (d.sales || 0), 0), fill: '#10b981' },
-                              ].map((entry: any, index: any) => (
+                                { name: '花费', value: performanceTrendData.reduce((sum: number, d: Record<string, unknown>) => sum + (d.spend || 0), 0), fill: '#8b5cf6' },
+                                { name: '销售额', value: performanceTrendData.reduce((sum: number, d: Record<string, unknown>) => sum + (d.sales || 0), 0), fill: '#10b981' },
+                              ].map((entry: unknown, index: unknown) => (
                                 <Cell key={`cell-${index}`} fill={entry.fill} />
                               ))}
                             </Pie>
@@ -1682,7 +1682,7 @@ export default function PerformanceGroupDetail() {
                         </tr>
                       </thead>
                       <tbody>
-                        {filteredGroupCampaigns.map((campaign: any) => {
+                        {filteredGroupCampaigns.map((campaign: unknown) => {
                           const spend = Number(campaign.spend || 0);
                           const sales = Number(campaign.sales || 0);
                           const clicks = Number(campaign.clicks || 0);
@@ -1742,16 +1742,16 @@ export default function PerformanceGroupDetail() {
                       <tfoot>
                         <tr className="border-t-2 bg-muted/30 font-medium">
                           <td className="p-3" colSpan={4}>筛选结果合计 ({filteredGroupCampaigns.length} 个广告活动)</td>
-                          <td className="p-3 text-right tabular-nums">{filteredGroupCampaigns.reduce((s: number, c: any) => s + Number(c.impressions || 0), 0).toLocaleString()}</td>
-                          <td className="p-3 text-right tabular-nums">{filteredGroupCampaigns.reduce((s: number, c: any) => s + Number(c.clicks || 0), 0).toLocaleString()}</td>
-                          <td className="p-3 text-right tabular-nums">${filteredGroupCampaigns.reduce((s: number, c: any) => s + Number(c.spend || 0), 0).toFixed(2)}</td>
-                          <td className="p-3 text-right tabular-nums">${filteredGroupCampaigns.reduce((s: number, c: any) => s + Number(c.sales || 0), 0).toFixed(2)}</td>
-                          <td className="p-3 text-right tabular-nums">{filteredGroupCampaigns.reduce((s: number, c: any) => s + Number(c.orders || 0), 0)}</td>
+                          <td className="p-3 text-right tabular-nums">{filteredGroupCampaigns.reduce((s: number, c: unknown) => s + Number(c.impressions || 0), 0).toLocaleString()}</td>
+                          <td className="p-3 text-right tabular-nums">{filteredGroupCampaigns.reduce((s: number, c: unknown) => s + Number(c.clicks || 0), 0).toLocaleString()}</td>
+                          <td className="p-3 text-right tabular-nums">${filteredGroupCampaigns.reduce((s: number, c: unknown) => s + Number(c.spend || 0), 0).toFixed(2)}</td>
+                          <td className="p-3 text-right tabular-nums">${filteredGroupCampaigns.reduce((s: number, c: unknown) => s + Number(c.sales || 0), 0).toFixed(2)}</td>
+                          <td className="p-3 text-right tabular-nums">{filteredGroupCampaigns.reduce((s: number, c: unknown) => s + Number(c.orders || 0), 0)}</td>
                           <td className="p-3 text-right tabular-nums">
-                            {(() => { const ts = filteredGroupCampaigns.reduce((s: number, c: any) => s + Number(c.spend || 0), 0); const tr = filteredGroupCampaigns.reduce((s: number, c: any) => s + Number(c.sales || 0), 0); return tr > 0 ? ((ts/tr)*100).toFixed(1) + '%' : '-'; })()}
+                            {(() => { const ts = filteredGroupCampaigns.reduce((s: number, c: unknown) => s + Number(c.spend || 0), 0); const tr = filteredGroupCampaigns.reduce((s: number, c: unknown) => s + Number(c.sales || 0), 0); return tr > 0 ? ((ts/tr)*100).toFixed(1) + '%' : '-'; })()}
                           </td>
                           <td className="p-3 text-right tabular-nums">
-                            {(() => { const ts = filteredGroupCampaigns.reduce((s: number, c: any) => s + Number(c.spend || 0), 0); const tr = filteredGroupCampaigns.reduce((s: number, c: any) => s + Number(c.sales || 0), 0); return ts > 0 ? (tr/ts).toFixed(2) + 'x' : '-'; })()}
+                            {(() => { const ts = filteredGroupCampaigns.reduce((s: number, c: unknown) => s + Number(c.spend || 0), 0); const tr = filteredGroupCampaigns.reduce((s: number, c: unknown) => s + Number(c.sales || 0), 0); return ts > 0 ? (tr/ts).toFixed(2) + 'x' : '-'; })()}
                           </td>
                           <td className="p-3" colSpan={4}></td>
                           <td className="p-3"></td>
@@ -1831,11 +1831,11 @@ export default function PerformanceGroupDetail() {
               
               // 计算历史平均指标
               const totalDays = data.length;
-              const totalSpend = data.reduce((s: any, d: any) => s + (Number(d.spend) || 0), 0);
-              const totalSales = data.reduce((s: any, d: any) => s + (Number(d.sales) || 0), 0);
-              const totalClicks = data.reduce((s: any, d: any) => s + (Number(d.clicks) || 0), 0);
-              const totalImpressions = data.reduce((s: any, d: any) => s + (Number(d.impressions) || 0), 0);
-              const totalOrders = data.reduce((s: any, d: any) => s + (Number(d.orders) || 0), 0);
+              const totalSpend = data.reduce((s: unknown, d: unknown) => s + (Number(d.spend) || 0), 0);
+              const totalSales = data.reduce((s: unknown, d: unknown) => s + (Number(d.sales) || 0), 0);
+              const totalClicks = data.reduce((s: unknown, d: unknown) => s + (Number(d.clicks) || 0), 0);
+              const totalImpressions = data.reduce((s: unknown, d: unknown) => s + (Number(d.impressions) || 0), 0);
+              const totalOrders = data.reduce((s: unknown, d: unknown) => s + (Number(d.orders) || 0), 0);
               
               const avgDailySpend = totalSpend / totalDays;
               const avgCPC = totalClicks > 0 ? totalSpend / totalClicks : 0;
@@ -1848,11 +1848,11 @@ export default function PerformanceGroupDetail() {
               // 近期数据权重更高（时间衰减）
               const recentDays = Math.min(14, data.length);
               const recentData = data.slice(-recentDays);
-              const recentSpend = recentData.reduce((s: any, d: any) => s + (Number(d.spend) || 0), 0);
-              const recentSales = recentData.reduce((s: any, d: any) => s + (Number(d.sales) || 0), 0);
-              const recentClicks = recentData.reduce((s: any, d: any) => s + (Number(d.clicks) || 0), 0);
-              const recentOrders = recentData.reduce((s: any, d: any) => s + (Number(d.orders) || 0), 0);
-              const recentImpressions = recentData.reduce((s: any, d: any) => s + (Number(d.impressions) || 0), 0);
+              const recentSpend = recentData.reduce((s: unknown, d: unknown) => s + (Number(d.spend) || 0), 0);
+              const recentSales = recentData.reduce((s: unknown, d: unknown) => s + (Number(d.sales) || 0), 0);
+              const recentClicks = recentData.reduce((s: unknown, d: unknown) => s + (Number(d.clicks) || 0), 0);
+              const recentOrders = recentData.reduce((s: unknown, d: unknown) => s + (Number(d.orders) || 0), 0);
+              const recentImpressions = recentData.reduce((s: unknown, d: unknown) => s + (Number(d.impressions) || 0), 0);
               
               const recentAvgDailySpend = recentSpend / recentDays;
               const recentCPC = recentClicks > 0 ? recentSpend / recentClicks : avgCPC;
@@ -1969,7 +1969,7 @@ export default function PerformanceGroupDetail() {
                                   if (name === '预测ACoS') return [`${value.toFixed(1)}%`, name];
                                   if (name === '预测ROAS') return [`${value.toFixed(2)}x`, name];
                                   return [value, name];
-                                }) as any}
+                                }) as unknown}
                               />
                               <Legend />
                               <Bar yAxisId="left" dataKey="sales" name="预测销售额" fill="#10b981" opacity={0.8} />
@@ -1997,7 +1997,7 @@ export default function PerformanceGroupDetail() {
                               </tr>
                             </thead>
                             <tbody>
-                              {scenarios.map((s: any, i: any) => (
+                              {scenarios.map((s: unknown, i: unknown) => (
                                 <tr key={i} className={`border-b border-muted/50 ${s.multiplier === 1.0 ? 'bg-primary/10 font-medium' : 'hover:bg-muted/20'}`}>
                                   <td className="py-2 px-3">
                                     {s.label}
@@ -2233,11 +2233,11 @@ export default function PerformanceGroupDetail() {
                     <tr className="border-b bg-muted/50">
                       <th className="p-2 w-8 sticky left-0 bg-muted/50 z-20">
                         <Checkbox
-                          checked={filteredAvailableCampaigns.length > 0 && filteredAvailableCampaigns.every((c: any) => selectedCampaigns.includes(c.id))}
+                          checked={filteredAvailableCampaigns.length > 0 && filteredAvailableCampaigns.every((c: unknown) => selectedCampaigns.includes(c.id))}
                           onCheckedChange={(checked) => {
                             if (checked) {
                               // 全选：只选择当前筛选可见的广告活动
-                              const allFilteredIds = filteredAvailableCampaigns.map((c: any) => c.id);
+                              const allFilteredIds = filteredAvailableCampaigns.map((c: unknown) => c.id);
                               setSelectedCampaigns(allFilteredIds);
                             } else {
                               // 取消全选：清空所有选中
@@ -2289,7 +2289,7 @@ export default function PerformanceGroupDetail() {
                     </tr>
                   </thead>
                   <tbody>
-                    {sortedFilteredAvailableCampaigns.map((campaign: any) => {
+                    {sortedFilteredAvailableCampaigns.map((campaign: unknown) => {
                         const spend = Number(campaign.spend || 0);
                         const sales = Number(campaign.sales || 0);
                         const clicks = Number(campaign.clicks || 0);

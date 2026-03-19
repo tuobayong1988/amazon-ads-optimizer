@@ -26,26 +26,26 @@ const { mockGetDb } = vi.hoisted(() => {
  * 
  * @param thenData - .then() 回调收到的数据（模拟查询结果）
  */
-function createDbProxy(thenData: any[] = []): any {
-  const handler: ProxyHandler<any> = {
+function createDbProxy(thenData: unknown[] = []): unknown {
+  const handler: ProxyHandler<unknown> = {
     get(_target, prop) {
       if (prop === 'then') return undefined; // db 本身不是 thenable
       if (prop === Symbol.toPrimitive || prop === Symbol.toStringTag || prop === 'constructor') return undefined;
       // 所有方法返回一个有 .then 的链式 proxy
-      return (..._args: any[]) => createChainProxy(thenData);
+      return (..._args: unknown[]) => createChainProxy(thenData);
     }
   };
   return new Proxy({}, handler);
 }
 
-function createChainProxy(thenData: any[]): any {
-  const handler: ProxyHandler<any> = {
+function createChainProxy(thenData: unknown[]): unknown {
+  const handler: ProxyHandler<unknown> = {
     get(_target, prop) {
       if (prop === 'then') {
-        return (resolve: any, reject?: any) => Promise.resolve(thenData).then(resolve, reject);
+        return (resolve: unknown, reject?: unknown) => Promise.resolve(thenData).then(resolve, reject);
       }
       if (prop === Symbol.toPrimitive || prop === Symbol.toStringTag || prop === 'constructor') return undefined;
-      return (..._args: any[]) => new Proxy({}, handler); // 继续链式
+      return (..._args: unknown[]) => new Proxy({}, handler); // 继续链式
     }
   };
   return new Proxy({}, handler);
@@ -72,12 +72,12 @@ vi.mock('../../drizzle/schema', () => ({
 }));
 
 vi.mock('drizzle-orm', () => ({
-  eq: vi.fn((...args: any[]) => ({ type: 'eq', args })),
-  and: vi.fn((...args: any[]) => ({ type: 'and', args })),
+  eq: vi.fn((...args: unknown[]) => ({ type: 'eq', args })),
+  and: vi.fn((...args: unknown[]) => ({ type: 'and', args })),
   sql: vi.fn(),
-  gte: vi.fn((...args: any[]) => ({ type: 'gte', args })),
-  lte: vi.fn((...args: any[]) => ({ type: 'lte', args })),
-  inArray: vi.fn((...args: any[]) => ({ type: 'inArray', args })),
+  gte: vi.fn((...args: unknown[]) => ({ type: 'gte', args })),
+  lte: vi.fn((...args: unknown[]) => ({ type: 'lte', args })),
+  inArray: vi.fn((...args: unknown[]) => ({ type: 'inArray', args })),
   desc: vi.fn(),
   asc: vi.fn(),
   isNull: vi.fn(),
@@ -164,7 +164,7 @@ import { runAutoBidOptimization } from '../sync/autoBidOptimization';
 
 // ==================== 测试辅助 ====================
 
-function createMockSyncService(): any {
+function createMockSyncService(): unknown {
   return {
     accountId: 1,
     marketplace: 'US',
@@ -173,7 +173,7 @@ function createMockSyncService(): any {
   };
 }
 
-function createMockPerformanceGroupConfig(): any {
+function createMockPerformanceGroupConfig(): unknown {
   return {
     optimizationGoal: 'maximize_sales',
     strategyTemplate: 'balanced',
@@ -187,8 +187,8 @@ function createMockPerformanceGroupConfig(): any {
 // ==================== 测试套件 ====================
 
 describe('autoBidOptimization 集成测试（纯 Mock，不触及真实数据）', () => {
-  let mockSyncService: any;
-  let mockConfig: any;
+  let mockSyncService: unknown;
+  let mockConfig: unknown;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -252,7 +252,7 @@ describe('autoBidOptimization 集成测试（纯 Mock，不触及真实数据）
 
       // 让 NextGen 算法抛出异常
       const { batchCalculateNextGenBids } = await import('../nextGenBidOrchestrator');
-      (batchCalculateNextGenBids as any).mockRejectedValueOnce(new Error('NextGen unavailable'));
+      (batchCalculateNextGenBids as Record<string, unknown>).mockRejectedValueOnce(new Error('NextGen unavailable'));
 
       const result = await runAutoBidOptimization(mockSyncService, 1, mockConfig);
       expect(result).toBeDefined();

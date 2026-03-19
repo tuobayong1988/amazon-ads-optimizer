@@ -316,7 +316,7 @@ export async function generateBudgetAllocation(
   }
 
   // 计算每个活动的表现数据
-  const performances: CampaignPerformance[] = campaignList.map((campaign: any) => {
+  const performances: CampaignPerformance[] = campaignList.map((campaign: unknown) => {
     const spend = Number(campaign.spend) || 0;
     const sales = Number(campaign.sales) || 0;
     const orders = Number(campaign.orders) || 0;
@@ -342,13 +342,13 @@ export async function generateBudgetAllocation(
   });
 
   // 计算优先级评分
-  const scoredPerformances = performances.map((p: any) => ({
+  const scoredPerformances = performances.map((p: unknown) => ({
     ...p,
     priorityScore: calculatePriorityScore(p),
   }));
 
   // 按优先级排序
-  scoredPerformances.sort((a: any, b: any) => b.priorityScore - a.priorityScore);
+  scoredPerformances.sort((a: unknown, b: unknown) => b.priorityScore - a.priorityScore);
 
   // 计算当前总预算
   const currentTotalBudget = scoredPerformances.reduce(
@@ -388,10 +388,10 @@ export async function generateBudgetAllocation(
   ): BudgetRecommendation[] => {
     if (campaignList.length === 0) return [];
 
-    const totalScore = campaignList.reduce((sum: any, c: any) => sum + c.priorityScore, 0);
+    const totalScore = campaignList.reduce((sum: number, c: Record<string, unknown>) => sum + c.priorityScore, 0);
     const results: BudgetRecommendation[] = [];
 
-    for (const campaign of (campaignList as any[])) {
+    for (const campaign of (campaignList as unknown[])) {
       // 按评分比例分配预算
       const scoreRatio = campaign.priorityScore / Math.max(totalScore, 1);
       let recommendedBudget = availableBudget * scoreRatio;
@@ -456,20 +456,20 @@ export async function generateBudgetAllocation(
     0
   );
 
-  const increasedCount = recommendations.filter((r: any) => r.budgetChange > 0).length;
-  const decreasedCount = recommendations.filter((r: any) => r.budgetChange < 0).length;
+  const increasedCount = recommendations.filter((r: unknown) => r.budgetChange > 0).length;
+  const decreasedCount = recommendations.filter((r: unknown) => r.budgetChange < 0).length;
   const unchangedCount = recommendations.filter(
     (r) => Math.abs(r.budgetChange) < 1
   ).length;
 
   const totalIncrease = recommendations
-    .filter((r: any) => r.budgetChange > 0)
-    .reduce((sum: any, r: any) => sum + r.budgetChange, 0);
+    .filter((r: unknown) => r.budgetChange > 0)
+    .reduce((sum: number, r: Record<string, unknown>) => sum + r.budgetChange, 0);
 
   const totalDecrease = Math.abs(
     recommendations
-      .filter((r: any) => r.budgetChange < 0)
-      .reduce((sum: any, r: any) => sum + r.budgetChange, 0)
+      .filter((r: unknown) => r.budgetChange < 0)
+      .reduce((sum: number, r: Record<string, unknown>) => sum + r.budgetChange, 0)
   );
 
   const predictedSales = recommendations.reduce(
@@ -557,7 +557,7 @@ export async function saveBudgetAllocation(
       reasonDetail: rec.reasonDetail,
       priorityScore: rec.priorityScore.toString(),
       status: "pending",
-    } as Record<string, any>);
+    } as Record<string, unknown>);
   }
 
   return Number(allocationId);
@@ -638,7 +638,7 @@ export async function applyBudgetAllocation(
         snapshotAcos: item.historicalAcos,
         snapshotSpend: item.historicalSpend,
         snapshotSales: item.historicalSales,
-      } as Record<string, any>);
+      } as Record<string, unknown>);
 
       // 更新明细状态
       await db
@@ -823,7 +823,7 @@ export async function updateBudgetGoal(
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  const updateData: Record<string, any> = {};
+  const updateData: Record<string, unknown> = {};
   if (data.targetValue !== undefined) {
     updateData.targetValue = data.targetValue.toString();
   }

@@ -49,7 +49,7 @@ export function IntelligentRecommendations({ accountId }: Props) {
     },
   });
 
-  const handleQuickCreate = (prefillData: any) => {
+  const handleQuickCreate = (prefillData: unknown) => {
     setCreatingGoal(true);
     createGoalMutation.mutate({
       accountId,
@@ -121,7 +121,7 @@ export function IntelligentRecommendations({ accountId }: Props) {
       </div>
 
       {/* 推荐列表 */}
-      {scanResult.recommendations.map((rec: any) => (
+      {scanResult.recommendations.map((rec: unknown) => (
         <div
           key={rec.id}
           className="border border-border/50 rounded-lg p-2.5 space-y-1.5 hover:border-border transition-colors"
@@ -139,16 +139,16 @@ export function IntelligentRecommendations({ accountId }: Props) {
             <div className="space-y-1">
               <div className="flex flex-wrap gap-1">
                 {rec.autoOptimizationActions
-                  .filter((a: any) => a.status === 'executed')
-                  .map((action: any, i: number) => (
+                  .filter((a: unknown) => a.status === 'executed')
+                  .map((action: unknown, i: number) => (
                     <span key={i} className="inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded bg-green-500/10 text-green-400 border border-green-500/20">
                       <CheckCircle2 className="w-2.5 h-2.5" />
                       {action.description}: {action.count}项
                     </span>
                   ))}
                 {rec.autoOptimizationActions
-                  .filter((a: any) => a.status === 'skipped')
-                  .map((action: any, i: number) => (
+                  .filter((a: unknown) => a.status === 'skipped')
+                  .map((action: unknown, i: number) => (
                     <span key={`s-${i}`} className="inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
                       {action.description}: 无需调整
                     </span>
@@ -161,7 +161,7 @@ export function IntelligentRecommendations({ accountId }: Props) {
           )}
 
           {/* 已纳管但无执行动作 */}
-          {rec.type === 'managed_deteriorating' && (!rec.autoOptimizationActions || rec.autoOptimizationActions.filter((a: any) => a.status === 'executed').length === 0) && (
+          {rec.type === 'managed_deteriorating' && (!rec.autoOptimizationActions || rec.autoOptimizationActions.filter((a: unknown) => a.status === 'executed').length === 0) && (
             <p className="text-[10px] text-muted-foreground">
               {rec.autoOptimizationSummary || '系统已完成分析，当前优化策略持续执行中'}
             </p>
@@ -209,7 +209,7 @@ export function IntelligentRecommendations({ accountId }: Props) {
               </button>
               {expanded === rec.id && (
                 <div className="mt-1 space-y-1 max-h-[120px] overflow-y-auto">
-                  {rec.campaigns.map((c: any, i: number) => (
+                  {rec.campaigns.map((c: unknown, i: number) => (
                     <div key={i} className="flex items-center justify-between text-[10px] py-0.5 px-1.5 rounded bg-muted/30">
                       <span className="truncate max-w-[55%]" title={c.campaignName}>{c.campaignName}</span>
                       <div className="flex items-center gap-2 shrink-0">

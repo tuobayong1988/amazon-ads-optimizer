@@ -276,7 +276,7 @@ async function startServer() {
     // v146: 启动时自动执行数据迁移（旧表 → optimization_events）
     runAutoMigration().then(result => {
       if (result.success) {
-        const total = Object.values(result.migrated).reduce((a: any, b: any) => a + b, 0);
+        const total = Object.values(result.migrated).reduce((a: unknown, b: unknown) => a + b, 0);
         if (total > 0) {
           log.info(`[AutoMigration] v146数据迁移完成: 共迁移 ${total} 条记录`, result.migrated);
         } else {

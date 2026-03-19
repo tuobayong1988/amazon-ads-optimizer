@@ -270,7 +270,7 @@ describe('GoalProgressAlgorithm - Dimension Weight Validation', () => {
     const tw = createDefaultTimeWeighted();
     const result = calculateGoalProgress(config, metrics, undefined, tw);
     
-    const totalWeight = result.dimensions.reduce((sum: any, d: any) => sum + d.weight, 0);
+    const totalWeight = result.dimensions.reduce((sum: number, d: Record<string, unknown>) => sum + d.weight, 0);
     // Weights are expressed as percentages (sum to ~100) or as fractions (sum to ~1.0)
     // Accept either convention
     expect(totalWeight).toBeGreaterThan(0);

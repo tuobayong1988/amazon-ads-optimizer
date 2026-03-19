@@ -69,7 +69,7 @@ async function ensureLeaderTable(): Promise<void> {
  * 使用事务 + SELECT FOR UPDATE 保证原子性
  */
 async function tryBecomeLeader(): Promise<boolean> {
-  let conn: any = null;
+  let conn: unknown = null;
   try {
     conn = await db.getDirectConnection(5000);
     
@@ -79,7 +79,7 @@ async function tryBecomeLeader(): Promise<boolean> {
     const [rows] = await conn.execute(
       'SELECT instance_id, last_heartbeat FROM leader_election WHERE lock_name = ? FOR UPDATE',
       [ELECTION_LOCK_NAME]
-    ) as any[];
+    ) as unknown[];
     
     const now = new Date();
     
@@ -144,13 +144,13 @@ async function tryBecomeLeader(): Promise<boolean> {
  * 发送心跳（仅Leader调用）
  */
 async function sendHeartbeat(): Promise<boolean> {
-  let conn: any = null;
+  let conn: unknown = null;
   try {
     conn = await db.getDirectConnection(5000);
     const [result] = await conn.execute(
       'UPDATE leader_election SET last_heartbeat = NOW() WHERE lock_name = ? AND instance_id = ?',
       [ELECTION_LOCK_NAME, INSTANCE_ID]
-    ) as any[];
+    ) as unknown[];
     conn.release();
     
     // 检查是否更新成功（如果被其他实例抢占，affectedRows=0）
@@ -172,7 +172,7 @@ async function sendHeartbeat(): Promise<boolean> {
  * 放弃Leadership（优雅关闭时调用）
  */
 async function resignLeadership(): Promise<void> {
-  let conn: any = null;
+  let conn: unknown = null;
   try {
     conn = await db.getDirectConnection(5000);
     await conn.execute(

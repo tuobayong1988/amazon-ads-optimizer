@@ -27,7 +27,7 @@ export default function InviteRegister() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [inviteValid, setInviteValid] = useState<boolean | null>(null);
-  const [inviteInfo, setInviteInfo] = useState<any>(null);
+  const [inviteInfo, setInviteInfo] = useState<unknown>(null);
 
   // 验证邀请码
   const validateInvite = trpc.inviteCode.validate.useQuery(

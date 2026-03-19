@@ -41,7 +41,7 @@ export default function SyncLogs() {
   const [typeFilter, setTypeFilter] = useState<LogType>("all");
   // v399: 使用全局店铺选择器替代本地状态
   const { accountId: selectedAccountId, accounts, isLoading: accountsLoading } = useGlobalAccountId();
-  const setSelectedAccountId = (_: any) => {}; // v399: 由全局选择器控制，本地setter为no-op
+  const setSelectedAccountId = (_: unknown) => {}; // v399: 由全局选择器控制，本地setter为no-op
 const [page, setPage] = useState(1);
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
@@ -56,7 +56,7 @@ const [page, setPage] = useState(1);
   const logsData = useMemo(() => {
     if (!syncHistoryData?.jobs) return { logs: [], total: 0 };
     
-    const logs = syncHistoryData.jobs.map((job: any) => ({
+    const logs = syncHistoryData.jobs.map((job: unknown) => ({
       id: job.id,
       level: job.status === 'completed' ? 'success' : job.status === 'failed' ? 'error' : 'info',
       logType: 'sync',
@@ -77,8 +77,8 @@ const [page, setPage] = useState(1);
   const logStats = useMemo(() => {
     if (!syncHistoryData?.jobs) return null;
     
-    const successCount = syncHistoryData.jobs.filter((job: any) => job.status === 'completed').length;
-    const errorCount = syncHistoryData.jobs.filter((job: any) => job.status === 'failed').length;
+    const successCount = syncHistoryData.jobs.filter((job: unknown) => job.status === 'completed').length;
+    const errorCount = syncHistoryData.jobs.filter((job: unknown) => job.status === 'failed').length;
     const warningCount = 0;
     
     return { successCount, errorCount, warningCount };
@@ -88,7 +88,7 @@ const [page, setPage] = useState(1);
   const filteredLogs = useMemo(() => {
     if (!logsData?.logs) return [];
     
-    return logsData.logs.filter((log: any) => {
+    return logsData.logs.filter((log: unknown) => {
       // 搜索过滤
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
@@ -159,7 +159,7 @@ const [page, setPage] = useState(1);
     
     const csvContent = [
       ['时间', '级别', '类型', '消息', '详情'].join(','),
-      ...filteredLogs.map((log: any) => [
+      ...filteredLogs.map((log: unknown) => [
         format(safeParseDate(log.createdAt), 'yyyy-MM-dd HH:mm:ss'),
         log.level,
         getTypeLabel(log.logType || ''),
@@ -220,7 +220,7 @@ const [page, setPage] = useState(1);
                   <SelectValue placeholder="选择账户" />
                 </SelectTrigger>
                 <SelectContent>
-                  {accounts?.map((account: any) => (
+                  {accounts?.map((account: unknown) => (
                     <SelectItem key={account.id} value={account.id.toString()}>
                       {account.accountName} ({account.marketplace})
                     </SelectItem>
@@ -420,7 +420,7 @@ const [page, setPage] = useState(1);
               </div>
             ) : (
               <div className="space-y-2">
-                {filteredLogs.map((log: any) => (
+                {filteredLogs.map((log: unknown) => (
                   <div 
                     key={log.id} 
                     className="p-3 rounded-lg border bg-muted/30 hover:bg-muted/50 transition-colors"

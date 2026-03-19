@@ -47,7 +47,7 @@ export const guardrailConfigRouter = router({
       accountId: z.number().optional(),
       adType: z.enum(['sp', 'sb', 'sd', 'default']).optional(),
     }).optional())
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       try {
         const { getGuardrailConfigService } = await import('../services/guardrailConfigService');
         const service = getGuardrailConfigService();
@@ -95,7 +95,7 @@ export const guardrailConfigRouter = router({
       scopeKey: z.string(),
       overrides: overrideSchema,
     }))
-    .mutation(async ({ input, ctx }: any) => {
+    .mutation(async ({ input, ctx }: unknown) => {
       try {
         const { getGuardrailConfigService } = await import('../services/guardrailConfigService');
         const service = getGuardrailConfigService();
@@ -119,7 +119,7 @@ export const guardrailConfigRouter = router({
       scope: z.enum(['global', 'adType', 'account']),
       scopeKey: z.string(),
     }))
-    .mutation(async ({ ctx, input }: any) => {
+    .mutation(async ({ ctx, input }: unknown) => {
       try {
         const { getGuardrailConfigService } = await import('../services/guardrailConfigService');
         const service = getGuardrailConfigService();

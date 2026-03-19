@@ -18,20 +18,20 @@ export const adGroupRouter = router({
       startDate: z.string().optional(),
       endDate: z.string().optional(),
     }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       // v383: 强制数据隔离 - 验证campaign归属权
       const campaign = await db.getCampaignById(input.campaignId);
       if (!campaign) return [];
       // v383: 通过campaign的accountId验证用户访问权限
       const { verifyAccountAccess } = await import('../utils/accessControl');
-      await verifyAccountAccess(ctx.user.id, (campaign as any).accountId);
+      await verifyAccountAccess(ctx.user.id, (campaign as Record<string, unknown>).accountId);
       return db.getAdGroupsByCampaignId(campaign.campaignId);
     }),
   
   // v370.4: 数据隔离 - 获取广告组详情
   get: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       const { verifyAdGroupAccess } = await import('../utils/accessControl');
       await verifyAdGroupAccess(ctx.user.id, input.id);
       return db.getAdGroupById(input.id);
@@ -40,7 +40,7 @@ export const adGroupRouter = router({
   // v370.4: 数据隔离 - 获取广告组及其关键词统计
   getWithKeywordStats: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       const { verifyAdGroupAccess } = await import('../utils/accessControl');
       await verifyAdGroupAccess(ctx.user.id, input.id);
       const adGroup = await db.getAdGroupById(input.id);
@@ -94,7 +94,7 @@ export const adGroupRouter = router({
   // v381: 获取广告组所属的广告活动信息（通过adGroupId获取campaign，解决ID类型不匹配问题）
   getCampaign: protectedProcedure
     .input(z.object({ adGroupId: z.number() }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       const { verifyAdGroupAccess } = await import('../utils/accessControl');
       await verifyAdGroupAccess(ctx.user.id, input.adGroupId);
       
@@ -109,7 +109,7 @@ export const adGroupRouter = router({
   // P0修复: searchTerms.internalAdGroupId存储的是内部自增ID，直接用input.adGroupId查询
   getSearchTerms: protectedProcedure
     .input(z.object({ adGroupId: z.number() }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       const { verifyAdGroupAccess } = await import('../utils/accessControl');
       await verifyAdGroupAccess(ctx.user.id, input.adGroupId);
       
@@ -122,7 +122,7 @@ export const adGroupRouter = router({
   // P0修复: negativeKeywords.internalAdGroupId存储的是内部自增ID，直接用input.adGroupId查询
   getNegativeTargeting: protectedProcedure
     .input(z.object({ adGroupId: z.number() }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       const { verifyAdGroupAccess } = await import('../utils/accessControl');
       await verifyAdGroupAccess(ctx.user.id, input.adGroupId);
       
@@ -171,7 +171,7 @@ export const adGroupRouter = router({
       page: z.number().optional().default(1),
       pageSize: z.number().optional().default(50),
     }))
-    .query(async ({ ctx, input }: any) => {
+    .query(async ({ ctx, input }: unknown) => {
       try {
         // v383: 强制数据隔离
         const { verifyAdGroupAccess } = await import('../utils/accessControl');
@@ -183,7 +183,7 @@ export const adGroupRouter = router({
         
         // 获取该广告组下的所有关键词ID
         const keywords = await db.getKeywordsByAdGroupId(input.adGroupId);
-        const keywordIds = keywords.map((k: any) => k.id);
+        const keywordIds = keywords.map((k: unknown) => k.id);
         
         if (keywordIds.length === 0) {
           return { records: [], total: 0, page: input.page, pageSize: input.pageSize };
@@ -205,7 +205,7 @@ export const adGroupRouter = router({
           .orderBy(desc(bidAdjustmentHistory.appliedAt))
           .limit(input.pageSize);
         
-        const allRecords = bidRecords.map((record: any) => ({
+        const allRecords = bidRecords.map((record: unknown) => ({
           id: `bid_${record.id}`,
           type: 'bid_adjustment',
           typeLabel: '出价调整',
@@ -227,7 +227,7 @@ export const adGroupRouter = router({
           page: input.page,
           pageSize: input.pageSize,
         };
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('Failed to get ad group change history:', error);
         return { records: [], total: 0, page: input.page, pageSize: input.pageSize };
       }

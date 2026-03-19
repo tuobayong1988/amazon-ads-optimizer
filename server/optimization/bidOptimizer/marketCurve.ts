@@ -38,10 +38,10 @@ export function estimateTrafficCeiling(
 ): number {
   if (historicalData && historicalData.length >= 3) {
     const n = historicalData.length;
-    const sumLnBid = historicalData.reduce((s: any, d: any) => s + Math.log(d.bid), 0);
-    const sumImpressions = historicalData.reduce((s: any, d: any) => s + d.impressions, 0);
-    const sumLnBidImpressions = historicalData.reduce((s: any, d: any) => s + Math.log(d.bid) * d.impressions, 0);
-    const sumLnBidSq = historicalData.reduce((s: any, d: any) => s + Math.log(d.bid) ** 2, 0);
+    const sumLnBid = historicalData.reduce((s: unknown, d: unknown) => s + Math.log(d.bid), 0);
+    const sumImpressions = historicalData.reduce((s: unknown, d: unknown) => s + d.impressions, 0);
+    const sumLnBidImpressions = historicalData.reduce((s: unknown, d: unknown) => s + Math.log(d.bid) * d.impressions, 0);
+    const sumLnBidSq = historicalData.reduce((s: unknown, d: unknown) => s + Math.log(d.bid) ** 2, 0);
     
     const denominator = n * sumLnBidSq - sumLnBid ** 2;
     if (denominator === 0 || n === 0) {

@@ -80,7 +80,7 @@ export async function analyzeCrossCampaignNegatives(
       LIMIT 100
     `);
 
-    const rows = (results as any[][])?.[0] as Record<string, any>[] || [];
+    const rows = (results as unknown[][])?.[0] as Record<string, unknown>[] || [];
     
     return rows.map(row => {
       const totalOrders = Number(row.totalOrders || 0);
@@ -143,7 +143,7 @@ export async function addGlobalNegativeKeyword(
       set: { status: 'active', sourceReason, updatedAt: sql`NOW()` },
     });
 
-    const insertId = (result as any[])[0]?.insertId as unknown as number;
+    const insertId = (result as Record<string, unknown>[])[0]?.insertId as unknown as number;
     log.info(`[GlobalNegative] 添加全局否定词: "${negativeText}" (${matchType}), accountId=${accountId}, source=${source}`);
     
     return { success: true, id: insertId, message: `成功添加全局否定词: ${negativeText}` };

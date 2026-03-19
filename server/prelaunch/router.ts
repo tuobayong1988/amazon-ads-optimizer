@@ -28,7 +28,7 @@ export const prelaunchRouter = router({
   /** 获取单个项目详情 */
   getProject: adminProcedure
     .input(z.object({ projectId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ input }: unknown) => {
       const { PrelaunchProjectService } = await import('./services/project');
       const svc = new PrelaunchProjectService();
       return svc.getProject(input.projectId);
@@ -64,7 +64,7 @@ export const prelaunchRouter = router({
       seedKeywords: z.array(z.string()).optional(),
       status: z.enum(['draft', 'running', 'completed', 'archived']).optional(),
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ input }: unknown) => {
       const { PrelaunchProjectService } = await import('./services/project');
       const svc = new PrelaunchProjectService();
       return svc.updateProject(input.projectId, input);
@@ -73,7 +73,7 @@ export const prelaunchRouter = router({
   /** 删除项目 */
   deleteProject: adminProcedure
     .input(z.object({ projectId: z.number() }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ input }: unknown) => {
       const { PrelaunchProjectService } = await import('./services/project');
       const svc = new PrelaunchProjectService();
       return svc.deleteProject(input.projectId);
@@ -92,7 +92,7 @@ export const prelaunchRouter = router({
       page: z.number().default(1),
       pageSize: z.number().default(50),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ input }: unknown) => {
       const { M1KeywordService } = await import('./services/m1-keywords');
       const svc = new M1KeywordService();
       return svc.getKeywords(input);
@@ -105,7 +105,7 @@ export const prelaunchRouter = router({
       seedKeywords: z.array(z.string()).min(1),
       marketplace: z.string().default('US'),
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ input }: unknown) => {
       const { M1KeywordService } = await import('./services/m1-keywords');
       const svc = new M1KeywordService();
       return svc.runPipeline(input.projectId, input.seedKeywords, input.marketplace);
@@ -114,7 +114,7 @@ export const prelaunchRouter = router({
   /** 获取关键词聚类 */
   getKeywordClusters: adminProcedure
     .input(z.object({ projectId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ input }: unknown) => {
       const { M1KeywordService } = await import('./services/m1-keywords');
       const svc = new M1KeywordService();
       return svc.getClusters(input.projectId);
@@ -123,7 +123,7 @@ export const prelaunchRouter = router({
   /** 获取关键词关系图 */
   getKeywordRelations: adminProcedure
     .input(z.object({ projectId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ input }: unknown) => {
       const { M1KeywordService } = await import('./services/m1-keywords');
       const svc = new M1KeywordService();
       return svc.getRelations(input.projectId);
@@ -132,7 +132,7 @@ export const prelaunchRouter = router({
   /** 获取COSMO因果链三元组 */
   getCosmoTriples: adminProcedure
     .input(z.object({ projectId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ input }: unknown) => {
       const { M1KeywordService } = await import('./services/m1-keywords');
       const svc = new M1KeywordService();
       return svc.getCosmoTriples(input.projectId);
@@ -148,7 +148,7 @@ export const prelaunchRouter = router({
       page: z.number().default(1),
       pageSize: z.number().default(30),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ input }: unknown) => {
       const { M2CompetitorService } = await import('./services/m2-competitors');
       const svc = new M2CompetitorService();
       return svc.getCompetitors(input);
@@ -161,7 +161,7 @@ export const prelaunchRouter = router({
       competitorAsins: z.array(z.string()).optional(),
       autoDiscover: z.boolean().default(true),
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ input }: unknown) => {
       const { M2CompetitorService } = await import('./services/m2-competitors');
       const svc = new M2CompetitorService();
       return svc.runPipeline(input.projectId, input.competitorAsins, input.autoDiscover);
@@ -170,7 +170,7 @@ export const prelaunchRouter = router({
   /** 获取竞品TRS详情（白盒化） */
   getCompetitorTrsDetail: adminProcedure
     .input(z.object({ competitorId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ input }: unknown) => {
       const { M2CompetitorService } = await import('./services/m2-competitors');
       const svc = new M2CompetitorService();
       return svc.getTrsDetail(input.competitorId);
@@ -179,7 +179,7 @@ export const prelaunchRouter = router({
   /** 获取竞品场景矩阵 */
   getCompetitorScenarioMatrix: adminProcedure
     .input(z.object({ projectId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ input }: unknown) => {
       const { M2CompetitorService } = await import('./services/m2-competitors');
       const svc = new M2CompetitorService();
       return svc.getScenarioMatrix(input.projectId);
@@ -191,7 +191,7 @@ export const prelaunchRouter = router({
       projectId: z.number(),
       competitorId: z.number().optional(),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ input }: unknown) => {
       const { M2CompetitorService } = await import('./services/m2-competitors');
       const svc = new M2CompetitorService();
       return svc.getUserLanguage(input.projectId, input.competitorId);
@@ -202,7 +202,7 @@ export const prelaunchRouter = router({
   /** 获取项目用户画像 */
   getPersonas: adminProcedure
     .input(z.object({ projectId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ input }: unknown) => {
       const { M3PersonaService } = await import('./services/m3-persona');
       const svc = new M3PersonaService();
       return svc.getPersonas(input.projectId);
@@ -211,7 +211,7 @@ export const prelaunchRouter = router({
   /** 运行M3用户画像生成 */
   runM3Pipeline: adminProcedure
     .input(z.object({ projectId: z.number() }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ input }: unknown) => {
       const { M3PersonaService } = await import('./services/m3-persona');
       const svc = new M3PersonaService();
       return svc.runPipeline(input.projectId);
@@ -225,7 +225,7 @@ export const prelaunchRouter = router({
       projectId: z.number(),
       generation: z.number().optional(),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ input }: unknown) => {
       const { M4XCopyService } = await import('./services/m4x-copy');
       const svc = new M4XCopyService();
       return svc.getCopyVersions(input.projectId, input.generation);
@@ -234,7 +234,7 @@ export const prelaunchRouter = router({
   /** 运行M4X文案生成（第0代） */
   runM4XGenerate: adminProcedure
     .input(z.object({ projectId: z.number() }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ input }: unknown) => {
       const { M4XCopyService } = await import('./services/m4x-copy');
       const svc = new M4XCopyService();
       return svc.generateInitialCopy(input.projectId);
@@ -243,7 +243,7 @@ export const prelaunchRouter = router({
   /** 触发文案进化（下一代） */
   runM4XEvolve: adminProcedure
     .input(z.object({ projectId: z.number() }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ input }: unknown) => {
       const { M4XCopyService } = await import('./services/m4x-copy');
       const svc = new M4XCopyService();
       return svc.evolveNextGeneration(input.projectId);
@@ -252,7 +252,7 @@ export const prelaunchRouter = router({
   /** 获取Rufus Q&A种子 */
   getQnaSeeds: adminProcedure
     .input(z.object({ projectId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ input }: unknown) => {
       const { M4XCopyService } = await import('./services/m4x-copy');
       const svc = new M4XCopyService();
       return svc.getQnaSeeds(input.projectId);
@@ -263,7 +263,7 @@ export const prelaunchRouter = router({
   /** 获取视觉框架简报 */
   getVisualBriefs: adminProcedure
     .input(z.object({ projectId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ input }: unknown) => {
       const { M5VisualService } = await import('./services/m5-visual');
       const svc = new M5VisualService();
       return svc.getVisualBriefs(input.projectId);
@@ -272,7 +272,7 @@ export const prelaunchRouter = router({
   /** 运行M5视觉框架生成 */
   runM5Pipeline: adminProcedure
     .input(z.object({ projectId: z.number() }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ input }: unknown) => {
       const { M5VisualService } = await import('./services/m5-visual');
       const svc = new M5VisualService();
       return svc.runPipeline(input.projectId);
@@ -284,7 +284,7 @@ export const prelaunchRouter = router({
       projectId: z.number(),
       briefId: z.number(),
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ input }: unknown) => {
       const { M5VisualService } = await import('./services/m5-visual');
       const svc = new M5VisualService();
       return svc.generateImage(input.projectId, input.briefId);
@@ -295,7 +295,7 @@ export const prelaunchRouter = router({
   /** 获取视频脚本列表 */
   getVideoScripts: adminProcedure
     .input(z.object({ projectId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ input }: unknown) => {
       const { M6VideoService } = await import('./services/m6-video');
       const svc = new M6VideoService();
       return svc.getVideoScripts(input.projectId);
@@ -304,7 +304,7 @@ export const prelaunchRouter = router({
   /** 运行M6视频创意生成 */
   runM6Pipeline: adminProcedure
     .input(z.object({ projectId: z.number() }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ input }: unknown) => {
       const { M6VideoService } = await import('./services/m6-video');
       const svc = new M6VideoService();
       return svc.runPipeline(input.projectId);
@@ -316,7 +316,7 @@ export const prelaunchRouter = router({
       projectId: z.number(),
       scriptId: z.number(),
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ input }: unknown) => {
       const { M6VideoService } = await import('./services/m6-video');
       const svc = new M6VideoService();
       return svc.generateStoryboardFrames(input.projectId, input.scriptId);
@@ -325,7 +325,7 @@ export const prelaunchRouter = router({
   /** 获取Banner创意列表 */
   getBannerCreatives: adminProcedure
     .input(z.object({ projectId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ input }: unknown) => {
       const { M6VideoService } = await import('./services/m6-video');
       const svc = new M6VideoService();
       return svc.getBannerCreatives(input.projectId);
@@ -337,7 +337,7 @@ export const prelaunchRouter = router({
       projectId: z.number(),
       bannerId: z.number(),
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ input }: unknown) => {
       const { M6VideoService } = await import('./services/m6-video');
       const svc = new M6VideoService();
       return svc.generateBannerImage(input.projectId, input.bannerId);
@@ -351,7 +351,7 @@ export const prelaunchRouter = router({
       projectId: z.number(),
       frameworkType: z.string().optional(),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ input }: unknown) => {
       const { M7AdFrameworkService } = await import('./services/m7-ad-framework');
       const svc = new M7AdFrameworkService();
       return svc.getAdFrameworks(input.projectId, input.frameworkType);
@@ -371,7 +371,7 @@ export const prelaunchRouter = router({
       defaultBid: z.number().default(0.75),
       dailyBudget: z.number().default(30),
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ input }: unknown) => {
       const { M7AdFrameworkService } = await import('./services/m7-ad-framework');
       const svc = new M7AdFrameworkService();
       return svc.compileFrameworks(input);
@@ -380,7 +380,7 @@ export const prelaunchRouter = router({
   /** 预览广告框架（JSON预览，不部署） */
   previewAdPayload: adminProcedure
     .input(z.object({ frameworkId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ input }: unknown) => {
       const { M7AdFrameworkService } = await import('./services/m7-ad-framework');
       const svc = new M7AdFrameworkService();
       return svc.previewPayload(input.frameworkId);
@@ -393,7 +393,7 @@ export const prelaunchRouter = router({
       profileId: z.string(),
       dryRun: z.boolean().default(false),
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ input }: unknown) => {
       const { M7AdFrameworkService } = await import('./services/m7-ad-framework');
       const svc = new M7AdFrameworkService();
       return svc.deployToAmazon(input.frameworkId, input.profileId, input.dryRun);
@@ -402,7 +402,7 @@ export const prelaunchRouter = router({
   /** 获取部署日志 */
   getDeployLogs: adminProcedure
     .input(z.object({ frameworkId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ input }: unknown) => {
       const { M7AdFrameworkService } = await import('./services/m7-ad-framework');
       const svc = new M7AdFrameworkService();
       return svc.getDeployLogs(input.frameworkId);
@@ -418,7 +418,7 @@ export const prelaunchRouter = router({
       marketplace: z.string().default('US'),
       skipModules: z.array(z.string()).optional(),
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ input }: unknown) => {
       const { PrelaunchPipelineOrchestrator } = await import('./services/pipeline');
       const orchestrator = new PrelaunchPipelineOrchestrator();
       return orchestrator.runFullPipeline(input);
@@ -427,7 +427,7 @@ export const prelaunchRouter = router({
   /** 获取流水线运行状态 */
   getPipelineStatus: adminProcedure
     .input(z.object({ projectId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ input }: unknown) => {
       const { PrelaunchPipelineOrchestrator } = await import('./services/pipeline');
       const orchestrator = new PrelaunchPipelineOrchestrator();
       return orchestrator.getStatus(input.projectId);

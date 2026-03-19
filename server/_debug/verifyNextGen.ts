@@ -50,7 +50,7 @@ async function setupMockData() {
         campaignType: "sp_manual",
         campaignStatus: "enabled",
         dailyBudget: "50.00",
-    } as Record<string, any>);
+    } as Record<string, unknown>);
 
     // Create mock ad group
     // @ts-expect-error - Drizzle query builder type
@@ -60,7 +60,7 @@ async function setupMockData() {
         adGroupId: "test_adgroup_999901",
         adGroupName: "Test AdGroup",
         adGroupStatus: "enabled",
-    } as Record<string, any>);
+    } as Record<string, unknown>);
 
     // Create mock keyword
     // @ts-expect-error - Drizzle query builder type
@@ -72,7 +72,7 @@ async function setupMockData() {
         matchType: "broad",
         bid: "1.23",
         keywordStatus: "enabled",
-    } as Record<string, any>);
+    } as Record<string, unknown>);
 
     // Create some mock RL logs to make algorithms eligible
     // @ts-expect-error - Drizzle query builder type

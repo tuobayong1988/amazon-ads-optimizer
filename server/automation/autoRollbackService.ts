@@ -329,7 +329,7 @@ export async function runRollbackEvaluation(accountId?: number): Promise<{
   const newSuggestions: RollbackSuggestion[] = [];
   const enabledRules = rollbackRules.filter(r => r.enabled);
   
-  for (const record of (filteredRecords as any[])) {
+  for (const record of (filteredRecords as unknown[])) {
     for (const rule of enabledRules) {
       // 检查是否已有该记录的建议
       const existingSuggestion = rollbackSuggestions.find(
@@ -374,7 +374,7 @@ export function getRollbackSuggestions(filters?: {
   }
   
   // 按创建时间倒序排列
-  return suggestions.sort((a: any, b: any) => b.createdAt.getTime() - a.createdAt.getTime());
+  return suggestions.sort((a: unknown, b: unknown) => b.createdAt.getTime() - a.createdAt.getTime());
 }
 
 /**
@@ -456,7 +456,7 @@ export function getRollbackSuggestionStats(): {
     byRule: {} as Record<string, number>,
   };
   
-  for (const suggestion of (rollbackSuggestions as any[])) {
+  for (const suggestion of (rollbackSuggestions as unknown[])) {
     // @ts-expect-error - runtime type mismatch
     stats[suggestion.status]++;
     // @ts-expect-error - runtime type mismatch

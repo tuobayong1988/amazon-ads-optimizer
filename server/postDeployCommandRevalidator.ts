@@ -159,7 +159,7 @@ async function revalidatePendingCommands(
     );
     
     const rows = Array.isArray(pendingEvents) 
-      ? (Array.isArray((pendingEvents as any)[0]) ? (pendingEvents as any)[0] : pendingEvents)
+      ? (Array.isArray((pendingEvents as Record<string, unknown>)[0]) ? (pendingEvents as Record<string, unknown>)[0] : pendingEvents)
       : [];
     
     if (rows.length === 0) {
@@ -238,7 +238,7 @@ async function revalidatePendingCommands(
  * 评估单条pending指令是否合理
  */
 function evaluatePendingCommand(
-  row: Record<string, any>,
+  row: Record<string, unknown>,
   targetName: string
 ): { shouldCancel: boolean; reason: string } {
   const actionType = row.action_type;
@@ -382,7 +382,7 @@ async function auditAndCorrectHistoricalCommands(
     );
     
     const rows = Array.isArray(syncedEvents) 
-      ? (Array.isArray((syncedEvents as any)[0]) ? (syncedEvents as any)[0] : syncedEvents)
+      ? (Array.isArray((syncedEvents as Record<string, unknown>)[0]) ? (syncedEvents as Record<string, unknown>)[0] : syncedEvents)
       : [];
     
     if (rows.length === 0) {
@@ -394,7 +394,7 @@ async function auditAndCorrectHistoricalCommands(
     log.info(`[CmdRevalidator] [${targetName}] 审计${rows.length}条已执行指令...`);
     
     // 2. 按keyword/campaign分组，只审计每个实体最新的一条（避免重复纠正）
-    const latestByEntity = new Map<string, Record<string, any>>();
+    const latestByEntity = new Map<string, Record<string, unknown>>();
     for (const row of rows) {
       const entityKey = `${row.action_type?.includes('budget') ? 'campaign' : 'keyword'}_${row.keyword_id || row.campaign_id}`;
       if (!latestByEntity.has(entityKey)) {
@@ -468,7 +468,7 @@ async function auditAndCorrectHistoricalCommands(
  * 审计单条已执行指令是否合理
  */
 function auditSyncedCommand(
-  row: Record<string, any>,
+  row: Record<string, unknown>,
   targetName: string
 ): { isUnreasonable: boolean; reason: string; correctionBid?: number; correctionBudget?: number } {
   const actionType = row.action_type;
@@ -579,8 +579,8 @@ function auditSyncedCommand(
  * 将纠正指令写入optimization_events表，由正常的同步引擎推送到亚马逊
  */
 async function generateCorrectionCommand(
-  database: any,
-  originalRow: Record<string, any>,
+  database: unknown,
+  originalRow: Record<string, unknown>,
   audit: { reason: string; correctionBid?: number; correctionBudget?: number },
   targetId: number,
   targetName: string,
@@ -687,7 +687,7 @@ export async function runFullRevalidation(): Promise<FullRevalidationResult> {
     
     // 分批处理
     for (let i = 0; i < targets.length; i++) {
-      const target = targets[i] as any;
+      const target = targets[i] as unknown;
       const startTime = Date.now();
       
       try {

@@ -76,7 +76,7 @@ describe('dailySync API', () => {
         { id: 3, status: 'success' },
       ];
 
-      const successOnly = history.filter((h: any) => h.status === 'success');
+      const successOnly = history.filter((h: unknown) => h.status === 'success');
       expect(successOnly).toHaveLength(2);
     });
   });

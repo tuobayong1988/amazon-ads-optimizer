@@ -101,13 +101,13 @@ export default function EmailReports() {
   const [recipientInput, setRecipientInput] = useState("");
 
   // 获取订阅列表
-  const { data: subscriptions, isLoading, refetch } = trpc.emailReport.list.useQuery() as any;
+  const { data: subscriptions, isLoading, refetch } = trpc.emailReport.list.useQuery() as unknown;
   
   // 获取账号列表
-  const { data: accounts } = trpc.adAccount.list.useQuery() as any;
+  const { data: accounts } = trpc.adAccount.list.useQuery() as unknown;
   
   // 获取报表类型
-  const { data: reportTypes } = trpc.emailReport.getReportTypes.useQuery() as any;
+  const { data: reportTypes } = trpc.emailReport.getReportTypes.useQuery() as unknown;
 
   // 创建订阅
   const createMutation = trpc.emailReport.create.useMutation({
@@ -185,7 +185,7 @@ export default function EmailReports() {
     updateMutation.mutate({ id: editingId, ...form });
   }, [editingId, form, updateMutation]);
 
-  const handleEdit = useCallback((subscription: any) => {
+  const handleEdit = useCallback((subscription: unknown) => {
     setEditingId(subscription.id);
     setForm({
       name: subscription.name,
@@ -263,7 +263,7 @@ export default function EmailReports() {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {(reportTypes || Object.entries(reportTypeLabels).map(([id, info]) => ({ id, ...info }))).map((type: any) => (
+            {(reportTypes || Object.entries(reportTypeLabels).map(([id, info]) => ({ id, ...info }))).map((type: unknown) => (
               <SelectItem key={type.id} value={type.id}>
                 {type.name}
               </SelectItem>
@@ -314,7 +314,7 @@ export default function EmailReports() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {dayOfWeekLabels.map((label: any, index: any) => (
+              {dayOfWeekLabels.map((label: unknown, index: unknown) => (
                 <SelectItem key={index} value={String(index)}>{label}</SelectItem>
               ))}
             </SelectContent>
@@ -333,7 +333,7 @@ export default function EmailReports() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {Array.from({ length: 28 }, (_, i) => i + 1).map((day: any) => (
+              {Array.from({ length: 28 }, (_, i) => i + 1).map((day: unknown) => (
                 <SelectItem key={day} value={String(day)}>{day}号</SelectItem>
               ))}
             </SelectContent>
@@ -374,7 +374,7 @@ export default function EmailReports() {
           </Button>
         </div>
         <div className="flex flex-wrap gap-2 mt-2">
-          {form.recipients.map((email: any) => (
+          {form.recipients.map((email: unknown) => (
             <Badge key={email} variant="secondary" className="gap-1">
               {email}
               <button
@@ -393,7 +393,7 @@ export default function EmailReports() {
         <Label>包含的账号</Label>
         <p className="text-sm text-muted-foreground mb-2">不选择则包含所有账号</p>
         <div className="space-y-2 max-h-40 overflow-y-auto border rounded-lg p-2">
-          {accounts?.map((account: any) => (
+          {accounts?.map((account: unknown) => (
             <div key={account.id} className="flex items-center gap-2">
               <Checkbox
                 checked={form.accountIds.includes(account.id)}
@@ -529,7 +529,7 @@ export default function EmailReports() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {subscriptions?.map((subscription: any) => (
+                  {subscriptions?.map((subscription: unknown) => (
                     <TableRow key={subscription.id}>
                       <TableCell>
                         <div>
@@ -563,7 +563,7 @@ export default function EmailReports() {
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-wrap gap-1">
-                          {((subscription.recipients as string[]) || []).slice(0, 2).map((email: any) => (
+                          {((subscription.recipients as string[]) || []).slice(0, 2).map((email: unknown) => (
                             <Badge key={email} variant="secondary" className="text-xs">
                               {email.split("@")[0]}
                             </Badge>

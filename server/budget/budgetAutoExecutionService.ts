@@ -80,7 +80,7 @@ export async function updateAutoExecutionConfig(
   const db = await getDb();
   if (!db) throw new Error('Database not available');
 
-  const updateData: Record<string, any> = {};
+  const updateData: Record<string, unknown> = {};
   
   if (updates.configName !== undefined) updateData.configName = updates.configName;
   if (updates.isEnabled !== undefined) updateData.isEnabled = updates.isEnabled ? 1 : 0;
@@ -382,10 +382,10 @@ export async function executeBudgetAllocation(configId: number): Promise<{
         changePercent: String(details[details.length - 1].adjustmentPercent),
         changeReason: suggestion.reasons.join('; '),
         // @ts-expect-error - dynamic property access
-        performanceScore: String((suggestion as unknown).compositeScore || 0),
-        confidence: String((suggestion as unknown).confidence || 0),
+        performanceScore: String((suggestion as Record<string, unknown>).compositeScore || 0),
+        confidence: String((suggestion as Record<string, unknown>).confidence || 0),
         apiSyncStatus: 'pending',
-      } as Record<string, any>);
+      } as Record<string, unknown>);
     }
 
     // 确定最终状态
@@ -528,7 +528,7 @@ export async function getExecutionDetails(executionId: number): Promise<{
       confidence: d.confidence,
       apiSyncStatus: d.apiSyncStatus as string,
       apiSyncDetail: d.apiSyncDetail,
-    } as Record<string, any>)),
+    } as Record<string, unknown>)),
   };
 }
 

@@ -93,7 +93,7 @@ function calculateTrendSlope(values: number[]): number {
   if (values.length < 2) return 0;
   
   const n = values.length;
-  const mean = values.reduce((a: any, b: any) => a + b, 0) / n;
+  const mean = values.reduce((a: unknown, b: unknown) => a + b, 0) / n;
   if (mean === 0) return 0;
   
   // 最小二乘法计算斜率
@@ -115,10 +115,10 @@ function calculateTrendSlope(values: number[]): number {
 function calculateVolatility(values: number[]): number {
   if (values.length < 2) return 0;
   
-  const mean = values.reduce((a: any, b: any) => a + b, 0) / values.length;
+  const mean = values.reduce((a: unknown, b: unknown) => a + b, 0) / values.length;
   if (mean === 0) return 0;
   
-  const variance = values.reduce((sum: any, v: any) => sum + (v - mean) ** 2, 0) / (values.length - 1);
+  const variance = values.reduce((sum: number, v: Record<string, unknown>) => sum + (v - mean) ** 2, 0) / (values.length - 1);
   return Math.sqrt(variance) / mean;
 }
 
@@ -198,7 +198,7 @@ export async function extractFeatureVector(
   const cpcValues: number[] = [];
   const ctrValues: number[] = [];
   
-  for (const row of (perfData as any[])) {
+  for (const row of (perfData as unknown[])) {
     const rowDate = new Date(row.date as string);
     const daysAgo = Math.floor((now.getTime() - rowDate.getTime()) / 86400000);
     const weight = timeDecayWeight(daysAgo);
@@ -243,7 +243,7 @@ export async function extractFeatureVector(
   const weightedAcos14d = weightedAcosDen > 0 ? weightedAcosNum / weightedAcosDen : 0;
   
   // 计算7天均值
-  const sum7d = (arr: number[]) => arr.reduce((a: any, b: any) => a + b, 0);
+  const sum7d = (arr: number[]) => arr.reduce((a: unknown, b: unknown) => a + b, 0);
   const avg7d = (arr: number[]) => arr.length > 0 ? sum7d(arr) / arr.length : 0;
   
   const totalImpressions7d = sum7d(impressions7d);
@@ -365,7 +365,7 @@ export async function batchExtractAndCacheFeatures(accountId: number): Promise<n
     
     // 按Campaign聚合，减少重复查询
     const campaignIds = new Set<string>();
-    for (const kw of (activeKeywords as any[])) {
+    for (const kw of (activeKeywords as unknown[])) {
       if (kw.campaignId) campaignIds.add(String(kw.campaignId));
     }
     for (const tgt of activeTargets) {
@@ -526,7 +526,7 @@ export async function getCachedFeatureVector(
 }
 
 /** v264: 解析缓存特征向量的辅助函数 */
-function parseCachedFeature(c: any): ContextFeatureVector {
+function parseCachedFeature(c: unknown): ContextFeatureVector {
   return {
     accountId: c.accountId,
     keywordId: c.keywordId ?? undefined,

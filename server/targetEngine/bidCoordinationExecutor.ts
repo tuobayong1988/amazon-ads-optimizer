@@ -59,18 +59,18 @@ import type { OptimizationExecutionResult, OptimizationTargetConfig } from './ty
 
 export async function executeBidCoordination(
   config: OptimizationTargetConfig,
-  campaigns: any[],
+  campaigns: unknown[],
   bidDetails: unknown[],
   placementDetails: unknown[],
   daypartingDetails: unknown[],
   dryRun: boolean
-): Promise<{ executed: boolean; campaignsCoordinated: number; circuitBreakerTriggered: number; details: Record<string, any>[] }> {
-  const details: Record<string, any>[] = [];
+): Promise<{ executed: boolean; campaignsCoordinated: number; circuitBreakerTriggered: number; details: Record<string, unknown>[] }> {
+  const details: Record<string, unknown>[] = [];
   let campaignsCoordinated = 0;
   let circuitBreakerTriggered = 0;
   
   // 按广告活动分组处理
-  for (const campaign of (campaigns as any[])) {
+  for (const campaign of (campaigns as unknown[])) {
     const campaignLocalId = getCampaignLocalId(campaign);
     const campaignAmazonId = getCampaignAmazonId(campaign);
     try {
@@ -79,7 +79,7 @@ export async function executeBidCoordination(
       // 1. 收集出价优化建议
       // @ts-expect-error - array method type inference
       const bidSuggestions = bidDetails.filter(d => d.localCampaignId === campaignLocalId);
-      for (const suggestion of (bidSuggestions as any[])) {
+      for (const suggestion of (bidSuggestions as unknown[])) {
         if (suggestion.newBid && suggestion.currentBid) {
           const multiplier = suggestion.newBid / suggestion.currentBid;
           proposals.push(bidCoordinator.createBidProposal(
@@ -98,7 +98,7 @@ export async function executeBidCoordination(
       // 2. 收集位置优化建议
       // @ts-expect-error - array method type inference
       const placementSuggestions = placementDetails.filter(d => d.localCampaignId === campaignLocalId);
-      for (const suggestion of (placementSuggestions as any[])) {
+      for (const suggestion of (placementSuggestions as unknown[])) {
         if (suggestion.suggestedMultiplier !== undefined) {
           proposals.push(bidCoordinator.createBidProposal(
             campaignLocalId,
@@ -116,7 +116,7 @@ export async function executeBidCoordination(
       // 3. 收集分时策略建议
       // @ts-expect-error - array method type inference
       const daypartingSuggestions = daypartingDetails.filter(d => d.localCampaignId === campaignLocalId);
-      for (const suggestion of (daypartingSuggestions as any[])) {
+      for (const suggestion of (daypartingSuggestions as unknown[])) {
         if (suggestion.bidMultiplier && suggestion.bidMultiplier !== 1) {
           proposals.push(bidCoordinator.createBidProposal(
             campaignLocalId,
