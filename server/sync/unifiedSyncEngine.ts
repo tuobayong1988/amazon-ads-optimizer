@@ -1505,7 +1505,7 @@ export async function syncAccount(
       } else {
         log.warn(`[UnifiedSync] 🚨 同步健康告警: ${alertMsg}`);
       }
-      logSyncError('UnifiedSync', alertMsg, {
+      logSyncWarn('UnifiedSync', alertMsg, {
         accountId: account.accountId,
         accountName: account.accountName,
         marketplace: account.marketplace,
