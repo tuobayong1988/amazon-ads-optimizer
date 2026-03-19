@@ -165,8 +165,11 @@ export async function createInviteCode(input: CreateInviteCodeInput): Promise<{ 
     
     return { success: false, error: '创建邀请码失败' };
   } catch (error: unknown) {
-    log.error('[InviteCode] 创建邀请码失败:', error);
-    return { success: false, error: (error as Error).message || '创建邀请码失败' };
+    const e = error as any;
+    const mysqlErr = e?.cause?.message || e?.cause?.sqlMessage || e?.errno || e?.code || 'unknown';
+    const detail = JSON.stringify({msg: e?.message, cause: e?.cause?.message, code: e?.cause?.code, errno: e?.cause?.errno, sqlState: e?.cause?.sqlState});
+    log.error(`[InviteCode] 创建邀请码失败: ${e?.message} | MySQL: ${mysqlErr} | Detail: ${detail}`);
+    return { success: false, error: `${(error as Error).message} | MySQL: ${mysqlErr}` };
   }
 }
 
