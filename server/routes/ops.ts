@@ -1492,5 +1492,47 @@ router.post('/push-metrics', async (req: Request, res: Response) => {
   }
 });
 
+// v469: JWT诊断端点
+router.get('/jwt-test', async (req: Request, res: Response) => {
+  try {
+    const key = req.query.key as string;
+    if (key !== process.env.OPS_API_KEY) return res.status(401).json({ error: 'unauthorized' });
+    const token = req.query.token as string;
+    if (!token) return res.json({ error: 'no token provided' });
+    
+    const jwt = require('jsonwebtoken');
+    const secret = process.env.JWT_SECRET;
+    const result: Record<string, unknown> = { hasSecret: !!secret, secretLen: secret?.length };
+    
+    try {
+      const decoded = jwt.verify(token, secret);
+      result.decoded = decoded;
+      result.success = true;
+    } catch (e: unknown) {
+      result.error = (e as Error).message;
+      result.errorName = (e as Error).name;
+      result.success = false;
+    }
+    
+    // Also test DB query
+    try {
+      const { getDb } = await import('../_core');
+      const { sql } = await import('drizzle-orm');
+      const db = await getDb();
+      const userId = (result.decoded as Record<string,unknown>)?.userId;
+      if (db && userId) {
+        const rows = await db.execute(sql`SELECT id, name, email, role FROM team_members WHERE id = ${userId}`);
+        result.dbRows = (rows as unknown[][])[0];
+      }
+    } catch (dbErr: unknown) {
+      result.dbError = (dbErr as Error).message;
+    }
+    
+    res.json(result);
+  } catch (e: unknown) {
+    res.status(500).json({ error: (e as Error).message });
+  }
+});
+
 export default router;
 
