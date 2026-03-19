@@ -183,7 +183,7 @@ export async function syncBidAdjustmentsToAmazon(
         }
       }
       
-      if (amazonKeywordId && amazonKeywordId !== '0' && amazonKeywordId !== '') {
+      if (amazonKeywordId && amazonKeywordId !== '0' && amazonKeywordId !== '' && !amazonKeywordId.startsWith('SKIP_')) {
         resolvedKeywordBids.push({
           keywordId: String(amazonKeywordId),
           bid: Number(adj.newBid.toFixed(2)),
@@ -259,25 +259,36 @@ export async function syncBidAdjustmentsToAmazon(
   
   // === 第二步: 批量发送到Amazon API ===
   
+  // v474: 去重 - 同一个keywordId只保留最后一条（最新的出价）
+  const deduplicatedKeywordBids = Array.from(
+    resolvedKeywordBids.reduce((map, item) => {
+      map.set(item.keywordId, item);
+      return map;
+    }, new Map<string, typeof resolvedKeywordBids[0]>()
+  ).values());
+  if (deduplicatedKeywordBids.length < resolvedKeywordBids.length) {
+    log.warn(`[AmazonApiHelper] v474: 关键词出价去重: ${resolvedKeywordBids.length} -> ${deduplicatedKeywordBids.length}`);
+  }
+  
   // v359: 批量更新关键词出价（每批最多1000条，与底层API一致）
-  if (resolvedKeywordBids.length > 0) {
-    log.info(`[AmazonApiHelper] v359: 批量发送 ${resolvedKeywordBids.length} 个关键词出价更新到Amazon`);
+  if (deduplicatedKeywordBids.length > 0) {
+    log.info(`[AmazonApiHelper] v359: 批量发送 ${deduplicatedKeywordBids.length} 个关键词出价更新到Amazon`);
     try {
       const apiResult: unknown = await withRetry(
         () => (syncService as Record<string, unknown>).client.updateKeywordBids(
-          resolvedKeywordBids.map(r => ({ keywordId: r.keywordId, bid: r.bid }))
+          deduplicatedKeywordBids.map(r => ({ keywordId: r.keywordId, bid: r.bid }))
         ),
         { maxRetries: 3, baseDelayMs: 3000, label: `batchUpdateKeywordBids-${resolvedKeywordBids.length}`, accountId }
       );
       
       // 处理成功的
-      const successCount = resolvedKeywordBids.length - (apiResult.errors?.length || 0);
+      const successCount = deduplicatedKeywordBids.length - (apiResult.errors?.length || 0);
       result.success += successCount;
       const requestId = apiResult.requestIds?.[0] || '';
       
       // 标记成功的条目
       const failedKeywordIds = new Set((apiResult.errors || []).map((e: Record<string, unknown>) => String(e.keywordId)));
-      for (const item of resolvedKeywordBids) {
+      for (const item of deduplicatedKeywordBids) {
         if (!failedKeywordIds.has(item.keywordId)) {
           result.itemResults.set(item.localId, { status: 'synced', apiResponseId: requestId });
         }

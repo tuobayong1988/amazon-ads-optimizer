@@ -122,8 +122,8 @@ export async function applyBidAdjustment(service: SyncContext,
       });
 
       // v125: Amazon SP API v3 要求keywordId为字符串类型，直接传递字符串
-      if (!amazonId || amazonId.trim() === '' || amazonId === '0') {
-        log.warn(`[applyBidAdjustment] keyword id=${targetId} 的Amazon keywordId无效: "${amazonId}"`);
+      if (!amazonId || amazonId.trim() === '' || amazonId === '0' || amazonId.startsWith('SKIP_')) {
+        log.warn(`[applyBidAdjustment] keyword id=${targetId} 的Amazon keywordId无效或为占位符: "${amazonId}"`);
         return false;
       }
       log.debug(`[applyBidAdjustment] 调用Amazon API: keywordId="${amazonId}", bid=${Number(newBid.toFixed(2))}`);
