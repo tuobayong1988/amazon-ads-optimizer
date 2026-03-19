@@ -369,10 +369,12 @@ class SDKServer {
         }
       } catch (jwtError: unknown) {
         // JWT verification failed, fall through to cookie auth
-        // @ts-expect-error - runtime type mismatch
-        if (jwtError.name !== 'TokenExpiredError') {
-          log.error('[Auth] JWT verification failed:', (jwtError as Error).message);
-        }
+        const jwtErrMsg = (jwtError as Error)?.message || String(jwtError);
+        const jwtErrName = (jwtError as Record<string,unknown>)?.name || 'unknown';
+        logSystem('Auth', `JWT verify FAILED: name=${jwtErrName}, message=${jwtErrMsg}`);
+        log.error(`[Auth] JWT verification failed: name=${jwtErrName}, msg=${jwtErrMsg}`);
+        // v468: JWT验证失败时不要进入OAuth流程，直接返回null
+        return null;
       }
     }
 
