@@ -716,7 +716,7 @@ export async function orchestrateStartup(server: unknown): Promise<void> {
         SELECT id, accountId, syncType, current_step, current_step_index, total_steps
         FROM data_sync_jobs 
         WHERE status = 'running'
-          AND updated_at < DATE_SUB(NOW(), INTERVAL ${staleThresholdMinutes} MINUTE)
+          AND updated_at < DATE_SUB(NOW(), INTERVAL ${sql.raw(String(staleThresholdMinutes))} MINUTE)
       `);
       // Drizzle mysql2返回 [rows, fields]，取第一个元素
       const interruptedRows = Array.isArray(interruptedJobsResult) ? (interruptedJobsResult as Record<string, unknown>[])[0] : ((interruptedJobsResult as Record<string, unknown>).rows || interruptedJobsResult);
@@ -743,7 +743,7 @@ export async function orchestrateStartup(server: unknown): Promise<void> {
             completedAt = NOW(),
             errorMessage = CONCAT(COALESCE(errorMessage, ''), ' [', ${staleCleanNote}, ']')
         WHERE status = 'running'
-          AND updated_at < DATE_SUB(NOW(), INTERVAL ${staleThresholdMinutes} MINUTE)
+          AND updated_at < DATE_SUB(NOW(), INTERVAL ${sql.raw(String(staleThresholdMinutes))} MINUTE)
       `);
       const staleCleaned = (staleResult as Record<string, unknown>[])?.[0]?.affectedRows || 0;
       
@@ -757,7 +757,7 @@ export async function orchestrateStartup(server: unknown): Promise<void> {
       const activeJobs = await database.execute(sql`
         SELECT id, current_step, updated_at FROM data_sync_jobs 
         WHERE status = 'running'
-          AND updated_at >= DATE_SUB(NOW(), INTERVAL ${staleThresholdMinutes} MINUTE)
+          AND updated_at >= DATE_SUB(NOW(), INTERVAL ${sql.raw(String(staleThresholdMinutes))} MINUTE)
       `);
       const activeCount = (activeJobs as unknown[])?.[0]?.length || (Array.isArray(activeJobs) ? (activeJobs as unknown[]).filter((r: unknown) => r.id).length : 0);
       

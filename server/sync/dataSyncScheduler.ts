@@ -1835,19 +1835,19 @@ export async function startOptimizationScheduler(): Promise<void> {
           const RETENTION_DAYS = 30;
           // 清理sync_conflicts
           const [r1] = await conn.execute(
-            `DELETE FROM sync_conflicts WHERE created_at < DATE_SUB(NOW(), INTERVAL ${RETENTION_DAYS} DAY)`
+            `DELETE FROM sync_conflicts WHERE created_at < DATE_SUB(NOW(), INTERVAL ${sql.raw(String(RETENTION_DAYS))} DAY)`
           ) as unknown[];
           // 清理sync_change_records
           const [r2] = await conn.execute(
-            `DELETE FROM sync_change_records WHERE created_at < DATE_SUB(NOW(), INTERVAL ${RETENTION_DAYS} DAY)`
+            `DELETE FROM sync_change_records WHERE created_at < DATE_SUB(NOW(), INTERVAL ${sql.raw(String(RETENTION_DAYS))} DAY)`
           ) as unknown[];
           // 清理system_logs
           const [r3] = await conn.execute(
-            `DELETE FROM system_logs WHERE timestamp < DATE_SUB(NOW(), INTERVAL ${RETENTION_DAYS} DAY)`
+            `DELETE FROM system_logs WHERE timestamp < DATE_SUB(NOW(), INTERVAL ${sql.raw(String(RETENTION_DAYS))} DAY)`
           ) as unknown[];
           // 清理已完成的optimization_tasks
           const [r4] = await conn.execute(
-            `DELETE FROM optimization_tasks WHERE status IN ('synced', 'permanently_failed') AND created_at < DATE_SUB(NOW(), INTERVAL ${RETENTION_DAYS} DAY)`
+            `DELETE FROM optimization_tasks WHERE status IN ('synced', 'permanently_failed') AND created_at < DATE_SUB(NOW(), INTERVAL ${sql.raw(String(RETENTION_DAYS))} DAY)`
           ) as unknown[];
           log.warn(`[DataCleanup] v350: 自动清理完成 - sync_conflicts:${r1.affectedRows}, sync_change_records:${r2.affectedRows}, system_logs:${r3.affectedRows}, optimization_tasks:${r4.affectedRows}`);
         } finally {

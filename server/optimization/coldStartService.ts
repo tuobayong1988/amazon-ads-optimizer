@@ -812,14 +812,14 @@ export async function getColdStartLogs(accountId?: number, limit: number = 20): 
         SELECT * FROM cold_start_logs 
         WHERE account_id = ${accountId} 
         ORDER BY created_at DESC 
-        LIMIT ${limit}
+        LIMIT ${sql.raw(String(limit))}
       `);
       return (rows as Record<string, unknown>[])?.[0] || [];
     } else {
       const rows = await database.execute(sql`
         SELECT * FROM cold_start_logs 
         ORDER BY created_at DESC 
-        LIMIT ${limit}
+        LIMIT ${sql.raw(String(limit))}
       `);
       return (rows as Record<string, unknown>[])?.[0] || [];
     }

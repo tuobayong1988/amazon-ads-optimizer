@@ -69,7 +69,7 @@ export async function analyzeCrossCampaignNegatives(
       FROM search_terms st
       INNER JOIN campaigns c ON st.campaignId = c.campaignId
       WHERE c.accountId = ${accountId}
-        AND st.reportDate >= DATE_SUB(CURDATE(), INTERVAL ${lookbackDays} DAY)
+        AND st.reportDate >= DATE_SUB(CURDATE(), INTERVAL ${sql.raw(String(lookbackDays))} DAY)
         AND st.searchTerm IS NOT NULL
         AND st.searchTerm != ''
       GROUP BY st.searchTerm

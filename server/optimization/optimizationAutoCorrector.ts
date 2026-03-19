@@ -426,7 +426,7 @@ async function fixNullApiSyncStatusRecords(database: unknown): Promise<number> {
         UPDATE optimization_logs 
         SET api_sync_status = 'legacy_unsynced'
         WHERE api_sync_status IS NULL
-        LIMIT ${BATCH_SIZE}
+        LIMIT ${sql.raw(String(BATCH_SIZE))}
       `);
       // @ts-expect-error - MySQL affectedRows
       batchAffected = (updateResult as Record<string, unknown>[])?.[0]?.affectedRows || (updateResult as Record<string, unknown>[])?.affectedRows || 0;
@@ -443,7 +443,7 @@ async function fixNullApiSyncStatusRecords(database: unknown): Promise<number> {
         UPDATE optimization_events 
         SET api_sync_status = 'legacy_unsynced'
         WHERE api_sync_status IS NULL
-        LIMIT ${BATCH_SIZE}
+        LIMIT ${sql.raw(String(BATCH_SIZE))}
       `);
       // @ts-expect-error - MySQL affectedRows
       batchAffected2 = (updateResult2 as Record<string, unknown>[])?.[0]?.affectedRows || (updateResult2 as unknown)?.affectedRows || 0;
@@ -664,7 +664,7 @@ async function correctBidMismatches(database: unknown, accountId: number): Promi
             AND (oe2.change_reason IS NULL OR oe2.change_reason NOT LIKE '%AutoCorrector%')
         )
       ORDER BY oe.created_at DESC
-      LIMIT ${AUTO_CORRECTION_CONFIG.maxBidCorrectionsPerRun}
+      LIMIT ${sql.raw(String(AUTO_CORRECTION_CONFIG.maxBidCorrectionsPerRun))}
     `;
     
     const mismatches = await database.execute(mismatchQuery);
@@ -1017,7 +1017,7 @@ async function correctBudgetMismatches(database: unknown, accountId: number): Pr
             AND (oe2.change_reason IS NULL OR oe2.change_reason NOT LIKE '%AutoCorrector%')
         )
       ORDER BY oe.created_at DESC
-      LIMIT ${AUTO_CORRECTION_CONFIG.maxBudgetCorrectionsPerRun}
+      LIMIT ${sql.raw(String(AUTO_CORRECTION_CONFIG.maxBudgetCorrectionsPerRun))}
     `;
     
     const mismatches = await database.execute(mismatchQuery);
@@ -1134,7 +1134,7 @@ async function correctPlacementMismatches(database: unknown, accountId: number):
             AND oe2.status = 'success'
         )
       ORDER BY oe.created_at DESC
-      LIMIT ${AUTO_CORRECTION_CONFIG.maxPlacementCorrectionsPerRun}
+      LIMIT ${sql.raw(String(AUTO_CORRECTION_CONFIG.maxPlacementCorrectionsPerRun))}
     `;
     
     const mismatches = await database.execute(mismatchQuery);
@@ -2580,7 +2580,7 @@ async function retryHistoricalFailedKeywordHarvests(database: unknown, accountId
         AND action_detail IS NOT NULL
         AND action_detail != ''
       ORDER BY created_at DESC
-      LIMIT ${MAX_PER_RUN}
+      LIMIT ${sql.raw(String(MAX_PER_RUN))}
     `);
     
     // @ts-expect-error - type assertion
@@ -3041,6 +3041,8 @@ async function backfillNegativeKeywordIds(database: unknown, accountId: number):
     for (const rawId of localCampaignIds) {
       const localId = Number(rawId);
       if (isNaN(localId)) continue;
+      
+      // v458: 先尝试作为内部ID查找，再尝试作为Amazon ID查找
       const campRows = await database
         .select({ campaignId: campaigns.campaignId })
         .from(campaigns)
@@ -3048,9 +3050,20 @@ async function backfillNegativeKeywordIds(database: unknown, accountId: number):
         .limit(1);
       if (campRows.length > 0 && campRows[0].campaignId) {
         localToAmazonCampaignIdMap.set(localId, String(campRows[0].campaignId));
-        log.debug(`v203: 否定词回填campaignId解析: localId=${localId} -> amazonId=${campRows[0].campaignId}`);
+        log.debug(`v203: 否定词回塬campaignId解析: localId=${localId} -> amazonId=${campRows[0].campaignId}`);
       } else {
-        log.warn(`v203: 否定词回填campaignId解析失败: localId=${localId} 在campaigns表中不存在或无Amazon ID`);
+        // v458: rawId可能已经是Amazon campaignId（字符串），直接用它查找
+        const campByAmazonId = await database
+          .select({ id: campaigns.id, campaignId: campaigns.campaignId })
+          .from(campaigns)
+          .where(eq(campaigns.campaignId, String(rawId)))
+          .limit(1);
+        if (campByAmazonId.length > 0 && campByAmazonId[0].campaignId) {
+          localToAmazonCampaignIdMap.set(localId, String(campByAmazonId[0].campaignId));
+          log.debug(`v458: 否定词回塬campaignId解析(通过Amazon ID): rawId=${rawId} -> amazonId=${campByAmazonId[0].campaignId}`);
+        } else {
+          log.warn(`v203: 否定词回塬campaignId解析失败: localId=${localId} 在campaigns表中不存在或无Amazon ID`);
+        }
       }
     }
     
@@ -3389,7 +3402,7 @@ async function auditAlgorithmDecisionQuality(database: unknown, accountId: numbe
         WHERE account_id = ${accountId}
           AND event_category = 'bid_adjustment'
           AND status = 'success'
-          AND created_at > DATE_SUB(NOW(), INTERVAL ${QUALITY_AUDIT_CONFIG.lookbackDays} DAY)
+          AND created_at > DATE_SUB(NOW(), INTERVAL ${sql.raw(String(QUALITY_AUDIT_CONFIG.lookbackDays))} DAY)
       ) oe ON oe.keyword_id = k.id AND oe.rn = 1
       WHERE k.keywordStatus = 'enabled'
         AND c.campaignStatus = 'enabled'
@@ -3413,7 +3426,7 @@ async function auditAlgorithmDecisionQuality(database: unknown, accountId: numbe
           )
         )
       ORDER BY CAST(k.spend AS DECIMAL(10,2)) DESC
-      LIMIT ${QUALITY_AUDIT_CONFIG.maxAuditsPerRun}
+      LIMIT ${sql.raw(String(QUALITY_AUDIT_CONFIG.maxAuditsPerRun))}
     `);
     
     const rows = (auditCandidates as Record<string, unknown>[])?.[0] || auditCandidates;

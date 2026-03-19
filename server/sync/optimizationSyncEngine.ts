@@ -721,7 +721,19 @@ async function executeBatchByType(
                   await updateLocalBid(conn, 'keyword', t.target_entity_id, t.new_value);
                   result.synced++;
                 } else {
-                  await markTaskForRetry(conn, t.id, t.retry_count, spFailReason);
+                  // v458: 检测entityNotFoundError，标记关键词为amazon_deleted避免无限重试
+                  const spFailLower = spFailReason.toLowerCase();
+                  if (spFailLower.includes('entitynotfounderror') || spFailLower.includes('entity_not_found')) {
+                    await markTaskFailed(conn, t.id, `[v458-entity-deleted] ${spFailReason}`);
+                    try {
+                      await Q.markKeywordDeleted(conn, t.target_entity_id, String(t.amazon_entity_id));
+                      log.warn(`[SyncEngine] v458: SP Keyword ${t.amazon_entity_id} Amazon端已不存在，已标记为amazon_deleted`);
+                    } catch (markErr: unknown) {
+                      log.error(`[SyncEngine] v458: 标记Keyword deleted失败: ${(markErr as Error).message}`);
+                    }
+                  } else {
+                    await markTaskForRetry(conn, t.id, t.retry_count, spFailReason);
+                  }
                   result.failed++;
                 }
               } else {
@@ -836,7 +848,19 @@ async function executeBatchByType(
                   await updateLocalBid(conn, 'keyword', t.target_entity_id, t.new_value);
                   result.synced++;
                 } else {
-                  await markTaskForRetry(conn, t.id, t.retry_count, failReason);
+                  // v458: 检测entityNotFoundError，标记为amazon_deleted
+                  const sbFailLower = failReason.toLowerCase();
+                  if (sbFailLower.includes('entitynotfounderror') || sbFailLower.includes('entity_not_found')) {
+                    await markTaskFailed(conn, t.id, `[v458-entity-deleted] ${failReason}`);
+                    try {
+                      await Q.markKeywordDeleted(conn, t.target_entity_id, String(t.amazon_entity_id));
+                      log.warn(`[SyncEngine] v458: SB Keyword ${t.amazon_entity_id} Amazon端已不存在，已标记为amazon_deleted`);
+                    } catch (markErr: unknown) {
+                      log.error(`[SyncEngine] v458: 标记SB Keyword deleted失败: ${(markErr as Error).message}`);
+                    }
+                  } else {
+                    await markTaskForRetry(conn, t.id, t.retry_count, failReason);
+                  }
                   result.failed++;
                 }
               } else {
@@ -896,8 +920,21 @@ async function executeBatchByType(
           }
           
           for (const t of ptTasks) {
-            if (failedIds.has(String(t.amazon_entity_id))) {
-              await markTaskForRetry(conn, t.id, t.retry_count, failedIds.get(String(t.amazon_entity_id))!);
+            const ptFailReason = failedIds.get(String(t.amazon_entity_id));
+            if (ptFailReason) {
+              // v458: 检测entityNotFoundError，标记商品定向为amazon_deleted避免无限重试
+              const ptFailLower = ptFailReason.toLowerCase();
+              if (ptFailLower.includes('entitynotfounderror') || ptFailLower.includes('entity_not_found')) {
+                await markTaskFailed(conn, t.id, `[v458-entity-deleted] ${ptFailReason}`);
+                try {
+                  await Q.markTargetDeleted(conn, t.target_entity_id, String(t.amazon_entity_id));
+                  log.warn(`[SyncEngine] v458: ProductTarget ${t.amazon_entity_id} Amazon端已不存在，已标记为amazon_deleted`);
+                } catch (markErr: unknown) {
+                  log.error(`[SyncEngine] v458: 标记Target deleted失败: ${(markErr as Error).message}`);
+                }
+              } else {
+                await markTaskForRetry(conn, t.id, t.retry_count, ptFailReason);
+              }
               result.failed++;
             } else {
               await markTaskSynced(conn, t.id);
@@ -1016,7 +1053,23 @@ async function executeBatchByType(
           for (const t of validTasks) {
             const statusFailReason = failedIdMap.get(String(t.amazon_entity_id));
             if (statusFailReason) {
-              await markTaskForRetry(conn, t.id, t.retry_count, statusFailReason);
+              // v458: 检测entityNotFoundError或超过最大重试次数，标记为永久失败
+              const kwStatusFailLower = statusFailReason.toLowerCase();
+              if (kwStatusFailLower.includes('entitynotfounderror') || kwStatusFailLower.includes('entity_not_found')) {
+                await markTaskFailed(conn, t.id, `[v458-entity-deleted] ${statusFailReason}`);
+                try {
+                  await Q.markKeywordDeleted(conn, t.target_entity_id, String(t.amazon_entity_id));
+                  log.warn(`[SyncEngine] v458: Keyword ${t.amazon_entity_id} 状态同步失败-Amazon端已不存在，已标记为amazon_deleted`);
+                } catch (markErr: unknown) {
+                  log.error(`[SyncEngine] v458: 标记Keyword deleted失败: ${(markErr as Error).message}`);
+                }
+              } else if (t.retry_count >= 10) {
+                // v458: 重试超过10次，标记为永久失败
+                await markTaskFailed(conn, t.id, `[v458-max-retries] ${statusFailReason}`);
+                log.warn(`[SyncEngine] v458: Keyword ${t.amazon_entity_id} 重试${t.retry_count}次后标记为永久失败`);
+              } else {
+                await markTaskForRetry(conn, t.id, t.retry_count, statusFailReason);
+              }
               result.failed++;
             } else {
               await markTaskSynced(conn, t.id);

@@ -586,7 +586,7 @@ export async function getAccountReportRequests(accountId: number, limit: number 
   }
 
   const result = await database.execute(sql`
-    SELECT * FROM report_requests WHERE accountId = ${accountId} ORDER BY createdAt DESC LIMIT ${limit}
+    SELECT * FROM report_requests WHERE accountId = ${accountId} ORDER BY createdAt DESC LIMIT ${sql.raw(String(limit))}
   `);
 
   const requests = (result as Record<string, unknown>[])[0] || result;

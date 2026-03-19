@@ -532,7 +532,7 @@ router.get('/db-logs', async (req: Request, res: Response) => {
     const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
     const hours = parseInt(req.query.hours as string) || 24;
     
-    let whereClause = `WHERE timestamp >= DATE_SUB(NOW(), INTERVAL ${hours} HOUR)`;
+    let whereClause = `WHERE timestamp >= DATE_SUB(NOW(), INTERVAL ${sql.raw(String(hours))} HOUR)`;
     if (level) whereClause += ` AND level = '${level.toUpperCase()}'`;
     if (module) whereClause += ` AND module LIKE '%${module}%'`;
     if (keyword) whereClause += ` AND message LIKE '%${keyword}%'`;
@@ -542,14 +542,14 @@ router.get('/db-logs', async (req: Request, res: Response) => {
        FROM system_logs 
        ${whereClause}
        ORDER BY id DESC 
-       LIMIT ${limit}`
+       LIMIT ${sql.raw(String(limit))}`
     ));
     
     // 统计
     const [statsRows] = await db.execute(sql.raw(
       `SELECT level, COUNT(*) as cnt 
        FROM system_logs 
-       WHERE timestamp >= DATE_SUB(NOW(), INTERVAL ${hours} HOUR)
+       WHERE timestamp >= DATE_SUB(NOW(), INTERVAL ${sql.raw(String(hours))} HOUR)
        GROUP BY level`
     ));
     
@@ -594,7 +594,7 @@ router.get('/optimization-events', async (req: Request, res: Response) => {
     const category = req.query.category as string || '';
     const status = req.query.status as string || '';
     
-    let whereClause = `WHERE created_at >= DATE_SUB(NOW(), INTERVAL ${hours} HOUR)`;
+    let whereClause = `WHERE created_at >= DATE_SUB(NOW(), INTERVAL ${sql.raw(String(hours))} HOUR)`;
     if (category) whereClause += ` AND event_category = '${category}'`;
     // execution_status列可能不存在，使用event_category过滤即可
     
@@ -609,14 +609,14 @@ router.get('/optimization-events', async (req: Request, res: Response) => {
        FROM optimization_events 
        ${whereClause}
        ORDER BY id DESC 
-       LIMIT ${limit}`
+       LIMIT ${sql.raw(String(limit))}`
     ));
     
     // 统计
     const [statsRows] = await db.execute(sql.raw(
       `SELECT event_category, COUNT(*) as cnt 
        FROM optimization_events 
-       WHERE created_at >= DATE_SUB(NOW(), INTERVAL ${hours} HOUR)
+       WHERE created_at >= DATE_SUB(NOW(), INTERVAL ${sql.raw(String(hours))} HOUR)
        GROUP BY event_category`
     ));
     
@@ -629,7 +629,7 @@ router.get('/optimization-events', async (req: Request, res: Response) => {
            api_sync_status,
            COUNT(*) as cnt
          FROM optimization_events 
-         WHERE created_at >= DATE_SUB(NOW(), INTERVAL ${hours} HOUR)
+         WHERE created_at >= DATE_SUB(NOW(), INTERVAL ${sql.raw(String(hours))} HOUR)
            AND event_category = 'bid_adjustment'
          GROUP BY event_category, api_sync_status`
       ));

@@ -891,3 +891,35 @@ export async function insertTasks(
     );
   }
 }
+
+// ============================================================
+// v458: entityNotFoundError处理 - 标记已删除实体
+// ============================================================
+
+/**
+ * 将keyword标记为amazon_deleted
+ */
+export async function markKeywordDeleted(
+  conn: unknown,
+  internalId: number,
+  amazonKeywordId: string
+): Promise<void> {
+  await (conn as Record<string, Function>).execute(
+    `UPDATE ${K.table} SET ${K.keywordStatus} = 'amazon_deleted' WHERE ${K.id} = ? OR ${K.keywordId} = ?`,
+    [internalId, amazonKeywordId]
+  );
+}
+
+/**
+ * 将product_target标记为amazon_deleted
+ */
+export async function markTargetDeleted(
+  conn: unknown,
+  internalId: number,
+  amazonTargetId: string
+): Promise<void> {
+  await (conn as Record<string, Function>).execute(
+    `UPDATE ${PT.table} SET ${PT.targetStatus} = 'amazon_deleted' WHERE ${PT.id} = ? OR ${PT.targetId} = ?`,
+    [internalId, amazonTargetId]
+  );
+}

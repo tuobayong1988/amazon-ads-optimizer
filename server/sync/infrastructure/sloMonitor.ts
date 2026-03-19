@@ -330,7 +330,7 @@ export async function getSLOTrend(days: number = 7): Promise<Array<{
         SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed_shards,
         AVG(CASE WHEN status = 'completed' THEN duration_ms ELSE NULL END) as avg_duration
       FROM sync_shards
-      WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL ${days} DAY)
+      WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL ${sql.raw(String(days))} DAY)
       GROUP BY DATE(created_at)
       ORDER BY DATE(created_at)
     `);

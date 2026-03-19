@@ -36,7 +36,7 @@ export async function getAlgorithmEfficacyForTarget(
       sql`SELECT action_detail FROM optimization_logs 
           WHERE performance_group_id = ${targetId}
             AND log_category = 'bid_adjustment'
-            AND created_at >= DATE_SUB(NOW(), INTERVAL ${days} DAY)
+            AND created_at >= DATE_SUB(NOW(), INTERVAL ${sql.raw(String(days))} DAY)
           ORDER BY created_at DESC
           LIMIT 500`
     ) as unknown;
@@ -103,7 +103,7 @@ export async function getAlgorithmEfficacyForTarget(
               AVG(confidence_score) as avg_confidence
             FROM algorithm_effect_records
             WHERE performance_group_id = ${targetId}
-              AND created_at >= DATE_SUB(NOW(), INTERVAL ${days} DAY)`
+              AND created_at >= DATE_SUB(NOW(), INTERVAL ${sql.raw(String(days))} DAY)`
       ) as unknown;
       
       if (effectStats && effectStats[0] && effectStats[0].total > 0) {
@@ -129,7 +129,7 @@ export async function getAlgorithmEfficacyForTarget(
             FROM algorithm_evolution_records
             WHERE performance_group_id = ${targetId}
               AND action_type = 'correction'
-              AND created_at >= DATE_SUB(NOW(), INTERVAL ${days} DAY)`
+              AND created_at >= DATE_SUB(NOW(), INTERVAL ${sql.raw(String(days))} DAY)`
       ) as unknown;
       
       if (evoStats && evoStats[0]) {

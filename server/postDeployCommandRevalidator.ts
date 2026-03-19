@@ -153,9 +153,9 @@ async function revalidatePendingCommands(
               'target_pause', 'target_enable',
               'keyword_create', 'negative_keyword_add', 'product_target_create'
             )
-            AND oe.created_at > DATE_SUB(NOW(), INTERVAL ${REVALIDATION_CONFIG.pendingExpiryDays} DAY)
+            AND oe.created_at > DATE_SUB(NOW(), INTERVAL ${sql.raw(String(REVALIDATION_CONFIG.pendingExpiryDays))} DAY)
           ORDER BY oe.created_at DESC
-          LIMIT ${REVALIDATION_CONFIG.maxPendingPerTarget}`
+          LIMIT ${sql.raw(String(REVALIDATION_CONFIG.maxPendingPerTarget))}`
     );
     
     const rows = Array.isArray(pendingEvents) 
@@ -376,9 +376,9 @@ async function auditAndCorrectHistoricalCommands(
             AND oe.api_sync_status = 'synced'
             AND oe.action_type IN ('bid_increase', 'bid_decrease', 'bid_set', 'bid_auto_adjust',
                                     'budget_increase', 'budget_decrease', 'budget_set')
-            AND oe.created_at > DATE_SUB(NOW(), INTERVAL ${REVALIDATION_CONFIG.auditLookbackDays} DAY)
+            AND oe.created_at > DATE_SUB(NOW(), INTERVAL ${sql.raw(String(REVALIDATION_CONFIG.auditLookbackDays))} DAY)
           ORDER BY oe.created_at DESC
-          LIMIT ${REVALIDATION_CONFIG.maxSyncedPerTarget}`
+          LIMIT ${sql.raw(String(REVALIDATION_CONFIG.maxSyncedPerTarget))}`
     );
     
     const rows = Array.isArray(syncedEvents) 

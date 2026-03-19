@@ -96,7 +96,7 @@ export async function detectAndPauseZombieAccounts(): Promise<ZombieDetectionRes
           WHERE accountId = ${accountId}
             AND status = 'completed'
           ORDER BY completedAt DESC
-          LIMIT ${CHECK_WINDOW_SIZE}
+          LIMIT ${sql.raw(String(CHECK_WINDOW_SIZE))}
         `);
 
         const syncRows = (recentSyncs as Record<string, unknown>)[0] || recentSyncs;

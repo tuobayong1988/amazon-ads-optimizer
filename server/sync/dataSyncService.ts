@@ -635,7 +635,7 @@ export async function getScheduleHistory(scheduleId: number, limit: number = 20)
     INNER JOIN sync_schedules s ON j.accountId = s.account_id AND j.userId = s.user_id
     WHERE s.id = ${scheduleId}
     ORDER BY j.createdAt DESC
-    LIMIT ${limit}
+    LIMIT ${sql.raw(String(limit))}
   `);
   
   return (result as Record<string, unknown>[][])[0] || [];
@@ -698,7 +698,7 @@ export async function getScheduleExecutionHistory(
       INNER JOIN sync_schedules s ON j.accountId = s.account_id
       WHERE s.id = ${scheduleId}
       ORDER BY j.createdAt DESC
-      LIMIT ${limit}
+      LIMIT ${sql.raw(String(limit))}
     `);
 
     const rows = (result as Record<string, unknown>[][])[0] || [];

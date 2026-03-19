@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 452;  // v452: 彻底修复smartCampaign中parseInt导致的Amazon ID精度丢失，改用getCampaignByAmazonCampaignId查找
+export const SYSTEM_VERSION = 458;  // v458: 综合修复 - OptSyncQueries LIMIT参数、RLDataRecorder列缺失、enum扩展amazon_deleted、本地竞价引擎Strategy3修复、HTTP 425处理、AutoCorrector JOIN修复、SB/SP API Accept头修复

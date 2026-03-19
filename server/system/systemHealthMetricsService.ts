@@ -150,7 +150,7 @@ async function calculateRollbackRate(
       WHERE account_id = ${accountId}
         AND event_category = 'bid_adjustment'
         AND action_type IN ('bid_increase', 'bid_decrease')
-        AND created_at > DATE_SUB(NOW(), INTERVAL ${days} DAY)
+        AND created_at > DATE_SUB(NOW(), INTERVAL ${sql.raw(String(days))} DAY)
     `;
     const currentResult = await db.execute(currentPeriodQuery);
     const currentRows = (currentResult as Record<string, unknown>[])[0] || currentResult;
@@ -178,8 +178,8 @@ async function calculateRollbackRate(
       WHERE account_id = ${accountId}
         AND event_category = 'bid_adjustment'
         AND action_type IN ('bid_increase', 'bid_decrease')
-        AND created_at > DATE_SUB(NOW(), INTERVAL ${days * 2} DAY)
-        AND created_at <= DATE_SUB(NOW(), INTERVAL ${days} DAY)
+        AND created_at > DATE_SUB(NOW(), INTERVAL ${sql.raw(String(days * 2))} DAY)
+        AND created_at <= DATE_SUB(NOW(), INTERVAL ${sql.raw(String(days))} DAY)
     `;
     const previousResult = await db.execute(previousPeriodQuery);
     const previousRows = (previousResult as Record<string, unknown>[])[0] || previousResult;
@@ -227,7 +227,7 @@ async function calculateAlgorithmActivation(
       WHERE account_id = ${accountId}
         AND event_category = 'bid_adjustment'
         AND status = 'success'
-        AND created_at > DATE_SUB(NOW(), INTERVAL ${days} DAY)
+        AND created_at > DATE_SUB(NOW(), INTERVAL ${sql.raw(String(days))} DAY)
       GROUP BY change_reason, action_detail
     `;
     const result = await db.execute(query);
@@ -380,7 +380,7 @@ async function calculateBidIncreaseAnalysis(
         AND event_category = 'bid_adjustment'
         AND action_type = 'bid_increase'
         AND status = 'success'
-        AND created_at > DATE_SUB(NOW(), INTERVAL ${days} DAY)
+        AND created_at > DATE_SUB(NOW(), INTERVAL ${sql.raw(String(days))} DAY)
       ORDER BY created_at DESC
       LIMIT 1000
     `;
@@ -444,7 +444,7 @@ async function calculateCircuitBreakerRate(
       FROM optimization_events
       WHERE account_id = ${accountId}
         AND event_category = 'bid_adjustment'
-        AND created_at > DATE_SUB(NOW(), INTERVAL ${days} DAY)
+        AND created_at > DATE_SUB(NOW(), INTERVAL ${sql.raw(String(days))} DAY)
     `;
     const totalResult = await db.execute(totalQuery);
     const totalRows = (totalResult as Record<string, unknown>[])[0] || totalResult;
@@ -458,7 +458,7 @@ async function calculateCircuitBreakerRate(
       FROM optimization_events
       WHERE account_id = ${accountId}
         AND event_category = 'bid_adjustment'
-        AND created_at > DATE_SUB(NOW(), INTERVAL ${days} DAY)
+        AND created_at > DATE_SUB(NOW(), INTERVAL ${sql.raw(String(days))} DAY)
         AND (change_reason LIKE '%熔断%' OR change_reason LIKE '%circuit_breaker%' OR change_reason LIKE '%提价恢复%' OR change_reason LIKE '%曝光保护%')
       GROUP BY change_reason
     `;

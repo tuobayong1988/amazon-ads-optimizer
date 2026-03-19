@@ -656,14 +656,14 @@ export async function getApplicationHistory(
       WHERE account_id = ${accountId}
       AND campaign_id = ${campaignId}
       ORDER BY created_at DESC
-      LIMIT ${limit}
+      LIMIT ${sql.raw(String(limit))}
     `;
   } else {
     query = sql`
       SELECT * FROM marginal_benefit_applications
       WHERE account_id = ${accountId}
       ORDER BY created_at DESC
-      LIMIT ${limit}
+      LIMIT ${sql.raw(String(limit))}
     `;
   }
 
@@ -687,7 +687,7 @@ export async function getBatchAnalysisHistory(
     SELECT * FROM batch_marginal_benefit_analysis
     WHERE account_id = ${accountId}
     ORDER BY created_at DESC
-    LIMIT ${limit}
+    LIMIT ${sql.raw(String(limit))}
   `);
 
   return ((result as Record<string, unknown>[][])[0] as unknown[]) || [];

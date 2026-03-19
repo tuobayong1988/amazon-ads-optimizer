@@ -154,7 +154,7 @@ export async function queryAuditLogs(query: AuditLogQuery): Promise<{ logs: Audi
     
     const result = await db.execute(sql`
       SELECT * FROM audit_logs ${whereClause}
-      ORDER BY created_at DESC LIMIT ${limit} OFFSET ${offset}
+      ORDER BY created_at DESC LIMIT ${sql.raw(String(limit))} OFFSET ${offset}
     `);
     
     const rows = (result as Record<string, unknown>[][])[0] || [];
