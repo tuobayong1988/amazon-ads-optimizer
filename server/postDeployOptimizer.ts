@@ -77,6 +77,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 484,
+    description: 'v484: [策略管理时间范围筛选] — (1)P0-广告活动管理时间筛选: 优化目标详情页的广告活动列表新增时间范围筛选(今天/7天/14天/30天/60天/90天)，数据根据选择的时间范围动态汇总绩效指标 (2)P0-添加广告活动时间筛选: 添加广告活动对话框新增时间范围筛选，方便用户按时间维度查看广告活动数据 (3)服务端新增 getCampaignsByPerformanceGroupIdWithPerformance 和 getUnassignedCampaignsWithPerformance 数据库函数，支持时间范围内绩效数据汇总',
+    affectedModules: [],
+    correctionActions: [],
+  },
+  {
     version: 483,
     description: 'v483: [团队成员管理与用户个人设置] — (1)P0-团队成员直接创建账号: 将邮箱邀请流程改为管理员直接填写用户名+真实姓名+密码创建成员账号，新增 team.createMember API和 createTeamMemberAccount 服务函数 (2)P0-用户个人设置: 侧边栏用户菜单新增个人信息(修改用户名/姓名/邮箱)和修改密码功能，新增 auth.updateProfile API和 updateProfile 服务函数',
     affectedModules: [],

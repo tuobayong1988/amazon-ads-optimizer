@@ -649,4 +649,144 @@ export async function getCampaignStatusCounts(accountId: number) {
   return { total, enabled, paused, archived, managed, unmanaged };
 }
 
+// v484: 获取绩效组内广告活动（带时间范围绩效数据）
+export async function getCampaignsByPerformanceGroupIdWithPerformance(
+  performanceGroupId: number,
+  startDate: string,
+  endDate: string
+) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  // 获取绩效组内的广告活动基本信息
+  const campaignList = await db.select().from(campaigns).where(
+    eq(campaigns.performanceGroupId, performanceGroupId)
+  );
+  
+  if (campaignList.length === 0) return [];
+  
+  // 获取这些广告活动的accountId（绩效组内广告活动应属于同一账户）
+  const accountIds = [...new Set(campaignList.map((c: any) => c.accountId).filter(Boolean))];
+  if (accountIds.length === 0) return campaignList;
+  
+  // 获取时间范围内的绩效数据汇总
+  const campaignIds = campaignList.map((c: any) => c.campaignId).filter(Boolean);
+  if (campaignIds.length === 0) return campaignList;
+  
+  const perfData = await db.select({
+    campaignId: dailyPerformance.campaignId,
+    totalImpressions: sql<number>`COALESCE(SUM(${dailyPerformance.impressions}), 0)`,
+    totalClicks: sql<number>`COALESCE(SUM(${dailyPerformance.clicks}), 0)`,
+    totalSpend: sql<string>`COALESCE(SUM(${dailyPerformance.spend}), '0')`,
+    totalSales: sql<string>`COALESCE(SUM(${dailyPerformance.sales}), '0')`,
+    totalOrders: sql<number>`COALESCE(SUM(${dailyPerformance.orders}), 0)`,
+  })
+    .from(dailyPerformance)
+    .where(and(
+      inArray(dailyPerformance.accountId, accountIds),
+      sql`${dailyPerformance.campaignId} IS NOT NULL`,
+      sql`${dailyPerformance.date} >= ${startDate}`,
+      sql`${dailyPerformance.date} < DATE_ADD(${endDate}, INTERVAL 1 DAY)`
+    ))
+    .groupBy(dailyPerformance.campaignId);
+  
+  // 创建绩效数据映射
+  const perfMap = new Map<string, typeof perfData[0]>();
+  for (const p of perfData) {
+    if (p.campaignId) perfMap.set(p.campaignId, p);
+  }
+  
+  // 合并数据
+  return campaignList.map((campaign: any) => {
+    const perf = perfMap.get(campaign.campaignId);
+    const impressions = perf?.totalImpressions || 0;
+    const clicks = perf?.totalClicks || 0;
+    const spend = parseFloat(perf?.totalSpend || '0');
+    const sales = parseFloat(perf?.totalSales || '0');
+    const orders = perf?.totalOrders || 0;
+    
+    return {
+      ...campaign,
+      impressions,
+      clicks,
+      spend: spend.toFixed(2),
+      sales: sales.toFixed(2),
+      orders,
+      acos: sales > 0 ? ((spend / sales) * 100).toFixed(2) : null,
+      roas: spend > 0 ? (sales / spend).toFixed(2) : null,
+      ctr: impressions > 0 ? ((clicks / impressions) * 100).toFixed(4) : null,
+      cvr: clicks > 0 ? ((orders / clicks) * 100).toFixed(4) : null,
+      cpc: clicks > 0 ? (spend / clicks).toFixed(2) : null,
+    };
+  });
+}
+
+// v484: 获取未分配到绩效组的广告活动（带时间范围绩效数据）
+export async function getUnassignedCampaignsWithPerformance(
+  accountId: number,
+  startDate: string,
+  endDate: string
+) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  // 获取未分配的广告活动
+  const campaignList = await db.select().from(campaigns).where(
+    and(
+      eq(campaigns.accountId, accountId),
+      isNull(campaigns.performanceGroupId)
+    )
+  );
+  
+  if (campaignList.length === 0) return [];
+  
+  // 获取时间范围内的绩效数据汇总
+  const perfData = await db.select({
+    campaignId: dailyPerformance.campaignId,
+    totalImpressions: sql<number>`COALESCE(SUM(${dailyPerformance.impressions}), 0)`,
+    totalClicks: sql<number>`COALESCE(SUM(${dailyPerformance.clicks}), 0)`,
+    totalSpend: sql<string>`COALESCE(SUM(${dailyPerformance.spend}), '0')`,
+    totalSales: sql<string>`COALESCE(SUM(${dailyPerformance.sales}), '0')`,
+    totalOrders: sql<number>`COALESCE(SUM(${dailyPerformance.orders}), 0)`,
+  })
+    .from(dailyPerformance)
+    .where(and(
+      eq(dailyPerformance.accountId, accountId),
+      sql`${dailyPerformance.campaignId} IS NOT NULL`,
+      sql`${dailyPerformance.date} >= ${startDate}`,
+      sql`${dailyPerformance.date} < DATE_ADD(${endDate}, INTERVAL 1 DAY)`
+    ))
+    .groupBy(dailyPerformance.campaignId);
+  
+  // 创建绩效数据映射
+  const perfMap = new Map<string, typeof perfData[0]>();
+  for (const p of perfData) {
+    if (p.campaignId) perfMap.set(p.campaignId, p);
+  }
+  
+  // 合并数据
+  return campaignList.map((campaign: any) => {
+    const perf = perfMap.get(campaign.campaignId);
+    const impressions = perf?.totalImpressions || 0;
+    const clicks = perf?.totalClicks || 0;
+    const spend = parseFloat(perf?.totalSpend || '0');
+    const sales = parseFloat(perf?.totalSales || '0');
+    const orders = perf?.totalOrders || 0;
+    
+    return {
+      ...campaign,
+      impressions,
+      clicks,
+      spend: spend.toFixed(2),
+      sales: sales.toFixed(2),
+      orders,
+      acos: sales > 0 ? ((spend / sales) * 100).toFixed(2) : null,
+      roas: spend > 0 ? (sales / spend).toFixed(2) : null,
+      ctr: impressions > 0 ? ((clicks / impressions) * 100).toFixed(4) : null,
+      cvr: clicks > 0 ? ((orders / clicks) * 100).toFixed(4) : null,
+      cpc: clicks > 0 ? (spend / clicks).toFixed(2) : null,
+    };
+  });
+}
+
 // ==================== Ad Group Functions ====================

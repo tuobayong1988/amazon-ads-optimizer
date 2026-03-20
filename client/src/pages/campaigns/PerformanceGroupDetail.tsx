@@ -137,6 +137,11 @@ export default function PerformanceGroupDetail() {
   // v161: 区分当前正在执行的批量操作类型，防止UI混乱
   const [pendingBatchAction, setPendingBatchAction] = useState<'enable' | 'pause' | null>(null);
 
+  // v484: 广告活动管理表格时间范围筛选
+  const [mgTimeRange, setMgTimeRange] = useState('30d');
+  // v484: 添加广告活动对话框时间范围筛选
+  const [dialogTimeRange, setDialogTimeRange] = useState('30d');
+
   // v154: 广告活动管理表格筛选状态
   const [mgShowFilters, setMgShowFilters] = useState(false);
   const [mgSearchQuery, setMgSearchQuery] = useState('');
@@ -200,27 +205,42 @@ export default function PerformanceGroupDetail() {
     autoOptimize: true,
   });
 
+  // v484: 计算时间范围的起止日期
+  const getDateRange = (range: string) => {
+    const endDate = new Date().toISOString().split('T')[0];
+    const daysMap: Record<string, number> = {
+      'today': 0, '7d': 7, '14d': 14, '30d': 30, '60d': 60, '90d': 90
+    };
+    const days = daysMap[range] ?? 30;
+    const startDate = days === 0 
+      ? endDate 
+      : new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    return { startDate, endDate };
+  };
+
   // 获取绩效组详情
   const { data: group, isLoading: groupLoading, refetch: refetchGroup } = trpc.performanceGroup.getById.useQuery(
     { id: groupId! },
     { enabled: !!groupId }
   );
 
-  // 获取绩效组内的广告活动
+  // v484: 获取绩效组内的广告活动（带时间范围绩效数据）
+  const mgDateRange = getDateRange(mgTimeRange);
   const { data: groupCampaigns, isLoading: campaignsLoading, refetch: refetchCampaigns } = trpc.performanceGroup.getCampaigns.useQuery(
-    { groupId: groupId! },
+    { groupId: groupId!, startDate: mgDateRange.startDate, endDate: mgDateRange.endDate },
     { enabled: !!groupId }
   );
 
-  // 获取可添加的广告活动（未加入任何绩效组的）
+  // v484: 获取可添加的广告活动（带时间范围绩效数据）
+  const dialogDateRange = getDateRange(dialogTimeRange);
   const { data: availableCampaigns, isLoading: availableLoading } = trpc.campaign.listUnassigned.useQuery(
-    { accountId: group?.accountId! },
+    { accountId: group?.accountId!, startDate: dialogDateRange.startDate, endDate: dialogDateRange.endDate },
     { enabled: !!group?.accountId && showAddCampaignsDialog }
   );
 
-  // 获取绩效组KPI汇总
+  // v484: 获取绩效组KPI汇总（带时间范围）
   const { data: kpiSummary, isLoading: kpiLoading } = trpc.performanceGroup.getKpiSummary.useQuery(
-    { groupId: groupId! },
+    { groupId: groupId!, startDate: mgDateRange.startDate, endDate: mgDateRange.endDate },
     { enabled: !!groupId }
   );
 
@@ -1506,6 +1526,20 @@ export default function PerformanceGroupDetail() {
                 {groupCampaigns && groupCampaigns.length > 0 && (
                   <div className="mb-4 space-y-3">
                     <div className="flex items-center gap-2">
+                      {/* v484: 时间范围筛选 */}
+                      <Select value={mgTimeRange} onValueChange={setMgTimeRange}>
+                        <SelectTrigger className="w-[130px] h-9">
+                          <SelectValue placeholder="时间范围" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="today">今天</SelectItem>
+                          <SelectItem value="7d">近 7 天</SelectItem>
+                          <SelectItem value="14d">近 14 天</SelectItem>
+                          <SelectItem value="30d">近 30 天</SelectItem>
+                          <SelectItem value="60d">近 60 天</SelectItem>
+                          <SelectItem value="90d">近 90 天</SelectItem>
+                        </SelectContent>
+                      </Select>
                       <div className="relative flex-1 max-w-sm">
                         <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                         <Input
@@ -2069,10 +2103,24 @@ export default function PerformanceGroupDetail() {
               </div>
             </div>
             
-            {/* 筛选区域 */}
+              {/* 筛选区域 */}
             <div className="px-6 py-3 border-b flex-shrink-0 space-y-2 bg-muted/20">
               {/* 第一行：基本筛选 + 搜索 */}
               <div className="flex items-center gap-2">
+                {/* v484: 时间范围筛选 */}
+                <Select value={dialogTimeRange} onValueChange={setDialogTimeRange}>
+                  <SelectTrigger className="h-8 w-[120px]">
+                    <SelectValue placeholder="时间范围" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="today">今天</SelectItem>
+                    <SelectItem value="7d">近 7 天</SelectItem>
+                    <SelectItem value="14d">近 14 天</SelectItem>
+                    <SelectItem value="30d">近 30 天</SelectItem>
+                    <SelectItem value="60d">近 60 天</SelectItem>
+                    <SelectItem value="90d">近 90 天</SelectItem>
+                  </SelectContent>
+                </Select>
                 <Select value={filterCampaignType} onValueChange={setFilterCampaignType}>
                   <SelectTrigger className="h-8 w-[120px]">
                     <SelectValue placeholder="广告类型" />

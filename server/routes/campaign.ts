@@ -186,13 +186,30 @@ export const campaignRouter = router({
 
   // 获取未分配到绩效组的广告活动
   // v361: 数据隔离修复 - accountId改为必填
+  // v484: 支持时间范围绩效数据
   listUnassigned: protectedProcedure
-    .input(z.object({ accountId: z.number() }))
+    .input(z.object({ 
+      accountId: z.number(),
+      startDate: z.string().optional(),
+      endDate: z.string().optional(),
+    }))
     .query(async ({ ctx, input }: unknown) => {
       // v376: P1数据隔离修复 - 验证当前用户有权访问该accountId
       const { verifyAccountAccess } = await import('../utils/accessControl');
       await verifyAccountAccess(ctx.user.id, input.accountId);
-      return db.getUnassignedCampaigns(input.accountId);
+      
+      // v484: 如果提供了时间范围，返回带绩效数据的结果
+      if (input.startDate && input.endDate) {
+        return db.getUnassignedCampaignsWithPerformance(
+          input.accountId, input.startDate, input.endDate
+        );
+      }
+      // 默认使用近30天
+      const endDate = new Date().toISOString().split('T')[0];
+      const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      return db.getUnassignedCampaignsWithPerformance(
+        input.accountId, startDate, endDate
+      );
     }),
   
   // v370.4: 数据隔离 - 验证campaign归属

@@ -568,23 +568,49 @@ export const performanceGroupRouter = router({
       return db.getPerformanceGroupById(input.id);
     }),
 
-  // v370.4: 数据隔离 - 获取绩效组内的广告活动
+  // v484: 数据隔离 + 时间范围绩效数据 - 获取绩效组内的广告活动
   getCampaigns: protectedProcedure
-    .input(z.object({ groupId: z.number() }))
+    .input(z.object({ 
+      groupId: z.number(),
+      startDate: z.string().optional(),
+      endDate: z.string().optional(),
+    }))
     .query(async ({ ctx, input }: unknown) => {
       const { verifyPerformanceGroupAccess } = await import('../utils/accessControl');
       await verifyPerformanceGroupAccess(ctx.user.id, input.groupId);
-      return db.getCampaignsByPerformanceGroupId(input.groupId);
+      
+      // v484: 如果提供了时间范围，使用带绩效数据的查询
+      if (input.startDate && input.endDate) {
+        return db.getCampaignsByPerformanceGroupIdWithPerformance(
+          input.groupId, input.startDate, input.endDate
+        );
+      }
+      // 默认使用近30天
+      const endDate = new Date().toISOString().split('T')[0];
+      const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      return db.getCampaignsByPerformanceGroupIdWithPerformance(
+        input.groupId, startDate, endDate
+      );
     }),
 
-  // v370.4: 数据隔离 - 获取绩效组KPI汇总
+  // v484: 数据隔离 + 时间范围绩效数据 - 获取绩效组KPI汇总
   getKpiSummary: protectedProcedure
-    .input(z.object({ groupId: z.number() }))
+    .input(z.object({ 
+      groupId: z.number(),
+      startDate: z.string().optional(),
+      endDate: z.string().optional(),
+    }))
     .query(async ({ ctx, input }: unknown) => {
       const { verifyPerformanceGroupAccess } = await import('../utils/accessControl');
       await verifyPerformanceGroupAccess(ctx.user.id, input.groupId);
-      // 获取绩效组内所有广告活动的汇总数据
-      const campaigns = await db.getCampaignsByPerformanceGroupId(input.groupId);
+      
+      // v484: 使用带绩效数据的查询
+      const endDate = input.endDate || new Date().toISOString().split('T')[0];
+      const startDate = input.startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      const campaigns = await db.getCampaignsByPerformanceGroupIdWithPerformance(
+        input.groupId, startDate, endDate
+      );
+      
       let totalSpend = 0;
       let totalRevenue = 0;
       let totalConversions = 0;

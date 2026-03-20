@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 483;  // v483: 团队成员直接创建账号 + 用户个人设置(修改密码/用户名/姓名)
+export const SYSTEM_VERSION = 484;  // v484: 策略管理模块添加时间范围筛选功能
