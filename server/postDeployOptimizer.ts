@@ -78,7 +78,7 @@ type CorrectionAction =
 const VERSION_CHANGELOG: VersionChange[] = [
   {
     version: 482,
-    description: 'v482: [多租户数据隔离与权限修复] — (1)P0-算法效果概览数据泄露修复: algorithmEffectService.ts的optimization_logs回退查询添加userId过滤，防止新用户看到其他租户的优化数据 (2)P0-预发布引擎权限收紧: DashboardLayout.tsx侧边栏预发布引擎菜单从“role===admin”改为“role===admin && organizationId===1”，仅内部系统管理员可见 (3)P1-移除ElaraFit占位符: Amazon API添加店铺弹窗的placeholder从“例如：ElaraFit、My Store等”改为“例如：My Store、我的店铺等”',
+    description: 'v482: [多租户数据隔离与权限修复] — (1)P0-算法效果概览数据隔离: algorithmEffectService.ts的optimization_events和optimization_logs查询改为基于账户归属(accountId)的数据隔离，系统管理员查看所有数据，普通用户只能查看自己账户的数据，新用户无账户时返回空数据 (2)P0-预发布引擎权限收紧: DashboardLayout.tsx侧边栏预发布引擎菜单从"role===admin"改为"role===admin && organizationId===1"，仅内部系统管理员可见 (3)P1-移除ElaraFit占位符: Amazon API添加店铺弹窗的placeholder从"例如：ElaraFit、My Store等"改为"例如：My Store、我的店铺等"',
     affectedModules: [],
     correctionActions: [],
   },

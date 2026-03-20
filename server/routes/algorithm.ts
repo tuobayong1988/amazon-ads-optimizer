@@ -11,7 +11,7 @@ import * as holidayConfigService from '../system/holidayConfigService';
 import * as algorithmEvolutionEngine from '../algorithm/algorithmEvolutionEngine';
 import { runAutoCorrection, getScanHistory, getLastScanResult, getScanStatus, getConfig as getAutoCorrectorConfig, getLatestHealthReport } from '../optimization/optimizationAutoCorrector';
 import { apiCache } from '../services/apiCacheService';
-import { verifyAccountAccess } from '../utils/accessControl';
+import { verifyAccountAccess, isAdminUser, getUserAccountIds } from '../utils/accessControl';
 
 
 // ==================== Algorithm Optimization Router ====================
@@ -134,6 +134,14 @@ export const algorithmEffectRouter = router({
       const cached = apiCache.get<unknown>(cacheKey);
       if (cached) return cached;
 
+      // v482: 基于账户归属的数据隔离（与纠错监控一致）
+      const admin = await isAdminUser(ctx.user.id);
+      let userAccountIds: number[] | undefined;
+      if (!admin) {
+        const accountSet = await getUserAccountIds(ctx.user.id);
+        userAccountIds = Array.from(accountSet);
+      }
+
       const endDate = new Date();
       const startDate = new Date();
       startDate.setDate(startDate.getDate() - input.days);
@@ -141,7 +149,9 @@ export const algorithmEffectRouter = router({
         ctx.user.id,
         input.accountId,
         startDate,
-        endDate
+        endDate,
+        admin,
+        userAccountIds
       );
       apiCache.set(cacheKey, result, 5 * 60 * 1000);
       return result;
@@ -154,10 +164,19 @@ export const algorithmEffectRouter = router({
       days: z.number().optional().default(30)
     }))
     .query(async ({ ctx, input }) => {
+      // v482: 基于账户归属的数据隔离
+      const admin = await isAdminUser(ctx.user.id);
+      let userAccountIds: number[] | undefined;
+      if (!admin) {
+        const accountSet = await getUserAccountIds(ctx.user.id);
+        userAccountIds = Array.from(accountSet);
+      }
       return algorithmEffectService.getEffectTrend(
         ctx.user.id,
         input.accountId,
-        input.days
+        input.days,
+        admin,
+        userAccountIds
       );
     }),
 

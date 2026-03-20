@@ -280,7 +280,9 @@ export async function getAlgorithmEffectStats(
   userId: number,
   accountId?: number,
   startDate?: Date,
-  endDate?: Date
+  endDate?: Date,
+  isAdmin?: boolean,
+  userAccountIds?: number[]
 ): Promise<{
   algorithm: string;
   count: number;
@@ -292,6 +294,22 @@ export async function getAlgorithmEffectStats(
   const db = await getDb();
   if (!db) throw new Error('Database connection failed');
   
+  // v482: 基于账户归属的数据隔离（与纠错监控一致）
+  // - 系统管理员(isAdmin=true): 查看所有数据
+  // - 普通用户: 只能查看自己账户(ad_accounts.userId=user.id)的数据
+  // - 无账户的用户: 返回空数据
+  const accountFilter = isAdmin
+    ? undefined  // 管理员不加过滤
+    : (userAccountIds && userAccountIds.length > 0
+        ? inArray(optimizationEvents.accountId, userAccountIds)
+        : sql`1=0`);  // 无账户用户返回空
+  
+  const accountFilterLogs = isAdmin
+    ? undefined
+    : (userAccountIds && userAccountIds.length > 0
+        ? inArray(optimizationLogs.accountId, userAccountIds)
+        : sql`1=0`);
+
   // v235: 首先尝试从 optimization_events 表读取真实数据
   try {
     const startStr = startDate ? startDate.toISOString().slice(0, 19).replace('T', ' ') : undefined;
@@ -313,7 +331,7 @@ export async function getAlgorithmEffectStats(
       .from(optimizationEvents)
       .where(
         and(
-          eq(optimizationEvents.userId, userId),
+          accountFilter,
           accountId ? eq(optimizationEvents.accountId, accountId) : undefined,
           inArray(optimizationEvents.eventCategory, ['bid_adjustment']),
           inArray(optimizationEvents.actionType, ['bid_increase', 'bid_decrease', 'bid_auto_adjust']),
@@ -376,8 +394,8 @@ export async function getAlgorithmEffectStats(
       .from(optimizationLogs)
       .where(
         and(
-          // v482: 添加userId过滤，修复多租户数据泄露问题
-          eq(optimizationLogs.userId, userId),
+          // v482: 基于账户归属的数据隔离（替代之前的userId过滤）
+          accountFilterLogs,
           eq(optimizationLogs.logCategory, 'bid_adjustment'),
           startStr ? gte(optimizationLogs.createdAt, startStr) : undefined,
           endStr ? lte(optimizationLogs.createdAt, endStr) : undefined,
@@ -476,7 +494,9 @@ export async function getPendingEffectRecords(
 export async function getEffectTrend(
   userId: number,
   accountId?: number,
-  days: number = 30
+  days: number = 30,
+  isAdmin?: boolean,
+  userAccountIds?: number[]
 ): Promise<{
   date: string;
   avgEffectScore: number;
@@ -491,6 +511,13 @@ export async function getEffectTrend(
   const db = await getDb();
   if (!db) throw new Error('Database connection failed');
   
+  // v482: 基于账户归属的数据隔离
+  const accountFilter = isAdmin
+    ? undefined
+    : (userAccountIds && userAccountIds.length > 0
+        ? inArray(optimizationEvents.accountId, userAccountIds)
+        : sql`1=0`);
+
   // v235: 从 optimization_events 表按日期分组统计
   try {
     const results = await db
@@ -503,7 +530,7 @@ export async function getEffectTrend(
       .from(optimizationEvents)
       .where(
         and(
-          eq(optimizationEvents.userId, userId),
+          accountFilter,
           accountId ? eq(optimizationEvents.accountId, accountId) : undefined,
           inArray(optimizationEvents.eventCategory, ['bid_adjustment']),
           inArray(optimizationEvents.actionType, ['bid_increase', 'bid_decrease', 'bid_auto_adjust']),
