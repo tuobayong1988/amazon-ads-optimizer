@@ -78,7 +78,7 @@ type CorrectionAction =
 const VERSION_CHANGELOG: VersionChange[] = [
   {
     version: 485,
-    description: 'v485: [系统监控模块权限控制] — P0-系统监控菜单(纠错监控/系统健康/数据健康/同步日志)从基础菜单组提取为独立菜单组，仅系统管理员(admin+organizationId===1)可见，租户和子账户不再显示',
+    description: 'v485: [侧边栏权限控制] — (1)P0-系统监控菜单(纠错监控/系统健康/数据健康/同步日志)仅系统管理员可见 (2)P0-邀请码管理和审计日志从基础菜单提取为系统管理菜单组，仅系统管理员可见 (3)团队管理保留在基础菜单中，所有租户均可访问',
     affectedModules: [],
     correctionActions: [],
   },
