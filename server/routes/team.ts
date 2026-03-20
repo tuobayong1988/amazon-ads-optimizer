@@ -454,10 +454,10 @@ export const inviteCodeRouter = router({
       }, input.count);
     }),
 
-  // 验证邀请码（公开接口）
-  validate: protectedProcedure
+  // 验证邀请码（公开接口 - v481: 修复为publicProcedure，允许未登录用户在注册页面验证邀请码）
+  validate: publicProcedure
     .input(z.object({ code: z.string() }))
-    .query(async ({ ctx, input }: unknown) => {
+    .query(async ({ input }: unknown) => {
       const { validateInviteCode } = await import('../system/inviteCodeService');
       return validateInviteCode(input.code);
     }),

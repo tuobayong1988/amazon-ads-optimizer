@@ -41,6 +41,12 @@ const redirectToLoginIfUnauthorized = (error: unknown) => {
 
   if (!isUnauthorized) return;
 
+  // v481: 不在注册页面、登录页面和营销页面触发重定向
+  // 这些页面允许未登录用户访问，不应因为某些publicProcedure调用失败而跳转
+  const publicPaths = ['/register', '/login', '/local-login', '/landing', '/how-it-works', '/contact', '/blog', '/onboarding', '/seller-onboarding'];
+  const currentPath = window.location.pathname;
+  if (publicPaths.some(p => currentPath.startsWith(p))) return;
+
   window.location.href = getLoginUrl();
 };
 

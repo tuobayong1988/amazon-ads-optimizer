@@ -77,6 +77,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 481,
+    description: 'v481: [注册页面自动跳转登录页紧急修复] — (1)P0-inviteCode.validate从protectedProcedure改为publicProcedure: 允许未登录用户在注册页面验证邀请码 (2)P0-公开页面免疫未授权重定向: main.tsx的redirectToLoginIfUnauthorized排除/register等公开路径，防止未登录用户被强制跳转到登录页',
+    affectedModules: [],
+    correctionActions: [],
+  },
+  {
     version: 480,
     description: 'v480: [SP Manual否定产品定向400错误根因修复] — (1)P0-定向算法修复: SP Manual广告活动的否定产品定向从Campaign级降级为AdGroup级，因为Amazon API不允许Manual广告活动创建Campaign级否定产品定向(返回400错误)，只有SP Auto广告活动支持Campaign级否定产品定向',
     affectedModules: ['searchterm'],

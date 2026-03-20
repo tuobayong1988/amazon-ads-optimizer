@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 480;  // v480: SP Manual否定产品定向降级为adGroup级(修复400错误) + v479所有修复
+export const SYSTEM_VERSION = 481;  // v481: 修复注册页面自动跳转登录页bug - inviteCode.validate改为publicProcedure + 公开页面免疫未授权重定向
