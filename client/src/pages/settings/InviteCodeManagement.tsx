@@ -15,6 +15,7 @@ import {
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { safeToISODateString, safeToISOString, safeToLocaleDateString } from '../../lib/safeDate';
+import DashboardLayout from "@/components/DashboardLayout";
 
 export default function InviteCodeManagement() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -142,6 +143,7 @@ export default function InviteCodeManagement() {
   const inviteCodes = inviteCodesQuery.data || [];
 
   return (
+    <DashboardLayout>
     <div className="p-6 space-y-6">
       {/* 页面标题 */}
       <div className="flex items-center justify-between">
@@ -445,5 +447,6 @@ export default function InviteCodeManagement() {
         </CardContent>
       </Card>
     </div>
+    </DashboardLayout>
   );
 }

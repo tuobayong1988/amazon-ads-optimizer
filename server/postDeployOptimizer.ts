@@ -77,6 +77,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 486,
+    description: 'v486: [邀请码管理页面侧边栏修复] — P0-邀请码管理页面缺少DashboardLayout包裹，导致左侧导航栏缺失，无法快速进入其他模块。已添加DashboardLayout包裹，确保所有页面都有统一的侧边栏导航',
+    affectedModules: [],
+    correctionActions: [],
+  },
+  {
     version: 485,
     description: 'v485: [侧边栏权限控制] — (1)P0-系统监控菜单(纠错监控/系统健康/数据健康/同步日志)仅系统管理员可见 (2)P0-邀请码管理和审计日志从基础菜单提取为系统管理菜单组，仅系统管理员可见 (3)团队管理保留在基础菜单中，所有租户均可访问',
     affectedModules: [],
