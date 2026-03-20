@@ -4,8 +4,21 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { trpc } from "@/lib/trpc";
+import { toast } from "sonner";
 import {
   Sidebar,
   SidebarContent,
@@ -23,7 +36,9 @@ import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
 import {
   LayoutDashboard, 
-  LogOut, 
+  LogOut,
+  User,
+  Lock, 
   PanelLeft, 
   Target, 
   Megaphone, 
@@ -308,6 +323,29 @@ function DashboardLayoutContent({
     { id: 3, type: 'success' as const, title: '流水线完成', message: '预发布项目 "Water Bottle" 的M1-M7流水线已全部完成', time: '2小时前', read: true },
     { id: 4, type: 'warning' as const, title: '预算告警', message: '广告活动 "SP-Auto-B0FNVPZ2BS" 日预算即将耗尽', time: '3小时前', read: true },
   ]);
+  // v483: 个人设置弹窗状态
+  const [profileDialogOpen, setProfileDialogOpen] = useState(false);
+  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
+  const [profileForm, setProfileForm] = useState({ username: '', name: '', email: '' });
+  const [passwordForm, setPasswordForm] = useState({ oldPassword: '', newPassword: '', confirmPassword: '' });
+
+  const updateProfileMutation = trpc.auth.updateProfile.useMutation({
+    onSuccess: () => {
+      toast.success('个人信息已更新，重新登录后生效');
+      setProfileDialogOpen(false);
+    },
+    onError: (err) => toast.error(err.message || '更新失败'),
+  });
+
+  const changePasswordMutation = trpc.auth.changePassword.useMutation({
+    onSuccess: () => {
+      toast.success('密码已修改');
+      setPasswordDialogOpen(false);
+      setPasswordForm({ oldPassword: '', newPassword: '', confirmPassword: '' });
+    },
+    onError: (err) => toast.error(err.message || '修改失败'),
+  });
+
   // 优先从菜单项匹配，其次从完整路由标题映射中查找
   const activeMenuItem = menuItems.find(item => item.path === location);
   const pageTitle = activeMenuItem?.label || routeTitleMap[location] || '';
@@ -506,7 +544,32 @@ function DashboardLayoutContent({
                   </div>
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuItem
+                  onClick={() => {
+                    setProfileForm({
+                      username: user?.username || '',
+                      name: user?.name || '',
+                      email: user?.email || '',
+                    });
+                    setProfileDialogOpen(true);
+                  }}
+                  className="cursor-pointer"
+                >
+                  <User className="mr-2 h-4 w-4" />
+                  <span>个人信息</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => {
+                    setPasswordForm({ oldPassword: '', newPassword: '', confirmPassword: '' });
+                    setPasswordDialogOpen(true);
+                  }}
+                  className="cursor-pointer"
+                >
+                  <Lock className="mr-2 h-4 w-4" />
+                  <span>修改密码</span>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onClick={logout}
                   className="cursor-pointer text-destructive focus:text-destructive"
@@ -516,6 +579,118 @@ function DashboardLayoutContent({
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+
+            {/* v483: 个人信息编辑弹窗 */}
+            <Dialog open={profileDialogOpen} onOpenChange={setProfileDialogOpen}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>个人信息</DialogTitle>
+                  <DialogDescription>修改您的个人信息，更新后重新登录生效</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label>用户名</Label>
+                    <Input
+                      value={profileForm.username}
+                      onChange={(e) => setProfileForm({ ...profileForm, username: e.target.value })}
+                      placeholder="登录用户名"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>姓名</Label>
+                    <Input
+                      value={profileForm.name}
+                      onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
+                      placeholder="真实姓名"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>邮箱</Label>
+                    <Input
+                      type="email"
+                      value={profileForm.email}
+                      onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })}
+                      placeholder="邮箱地址"
+                    />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setProfileDialogOpen(false)}>取消</Button>
+                  <Button
+                    onClick={() => {
+                      const updates: Record<string, string> = {};
+                      if (profileForm.username && profileForm.username !== user?.username) updates.username = profileForm.username;
+                      if (profileForm.name && profileForm.name !== user?.name) updates.name = profileForm.name;
+                      if (profileForm.email !== (user?.email || '')) updates.email = profileForm.email;
+                      if (Object.keys(updates).length === 0) {
+                        toast.info('没有修改');
+                        return;
+                      }
+                      updateProfileMutation.mutate(updates as Parameters<typeof updateProfileMutation.mutate>[0]);
+                    }}
+                    disabled={updateProfileMutation.isPending}
+                  >
+                    {updateProfileMutation.isPending ? '保存中...' : '保存'}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
+            {/* v483: 修改密码弹窗 */}
+            <Dialog open={passwordDialogOpen} onOpenChange={setPasswordDialogOpen}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>修改密码</DialogTitle>
+                  <DialogDescription>输入原密码和新密码</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label>原密码</Label>
+                    <Input
+                      type="password"
+                      value={passwordForm.oldPassword}
+                      onChange={(e) => setPasswordForm({ ...passwordForm, oldPassword: e.target.value })}
+                      placeholder="请输入原密码"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>新密码</Label>
+                    <Input
+                      type="password"
+                      value={passwordForm.newPassword}
+                      onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
+                      placeholder="至少6个字符"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>确认新密码</Label>
+                    <Input
+                      type="password"
+                      value={passwordForm.confirmPassword}
+                      onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
+                      placeholder="再次输入新密码"
+                    />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setPasswordDialogOpen(false)}>取消</Button>
+                  <Button
+                    onClick={() => {
+                      if (!passwordForm.oldPassword) { toast.error('请输入原密码'); return; }
+                      if (passwordForm.newPassword.length < 6) { toast.error('新密码至少6个字符'); return; }
+                      if (passwordForm.newPassword !== passwordForm.confirmPassword) { toast.error('两次密码不一致'); return; }
+                      changePasswordMutation.mutate({
+                        oldPassword: passwordForm.oldPassword,
+                        newPassword: passwordForm.newPassword,
+                      });
+                    }}
+                    disabled={changePasswordMutation.isPending}
+                  >
+                    {changePasswordMutation.isPending ? '修改中...' : '修改密码'}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </SidebarFooter>
         </Sidebar>
         <div

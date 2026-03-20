@@ -79,6 +79,43 @@ export const teamRouter = router({
       });
       return member;
     }),
+  // v483: 直接创建成员账号（替代邮箱邀请）
+  createMember: protectedProcedure
+    .input(z.object({
+      username: z.string().min(3, '用户名至少3个字符').max(50),
+      name: z.string().min(1, '姓名不能为空'),
+      password: z.string().min(6, '密码至少6个字符'),
+      email: z.string().email().optional().or(z.literal('')),
+      role: z.enum(["admin", "editor", "viewer"]),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { createTeamMemberAccount } = await import('../system/localAuthService');
+      const result = await createTeamMemberAccount({
+        creatorId: ctx.user.id,
+        organizationId: ctx.user.organizationId,
+        username: input.username,
+        name: input.name,
+        password: input.password,
+        email: input.email || undefined,
+        role: input.role,
+      });
+      if (!result.success) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: result.error || '创建失败' });
+      }
+      // 记录审计日志
+      recordAudit({
+        action: 'team.createMember',
+        userId: ctx.user.id,
+        entityType: 'team_member',
+        entityId: result.userId,
+        entityName: input.username,
+        newValue: { role: input.role, username: input.username, name: input.name },
+        source: 'api',
+        result: 'success',
+      });
+      return result;
+    }),
+
   // 更新成员信息
   update: protectedProcedure
     .input(z.object({

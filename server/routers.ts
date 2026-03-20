@@ -143,6 +143,17 @@ export const appRouter = router({
         const { changePassword } = await import('./system/localAuthService');
         return changePassword(ctx.user.id, input.oldPassword, input.newPassword);
       }),
+    // v483: 更新个人信息
+    updateProfile: protectedProcedure
+      .input(z.object({
+        username: z.string().min(3).max(50).optional(),
+        name: z.string().min(1).optional(),
+        email: z.string().email().optional().or(z.literal('')),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { updateProfile } = await import('./system/localAuthService');
+        return updateProfile(ctx.user.id, input);
+      }),
   }),
 
   // 核心业务路由

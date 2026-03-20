@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 482;  // v482: 修复多租户数据隔离(算法效果概览) + 预发布引擎仅系统管理员可见 + 移除ElaraFit占位符
+export const SYSTEM_VERSION = 483;  // v483: 团队成员直接创建账号 + 用户个人设置(修改密码/用户名/姓名)

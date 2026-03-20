@@ -77,6 +77,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 483,
+    description: 'v483: [团队成员管理与用户个人设置] — (1)P0-团队成员直接创建账号: 将邮箱邀请流程改为管理员直接填写用户名+真实姓名+密码创建成员账号，新增 team.createMember API和 createTeamMemberAccount 服务函数 (2)P0-用户个人设置: 侧边栏用户菜单新增个人信息(修改用户名/姓名/邮箱)和修改密码功能，新增 auth.updateProfile API和 updateProfile 服务函数',
+    affectedModules: [],
+    correctionActions: [],
+  },
+  {
     version: 482,
     description: 'v482: [多租户数据隔离与权限修复] — (1)P0-算法效果概览数据隔离: algorithmEffectService.ts的optimization_events和optimization_logs查询改为基于账户归属(accountId)的数据隔离，系统管理员查看所有数据，普通用户只能查看自己账户的数据，新用户无账户时返回空数据 (2)P0-预发布引擎权限收紧: DashboardLayout.tsx侧边栏预发布引擎菜单从"role===admin"改为"role===admin && organizationId===1"，仅内部系统管理员可见 (3)P1-移除ElaraFit占位符: Amazon API添加店铺弹窗的placeholder从"例如：ElaraFit、My Store等"改为"例如：My Store、我的店铺等"',
     affectedModules: [],

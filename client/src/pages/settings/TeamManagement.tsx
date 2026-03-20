@@ -54,8 +54,10 @@ export default function TeamManagement() {
   const [isPermissionOpen, setIsPermissionOpen] = useState(false);
   const [selectedMemberId, setSelectedMemberId] = useState<number | null>(null);
   const [inviteForm, setInviteForm] = useState({
-    email: "",
+    username: "",
     name: "",
+    password: "",
+    email: "",
     role: "viewer" as InviteRole,
   });
   const [permissions, setPermissions] = useState<Permission[]>([]);
@@ -66,16 +68,16 @@ export default function TeamManagement() {
   // 获取账号列表（用于权限分配）
   const { data: accounts } = trpc.adAccount.list.useQuery() as unknown;
 
-  // 邀请成员
-  const inviteMutation = trpc.team.invite.useMutation({
+  // v483: 直接创建成员账号（替代邮箱邀请）
+  const inviteMutation = trpc.team.createMember.useMutation({
     onSuccess: () => {
-      toast.success("邀请已发送");
+      toast.success("成员账号已创建");
       setIsInviteOpen(false);
-      setInviteForm({ email: "", name: "", role: "viewer" });
+      setInviteForm({ username: "", name: "", password: "", email: "", role: "viewer" });
       refetch();
     },
     onError: (error) => {
-      toast.error(error.message || "邀请失败");
+      toast.error(error.message || "创建失败");
     },
   });
 
@@ -130,8 +132,16 @@ export default function TeamManagement() {
   );
 
   const handleInvite = useCallback(() => {
-    if (!inviteForm.email) {
-      toast.error("请输入邮箱地址");
+    if (!inviteForm.username) {
+      toast.error("请输入用户名");
+      return;
+    }
+    if (!inviteForm.name) {
+      toast.error("请输入真实姓名");
+      return;
+    }
+    if (!inviteForm.password || inviteForm.password.length < 6) {
+      toast.error("密码至少6个字符");
       return;
     }
     inviteMutation.mutate(inviteForm);
@@ -206,34 +216,53 @@ export default function TeamManagement() {
             <DialogTrigger asChild>
               <Button>
                 <UserPlus className="mr-2 h-4 w-4" />
-                邀请成员
+                添加成员
               </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>邀请新成员</DialogTitle>
+                <DialogTitle>添加团队成员</DialogTitle>
                 <DialogDescription>
-                  发送邀请邮件给新成员，他们可以通过邮件中的链接加入团队
+                  直接创建成员账号，创建完成后将账号信息发送给团队成员即可登录
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
                 <div className="space-y-2">
-                  <Label htmlFor="email">邮箱地址 *</Label>
+                  <Label htmlFor="username">用户名 *</Label>
                   <Input
-                    id="email"
-                    type="email"
-                    placeholder="member@example.com"
-                    value={inviteForm.email}
-                    onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
+                    id="username"
+                    placeholder="用于登录的用户名"
+                    value={inviteForm.username}
+                    onChange={(e) => setInviteForm({ ...inviteForm, username: e.target.value })}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="name">成员名称</Label>
+                  <Label htmlFor="name">真实姓名 *</Label>
                   <Input
                     id="name"
-                    placeholder="可选"
+                    placeholder="成员的真实姓名"
                     value={inviteForm.name}
                     onChange={(e) => setInviteForm({ ...inviteForm, name: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="password">登录密码 *</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    placeholder="至少6个字符"
+                    value={inviteForm.password}
+                    onChange={(e) => setInviteForm({ ...inviteForm, password: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="email">邮箱地址</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="可选，用于接收通知"
+                    value={inviteForm.email}
+                    onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
                   />
                 </div>
                 <div className="space-y-2">
@@ -258,7 +287,7 @@ export default function TeamManagement() {
                   取消
                 </Button>
                 <Button onClick={handleInvite} disabled={inviteMutation.isPending}>
-                  {inviteMutation.isPending ? "发送中..." : "发送邀请"}
+                  {inviteMutation.isPending ? "创建中..." : "创建账号"}
                 </Button>
               </DialogFooter>
             </DialogContent>

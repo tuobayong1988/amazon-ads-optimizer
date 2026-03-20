@@ -435,3 +435,147 @@ export async function changePassword(userId: number, oldPassword: string, newPas
     return { success: false, error: (error as Error).message || '修改密码失败' };
   }
 }
+
+/**
+ * v483: 直接创建团队成员账号（由管理员在团队管理页面创建）
+ * 替代原有的邮箱邀请流程，管理员直接设置用户名、密码、姓名
+ */
+export interface CreateTeamMemberInput {
+  creatorId: number;
+  organizationId: number;
+  username: string;
+  name: string;
+  password: string;
+  email?: string;
+  role: 'admin' | 'editor' | 'viewer';
+}
+
+export async function createTeamMemberAccount(input: CreateTeamMemberInput): Promise<{
+  success: boolean;
+  userId?: number;
+  error?: string;
+}> {
+  const db = await getDb();
+  if (!db) return { success: false, error: '数据库连接失败' };
+  await ensureMultiTenantTables(db);
+  
+  try {
+    // 1. 检查用户名是否已存在
+    const existingUser = await db.execute(sql`
+      SELECT id FROM team_members WHERE username = ${input.username}
+    `);
+    
+    const existingRows = (existingUser as Record<string, unknown>[][])[0];
+    if (existingRows && existingRows.length > 0) {
+      return { success: false, error: '用户名已存在' };
+    }
+    
+    // 2. 加密密码
+    const passwordHash = await bcrypt.hash(input.password, 10);
+    
+    // 3. 创建用户（加入创建者的组织）
+    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    const memberRole = input.role === 'admin' ? 'admin' : 'member';
+    
+    const userResult = await db.execute(sql`
+      INSERT INTO team_members (
+        organization_id, ownerId, username, password_hash, email, name, 
+        role, status, createdAt, updatedAt
+      ) VALUES (
+        ${input.organizationId}, 
+        ${input.creatorId},
+        ${input.username}, 
+        ${passwordHash}, 
+        ${input.email || ''}, 
+        ${input.name},
+        ${memberRole}, 
+        'active', 
+        ${now},
+        ${now}
+      )
+    `);
+    
+    const userId = (userResult as Record<string, unknown>[])[0]?.insertId;
+    
+    log.info(`[LocalAuth] v483: 团队成员账号已创建 - username: ${input.username}, name: ${input.name}, org: ${input.organizationId}, creator: ${input.creatorId}`);
+    
+    return { success: true, userId };
+  } catch (error: unknown) {
+    log.warn('[LocalAuth] 创建团队成员失败:', error);
+    return { success: false, error: (error as Error).message || '创建失败' };
+  }
+}
+
+/**
+ * v483: 更新用户个人信息（用户名、姓名、邮箱）
+ */
+export async function updateProfile(userId: number, updates: {
+  username?: string;
+  name?: string;
+  email?: string;
+}): Promise<{
+  success: boolean;
+  error?: string;
+}> {
+  const db = await getDb();
+  if (!db) return { success: false, error: '数据库连接失败' };
+  await ensureMultiTenantTables(db);
+  
+  try {
+    // 如果要修改用户名，检查是否已存在
+    if (updates.username) {
+      const existingUser = await db.execute(sql`
+        SELECT id FROM team_members WHERE username = ${updates.username} AND id != ${userId}
+      `);
+      const existingRows = (existingUser as Record<string, unknown>[][])[0];
+      if (existingRows && existingRows.length > 0) {
+        return { success: false, error: '用户名已存在' };
+      }
+    }
+    
+    // 构建更新语句
+    const setClauses: string[] = [];
+    const values: unknown[] = [];
+    
+    if (updates.username) {
+      setClauses.push('username = ?');
+      values.push(updates.username);
+    }
+    if (updates.name) {
+      setClauses.push('name = ?');
+      values.push(updates.name);
+    }
+    if (updates.email !== undefined) {
+      setClauses.push('email = ?');
+      values.push(updates.email);
+    }
+    
+    if (setClauses.length === 0) {
+      return { success: false, error: '没有需要更新的字段' };
+    }
+    
+    // 使用 sql.raw 构建动态更新
+    if (updates.username && updates.name && updates.email !== undefined) {
+      await db.execute(sql`
+        UPDATE team_members SET username = ${updates.username}, name = ${updates.name}, email = ${updates.email} WHERE id = ${userId}
+      `);
+    } else if (updates.username) {
+      await db.execute(sql`
+        UPDATE team_members SET username = ${updates.username} WHERE id = ${userId}
+      `);
+    } else if (updates.name) {
+      await db.execute(sql`
+        UPDATE team_members SET name = ${updates.name} WHERE id = ${userId}
+      `);
+    } else if (updates.email !== undefined) {
+      await db.execute(sql`
+        UPDATE team_members SET email = ${updates.email} WHERE id = ${userId}
+      `);
+    }
+    
+    log.info(`[LocalAuth] v483: 用户信息已更新 - userId: ${userId}, fields: ${Object.keys(updates).join(', ')}`);
+    return { success: true };
+  } catch (error: unknown) {
+    return { success: false, error: (error as Error).message || '更新失败' };
+  }
+}
