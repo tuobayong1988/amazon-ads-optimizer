@@ -177,44 +177,67 @@ export async function executeBidOptimization(
   }
   log.info(`[BidOptimization] v330 CVR估算: groupAvgCvr=${(groupAvgCvr * 100).toFixed(2)}%, source=${cvrSource}, totalClicks=${totalClicks}`);
   
-  // v436: 建议出价获取 — 优先从数据库读取已同步的建议竞价，仅在无数据时回退到实时API调用
+  // v491: 建议出价获取 — 遍历所有campaigns/adGroups/keywords/targets，收集所有有效建议竞价取中位数
   let suggestedBidData: { suggestedBid?: number; rangeStart?: number; rangeEnd?: number } | null = null;
   
-  // v436: 策略一 — 从数据库读取已同步的建议竞价（优先）
+  // v491: 策略一 — 从数据库读取已同步的建议竞价（遍历所有实体，取中位数）
   try {
-    const firstCampaign = campaigns[0] as unknown;
-    if (firstCampaign && firstCampaign.adGroups && firstCampaign.adGroups.length > 0) {
-      const firstAdGroup = firstCampaign.adGroups[0];
-      // 检查该adGroup下的keyword/target是否有已同步的建议竞价
-      if (firstAdGroup.keywords && firstAdGroup.keywords.length > 0) {
-        for (const kw of firstAdGroup.keywords) {
-          if (kw.suggestedBid && Number(kw.suggestedBid) > 0) {
-            suggestedBidData = {
-              suggestedBid: Number(kw.suggestedBid),
-              rangeStart: Number(kw.suggestedBidLow) || 0,
-              rangeEnd: Number(kw.suggestedBidHigh) || 0,
-            };
-            log.info(`[BidOptimization] v436: 从数据库获取到建议出价 suggestedBid=$${suggestedBidData.suggestedBid}, range=[$${suggestedBidData.rangeStart}-$${suggestedBidData.rangeEnd}]`);
-            break;
+    const allBids: { bid: number; low: number; high: number }[] = [];
+    for (const campaign of (campaigns as unknown[])) {
+      const camp = campaign as Record<string, unknown>;
+      const adGroups = camp.adGroups as Array<Record<string, unknown>> | undefined;
+      if (!adGroups) continue;
+      for (const adGroup of adGroups) {
+        // 收集keywords的建议竞价
+        const kws = adGroup.keywords as Array<Record<string, unknown>> | undefined;
+        if (kws) {
+          for (const kw of kws) {
+            const sb = Number(kw.suggestedBid);
+            if (sb > 0) {
+              allBids.push({
+                bid: sb,
+                low: Number(kw.suggestedBidLow) || 0,
+                high: Number(kw.suggestedBidHigh) || 0,
+              });
+            }
           }
         }
-      }
-      if (!suggestedBidData && firstAdGroup.targets && firstAdGroup.targets.length > 0) {
-        for (const tgt of firstAdGroup.targets) {
-          if (tgt.suggestedBid && Number(tgt.suggestedBid) > 0) {
-            suggestedBidData = {
-              suggestedBid: Number(tgt.suggestedBid),
-              rangeStart: Number(tgt.suggestedBidLow) || 0,
-              rangeEnd: Number(tgt.suggestedBidHigh) || 0,
-            };
-            log.info(`[BidOptimization] v436: 从数据库获取到target建议出价 suggestedBid=$${suggestedBidData.suggestedBid}, range=[$${suggestedBidData.rangeStart}-$${suggestedBidData.rangeEnd}]`);
-            break;
+        // 收集targets的建议竞价
+        const tgts = adGroup.targets as Array<Record<string, unknown>> | undefined;
+        if (tgts) {
+          for (const tgt of tgts) {
+            const sb = Number(tgt.suggestedBid);
+            if (sb > 0) {
+              allBids.push({
+                bid: sb,
+                low: Number(tgt.suggestedBidLow) || 0,
+                high: Number(tgt.suggestedBidHigh) || 0,
+              });
+            }
           }
         }
       }
     }
+    if (allBids.length > 0) {
+      // 取中位数作为代表性建议竞价
+      allBids.sort((a, b) => a.bid - b.bid);
+      const medianIdx = Math.floor(allBids.length / 2);
+      const median = allBids.length % 2 === 1
+        ? allBids[medianIdx]
+        : { bid: (allBids[medianIdx - 1].bid + allBids[medianIdx].bid) / 2,
+            low: (allBids[medianIdx - 1].low + allBids[medianIdx].low) / 2,
+            high: (allBids[medianIdx - 1].high + allBids[medianIdx].high) / 2 };
+      suggestedBidData = {
+        suggestedBid: Math.round(median.bid * 100) / 100,
+        rangeStart: Math.round(median.low * 100) / 100,
+        rangeEnd: Math.round(median.high * 100) / 100,
+      };
+      log.info(`[BidOptimization] v491: 从${allBids.length}个实体的建议竞价中取中位数 suggestedBid=$${suggestedBidData.suggestedBid}, range=[$${suggestedBidData.rangeStart}-$${suggestedBidData.rangeEnd}]`);
+    } else {
+      log.info(`[BidOptimization] v491: 所有campaigns/adGroups中未找到有效的建议竞价数据`);
+    }
   } catch (dbBidErr: unknown) {
-    log.debug(`[BidOptimization] v436: 从数据库读取建议竞价失败: ${(dbBidErr as Error).message}`);
+    log.debug(`[BidOptimization] v491: 从数据库读取建议竞价失败: ${(dbBidErr as Error).message}`);
   }
   
   // v436: 策略二 — 如果数据库无数据且零点击，回退到实时API调用
@@ -393,7 +416,12 @@ export async function executeBidOptimization(
         sales: parseFloat(String(d.sales || '0')),
         orders: d.orders || 0,
       }));
-      campaignTimeWeightedMetrics = timeDecayService.calculateTimeWeightedMetrics(dailyDataForWeighting);
+      // v491: 使用悬崖感知的时间衰减加权（自动检测数据悬崖并调整窗口权重）
+      const cliffAwareMetrics = timeDecayService.calculateCliffAwareTimeWeightedMetrics(dailyDataForWeighting);
+      campaignTimeWeightedMetrics = cliffAwareMetrics;
+      if (cliffAwareMetrics.cliffDetection.cliffDetected) {
+        log.warn(`[BidOptimization] v491: Campaign ${campaignLocalId} ${cliffAwareMetrics.cliffDetection.diagnosis}`);
+      }
       log.debug(`[BidOptimization] v163: Campaign ${campaignLocalId} 时间衰减加权 - 加权ACoS=${campaignTimeWeightedMetrics.weightedAcos.toFixed(1)}%, 加权ROAS=${campaignTimeWeightedMetrics.weightedRoas.toFixed(2)}, 置信度=${campaignTimeWeightedMetrics.dataQuality.confidenceLevel}, 趋势=${campaignTimeWeightedMetrics.trendSignal.direction}`);
     } catch (e: unknown) {
       log.warn(`[BidOptimization] 获取campaign ${campaignLocalId} 历史数据失败: ${(e as Error).message}`);
@@ -475,6 +503,11 @@ export async function executeBidOptimization(
         marketplace: config.marketplace,
         localCampaignId: campaignLocalId,
         amazonCampaignId: campaignAmazonId,
+        // v491: 传入每个keyword自身的suggestedBid/Low/High，供Nash引擎和冷启动引擎使用
+        suggestedBid: keyword.suggestedBid ? parseFloat(String(keyword.suggestedBid)) : undefined,
+        suggestedBidRangeStart: keyword.suggestedBidLow ? parseFloat(String(keyword.suggestedBidLow)) : undefined,
+        suggestedBidRangeEnd: keyword.suggestedBidHigh ? parseFloat(String(keyword.suggestedBidHigh)) : undefined,
+        keywordText: keyword.keywordText,
       });
     }
     
@@ -563,6 +596,10 @@ export async function executeBidOptimization(
         marketplace: config.marketplace,
         localCampaignId: campaignLocalId,
         amazonCampaignId: campaignAmazonId,
+        // v491: 传入每个target自身的suggestedBid/Low/High，供Nash引擎和冷启动引擎使用
+        suggestedBid: target.suggestedBid ? parseFloat(String(target.suggestedBid)) : undefined,
+        suggestedBidRangeStart: target.suggestedBidLow ? parseFloat(String(target.suggestedBidLow)) : undefined,
+        suggestedBidRangeEnd: target.suggestedBidHigh ? parseFloat(String(target.suggestedBidHigh)) : undefined,
       });
     }
     

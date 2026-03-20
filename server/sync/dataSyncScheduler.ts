@@ -2,10 +2,17 @@
  * Data Sync Scheduler Service - 定时数据同步调度服务
  * 实现分层同步策略，根据Amazon API速率限制优化同步频率
  * 
+ * v488重构：
+ * - 接入SyncCoordinator同步协调器，支持手动同步冷却期和优先级抢占
+ * - 自动同步在创建任务前检查账号是否处于MANUAL_OVERRIDE状态
+ * - 处于手动接管状态的账号将被自动跳过，直到手动同步完成
+ * - 新增全局互斥保护，同一时间只允许一个同步层级运行
+ * 
  * 同步策略：
- * - 高频同步（每15分钟）：广告活动状态、预算
- * - 中频同步（每30分钟）：广告组、关键词、定位
- * - 低频同步（每2小时）：完整数据同步
+ * - 高频同步（每30分钟）：广告活动状态、预算
+ * - 中频同步（每60分钟）：广告组、关键词、定位
+ * - 完整同步（每3小时）：所有数据
+ * - 夜间同步（每24小时）：耗时最长的绩效报表
  */
 
 import * as db from '../db';
@@ -28,6 +35,14 @@ import {
   acquireAccountOptimizationLockWithRetry as _lmAcquireLockWithRetry,
   getModuleLockGroup as _lmGetModuleLockGroup,
 } from '../utils/lockManager';
+import {
+  isAccountInManualOverride,
+  acquireGlobalMutex,
+  releaseGlobalMutex,
+  cleanupExpiredOverrides,
+  getCoordinatorStatus,
+  shouldAbortAutoSync,
+} from './syncCoordinator';
 // v384: 移除Leader选举依赖，改为单实例直接启动模式
 // import { startLeaderElection, isCurrentLeader, getLeaderStatus, stopLeaderElection } from '../utils/leaderElection';
 
@@ -43,13 +58,13 @@ const SYNC_TIER_CONFIG: Record<SyncTier, {
   syncTypes: string[];
 }> = {
   high: {
-    intervalMs: 15 * 60 * 1000, // 15分钟
-    description: '高频同步 - 广告活动状态和预算',
+    intervalMs: 30 * 60 * 1000, // v488: 30分钟（从15分钟调整，降低API压力，优先保证精准）
+    description: 'v488: 高频同步 - 广告活动状态和预算，每30分钟',
     syncTypes: ['campaigns_status', 'budgets'],
   },
   medium: {
-    intervalMs: 30 * 60 * 1000, // 30分钟
-    description: '中频同步 - 广告组、关键词、定位',
+    intervalMs: 60 * 60 * 1000, // v488: 60分钟（从30分钟调整，与高频同步错开）
+    description: 'v488: 中频同步 - 广告组、关键词、定位，每60分钟',
     syncTypes: ['ad_groups', 'keywords', 'targets'],
   },
   low: {
@@ -58,13 +73,13 @@ const SYNC_TIER_CONFIG: Record<SyncTier, {
     syncTypes: ['full_sync'],
   },
   full: {
-    intervalMs: 2 * 60 * 60 * 1000, // v391: 2小时（从6小时缩短，配合批量查询优化，确保500租户规模下每天可完成一轮完整同步）
-    description: 'v391: 完整同步 - 所有数据（SP 90天/SB 60天/SD 90天），每周期最多100个账号',
+    intervalMs: 3 * 60 * 60 * 1000, // v488: 3小时（从2小时调整，给API令牌桶充足的恢复时间）
+    description: 'v488: 完整同步 - 所有数据（SP 90天/SB 60天/SD 90天），每3小时',
     syncTypes: ['all'],
   },
   nightly: {
     intervalMs: 24 * 60 * 60 * 1000, // v403: 24小时（每日凌晨执行一次）
-    description: 'v403: 夜间同步 - 耗时最长的关键词/定位/广告组绩效报表，超时时间4小时',
+    description: 'v488: 夜间同步 - 耗时最长的关键词/定位/广告组绩效报表，超时时间4小时',
     syncTypes: ['keyword_performance', 'target_performance', 'ad_group_performance'],
   },
 };
@@ -125,6 +140,20 @@ let isProcessingQueue = false;
 
 // 请求间隔（毫秒）- 每个API调用之间的最小间隔
 const REQUEST_INTERVAL_MS = 200;
+
+// ==================== v488: 同步协调器常量 ====================
+
+/** v488: 同步层级之间的冷却间隔（毫秒）- 上一个层级完成后等待此时间再启动下一个 */
+const TIER_COOLDOWN_MS = 30 * 1000; // 30秒
+
+/** v488: 全局互斥锁轮询间隔（毫秒）- 当互斥锁被占用时，多久检查一次 */
+const MUTEX_POLL_INTERVAL_MS = 10 * 1000; // 10秒
+
+/** v488: 全局互斥锁最大等待时间（毫秒）- 超过此时间则跳过本轮同步 */
+const MUTEX_MAX_WAIT_MS = 5 * 60 * 1000; // 5分钟
+
+/** v488: 协调器过期状态清理间隔（毫秒） */
+const COORDINATOR_CLEANUP_INTERVAL_MS = 10 * 60 * 1000; // 10分钟
 
 // 频率到毫秒的映射（用于用户自定义配置）
 const frequencyToMs: Record<string, number> = {
@@ -432,8 +461,26 @@ async function startSchedulerTasks(defaultIntervalMs: number): Promise<void> {
   }, 5 * 60 * 1000);
   
   // v383: 自愈调度器已移至onBecomeLeader回调中启动，确保只在Leader实例上运行
+
+  // v488: SyncCoordinator 过期状态清理定时器（每10分钟）
+  monitoringIntervals.push(setInterval(() => {
+    try {
+      const cleaned = cleanupExpiredOverrides();
+      if (cleaned > 0) {
+        log.warn(`[DataSyncScheduler] v488: SyncCoordinator清理了 ${cleaned} 个过期的手动接管状态`);
+      }
+      // 输出协调器状态快照
+      const coordStatus = getCoordinatorStatus();
+      if (coordStatus.manualOverrides.length > 0) {
+        log.info(`[DataSyncScheduler] v488: SyncCoordinator状态 - 手动接管中: ${coordStatus.manualOverrides.map(o => `账号${o.accountId}(阶段:${o.phase},耗时:${(o.elapsedMs/1000).toFixed(0)}s)`).join(', ')}`);
+      }
+    } catch (err: unknown) {
+      log.warn(`[DataSyncScheduler] v488: SyncCoordinator清理异常: ${(err as Error).message}`);
+    }
+  }, COORDINATOR_CLEANUP_INTERVAL_MS));
+  log.info('[DataSyncScheduler] v488: SyncCoordinator过期状态清理已启动，间隔: 10分钟');
   
-  log.info(`[DataSyncScheduler] v219: 统一同步调度器已启动，完整同步间隔: ${defaultIntervalMs / 1000 / 60} 分钟`);
+  log.info(`[DataSyncScheduler] v488: 统一同步调度器已启动，完整同步间隔: ${defaultIntervalMs / 1000 / 60} 分钟`);
 }
 
 /**
@@ -484,16 +531,36 @@ const schedulerSkipCount: Record<string, number> = {
  * 3. high层运行时，medium层正常执行（步骤不重叠，但会串行等待API资源）
  */
 async function executeUnifiedSync(tier: SyncTier): Promise<void> {
+  // ==================== v488: SyncCoordinator 全局互斥保护 ====================
+  // 同一时间只允许一个同步层级运行，彻底消除层级间并发导致的API限流
+  const mutexAcquired = acquireGlobalMutex(tier);
+  if (!mutexAcquired) {
+    // 等待互斥锁释放，最多等待MUTEX_MAX_WAIT_MS
+    const waitStart = Date.now();
+    let acquired = false;
+    while (Date.now() - waitStart < MUTEX_MAX_WAIT_MS) {
+      await new Promise(resolve => setTimeout(resolve, MUTEX_POLL_INTERVAL_MS));
+      acquired = acquireGlobalMutex(tier);
+      if (acquired) break;
+    }
+    if (!acquired) {
+      log.info(`[DataSyncScheduler] v488: ${tier}层跳过 - 全局互斥锁等待超时(${MUTEX_MAX_WAIT_MS / 1000}秒)，将在下一个调度周期重试`);
+      logSync('DataSyncScheduler', `v488: ${tier}层互斥锁等待超时`, { tier, waitedMs: Date.now() - waitStart });
+      return;
+    }
+    log.info(`[DataSyncScheduler] v488: ${tier}层获得全局互斥锁（等待了${((Date.now() - waitStart) / 1000).toFixed(1)}秒）`);
+  }
+
+  try {
   // v384: 单实例模式，无需Leader检查，直接执行同步
   // v410: 数据库级别的全局并发检查 - 检查是否有任何running状态的同步任务
   // 解决问题：手动触发的全量同步不会设置tierRunningState，导致调度器仍然会创建新任务
-  // 通过查询数据库中的running任务，确保不会与任何正在运行的同步产生API冲突
+  // v488: 现在由全局互斥锁统一保护，数据库检查作为补充层
   try {
     const database = await db.getDb();
     if (database) {
-      // v445: 排除手动同步的job，避免手动同步阻塞自动同步的调度
-      // 手动同步和自动同步应该独立运行，互不阻塞
-      // 账户级别的并发保护由unifiedSyncEngine的activeSyncs负责
+      // v488: 检查所有running任务（包括手动同步），因为全局互斥锁已经保证了层级间不会并发
+      // 但手动同步的冲突由SyncCoordinator的MANUAL_OVERRIDE机制处理
       const runningJobs = await database.execute(
         sql`SELECT id, accountId, syncType, trigger_source, current_step, current_step_index, total_steps,
                    TIMESTAMPDIFF(MINUTE, startedAt, NOW()) as running_minutes,
@@ -539,7 +606,7 @@ async function executeUnifiedSync(tier: SyncTier): Promise<void> {
     log.warn(`[DataSyncScheduler] v410: 数据库并发检查失败，回退到内存检查: ${(dbCheckErr as Error).message}`);
   }
 
-  // v222: 智能协调 - 内存级别检查（作为数据库检查的补充）
+  // v222: 智能协调 - 内存级别检查（作为数据库检查的补充，v488保留作为额外安全层）
   if (tier === 'high') {
     if (tierRunningState.full) {
       log.info(`[DataSyncScheduler] v222: high层跳过 - full层正在运行（full已包含high步骤）`);
@@ -625,6 +692,15 @@ async function executeUnifiedSync(tier: SyncTier): Promise<void> {
 
   // v222: 清除运行状态标记
   tierRunningState[tier] = false;
+
+  } finally {
+    // v488: 释放全局互斥锁
+    releaseGlobalMutex(tier);
+    
+    // v488: 层级间冷却期 - 给API令牌桶充足的恢复时间
+    log.info(`[DataSyncScheduler] v488: ${tier}层完成，进入层级间冷却期(${TIER_COOLDOWN_MS / 1000}秒)...`);
+    await new Promise(resolve => setTimeout(resolve, TIER_COOLDOWN_MS));
+  }
 }
 
 /**
@@ -1890,9 +1966,23 @@ export function stopOptimizationScheduler(): void {
  * 4. 使用执行锁防止重复执行
  */
 async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<void> {
-  // v384: 单实例模式，无需Leader检查，直接执行优化任务
-  // 获取执行锁
-  if (!acquireLock(taskType)) return;
+   // v491: 部署恢复门控 — 纠错和验证全部完成前，不执行定期优化
+   // 确保新版本上线后先完成: 扫描优化日志 → 分析合理性 → 纠正错误动作 → 确认Amazon执行
+   // 然后才允许定期自动优化开始
+   try {
+     const { isDeployRecoveryComplete } = await import('../deployLifecycleManager');
+     if (!isDeployRecoveryComplete()) {
+       log.info(`[OptimizationScheduler] v491: 部署恢复尚未完成（纠错/验证进行中），跳过定期优化任务: ${taskType}`);
+       return;
+     }
+   } catch (gateErr: unknown) {
+     // 如果门控检查失败，默认允许执行（避免死锁）
+     log.warn(`[OptimizationScheduler] v491: 部署恢复门控检查失败，默认允许执行: ${(gateErr as Error).message}`);
+   }
+   
+   // v384: 单实例模式，无需Leader检查，直接执行优化任务
+   // 获取执行锁
+   if (!acquireLock(taskType)) return;
   
   // v347: 内存预算检查 - 使用绝对内存值(MB)作为阈值
   // 修复v329的bug: heapUsed/heapTotal百分比不可靠，因为V8的heapTotal是动态增长的

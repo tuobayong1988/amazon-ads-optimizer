@@ -621,6 +621,23 @@ export async function triggerAccountOptimizations(
   log.info(`v151: 触发账户 ${accountId} 下所有优化目标, 来源: ${triggeredBy}`);
   logOptimization('OptScheduler', `触发账户优化`, { accountId, triggeredBy });
   
+  // v491: 部署恢复门控 — 纠错完成前不允许触发新的优化
+  // 但允许deploy_recovery和post_deploy来源的触发（这些是部署恢复流程自身的一部分）
+  try {
+    const { isDeployRecoveryComplete } = await import('../deployLifecycleManager');
+    if (!isDeployRecoveryComplete() && !triggeredBy.startsWith('deploy_recovery') && !triggeredBy.startsWith('post_deploy') && triggeredBy !== 'version_upgrade') {
+      log.info(`[OptScheduler] v491: 部署恢复尚未完成，跳过账户${accountId}的优化触发 (来源: ${triggeredBy})`);
+      return {
+        triggeredCount: 0,
+        skippedCount: 0,
+        errorCount: 0,
+        details: [{ targetId: 0, targetName: 'all', status: 'skipped' as const, reason: 'deploy_recovery_not_complete' }],
+      };
+    }
+  } catch (gateErr: unknown) {
+    log.warn(`[OptScheduler] v491: 部署恢复门控检查失败，默认允许执行: ${(gateErr as Error).message}`);
+  }
+  
   const result = {
     triggeredCount: 0,
     skippedCount: 0,

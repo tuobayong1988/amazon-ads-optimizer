@@ -695,3 +695,270 @@ function createEmptyMetrics(): TimeWeightedMetrics {
     },
   };
 }
+
+// ==================== v491: 数据悬崖检测 ====================
+
+/**
+ * v491: 数据悬崖检测结果
+ * 
+ * 检测近期数据是否出现断崖式下跌，这通常是由于：
+ * 1. 错误的优化操作（出价大幅降低导致曝光/点击骤降）
+ * 2. 预算耗尽导致广告暂停
+ * 3. 竞争环境突变
+ * 
+ * 当检测到数据悬崖时，系统应使用更长时间窗口的数据作为决策基础，
+ * 避免被近期异常数据误导。
+ */
+export interface DataCliffDetectionResult {
+  /** 是否检测到数据悬崖 */
+  cliffDetected: boolean;
+  /** 悬崖类型 */
+  cliffType: 'none' | 'impression_cliff' | 'click_cliff' | 'spend_cliff' | 'sales_cliff';
+  /** 下跌幅度 (0-1) */
+  dropMagnitude: number;
+  /** 悬崖发生的大致时间（距今天数） */
+  cliffDaysAgo: number;
+  /** 推荐使用的最小时间窗口（天数） */
+  recommendedMinWindowDays: number;
+  /** 是否可能由优化操作引起 */
+  likelyOptimizationCaused: boolean;
+  /** 诊断说明 */
+  diagnosis: string;
+}
+
+/**
+ * v491: 检测数据悬崖
+ * 
+ * 算法：
+ * 1. 将90天数据按周分组，计算每周的关键指标均值
+ * 2. 比较相邻周的指标变化，检测是否存在超过阈值的突然下跌
+ * 3. 如果检测到悬崖，推荐使用悬崖前的更长时间窗口数据
+ * 
+ * @param dailyData 90天每日数据
+ * @param recentOptimizationEvents 近期优化事件（用于判断悬崖是否由优化引起）
+ */
+export function detectDataCliff(
+  dailyData: DailyRawData[],
+  recentOptimizationEvents?: Array<{ date: string; actionType: string; bidChange: number }>
+): DataCliffDetectionResult {
+  const noCliff: DataCliffDetectionResult = {
+    cliffDetected: false,
+    cliffType: 'none',
+    dropMagnitude: 0,
+    cliffDaysAgo: 0,
+    recommendedMinWindowDays: 7,
+    likelyOptimizationCaused: false,
+    diagnosis: '未检测到数据悬崖',
+  };
+
+  if (dailyData.length < 14) {
+    return { ...noCliff, diagnosis: '数据不足14天，无法进行悬崖检测' };
+  }
+
+  // 按日期排序（从旧到新）
+  const sorted = [...dailyData].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  // 将数据按周分组（最多13周 = 90天）
+  interface WeeklyBucket {
+    weekIndex: number;  // 0 = 最近一周
+    avgImpressions: number;
+    avgClicks: number;
+    avgSpend: number;
+    avgSales: number;
+    daysWithData: number;
+  }
+
+  const weekBuckets: WeeklyBucket[] = [];
+  for (let w = 0; w < 13; w++) {
+    const weekStart = w * 7;
+    const weekEnd = (w + 1) * 7 - 1;
+    const weekData = sorted.filter(d => {
+      const dataDate = new Date(d.date);
+      dataDate.setHours(0, 0, 0, 0);
+      const daysAgo = Math.floor((today.getTime() - dataDate.getTime()) / (1000 * 60 * 60 * 24));
+      return daysAgo >= weekStart && daysAgo <= weekEnd;
+    });
+
+    if (weekData.length > 0) {
+      weekBuckets.push({
+        weekIndex: w,
+        avgImpressions: weekData.reduce((s, d) => s + d.impressions, 0) / weekData.length,
+        avgClicks: weekData.reduce((s, d) => s + d.clicks, 0) / weekData.length,
+        avgSpend: weekData.reduce((s, d) => s + d.spend, 0) / weekData.length,
+        avgSales: weekData.reduce((s, d) => s + d.sales, 0) / weekData.length,
+        daysWithData: weekData.length,
+      });
+    }
+  }
+
+  if (weekBuckets.length < 3) {
+    return { ...noCliff, diagnosis: '有效周数据不足3周，无法进行悬崖检测' };
+  }
+
+  // 检测各指标的悬崖
+  // 悬崖定义：相邻周之间某指标下降超过50%，且之前的周数据相对稳定
+  const CLIFF_THRESHOLD = 0.50; // 50%下跌视为悬崖
+  const STABILITY_THRESHOLD = 0.30; // 30%以内波动视为稳定
+
+  interface CliffCandidate {
+    type: 'impression_cliff' | 'click_cliff' | 'spend_cliff' | 'sales_cliff';
+    weekIndex: number;
+    dropMagnitude: number;
+    beforeAvg: number;
+    afterAvg: number;
+  }
+
+  const cliffCandidates: CliffCandidate[] = [];
+
+  // 从最近的周向过去扫描，寻找悬崖点
+  for (let i = 0; i < weekBuckets.length - 1; i++) {
+    const recentWeek = weekBuckets[i];
+    const olderWeek = weekBuckets[i + 1];
+
+    // 检查曝光悬崖
+    if (olderWeek.avgImpressions > 50) { // 基线至少50曝光/天
+      const impressionDrop = (olderWeek.avgImpressions - recentWeek.avgImpressions) / olderWeek.avgImpressions;
+      if (impressionDrop > CLIFF_THRESHOLD) {
+        cliffCandidates.push({
+          type: 'impression_cliff',
+          weekIndex: i,
+          dropMagnitude: impressionDrop,
+          beforeAvg: olderWeek.avgImpressions,
+          afterAvg: recentWeek.avgImpressions,
+        });
+      }
+    }
+
+    // 检查点击悬崖
+    if (olderWeek.avgClicks > 2) { // 基线至少2点击/天
+      const clickDrop = (olderWeek.avgClicks - recentWeek.avgClicks) / olderWeek.avgClicks;
+      if (clickDrop > CLIFF_THRESHOLD) {
+        cliffCandidates.push({
+          type: 'click_cliff',
+          weekIndex: i,
+          dropMagnitude: clickDrop,
+          beforeAvg: olderWeek.avgClicks,
+          afterAvg: recentWeek.avgClicks,
+        });
+      }
+    }
+
+    // 检查花费悬崖
+    if (olderWeek.avgSpend > 1) { // 基线至少$1/天
+      const spendDrop = (olderWeek.avgSpend - recentWeek.avgSpend) / olderWeek.avgSpend;
+      if (spendDrop > CLIFF_THRESHOLD) {
+        cliffCandidates.push({
+          type: 'spend_cliff',
+          weekIndex: i,
+          dropMagnitude: spendDrop,
+          beforeAvg: olderWeek.avgSpend,
+          afterAvg: recentWeek.avgSpend,
+        });
+      }
+    }
+  }
+
+  if (cliffCandidates.length === 0) {
+    return noCliff;
+  }
+
+  // 选择最严重的悬崖
+  cliffCandidates.sort((a, b) => b.dropMagnitude - a.dropMagnitude);
+  const worstCliff = cliffCandidates[0];
+
+  // 计算悬崖发生的大致天数
+  const cliffDaysAgo = (worstCliff.weekIndex + 1) * 7;
+
+  // 推荐的最小时间窗口：悬崖前至少2周的数据
+  const recommendedMinWindowDays = Math.min(90, cliffDaysAgo + 14);
+
+  // 判断是否可能由优化操作引起
+  let likelyOptimizationCaused = false;
+  if (recentOptimizationEvents && recentOptimizationEvents.length > 0) {
+    // 检查悬崖前后7天内是否有大幅降价操作
+    const cliffDate = new Date(today);
+    cliffDate.setDate(cliffDate.getDate() - cliffDaysAgo);
+    const cliffWindowStart = new Date(cliffDate.getTime() - 7 * 24 * 3600000);
+    const cliffWindowEnd = new Date(cliffDate.getTime() + 3 * 24 * 3600000);
+
+    const nearbyBidDecreases = recentOptimizationEvents.filter(evt => {
+      const evtDate = new Date(evt.date);
+      return evtDate >= cliffWindowStart && evtDate <= cliffWindowEnd
+        && evt.actionType === 'bid_decrease'
+        && evt.bidChange < -0.15; // 降幅超过15%
+    });
+
+    likelyOptimizationCaused = nearbyBidDecreases.length > 0;
+  }
+
+  const diagnosis = likelyOptimizationCaused
+    ? `检测到${worstCliff.type}：日均${worstCliff.beforeAvg.toFixed(1)}→${worstCliff.afterAvg.toFixed(1)}（下降${(worstCliff.dropMagnitude * 100).toFixed(0)}%），` +
+      `约${cliffDaysAgo}天前发生，可能由近期出价调整引起。建议使用${recommendedMinWindowDays}天以上的数据窗口。`
+    : `检测到${worstCliff.type}：日均${worstCliff.beforeAvg.toFixed(1)}→${worstCliff.afterAvg.toFixed(1)}（下降${(worstCliff.dropMagnitude * 100).toFixed(0)}%），` +
+      `约${cliffDaysAgo}天前发生。建议使用${recommendedMinWindowDays}天以上的数据窗口。`;
+
+  return {
+    cliffDetected: true,
+    cliffType: worstCliff.type,
+    dropMagnitude: worstCliff.dropMagnitude,
+    cliffDaysAgo,
+    recommendedMinWindowDays,
+    likelyOptimizationCaused,
+    diagnosis,
+  };
+}
+
+/**
+ * v491: 数据悬崖感知的时间衰减加权指标计算
+ * 
+ * 增强版的calculateTimeWeightedMetrics：
+ * 1. 先检测数据悬崖
+ * 2. 如果检测到悬崖，动态调整时间窗口权重：
+ *    - 降低悬崖后（受影响期间）的数据权重
+ *    - 提高悬崖前（正常期间）的数据权重
+ * 3. 返回增强的指标，包含悬崖检测信息
+ */
+export function calculateCliffAwareTimeWeightedMetrics(
+  dailyData: DailyRawData[],
+  recentOptimizationEvents?: Array<{ date: string; actionType: string; bidChange: number }>
+): TimeWeightedMetrics & { cliffDetection: DataCliffDetectionResult } {
+  // 先进行悬崖检测
+  const cliffResult = detectDataCliff(dailyData, recentOptimizationEvents);
+
+  if (!cliffResult.cliffDetected) {
+    // 无悬崖，使用标准时间衰减加权
+    const metrics = calculateTimeWeightedMetrics(dailyData);
+    return { ...metrics, cliffDetection: cliffResult };
+  }
+
+  // 检测到悬崖：动态调整窗口权重
+  // 核心思路：悬崖后的数据权重大幅降低，悬崖前的数据权重提高
+  const adjustedWindows: TimeWindow[] = TIME_WINDOWS.map(w => {
+    const windowMidpoint = (w.startDaysAgo + w.endDaysAgo) / 2;
+
+    if (windowMidpoint < cliffResult.cliffDaysAgo) {
+      // 悬崖后的窗口（受影响的近期数据）：大幅降低权重
+      // 如果是优化操作引起的，权重降得更低（因为数据不代表真实市场表现）
+      const reductionFactor = cliffResult.likelyOptimizationCaused ? 0.15 : 0.30;
+      return { ...w, baseWeight: w.baseWeight * reductionFactor };
+    } else {
+      // 悬崖前的窗口（正常数据）：提高权重
+      return { ...w, baseWeight: w.baseWeight * 1.5 };
+    }
+  });
+
+  const metrics = calculateTimeWeightedMetrics(dailyData, adjustedWindows);
+
+  // 更新趋势信号：如果悬崖是优化引起的，趋势信号应标记为declining
+  if (cliffResult.likelyOptimizationCaused && metrics.trendSignal.direction !== 'declining') {
+    metrics.trendSignal = {
+      direction: 'declining',
+      strength: cliffResult.dropMagnitude,
+      description: `[v491悬崖检测] ${cliffResult.diagnosis}`,
+    };
+  }
+
+  return { ...metrics, cliffDetection: cliffResult };
+}

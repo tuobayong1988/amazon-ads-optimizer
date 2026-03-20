@@ -91,6 +91,36 @@ const activeTasks = new Map<string, {
 let heartbeatTimer: NodeJS.Timeout | null = null;
 let httpServer: unknown = null;
 
+// v491: 部署恢复门控 — 纠错和验证全部完成前，定期优化调度器不应执行
+// 确保新版本上线后先完成：扫描优化日志 → 分析合理性 → 纠正错误动作 → 确认Amazon执行
+// 然后才允许定期自动优化开始
+let _deployRecoveryComplete = false;
+let _deployRecoveryCompletedAt: Date | null = null;
+
+/**
+ * v491: 检查部署恢复是否已完成
+ * 优化调度器在执行前应检查此标志，如果为false则跳过本次执行
+ */
+export function isDeployRecoveryComplete(): boolean {
+  return _deployRecoveryComplete;
+}
+
+/**
+ * v491: 标记部署恢复已完成，允许定期优化开始
+ */
+export function markDeployRecoveryComplete(): void {
+  _deployRecoveryComplete = true;
+  _deployRecoveryCompletedAt = new Date();
+  log.info(`[LifecycleManager] v491: 部署恢复已完成，定期优化调度器现在可以开始执行`);
+}
+
+/**
+ * v491: 获取部署恢复完成时间（供监控使用）
+ */
+export function getDeployRecoveryCompletedAt(): Date | null {
+  return _deployRecoveryCompletedAt;
+}
+
 // ==================== 优雅关闭 ====================
 
 /**
@@ -818,18 +848,10 @@ export async function orchestrateStartup(server: unknown): Promise<void> {
           const syncResult: unknown = await syncAllAccounts('high');
           log.info(`[LifecycleManager] v405: 部署后轻量级同步完成 - 成功: ${syncResult.successfulAccounts}/${syncResult.totalAccounts}, 失败: ${syncResult.failedAccounts}, 耗时: ${syncResult.durationMs}ms`);
           
-          // 同步完成后触发优化
-          if (syncResult.successfulAccounts > 0) {
-            for (const accountResult of syncResult.accountResults) {
-              if (!accountResult.success) continue;
-              try {
-                const { triggerAccountOptimizations } = await import('./optimization/optimizationScheduler');
-                await triggerAccountOptimizations(accountResult.accountId, 'deploy_recovery_sync');
-              } catch (optErr: unknown) {
-                log.warn(`[LifecycleManager] v336: 部署后优化触发失败 (accountId=${accountResult.accountId}): ${(optErr as Error).message}`);
-              }
-            }
-          }
+          // v491: 同步完成后不再立即触发优化
+          // 原因: 必须等待纠错流程完成后才能开始新的优化
+          // 优化将在步骤4的纠错→验证→重优化流程中统一触发
+          log.info(`[LifecycleManager] v491: 同步完成，但优化将在纠错流程完成后统一触发（不再立即触发）`);
           
           // 记录部署后同步完成事件
           const syncDetail = JSON.stringify({
@@ -863,40 +885,35 @@ export async function orchestrateStartup(server: unknown): Promise<void> {
         await flushPendingTasks();
       }
       
-      // v329: 重构启动协调 — 每个步骤独立错误隔离，确保任何步骤失败不阻塞后续步骤
-      // 顺序: PostDeploy → AutoCorrector → 效果验证
-      // 理由: 先用新算法重优化所有目标，再用纠错器确保API同步一致性，最后验证效果
+      // v491: 重构启动协调顺序 — 纠错优先，确认执行后才重优化
+      // 正确顺序: 纠错扫描 → 指令重评估 → 等待Amazon确认 → 二次验证 → 重优化 → 冷启动 → 标记完成
+      // 理由: 新版本上线后必须先纠正旧版本的错误优化动作，确认Amazon正确执行后，才能开始新的优化
       
-      // 步骤4b: 运行部署后重优化（独立错误隔离）
-      let deployResult: Record<string, unknown> = { triggered: false, reason: 'not_executed', targetsProcessed: 0, targetsSucceeded: 0, targetsFailed: 0, totalOptimizationActions: 0 };
-      try {
-        log.info('[LifecycleManager] v329: 运行部署后重优化（新算法优先）...');
-        const { runPostDeployOptimization } = await import('./postDeployOptimizer');
-        deployResult = await runPostDeployOptimization();
-        if (deployResult.triggered) {
-          log.info(`[LifecycleManager] ✓ 部署后重优化完成: ${deployResult.targetsProcessed}个目标, ${deployResult.targetsSucceeded}个成功, ${deployResult.totalOptimizationActions}个优化动作`);
-        } else {
-          log.debug(`[LifecycleManager] ✓ ${deployResult.reason}`);
-        }
-      } catch (deployErr: unknown) {
-        log.warn(`[LifecycleManager] v329: 部署后重优化失败（已隔离，继续执行纠错）: ${(deployErr as Error).message}`);
-      }
-      
-      // 步骤4c: 运行API执行级纠错（独立错误隔离）
+      // 步骤4b: 运行API执行级纠错（第一优先级）
       let corrResult: Record<string, unknown> = { totalIssuesFound: 0, totalCorrected: 0, totalFailed: 0 };
       try {
-        log.info('[LifecycleManager] v329: 运行API执行级纠错（确保同步一致性）...');
+        log.info('[LifecycleManager] v491: 步骤4b - 运行API执行级纠错（扫描所有优化日志，检测并修复错误优化动作）...');
         const { runAutoCorrection } = await import('./optimization/optimizationAutoCorrector');
         corrResult = await runAutoCorrection();
-        log.info(`[LifecycleManager] ✓ 纠错完成: 发现${corrResult.totalIssuesFound}个问题, 纠正${corrResult.totalCorrected}个`);
+        log.info(`[LifecycleManager] v491: ✓ 纠错完成: 发现${corrResult.totalIssuesFound}个问题, 纠正${corrResult.totalCorrected}个`);
       } catch (corrErr: unknown) {
-        log.warn(`[LifecycleManager] v329: 纠错扫描失败（已隔离，继续执行验证）: ${(corrErr as Error).message}`);
+        log.warn(`[LifecycleManager] v491: 纠错扫描失败（已隔离，继续执行指令重评估）: ${(corrErr as Error).message}`);
       }
       
-      // 步骤4d: v329 部署后效果验证（独立错误隔离 + raw SQL记录）
-      if (deployResult.triggered && deployResult.totalOptimizationActions > 0) {
+      // 步骤4c: 部署后指令重评估与自动纠错（独立错误隔离）
+      try {
+        log.info('[LifecycleManager] v491: 步骤4c - 运行部署后指令重评估与自动纠错...');
+        const { runFullRevalidation } = await import('./postDeployCommandRevalidator');
+        const revalResult = await runFullRevalidation();
+        log.info(`[LifecycleManager] v491: ✓ 指令重评估完成: ${revalResult.targetsProcessed}个目标, pending=${revalResult.totalPendingRevalidated}(取消${revalResult.totalPendingCancelled},重触发${revalResult.totalPendingRetriggered}), 历史纠正=${revalResult.totalCorrectionsGenerated}`);
+      } catch (revalErr: unknown) {
+        log.warn(`[LifecycleManager] v491: 指令重评估失败（已隔离，继续执行验证）: ${(revalErr as Error).message}`);
+      }
+      
+      // 步骤4d: 等待60秒让Amazon处理纠错指令，然后进行二次验证
+      if (Number(corrResult.totalCorrected) > 0) {
         try {
-          log.info('[LifecycleManager] v329: 启动部署后效果验证（等待60秒让Amazon处理指令）...');
+          log.info(`[LifecycleManager] v491: 步骤4d - 等待60秒让Amazon处理${corrResult.totalCorrected}个纠错指令...`);
           await new Promise(resolve => setTimeout(resolve, 60 * 1000));
           
           const { runAutoCorrection: runVerify } = await import('./optimization/optimizationAutoCorrector');
@@ -905,63 +922,69 @@ export async function orchestrateStartup(server: unknown): Promise<void> {
           const newCorrected = verifyResult.totalCorrected;
           
           if (newIssues === 0) {
-            log.info(`[LifecycleManager] v329: ✓ 效果验证通过 — 所有重优化指令已被Amazon成功接受`);
+            log.info(`[LifecycleManager] v491: ✓ 二次验证通过 — 所有纠错指令已被Amazon成功执行`);
           } else {
-            log.warn(`[LifecycleManager] v329: ⚠ 效果验证发现${newIssues}个不一致, 已自动纠正${newCorrected}个`);
+            log.warn(`[LifecycleManager] v491: ⚠ 二次验证发现${newIssues}个残余不一致, 已自动纠正${newCorrected}个`);
           }
           
-          // v329: 使用raw SQL记录验证结果，避免Drizzle ORM的schema不匹配问题
+          // 记录验证结果
           try {
             const database = await getDb();
             if (database) {
               const detail = JSON.stringify({
-                type: 'post_deploy_verification', systemVersion: SYSTEM_VERSION,
-                deployResult: { triggered: deployResult.triggered, targetsProcessed: deployResult.targetsProcessed, targetsSucceeded: deployResult.targetsSucceeded, targetsFailed: deployResult.targetsFailed, totalActions: deployResult.totalOptimizationActions },
+                type: 'post_deploy_correction_verification', systemVersion: SYSTEM_VERSION,
                 correctionResult: { issuesFound: corrResult.totalIssuesFound, corrected: corrResult.totalCorrected },
                 verificationResult: { issuesFound: newIssues, corrected: newCorrected, passed: newIssues === 0 },
               });
-              const reason = `v${SYSTEM_VERSION} 部署后效果验证: ${newIssues === 0 ? '通过' : `发现${newIssues}个不一致`}`;
+              const reason = `v${SYSTEM_VERSION} 纠错后二次验证: ${newIssues === 0 ? '通过' : `发现${newIssues}个残余不一致`}`;
               const algVer = `v${SYSTEM_VERSION}`;
               const status = newIssues === 0 ? 'success' : 'pending';
               await database.execute(sql`INSERT INTO optimization_events (account_id, event_category, action_type, action_detail, change_reason, algorithm_version, status, api_sync_status) VALUES (0, 'settings_change', 'auto_correction', ${detail}, ${reason}, ${algVer}, ${status}, 'not_applicable')`);
             }
           } catch (logErr: unknown) {
-            log.warn(`[LifecycleManager] v329: 记录验证结果失败（不影响系统运行）: ${(logErr as Error).message}`);
+            log.warn(`[LifecycleManager] v491: 记录验证结果失败（不影响系统运行）: ${(logErr as Error).message}`);
           }
         } catch (verifyErr: unknown) {
-          log.warn(`[LifecycleManager] v329: 效果验证失败（不影响系统运行）: ${(verifyErr as Error).message}`);
+          log.warn(`[LifecycleManager] v491: 二次验证失败（不影响系统运行）: ${(verifyErr as Error).message}`);
         }
+      } else {
+        log.info('[LifecycleManager] v491: 无纠错操作，跳过二次验证');
       }
       
-      // 步骤4e: v338 版本升级场景的智能冷启动
+      // 步骤4e: 纠错完成，现在可以安全地运行部署后重优化（独立错误隔离）
+      let deployResult: Record<string, unknown> = { triggered: false, reason: 'not_executed', targetsProcessed: 0, targetsSucceeded: 0, targetsFailed: 0, totalOptimizationActions: 0 };
       try {
-        log.info('[LifecycleManager] v338: 检测是否需要执行智能冷启动...');
+        log.info('[LifecycleManager] v491: 步骤4e - 纠错已完成，现在运行部署后重优化（新算法）...');
+        const { runPostDeployOptimization } = await import('./postDeployOptimizer');
+        deployResult = await runPostDeployOptimization();
+        if (deployResult.triggered) {
+          log.info(`[LifecycleManager] v491: ✓ 部署后重优化完成: ${deployResult.targetsProcessed}个目标, ${deployResult.targetsSucceeded}个成功, ${deployResult.totalOptimizationActions}个优化动作`);
+        } else {
+          log.debug(`[LifecycleManager] v491: ✓ ${deployResult.reason}`);
+        }
+      } catch (deployErr: unknown) {
+        log.warn(`[LifecycleManager] v491: 部署后重优化失败（已隔离，不影响系统运行）: ${(deployErr as Error).message}`);
+      }
+      
+      // 步骤4f: 版本升级场景的智能冷启动
+      try {
+        log.info('[LifecycleManager] v491: 步骤4f - 检测是否需要执行智能冷启动...');
         const { triggerColdStartForAllAccounts } = await import('./optimization/coldStartService');
         const coldStartResult = await triggerColdStartForAllAccounts('version_upgrade', {
-          skipSync: false, // 版本升级场景需要重新同步数据
+          skipSync: false,
           historicalDays: 90,
           recentDays: 14,
         });
         if (coldStartResult.triggered > 0) {
-          log.info(`[LifecycleManager] v338: 智能冷启动已触发 ${coldStartResult.triggered}/${coldStartResult.total} 个账户`);
+          log.info(`[LifecycleManager] v491: 智能冷启动已触发 ${coldStartResult.triggered}/${coldStartResult.total} 个账户`);
         } else {
-          log.info(`[LifecycleManager] v338: 无需冷启动（所有账户已在当前版本执行过）`);
+          log.info(`[LifecycleManager] v491: 无需冷启动（所有账户已在当前版本执行过）`);
         }
       } catch (coldStartErr: unknown) {
-        log.warn(`[LifecycleManager] v338: 智能冷启动失败（已隔离，不影响系统运行）: ${(coldStartErr as Error).message}`);
+        log.warn(`[LifecycleManager] v491: 智能冷启动失败（已隔离，不影响系统运行）: ${(coldStartErr as Error).message}`);
       }
       
-      // 步骤4e2: v361 部署后指令重评估与自动纠错（独立错误隔离）
-      try {
-        log.info('[LifecycleManager] v361: 运行部署后指令重评估与自动纠错...');
-        const { runFullRevalidation } = await import('./postDeployCommandRevalidator');
-        const revalResult = await runFullRevalidation();
-        log.info(`[LifecycleManager] v361: ✓ 指令重评估完成: ${revalResult.targetsProcessed}个目标, pending=${revalResult.totalPendingRevalidated}(取消${revalResult.totalPendingCancelled},重触发${revalResult.totalPendingRetriggered}), 历史纠正=${revalResult.totalCorrectionsGenerated}`);
-      } catch (revalErr: unknown) {
-        log.warn(`[LifecycleManager] v361: 指令重评估失败（已隔离，不影响系统运行）: ${(revalErr as Error).message}`);
-      }
-      
-      // 步骤4f: 如果是crash恢复，记录恢复完成事件（独立错误隔离 + raw SQL）
+      // 步骤4g: 如果是crash恢复，记录恢复完成事件
       if (diagnostics.lastShutdownType === 'crash') {
         try {
           const database = await getDb();
@@ -976,18 +999,20 @@ export async function orchestrateStartup(server: unknown): Promise<void> {
             await database.execute(sql`INSERT INTO optimization_events (account_id, event_category, action_type, action_detail, change_reason, algorithm_version, status, api_sync_status) VALUES (0, 'settings_change', 'auto_correction', ${detail}, ${reason}, ${algVer}, 'success', 'not_applicable')`);
           }
         } catch (crashLogErr: unknown) {
-          log.warn(`[LifecycleManager] v329: 记录crash恢复事件失败（不影响系统运行）: ${(crashLogErr as Error).message}`);
+          log.warn(`[LifecycleManager] v491: 记录crash恢复事件失败（不影响系统运行）: ${(crashLogErr as Error).message}`);
         }
       }
-
       
-      // 步骤4f: v239 运行系统监控检查
+      // 步骤4h: v491 标记部署恢复完成 — 允许定期优化调度器开始执行
+      markDeployRecoveryComplete();
+      log.info(`[LifecycleManager] v491: ✅ 部署恢复全部完成（纠错=${corrResult.totalCorrected}, 重优化=${deployResult.totalOptimizationActions}），定期优化现在可以开始`);
+      
+      // 步骤4i: 运行系统监控检查
       try {
         log.info('[LifecycleManager] 运行系统监控检查...');
         const { runMonitoringCheck, formatMonitoringReport } = await import('./optimization/optimizationMonitoringService');
         const database = await getDb();
         if (database) {
-          // 获取所有团队ID进行监控
           const teams = await database.selectDistinct({ teamId: optimizationEvents.userId }).from(optimizationEvents).limit(10);
           for (const team of teams) {
             if (team.teamId) {

@@ -48,6 +48,11 @@ import { autoResolveConflicts } from "./postOptimizationVerifier";
 import type { OptimizationTarget, PerformanceGroupConfig } from "./bidOptimizer";
 import { createModuleLogger } from '../utils/logger';
 import { batchCalculateGTOModifiers, type GTOModifier, type GTOBatchContext } from '../gto/gtoIntegrationOrchestrator';
+import { batchPreloadNashRanges, applyNashConstraint, type NashEquilibriumRange } from './nashEquilibriumEngine';
+import { getColdStartBidOverride, isInColdStartPeriod, type ColdStartBidResult } from './suggestedBidColdStartEngine';
+import { batchGetParetoTiers, applyParetoWeight, type ParetoTierResult } from './paretoTierEngine';
+import { batchForecastCampaignTrends, applyTrendModifier, type TrendSignal } from './timeSeriesForecastEngine';
+import { getTransferPriorForCampaign, blendTransferWithOwn, type TransferParameters } from './crossProductTransferEngine';
 import * as timeDecayService from '../analytics/timeDecayWeightedDataService';
 import { getConfig } from '../system/systemConfigService';
 import { startAlgorithmTrace, completeAlgorithmTrace } from '../algorithm/algorithmObservabilityService';
@@ -466,6 +471,42 @@ export interface NextGenBidResult {
     cascadeFusionDetail?: string;  // Cascade Fusion融合详情
     causalInferenceApplied: boolean; // 因果推断修正是否生效
   };
+  /** v490: 纳什均衡约束信息 */
+  nashEquilibrium?: {
+    bidFloor: number;
+    bidCeiling: number;
+    optimalBid: number;
+    confidence: number;
+    source: string;
+    constrained: boolean;
+  };
+  /** v490: 帕累托分层信息 */
+  paretoTier?: {
+    tier: string;
+    rank: number;
+    profitContribution: number;
+    bidWeightMultiplier: number;
+    budgetWeightMultiplier: number;
+    applied: boolean;
+    reason: string;
+  };
+  /** v490: 时序预测信号 */
+  trendForecast?: {
+    direction: string;
+    strength: number;
+    bidModifier: number;
+    applied: boolean;
+    reason: string;
+  };
+  /** v489: 跨品迁移学习参数 */
+  crossProductTransfer?: {
+    applied: boolean;
+    transferWeight: number;
+    sourceCampaigns: string[];
+    suggestedBid: number;
+    confidence: string;
+    reason: string;
+  };
   /** v337: Meta-Learning决策详情 — 记录算法选择的完整过程 */
   metaLearningDetail?: {
     candidateAlgorithms: Array<{ algorithm: string; score: number; eligible: boolean; reason: string }>;
@@ -625,7 +666,11 @@ function ruleEngineDecision(
     // @ts-expect-error - dynamic property access
     const hasHistoricalPerformance = dailyDataForImpression.some(d => ((d as Record<string, unknown>).impressions || 0) > 100);
     if (recentAvgImpressions < 20 && currentBid < 0.50 && hasHistoricalPerformance) {
-      const suggestedBid = (groupConfig.maxBid || 10) * 0.15; // 使用maxBid的15%作为建议竞价估算
+      // v491修正: 只使用target自身的suggestedBid，绝不回退到group级别中位数
+      // 无suggestedBid时使用maxBid的保守估算作为竞争力恢复的参考
+      const targetSBForRecovery = (target as Record<string, unknown>).suggestedBid as number | undefined;
+      const suggestedBid = (targetSBForRecovery && targetSBForRecovery > 0) ? targetSBForRecovery
+        : (groupConfig.maxBid || 10) * 0.15;
       const competitiveRecoveryBid = Math.max(currentBid * 1.5, suggestedBid * 0.80);
       const cappedRecoveryBid = Math.min(competitiveRecoveryBid, (groupConfig.maxBid || 10) * 0.60); // 不超过maxBid的60%
       return {
@@ -647,13 +692,11 @@ function ruleEngineDecision(
   // v238: 增加出价累积保护，防止零曝光关键词被无限提价
   // v330: R-01优化 — 引入亚马逊建议出价作为锚点
   if (impressions === 0) {
-    // v330 R-01: 从上层传入的建议出价数据
-    // @ts-expect-error - dynamic property access
-    const suggestedBid = (groupConfig as Record<string, unknown>)._suggestedBid as number | undefined;
-    // @ts-expect-error - dynamic property access
-    const suggestedBidRangeStart = (groupConfig as Record<string, unknown>)._suggestedBidRangeStart as number | undefined;
-    // @ts-expect-error - dynamic property access
-    const suggestedBidRangeEnd = (groupConfig as Record<string, unknown>)._suggestedBidRangeEnd as number | undefined;
+    // v491修正: 只使用target自身的suggestedBid/Low/High
+    // 绝不回退到group级别中位数，无suggestedBid的target将走下方的基础规则引擎路径
+    const suggestedBid = ((target as Record<string, unknown>).suggestedBid as number | undefined) || undefined;
+    const suggestedBidRangeStart = ((target as Record<string, unknown>).suggestedBidRangeStart as number | undefined) || undefined;
+    const suggestedBidRangeEnd = ((target as Record<string, unknown>).suggestedBidRangeEnd as number | undefined) || undefined;
     
     // v434: 零曝光探索 — 基于Amazon建议竞价的动态范围快速测试
     // 竞价范围: 建议最低竞价×50% ~ 建议最高竞价×150%
@@ -1173,6 +1216,62 @@ export async function calculateNextGenBid(
     log.warn(`[NextGenOrchestrator] 高级算法异常(target=${target.id}), 降级到规则引擎: ${(advancedError as Error).message}`);
   }
   
+  // ===== v490: 冷启动建议竞价驱动层 =====
+  // 在规则引擎之前，检查目标是否处于冷启动期
+  // 如果是，使用亚马逊建议竞价作为贝叶斯先验计算智能初始出价
+  try {
+    const coldStartTarget = {
+      id: target.id,
+      type: target.type === 'keyword' ? 'keyword' as const : 'product_target' as const,
+      currentBid: target.currentBid,
+      suggestedBid: (target as Record<string, unknown>).suggestedBid as number | undefined,
+      suggestedBidRangeStart: (target as Record<string, unknown>).suggestedBidRangeStart as number | undefined,
+      suggestedBidRangeEnd: (target as Record<string, unknown>).suggestedBidRangeEnd as number | undefined,
+      matchType: (target as Record<string, unknown>).matchType as string | undefined,
+      keywordText: (target as Record<string, unknown>).keywordText as string | undefined,
+      campaignId: (target as Record<string, unknown>).amazonCampaignId as number | undefined,
+      clicks: (target as Record<string, unknown>).clicks as number | undefined,
+      impressions: (target as Record<string, unknown>).impressions as number | undefined,
+      spend: (target as Record<string, unknown>).spend as number | undefined,
+      sales: (target as Record<string, unknown>).sales as number | undefined,
+      orders: (target as Record<string, unknown>).orders as number | undefined,
+      createdAt: (target as Record<string, unknown>).createdAt as string | undefined,
+    };
+    
+    const coldStartResult = await getColdStartBidOverride(
+      accountId, coldStartTarget, normalizedTargetAcos
+    );
+    
+    if (coldStartResult) {
+      const safeBid = safetyValidate(
+        target.currentBid, coldStartResult.recommendedBid, safetyConfig, maxBidLimit
+      );
+      
+      log.info(`[NextGenOrchestrator] v490冷启动驱动: target=${target.id}, ` +
+        `策略=${coldStartResult.strategy}, 先验权重=${(coldStartResult.priorWeight * 100).toFixed(0)}%, ` +
+        `建议竞价=$${coldStartResult.suggestedBidInfo.suggestedBid.toFixed(2)}, ` +
+        `推荐出价=$${coldStartResult.recommendedBid.toFixed(2)}, 安全出价=$${safeBid.toFixed(2)}`);
+      
+      // 记录RL数据
+      const keywordId = target.type === 'keyword' ? target.id : undefined;
+      const targetId = target.type === 'product_target' ? target.id : undefined;
+      recordBidAction({
+        accountId, keywordId, targetId,
+        campaignId: (target as Record<string, unknown>).amazonCampaignId || undefined,
+        adGroupId: (target as Record<string, unknown>).internalAdGroupId || undefined,
+        bidBefore: target.currentBid,
+        bidAfter: safeBid,
+        actionSource: 'rule_based',
+      }).catch(err => log.warn('[NextGenOrchestrator] RL recording error:', err));
+      
+      return buildResult(target, safeBid, `cold_start_${coldStartResult.strategy}`,
+        coldStartResult.confidence,
+        `${coldStartResult.reason}`, 'rule_engine');
+    }
+  } catch (coldStartErr: unknown) {
+    log.warn(`[NextGenOrchestrator] v490冷启动引擎异常(target=${target.id}): ${(coldStartErr as Error).message}`);
+  }
+  
   // ===== v257: 出价冷却时间检查 =====
   // 在规则引擎执行前检查冷却期，避免出价振荡
   const cooldownResult = await isInCooldownPeriod(
@@ -1489,6 +1588,31 @@ export async function batchCalculateNextGenBids(
     log.warn(`[NextGenOrchestrator] GTO修正层异常(已降级): ${(gtoError as Error).message}`);
   }
   
+  // ===== v490: 预加载纳什均衡出价区间 =====
+  let nashRanges: Map<string, NashEquilibriumRange> = new Map();
+  try {
+    // v491修正: 只使用每个target自身的suggestedBid/Low/High
+    // 绝不回退到group级别中位数，无suggestedBid时由Nash引擎内部降级链处理（贝叶斯平滑 → 当前竞价+规则引擎）
+    const nashTargets = targets.map(t => {
+      const targetSuggestedBid = (t as Record<string, unknown>).suggestedBid as number | undefined;
+      const targetSuggestedBidRangeStart = (t as Record<string, unknown>).suggestedBidRangeStart as number | undefined;
+      const targetSuggestedBidRangeEnd = (t as Record<string, unknown>).suggestedBidRangeEnd as number | undefined;
+      return {
+        id: t.id,
+        type: t.type as 'keyword' | 'product_target',
+        currentBid: t.currentBid,
+        suggestedBid: (targetSuggestedBid && targetSuggestedBid > 0) ? targetSuggestedBid : undefined,
+        suggestedBidRangeStart: (targetSuggestedBidRangeStart && targetSuggestedBidRangeStart > 0) ? targetSuggestedBidRangeStart : undefined,
+        suggestedBidRangeEnd: (targetSuggestedBidRangeEnd && targetSuggestedBidRangeEnd > 0) ? targetSuggestedBidRangeEnd : undefined,
+      };
+    });
+    nashRanges = await batchPreloadNashRanges(accountId, nashTargets);
+    log.info(`[NextGenOrchestrator] v490纳什均衡层已启用: ${nashRanges.size}个目标获得均衡区间`);
+  } catch (nashError: unknown) {
+    // 纳什均衡层失败不影响NextGen核心流程
+    log.warn(`[NextGenOrchestrator] v490纳什均衡层异常(已降级): ${(nashError as Error).message}`);
+  }
+
   // ===== v274: 加载因果推断结果，作为出价修正信号 =====
   let causalMap: Map<string, { optimalBid: number; upliftScore: number; incrementalProfit: number; confidence: number; sampleSize: number }> = new Map();
   try {
@@ -1531,6 +1655,31 @@ export async function batchCalculateNextGenBids(
     log.warn(`[NextGenOrchestrator] v274 因果推断加载异常(已降级): ${(causalErr as Error).message}`);
   }
   
+  // ===== v490: 预加载帕累托分层权重 =====
+  let paretoTiers: Map<string, ParetoTierResult> = new Map();
+  try {
+    const campaignIds = targets.map(t => (t as unknown as Record<string, unknown>).amazonCampaignId as string | undefined || (t as unknown as Record<string, unknown>).campaignId as string | undefined).filter(Boolean);
+    if (campaignIds.length > 0) {
+      paretoTiers = await batchGetParetoTiers(accountId, campaignIds);
+      log.info(`[NextGenOrchestrator] v490帕累托分层已启用: ${paretoTiers.size}个广告活动获得分层权重`);
+    }
+  } catch (paretoError: unknown) {
+    // 帕累托分层失败不影响NextGen核心流程
+    log.warn(`[NextGenOrchestrator] v490帕累托分层异常(已降级): ${(paretoError as Error).message}`);
+  }
+
+  // ===== v490: 预加载时序预测趋势信号 =====
+  let trendSignals: Map<string, TrendSignal> = new Map();
+  try {
+    const forecastCampaignIds = targets.map(t => (t as unknown as Record<string, unknown>).amazonCampaignId as string | undefined || (t as unknown as Record<string, unknown>).campaignId as string | undefined).filter(Boolean);
+    if (forecastCampaignIds.length > 0) {
+      trendSignals = await batchForecastCampaignTrends(accountId, forecastCampaignIds as string[]);
+      log.info(`[NextGenOrchestrator] v490时序预测已启用: ${trendSignals.size}个广告活动获得趋势信号`);
+    }
+  } catch (forecastError: unknown) {
+    log.warn(`[NextGenOrchestrator] v490时序预测异常(已降级): ${(forecastError as Error).message}`);
+  }
+
   // ===== 核心出价计算 =====
   const results: NextGenBidResult[] = [];
   
@@ -1616,6 +1765,124 @@ export async function batchCalculateNextGenBids(
       }
     }
     
+    // ===== v490: 应用纳什均衡约束（最终安全层） =====
+    const nashKey = `${target.type}_${target.id}`;
+    const nashRange = nashRanges.get(nashKey);
+    if (nashRange && nashRange.confidence >= 0.25) {
+      const nashResult = applyNashConstraint(result.newBid, nashRange, target.currentBid);
+      result.nashEquilibrium = {
+        bidFloor: nashRange.bidFloor,
+        bidCeiling: nashRange.bidCeiling,
+        optimalBid: nashRange.optimalBid,
+        confidence: nashRange.confidence,
+        source: nashRange.source,
+        constrained: nashResult.wasConstrained,
+      };
+      if (nashResult.wasConstrained) {
+        result.newBid = nashResult.constrainedBid;
+        result.bidChangePercent = target.currentBid > 0
+          ? Math.round(((nashResult.constrainedBid - target.currentBid) / target.currentBid) * 10000) / 100
+          : 0;
+        result.actionType = Math.abs(nashResult.constrainedBid - target.currentBid) > 0.005
+          ? (nashResult.constrainedBid > target.currentBid ? 'increase' : 'decrease')
+          : 'hold';
+        result.reason += ` | ${nashResult.constraintReason}`;
+      }
+    }
+    
+    // ===== v490: 应用帕累托分层权重修正 =====
+    const campaignIdStr = String((target as unknown as Record<string, unknown>).amazonCampaignId || (target as unknown as Record<string, unknown>).campaignId || '');
+    const paretoResult = campaignIdStr ? paretoTiers.get(campaignIdStr) : null;
+    if (paretoResult) {
+      const paretoAdj = applyParetoWeight(target.currentBid, result.newBid, paretoResult);
+      result.paretoTier = {
+        tier: paretoResult.tier,
+        rank: paretoResult.paretoRank,
+        profitContribution: paretoResult.profitContribution,
+        bidWeightMultiplier: paretoResult.bidWeightMultiplier,
+        budgetWeightMultiplier: paretoResult.budgetWeightMultiplier,
+        applied: paretoAdj.paretoApplied,
+        reason: paretoAdj.reason,
+      };
+      if (paretoAdj.paretoApplied) {
+        result.newBid = paretoAdj.adjustedBid;
+        result.bidChangePercent = target.currentBid > 0
+          ? Math.round(((paretoAdj.adjustedBid - target.currentBid) / target.currentBid) * 10000) / 100
+          : 0;
+        result.actionType = Math.abs(paretoAdj.adjustedBid - target.currentBid) > 0.005
+          ? (paretoAdj.adjustedBid > target.currentBid ? 'increase' : 'decrease')
+          : 'hold';
+        result.reason += ` | ${paretoAdj.reason}`;
+      }
+    }
+
+    // ===== v490: 应用时序预测趋势修正 =====
+    const trendCampaignId = String((target as unknown as Record<string, unknown>).amazonCampaignId || (target as unknown as Record<string, unknown>).campaignId || '');
+    const trendSignal = trendCampaignId ? trendSignals.get(trendCampaignId) : null;
+    if (trendSignal && trendSignal.direction !== 'stable' && trendSignal.strength >= 0.1) {
+      const trendAdj = applyTrendModifier(target.currentBid, result.newBid, trendSignal);
+      result.trendForecast = {
+        direction: trendSignal.direction,
+        strength: trendSignal.strength,
+        bidModifier: trendSignal.bidModifier,
+        applied: trendAdj.applied,
+        reason: trendAdj.reason,
+      };
+      if (trendAdj.applied) {
+        result.newBid = trendAdj.adjustedBid;
+        result.bidChangePercent = target.currentBid > 0
+          ? Math.round(((trendAdj.adjustedBid - target.currentBid) / target.currentBid) * 10000) / 100
+          : 0;
+        result.actionType = Math.abs(trendAdj.adjustedBid - target.currentBid) > 0.005
+          ? (trendAdj.adjustedBid > target.currentBid ? 'increase' : 'decrease')
+          : 'hold';
+        result.reason += ` | ${trendAdj.reason}`;
+      }
+    }
+
+    // ==================== v491: 跨品迁移学习应用（扩展到所有tier） ====================
+    // v489: 原来仅限cold_start/rule_engine tier
+    // v491: 扩展到advanced tier，但对advanced tier使用更保守的迁移权重
+    // 理论基础：即使高级算法已经给出出价建议，跨品迁移仍可提供有价值的市场参考信号
+    {
+      // v491: 根据tier动态调整迁移权重系数
+      const tierWeightMultiplier = (() => {
+        switch (result.algorithmTier) {
+          case 'cold_start': return 0.40;   // 冷启动期：迁移权重最高（自身数据最少）
+          case 'rule_engine': return 0.30;  // 规则引擎：迁移权重较高
+          case 'advanced': return 0.15;     // 高级算法：迁移权重保守（仅作为参考信号）
+          case 'conservative': return 0.25; // 保守策略：迁移权重中等
+          default: return 0.20;
+        }
+      })();
+
+      try {
+        const transferParams = await getTransferPriorForCampaign(accountId, String((target as unknown as Record<string, unknown>).amazonCampaignId || (target as unknown as Record<string, unknown>).campaignId || ''));
+        if (transferParams && transferParams.transferWeight > 0) {
+          const effectiveWeight = transferParams.transferWeight * tierWeightMultiplier;
+          const blendedBid = blendTransferWithOwn(
+            transferParams.suggestedBid,
+            result.newBid,
+            effectiveWeight
+          );
+          result.crossProductTransfer = {
+            applied: Math.abs(blendedBid - result.newBid) > 0.005,
+            transferWeight: effectiveWeight,
+            sourceCampaigns: transferParams.sourceInfo.campaignNames.slice(0, 3),
+            suggestedBid: transferParams.suggestedBid,
+            confidence: transferParams.confidence,
+            reason: `跨品迁移(${result.algorithmTier}): 来源=${transferParams.sourceInfo.campaignNames.length}个活动, 原始权重=${transferParams.transferWeight.toFixed(2)}, tier系数=${tierWeightMultiplier}, 有效权重=${effectiveWeight.toFixed(2)}, 置信度=${transferParams.confidence}`,
+          };
+          if (result.crossProductTransfer.applied) {
+            result.newBid = Math.round(blendedBid * 100) / 100;
+            result.reason += ` | v491-跨品迁移融合(${result.algorithmTier})`;
+          }
+        }
+      } catch {
+        // 跨品迁移失败，静默降级
+      }
+    }
+
     results.push(result);
   }
   
@@ -1627,10 +1894,22 @@ export async function batchCalculateNextGenBids(
   const changed = results.filter(r => r.actionType !== 'hold').length;
   const gtoApplied = results.filter(r => r.gtoModifier && r.gtoModifier.compositeModifier !== 1.0).length;
   const causalApplied = results.filter(r => r.causalAdjustment?.applied).length;
+  const nashConstrained = results.filter(r => r.nashEquilibrium?.constrained).length;
+  const nashLoaded = results.filter(r => r.nashEquilibrium).length;
+  const paretoApplied = results.filter(r => r.paretoTier?.applied).length;
+  const paretoLoaded = results.filter(r => r.paretoTier).length;
+  const trendApplied = results.filter(r => r.trendForecast?.applied).length;
+  const trendLoaded = results.filter(r => r.trendForecast).length;
+  const transferApplied = results.filter(r => r.crossProductTransfer?.applied).length;
+  const transferLoaded = results.filter(r => r.crossProductTransfer).length;
   
-  log.info(`[NextGenOrchestrator] v274批量出价完成: 总计=${targets.length}, ` +
+  log.info(`[NextGenOrchestrator] v490批量出价完成: 总计=${targets.length}, ` +
     `高级算法=${advanced}, 规则引擎=${ruleEngine}, 护栏保护=${guardrail}, 保守策略=${conservative}, ` +
-    `实际调整=${changed}, GTO修正=${gtoApplied}, 因果修正=${causalApplied}`);
+    `实际调整=${changed}, GTO修正=${gtoApplied}, 因果修正=${causalApplied}, ` +
+    `纳什均衡加载=${nashLoaded}, 纳什约束=${nashConstrained}, ` +
+    `帕累托加载=${paretoLoaded}, 帕累托调整=${paretoApplied}, ` +
+    `时序预测加载=${trendLoaded}, 时序预测调整=${trendApplied}, ` +
+    `跨品迁移加载=${transferLoaded}, 跨品迁移调整=${transferApplied}`);
   
   return results;
 }
