@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 486;  // v486: 邀请码管理页面添加DashboardLayout侧边栏
+export const SYSTEM_VERSION = 487;  // v487: 修复团队成员创建时角色存储错误导致的variant报错

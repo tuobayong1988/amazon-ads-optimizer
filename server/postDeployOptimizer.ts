@@ -77,6 +77,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 487,
+    description: 'v487: [团队成员创建修复] — (1)P0-createTeamMemberAccount中角色存储错误: editor/viewer被错误转换为member，导致前端getRoleBadge找不到对应角色配置而报错Cannot read properties of undefined (reading variant) (2)前端添加member角色映射和fallback处理，确保向后兼容',
+    affectedModules: [],
+    correctionActions: [],
+  },
+  {
     version: 486,
     description: 'v486: [邀请码管理页面侧边栏修复] — P0-邀请码管理页面缺少DashboardLayout包裹，导致左侧导航栏缺失，无法快速进入其他模块。已添加DashboardLayout包裹，确保所有页面都有统一的侧边栏导航',
     affectedModules: [],

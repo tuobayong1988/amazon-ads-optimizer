@@ -475,7 +475,7 @@ export async function createTeamMemberAccount(input: CreateTeamMemberInput): Pro
     
     // 3. 创建用户（加入创建者的组织）
     const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
-    const memberRole = input.role === 'admin' ? 'admin' : 'member';
+    const memberRole = input.role;  // v487: 保留原始角色值(admin/editor/viewer)，不再转换为member
     
     const userResult = await db.execute(sql`
       INSERT INTO team_members (

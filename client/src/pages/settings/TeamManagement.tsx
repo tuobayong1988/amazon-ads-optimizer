@@ -166,8 +166,9 @@ export default function TeamManagement() {
       admin: { label: "管理员", variant: "default" as const, className: "bg-purple-500" },
       editor: { label: "编辑", variant: "secondary" as const, className: "bg-blue-500" },
       viewer: { label: "只读", variant: "outline" as const, className: "" },
+      member: { label: "成员", variant: "secondary" as const, className: "bg-green-600" },
     };
-    const config = roleConfig[role];
+    const config = roleConfig[role] || { label: role || '未知', variant: "outline" as const, className: "" };
     return (
       <Badge variant={config.variant} className={config.className}>
         {config.label}
