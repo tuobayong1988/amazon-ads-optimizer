@@ -77,6 +77,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 480,
+    description: 'v480: [SP Manual否定产品定向400错误根因修复] — (1)P0-定向算法修复: SP Manual广告活动的否定产品定向从Campaign级降级为AdGroup级，因为Amazon API不允许Manual广告活动创建Campaign级否定产品定向(返回400错误)，只有SP Auto广告活动支持Campaign级否定产品定向',
+    affectedModules: ['searchterm'],
+    correctionActions: [],
+  },
+  {
     version: 479,
     description: 'v479: [彻底消除entityNotFoundError残留] — (1)P0-修复h.execute bug: getDb()改为await getDb()+sql.raw()模板，修复v477标记过期关键词功能完全失效的问题 (2)P0-重试队列amazon_deleted清理: 批量同步前自动取消引用amazon_deleted/archived实体的pending/retry任务 (3)P0-updateKeywordStatus entityNotFound检测: 关键词状态更新的per-item错误现在也能检测entityNotFoundError并自动标记',
     affectedModules: ['bid', 'placement', 'dayparting', 'searchterm'],

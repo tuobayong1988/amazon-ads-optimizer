@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 479;  // v479: 修复h.execute bug + 重试队列amazon_deleted清理 + updateKeywordStatus entityNotFound检测标记
+export const SYSTEM_VERSION = 480;  // v480: SP Manual否定产品定向降级为adGroup级(修复400错误) + v479所有修复

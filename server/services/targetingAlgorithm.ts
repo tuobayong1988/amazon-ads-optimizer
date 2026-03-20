@@ -447,11 +447,14 @@ function decideAsinTargetingV2(
                                  aov > 30 ? 15 :   // 中客单价: 15次点击
                                  10;                // 低客单价: 10次点击
   
-  // v2: 根据广告类型确定否定层级
-  // SP: 支持Campaign和Ad Group级，默认用Campaign级（影响范围更广）
+  // v479: 根据广告类型和定向类型确定否定层级
+  // SP Auto: 支持Campaign级否定产品定向
+  // SP Manual: 仅支持Ad Group级否定产品定向（Amazon API限制: manual campaigns不支持campaign级否定产品）
   // SB: 仅支持Ad Group级
   // SD: 仅支持Ad Group级（且仅限上下文定向）
-  const negativeScope: 'campaign' | 'ad_group' = normalizedCampaignType === 'sp' ? 'campaign' : 'ad_group';
+  const campaignTargetingType = data.campaignTargetingType || 'manual';
+  const negativeScope: 'campaign' | 'ad_group' = 
+    normalizedCampaignType === 'sp' && campaignTargetingType === 'auto' ? 'campaign' : 'ad_group';
   
   // v360: 使用动态点击门槛替代固定15次
   // 高点击无转化ASIN + 花费超标 → 否定产品定向
