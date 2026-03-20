@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 478;  // v478: 全面修复5类失败根因 — SB/SD否定词API路由、否定产品定向幂等性去重、错误详情回写、失败重试入队
+export const SYSTEM_VERSION = 479;  // v479: 修复h.execute bug + 重试队列amazon_deleted清理 + updateKeywordStatus entityNotFound检测标记

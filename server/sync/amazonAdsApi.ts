@@ -1255,12 +1255,15 @@ export class AmazonAdsApiClient {
       if (removedKeywordIds.length > 0) {
         try {
           const { getDb } = await import('../db');
-          const db = getDb();
-          const idList = removedKeywordIds.map(id => `'${String(id).replace(/'/g, "''")}'`).join(',');
-          await db.execute(
-            `UPDATE keywords SET keywordStatus = 'amazon_deleted' WHERE keywordId IN (${idList})`
-          );
-          log.warn(`[SP API] v477: 已标记${removedKeywordIds.length}个entityNotFound关键词为amazon_deleted: ${removedKeywordIds.slice(0, 5).join(', ')}`);
+          const { sql } = await import('drizzle-orm');
+          const db = await getDb();
+          if (db) {
+            const idList = removedKeywordIds.map(id => String(id));
+            await db.execute(
+              sql.raw(`UPDATE keywords SET keywordStatus = 'amazon_deleted' WHERE keywordId IN (${idList.map(id => `'${id}'`).join(',')})`)
+            );
+            log.warn(`[SP API] v477: 已标记${removedKeywordIds.length}个entityNotFound关键词为amazon_deleted: ${removedKeywordIds.slice(0, 5).join(', ')}`);
+          }
         } catch (markErr: unknown) {
           log.warn(`[SP API] v477: 标记过期关键词失败: ${(markErr as Error).message}`);
         }
@@ -1316,14 +1319,38 @@ export class AmazonAdsApiClient {
           
           const responseKeywords = response.data?.keywords;
           if (responseKeywords && typeof responseKeywords === 'object' && !Array.isArray(responseKeywords)) {
+            const removedKeywordIds: string[] = [];  // v479: 收集entityNotFound的keyword
             if (responseKeywords.error && Array.isArray(responseKeywords.error)) {
               for (const err of responseKeywords.error) {
                 const failedIndex = typeof err.index === 'number' ? err.index : undefined;
                 const failedKeywordId = err.keywordId || (failedIndex !== undefined ? currentBatch[failedIndex]?.keywordId : 'unknown');
                 const errorCode = err.code || 'ERROR';
                 const errorDetails = err.description || err.details || err.message || '';
-                allErrors.push({ keywordId: failedKeywordId, code: errorCode, details: errorDetails });
-                log.warn(`[SP API] v426: 关键词状态更新失败: keywordId=${failedKeywordId}, index=${failedIndex}, code=${errorCode}, details=${errorDetails}`);
+                const fullErrorStr = JSON.stringify(err).substring(0, 300);
+                allErrors.push({ keywordId: failedKeywordId, code: errorCode, details: errorDetails || fullErrorStr });
+                // v479: 检测entityNotFoundError并标记
+                if (fullErrorStr.includes('entityNotFoundError') || fullErrorStr.includes('entityStateError')) {
+                  log.warn(`[SP API] v479: 关键词状态更新-关键词已删除/归档: keywordId=${failedKeywordId}, error=${fullErrorStr.slice(0, 150)}`);
+                  removedKeywordIds.push(String(failedKeywordId));
+                } else {
+                  log.warn(`[SP API] v479: 关键词状态更新失败: keywordId=${failedKeywordId}, index=${failedIndex}, code=${errorCode}, fullError=${fullErrorStr}`);
+                }
+              }
+            }
+            // v479: 批量标记entityNotFound的keyword为amazon_deleted
+            if (removedKeywordIds.length > 0) {
+              try {
+                const { getDb } = await import('../db');
+                const { sql } = await import('drizzle-orm');
+                const db = await getDb();
+                if (db) {
+                  await db.execute(
+                    sql.raw(`UPDATE keywords SET keywordStatus = 'amazon_deleted' WHERE keywordId IN (${removedKeywordIds.map(id => `'${id}'`).join(',')})`) 
+                  );
+                  log.warn(`[SP API] v479: 已标记${removedKeywordIds.length}个状态更新失败的关键词为amazon_deleted`);
+                }
+              } catch (markErr: unknown) {
+                log.warn(`[SP API] v479: 标记过期关键词失败: ${(markErr as Error).message}`);
               }
             }
             if (responseKeywords.success && Array.isArray(responseKeywords.success)) {
@@ -1727,12 +1754,15 @@ export class AmazonAdsApiClient {
       if (removedTargetIds.length > 0) {
         try {
           const { getDb } = await import('../db');
-          const db = getDb();
-          const idList = removedTargetIds.map(id => `'${String(id).replace(/'/g, "''")}'`).join(',');
-          await db.execute(
-            `UPDATE product_targets SET targetStatus = 'amazon_deleted' WHERE targetId IN (${idList})`
-          );
-          log.warn(`[SP API] v477: 已标记${removedTargetIds.length}个entityNotFound商品定向为amazon_deleted`);
+          const { sql } = await import('drizzle-orm');
+          const db = await getDb();
+          if (db) {
+            const idList = removedTargetIds.map(id => String(id));
+            await db.execute(
+              sql.raw(`UPDATE product_targets SET targetStatus = 'amazon_deleted' WHERE targetId IN (${idList.map(id => `'${id}'`).join(',')})`)
+            );
+            log.warn(`[SP API] v477: 已标记${removedTargetIds.length}个entityNotFound商品定向为amazon_deleted`);
+          }
         } catch (markErr: unknown) {
           log.warn(`[SP API] v477: 标记过期商品定向失败: ${(markErr as Error).message}`);
         }

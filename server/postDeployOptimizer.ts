@@ -77,6 +77,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 479,
+    description: 'v479: [彻底消除entityNotFoundError残留] — (1)P0-修复h.execute bug: getDb()改为await getDb()+sql.raw()模板，修复v477标记过期关键词功能完全失效的问题 (2)P0-重试队列amazon_deleted清理: 批量同步前自动取消引用amazon_deleted/archived实体的pending/retry任务 (3)P0-updateKeywordStatus entityNotFound检测: 关键词状态更新的per-item错误现在也能检测entityNotFoundError并自动标记',
+    affectedModules: ['bid', 'placement', 'dayparting', 'searchterm'],
+    correctionActions: [],
+  },
+  {
     version: 478,
     description: 'v478: [全面修复5类失败根因 — 实现100%API执行成功率] — (1)P0-SB/SD否定词API路由: SB/SD广告活动的否定关键词不再误用SP API，改为跳过并记录 (2)P0-否定产品定向幂等性: 创建前查询已有否定产品定向，去除重复避免报错 (3)P0-错误详情回写: 否定产品定向的失败原因现在被正确记录到apiSyncDetail (4)P0-失败重试入队: add_negative_product_target失败现在会被收集并入队重试 (5)P1-campaignType传递: 否定关键词的detail对象现在携带campaignType用于API路由',
     affectedModules: ['searchterm'],

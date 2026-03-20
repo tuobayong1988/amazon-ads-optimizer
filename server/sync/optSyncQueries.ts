@@ -692,13 +692,28 @@ export async function cleanupZombieTasks(conn: unknown): Promise<number> {
  */
 export async function cleanupDeletedKeywordTasks(conn: unknown): Promise<number> {
   try {
-    const [result] = await (conn as Record<string, Function>).execute(
+    // v457: 清理本地数据库中已删除的keyword任务
+    const [result1] = await (conn as Record<string, Function>).execute(
       `UPDATE optimization_tasks ot
        LEFT JOIN ${K.table} k ON ot.target_entity_id = k.${K.id}
        SET ot.status = 'failed', ot.error_message = CONCAT(IFNULL(ot.error_message,''), ' | v457: 目标keyword已被删除')
        WHERE ot.target_entity_type = 'keyword' AND ot.status IN ('pending', 'retry') AND k.${K.id} IS NULL AND ot.target_entity_id IS NOT NULL`
     ) as unknown[];
-    return (result as unknown)?.affectedRows || 0;
+    const count1 = (result1 as unknown)?.affectedRows || 0;
+    
+    // v479: 清理Amazon端已不存在的keyword任务（keywordStatus = 'amazon_deleted' 或 'archived'）
+    const [result2] = await (conn as Record<string, Function>).execute(
+      `UPDATE optimization_tasks ot
+       INNER JOIN ${K.table} k ON ot.target_entity_id = k.${K.id}
+       SET ot.status = 'cancelled', ot.error_message = CONCAT(IFNULL(ot.error_message,''), ' | v479: keyword已在Amazon端删除/归档')
+       WHERE ot.target_entity_type = 'keyword' AND ot.status IN ('pending', 'retry') AND k.keywordStatus IN ('amazon_deleted', 'archived')`
+    ) as unknown[];
+    const count2 = (result2 as unknown)?.affectedRows || 0;
+    if (count2 > 0) {
+      log.warn(`[OptSyncQueries] v479: 取消${count2}个引用amazon_deleted/archived keyword的任务`);
+    }
+    
+    return count1 + count2;
   } catch (err: unknown) {
     log.warn(`[OptSyncQueries] keyword任务清理失败: ${(err as Error).message}`);
     return 0;
@@ -710,13 +725,28 @@ export async function cleanupDeletedKeywordTasks(conn: unknown): Promise<number>
  */
 export async function cleanupDeletedProductTargetTasks(conn: unknown): Promise<number> {
   try {
-    const [result] = await (conn as Record<string, Function>).execute(
+    // v457: 清理本地数据库中已删除的product_target任务
+    const [result1] = await (conn as Record<string, Function>).execute(
       `UPDATE optimization_tasks ot
        LEFT JOIN ${PT.table} pt ON ot.target_entity_id = pt.${PT.id}
        SET ot.status = 'failed', ot.error_message = CONCAT(IFNULL(ot.error_message,''), ' | v457: 目标product_target已被删除')
        WHERE ot.target_entity_type = 'product_target' AND ot.status IN ('pending', 'retry') AND pt.${PT.id} IS NULL AND ot.target_entity_id IS NOT NULL`
     ) as unknown[];
-    return (result as unknown)?.affectedRows || 0;
+    const count1 = (result1 as unknown)?.affectedRows || 0;
+    
+    // v479: 清理Amazon端已不存在的product_target任务
+    const [result2] = await (conn as Record<string, Function>).execute(
+      `UPDATE optimization_tasks ot
+       INNER JOIN ${PT.table} pt ON ot.target_entity_id = pt.${PT.id}
+       SET ot.status = 'cancelled', ot.error_message = CONCAT(IFNULL(ot.error_message,''), ' | v479: product_target已在Amazon端删除/归档')
+       WHERE ot.target_entity_type = 'product_target' AND ot.status IN ('pending', 'retry') AND pt.targetStatus IN ('amazon_deleted', 'archived')`
+    ) as unknown[];
+    const count2 = (result2 as unknown)?.affectedRows || 0;
+    if (count2 > 0) {
+      log.warn(`[OptSyncQueries] v479: 取消${count2}个引用amazon_deleted/archived product_target的任务`);
+    }
+    
+    return count1 + count2;
   } catch (err: unknown) {
     log.warn(`[OptSyncQueries] product_target任务清理失败: ${(err as Error).message}`);
     return 0;
