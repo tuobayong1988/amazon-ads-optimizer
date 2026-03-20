@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 481;  // v481: 修复注册页面自动跳转登录页bug - inviteCode.validate改为publicProcedure + 公开页面免疫未授权重定向
+export const SYSTEM_VERSION = 482;  // v482: 修复多租户数据隔离(算法效果概览) + 预发布引擎仅系统管理员可见 + 移除ElaraFit占位符

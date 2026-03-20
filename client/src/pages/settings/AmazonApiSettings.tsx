@@ -1712,7 +1712,7 @@ export default function AmazonApiSettings() {
                   <Label htmlFor="storeName">店铺名称 *</Label>
                   <Input
                     id="storeName"
-                    placeholder="例如：ElaraFit、My Store等"
+                    placeholder="例如：My Store、我的店铺等"
                     value={formData.storeName}
                     onChange={(e) => setFormData({ ...formData, storeName: e.target.value })}
                     className="text-base"

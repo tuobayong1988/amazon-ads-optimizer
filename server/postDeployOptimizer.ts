@@ -77,6 +77,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 482,
+    description: 'v482: [多租户数据隔离与权限修复] — (1)P0-算法效果概览数据泄露修复: algorithmEffectService.ts的optimization_logs回退查询添加userId过滤，防止新用户看到其他租户的优化数据 (2)P0-预发布引擎权限收紧: DashboardLayout.tsx侧边栏预发布引擎菜单从“role===admin”改为“role===admin && organizationId===1”，仅内部系统管理员可见 (3)P1-移除ElaraFit占位符: Amazon API添加店铺弹窗的placeholder从“例如：ElaraFit、My Store等”改为“例如：My Store、我的店铺等”',
+    affectedModules: [],
+    correctionActions: [],
+  },
+  {
     version: 481,
     description: 'v481: [注册页面自动跳转登录页紧急修复] — (1)P0-inviteCode.validate从protectedProcedure改为publicProcedure: 允许未登录用户在注册页面验证邀请码 (2)P0-公开页面免疫未授权重定向: main.tsx的redirectToLoginIfUnauthorized排除/register等公开路径，防止未登录用户被强制跳转到登录页',
     affectedModules: [],

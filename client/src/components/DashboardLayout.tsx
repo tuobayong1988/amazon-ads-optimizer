@@ -474,8 +474,8 @@ function DashboardLayoutContent({
                 isCollapsed={isCollapsed}
               />
             ))}
-            {/* 预发布引擎菜单（仅admin角色可见）— 直接跳转 */}
-            {user?.role === 'admin' && (
+            {/* 预发布引擎菜单（仅系统管理员可见: admin角色 + 内部组织）— v482: 修复外部用户也能看到预发布引擎的问题 */}
+            {user?.role === 'admin' && (user as any)?.organizationId === 1 && (
               <MenuGroup 
                 key={prelaunchMenuGroup.title} 
                 group={prelaunchMenuGroup} 

@@ -376,6 +376,8 @@ export async function getAlgorithmEffectStats(
       .from(optimizationLogs)
       .where(
         and(
+          // v482: 添加userId过滤，修复多租户数据泄露问题
+          eq(optimizationLogs.userId, userId),
           eq(optimizationLogs.logCategory, 'bid_adjustment'),
           startStr ? gte(optimizationLogs.createdAt, startStr) : undefined,
           endStr ? lte(optimizationLogs.createdAt, endStr) : undefined,
