@@ -120,17 +120,19 @@ const baseMenuGroups = [
       { icon: Shield, label: "审计日志", path: "/audit-logs" },
     ]
   },
-  {
-    title: "系统监控",
-    description: "系统运行状态监控",
-    items: [
-      { icon: Activity, label: "纠错监控", path: "/auto-correction" },
-      { icon: Activity, label: "系统健康", path: "/system-health" },
-      { icon: Activity, label: "数据健康", path: "/data-health" },
-      { icon: Activity, label: "同步日志", path: "/sync-logs" },
-    ]
-  },
 ];
+
+// 系统监控菜单 — 仅系统管理员可见
+const systemMonitorMenuGroup = {
+  title: "系统监控",
+  description: "系统运行状态监控",
+  items: [
+    { icon: Activity, label: "纠错监控", path: "/auto-correction" },
+    { icon: Activity, label: "系统健康", path: "/system-health" },
+    { icon: Activity, label: "数据健康", path: "/data-health" },
+    { icon: Activity, label: "同步日志", path: "/sync-logs" },
+  ]
+};
 
 // 预发布引擎菜单 — 直接跳转，不再有冗余子菜单
 const prelaunchMenuGroup = {
@@ -146,7 +148,7 @@ const prelaunchMenuGroup = {
 const menuGroups = baseMenuGroups;
 
 // 扁平化菜单项用于路由匹配（包含发布引擎路由，确保admin访问时标题正确显示）
-const allMenuItems = [...baseMenuGroups, prelaunchMenuGroup].flatMap(group => group.items);
+const allMenuItems = [...baseMenuGroups, systemMonitorMenuGroup, prelaunchMenuGroup].flatMap(group => group.items);
 const menuItems = allMenuItems;
 
 /**
@@ -372,7 +374,7 @@ function DashboardLayoutContent({
     const q = searchQuery.toLowerCase();
     const results: { label: string; path: string; group: string; icon: unknown }[] = [];
     
-    const allGroups = [...baseMenuGroups, prelaunchMenuGroup];
+    const allGroups = [...baseMenuGroups, systemMonitorMenuGroup, prelaunchMenuGroup];
     for (const group of allGroups) {
       for (const item of group.items) {
         if (item.label.toLowerCase().includes(q) || item.path.toLowerCase().includes(q)) {
@@ -512,12 +514,23 @@ function DashboardLayoutContent({
                 isCollapsed={isCollapsed}
               />
             ))}
-            {/* 预发布引擎菜单（仅系统管理员可见: admin角色 + 内部组织）— v482: 修复外部用户也能看到预发布引擎的问题 */}
+            {/* 系统监控菜单（仅系统管理员可见: admin角色 + 内部组织）— v485 */}
+            {user?.role === 'admin' && (user as any)?.organizationId === 1 && (
+              <MenuGroup 
+                key={systemMonitorMenuGroup.title} 
+                group={systemMonitorMenuGroup} 
+                groupIndex={baseMenuGroups.length}
+                location={location}
+                setLocation={setLocation}
+                isCollapsed={isCollapsed}
+              />
+            )}
+            {/* 预发布引擎菜单（仅系统管理员可见: admin角色 + 内部组织）— v482 */}
             {user?.role === 'admin' && (user as any)?.organizationId === 1 && (
               <MenuGroup 
                 key={prelaunchMenuGroup.title} 
                 group={prelaunchMenuGroup} 
-                groupIndex={baseMenuGroups.length}
+                groupIndex={baseMenuGroups.length + 1}
                 location={location}
                 setLocation={setLocation}
                 isCollapsed={isCollapsed}

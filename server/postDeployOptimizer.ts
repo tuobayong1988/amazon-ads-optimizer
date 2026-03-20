@@ -77,6 +77,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 485,
+    description: 'v485: [系统监控模块权限控制] — P0-系统监控菜单(纠错监控/系统健康/数据健康/同步日志)从基础菜单组提取为独立菜单组，仅系统管理员(admin+organizationId===1)可见，租户和子账户不再显示',
+    affectedModules: [],
+    correctionActions: [],
+  },
+  {
     version: 484,
     description: 'v484: [策略管理时间范围筛选] — (1)P0-广告活动管理时间筛选: 优化目标详情页的广告活动列表新增时间范围筛选(今天/7天/14天/30天/60天/90天)，数据根据选择的时间范围动态汇总绩效指标 (2)P0-添加广告活动时间筛选: 添加广告活动对话框新增时间范围筛选，方便用户按时间维度查看广告活动数据 (3)服务端新增 getCampaignsByPerformanceGroupIdWithPerformance 和 getUnassignedCampaignsWithPerformance 数据库函数，支持时间范围内绩效数据汇总',
     affectedModules: [],

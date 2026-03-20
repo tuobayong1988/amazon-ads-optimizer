@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 484;  // v484: 策略管理模块添加时间范围筛选功能
+export const SYSTEM_VERSION = 485;  // v485: 系统监控模块权限限制为仅系统管理员可见
