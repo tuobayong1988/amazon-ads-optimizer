@@ -57,6 +57,7 @@ import {
   Scale,
   ScanEye,
   ShieldCheck,
+  ShieldAlert,
   Trophy,
   Crown,
   Orbit,
@@ -83,6 +84,9 @@ import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea
 import { Progress } from "@/components/ui/progress";
 import { Link } from "wouter";
 import { IntelligentRecommendations } from "@/components/IntelligentRecommendations";
+import { EmergencyBleedingCard } from "@/components/dashboard/EmergencyBleedingCard";
+import { HighAcosSuppressionCard } from "@/components/dashboard/HighAcosSuppressionCard";
+import { GoalAdjustmentCard } from "@/components/dashboard/GoalAdjustmentCard";
 import { getAllPosts } from "@/data/blogPosts";
 import { TimeRangeSelector, TimeRangeValue, getDefaultTimeRangeValue, TIME_RANGE_PRESETS, PresetTimeRange } from "@/components/TimeRangeSelector";
 import { format } from "date-fns";
@@ -742,23 +746,24 @@ function MarketingPage() {
 
 // v233: 重新设计的运营作战指挥中心（登录后显示）
 // v234: 卡片ID定义
-const DEFAULT_CARD_ORDER = ['kpi-cards', 'quick-actions', 'sync-health', 'algorithm-effect', 'intelligent-recommendation', 'system-health', 'account-risk', 'order-trend', 'trend-chart'];
-// v261 布局说明: compact卡片连续排列以实现3列并排
+const DEFAULT_CARD_ORDER = ['kpi-cards', 'emergency-bleeding', 'high-acos-suppression', 'goal-adjustment', 'quick-actions', 'sync-health', 'algorithm-effect', 'intelligent-recommendation', 'system-health', 'account-risk'];
+// v501 布局说明: compact卡片连续排列以实现3列并排
 // 第1行: kpi-cards (full)
-// 第2行: quick-actions | sync-health | algorithm-effect (compact x3)
-// 第3行: system-health | account-risk | order-trend (compact x3)
-// 第4行: trend-chart (full)
+// 第2行: emergency-bleeding | high-acos-suppression | goal-adjustment (compact x3) - 智能建议三卡片
+// 第3行: quick-actions | sync-health | algorithm-effect (compact x3)
+// 第4行: system-health | account-risk | intelligent-recommendation (compact x3)
 
 // v251: 卡片尺寸类型定义 - full-width独占一行，compact并排显示
 const CARD_SIZE_TYPE: Record<string, 'full' | 'compact'> = {
   'kpi-cards': 'full',
-  'system-health': 'compact',  // v261: 系统健康监控卡片（与sync-health同尺寸）
-  'trend-chart': 'full',
-  'account-risk': 'compact',  // v261: 与sync-health同尺寸
+  'emergency-bleeding': 'compact',   // v501: 紧急止血建议卡片
+  'high-acos-suppression': 'compact', // v501: 高ACOS抑制建议卡片
+  'goal-adjustment': 'compact',       // v501: 优化目标调整建议卡片
+  'system-health': 'compact',
+  'account-risk': 'compact',
   'sync-health': 'compact',
   'algorithm-effect': 'compact',
-  'intelligent-recommendation': 'compact',  // v269: 智能运营推荐（与算法效果概览同尺寸）
-  'order-trend': 'compact',
+  'intelligent-recommendation': 'compact',
   'quick-actions': 'compact',
 };
 
@@ -1380,48 +1385,7 @@ function DashboardContent() {
                           </Card>
                         )}
                         
-                        {cardId === 'trend-chart' && (
-                          <Card className="h-full flex flex-col">
-                            <CardHeader className="pb-2">
-                              <div className="flex items-center justify-between">
-                                <div>
-                                  <CardTitle className="text-lg">花费 vs 销售额 vs ACoS 趋势</CardTitle>
-                                  <CardDescription>柱状图为花费与销售额，折线为ACoS走势，红色虚线为30%目标线</CardDescription>
-                                </div>
-                                <div className="flex items-center gap-3 text-xs">
-                                  <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-blue-500 inline-block"></span> 花费</span>
-                                  <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-green-500 inline-block"></span> 销售额</span>
-                                  <span className="flex items-center gap-1"><span className="w-3 h-1 bg-orange-500 inline-block rounded"></span> ACoS</span>
-                                </div>
-                              </div>
-                            </CardHeader>
-                            <CardContent className="flex-1">
-                              <div className={isMobile ? 'h-[280px]' : 'h-[360px]'}>
-                                <ResponsiveContainer width="100%" height="100%">
-                                  <ComposedChart data={combinedChartData}>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                                    <XAxis dataKey="date" stroke="#666" />
-                                    <YAxis yAxisId="left" stroke="#666" tickFormatter={(v) => `$${v}`} />
-                                    <YAxis yAxisId="right" orientation="right" stroke="#f59e0b" tickFormatter={(v) => `${v}%`} domain={[0, 'auto']} />
-                                    <Tooltip 
-                                      contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333', borderRadius: '8px' }}
-                                      formatter={(value: number | undefined, name: string | undefined) => {
-                                        const v = value ?? 0;
-                                        const n = name ?? '';
-                                        if (n === 'ACoS') return [`${v.toFixed(1)}%`, n];
-                                        return [`$${v.toFixed(0)}`, n];
-                                      }}
-                                    />
-                                    <ReferenceLine yAxisId="right" y={30} stroke="#ef4444" strokeDasharray="5 5" label={{ value: '目标 30%', position: 'right', fill: '#ef4444', fontSize: 11 }} />
-                                    <Bar yAxisId="left" dataKey="spend" name="花费" fill="#3b82f6" fillOpacity={0.8} radius={[2, 2, 0, 0]} />
-                                    <Bar yAxisId="left" dataKey="sales" name="销售额" fill="#22c55e" fillOpacity={0.8} radius={[2, 2, 0, 0]} />
-                                    <Line yAxisId="right" type="monotone" dataKey="acos" name="ACoS" stroke="#f59e0b" strokeWidth={2.5} dot={{ r: 3, fill: '#f59e0b' }} />
-                                  </ComposedChart>
-                                </ResponsiveContainer>
-                              </div>
-                            </CardContent>
-                          </Card>
-                        )}
+                        {/* v501: trend-chart 已删除，替换为三个智能建议卡片 */}
                         
                         {cardId === 'account-risk' && (
                           <Card className="h-full flex flex-col">
@@ -1624,30 +1588,53 @@ function DashboardContent() {
                           </Card>
                         )}
                         
-                        {cardId === 'order-trend' && (
+                        {/* v501: 紧急止血建议卡片 */}
+                        {cardId === 'emergency-bleeding' && selectedAccountId && (
                           <Card className="h-full flex flex-col">
                             <CardHeader className="pb-2">
-                              <CardTitle className="text-lg">订单趋势</CardTitle>
-                              <CardDescription>近{days}天每日订单量</CardDescription>
+                              <CardTitle className="text-base flex items-center gap-2">
+                                <ShieldAlert className="w-4 h-4 text-red-500" />
+                                紧急止血
+                                <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-red-500/10 text-red-400 border-red-500/30">零转化</Badge>
+                              </CardTitle>
+                              <CardDescription className="text-xs">零转化高花费的搜索词和商品投放，建议立即处理</CardDescription>
                             </CardHeader>
-                            <CardContent className="flex-1">
-                              <div className="h-[200px]">
-                                <ResponsiveContainer width="100%" height="100%">
-                                  <AreaChart data={chartData}>
-                                    <defs>
-                                      <linearGradient id="colorOrders" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.3}/>
-                                        <stop offset="95%" stopColor="#06b6d4" stopOpacity={0}/>
-                                      </linearGradient>
-                                    </defs>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                                    <XAxis dataKey="date" stroke="#666" />
-                                    <YAxis stroke="#666" />
-                                    <Tooltip contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333', borderRadius: '8px' }} />
-                                    <Area type="monotone" dataKey="orders" name="订单数" stroke="#06b6d4" fillOpacity={1} fill="url(#colorOrders)" />
-                                  </AreaChart>
-                                </ResponsiveContainer>
-                              </div>
+                            <CardContent className="flex-1 overflow-y-auto">
+                              <EmergencyBleedingCard accountId={selectedAccountId} />
+                            </CardContent>
+                          </Card>
+                        )}
+
+                        {/* v501: 高ACOS抑制建议卡片 */}
+                        {cardId === 'high-acos-suppression' && selectedAccountId && (
+                          <Card className="h-full flex flex-col">
+                            <CardHeader className="pb-2">
+                              <CardTitle className="text-base flex items-center gap-2">
+                                <TrendingDown className="w-4 h-4 text-orange-500" />
+                                高ACoS抑制
+                                <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-orange-500/10 text-orange-400 border-orange-500/30">ACoS&gt;100%</Badge>
+                              </CardTitle>
+                              <CardDescription className="text-xs">ACoS异常偏高的关键词和商品投放，建议降低竞价</CardDescription>
+                            </CardHeader>
+                            <CardContent className="flex-1 overflow-y-auto">
+                              <HighAcosSuppressionCard accountId={selectedAccountId} />
+                            </CardContent>
+                          </Card>
+                        )}
+
+                        {/* v501: 优化目标调整建议卡片 */}
+                        {cardId === 'goal-adjustment' && selectedAccountId && (
+                          <Card className="h-full flex flex-col">
+                            <CardHeader className="pb-2">
+                              <CardTitle className="text-base flex items-center gap-2">
+                                <Target className="w-4 h-4 text-blue-500" />
+                                优化目标调整
+                                <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-blue-500/10 text-blue-400 border-blue-500/30">未纳管</Badge>
+                              </CardTitle>
+                              <CardDescription className="text-xs">未纳入优化目标的活跃广告活动，建议分配绩效组</CardDescription>
+                            </CardHeader>
+                            <CardContent className="flex-1 overflow-y-auto">
+                              <GoalAdjustmentCard accountId={selectedAccountId} />
                             </CardContent>
                           </Card>
                         )}

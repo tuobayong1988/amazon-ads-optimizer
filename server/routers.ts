@@ -75,6 +75,7 @@ import { debugSyncRouter } from './_debug/debug-sync';
 import { devRouter } from './routes/dev';
 import { monitoringRouter } from './routes/monitoring';
 import { intelligentRecommendationRouter } from './routes/intelligentRecommendation';
+import { dashboardRecommendationRouter } from './routes/dashboardRecommendation'; // v501 数据概览智能建议
 import { systemConfigRouter } from './routes/systemConfig'; // v272 P0-1
 import { dataHealthRouter } from './routes/dataHealth'; // v359 P3-2
 import { guardrailConfigRouter } from './routes/guardrailConfig'; // v359 P3-3
@@ -236,6 +237,8 @@ export const appRouter = router({
 
   // 智能运营推荐 v269.4
   intelligentRecommendation: intelligentRecommendationRouter,
+  // v501: 数据概览智能建议（紧急止血、高ACOS抑制、优化目标调整）
+  dashboardRecommendation: dashboardRecommendationRouter,
   // v272 P0-1: 系统配置、算法可观测性、权重自学习
   systemConfig: systemConfigRouter,
 
