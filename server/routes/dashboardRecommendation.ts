@@ -308,6 +308,70 @@ export const dashboardRecommendationRouter = router({
     }),
 
   /**
+   * v502: 恢复被SP API错误标记为amazon_deleted的SB关键词
+   */
+  restoreSbKeywords: protectedProcedure
+    .input(z.object({ accountId: z.number() }))
+    .mutation(async ({ input, ctx }: unknown) => {
+      await verifyAccountAccess(ctx.user.id, input.accountId);
+      const db_ = await getDb();
+      if (!db_) return { error: 'DB connection failed', restored: 0 };
+      
+      const acctId = input.accountId;
+      
+      // 查找所有SB广告活动下被标记为amazon_deleted的关键词
+      const countResult = await safeQuery(db_, 'count_sb_deleted', sql`
+        SELECT COUNT(*) as cnt
+        FROM keywords k
+        JOIN campaigns c ON k.campaignId = c.campaignId
+        WHERE c.accountId = ${acctId}
+          AND c.campaignType LIKE '%sb%'
+          AND k.keywordStatus = 'amazon_deleted'
+      `);
+      
+      // 恢复这些关键词为enabled状态
+      const restoreResult = await safeQuery(db_, 'restore_sb_keywords', sql`
+        UPDATE keywords k
+        JOIN campaigns c ON k.campaignId = c.campaignId
+        SET k.keywordStatus = 'enabled'
+        WHERE c.accountId = ${acctId}
+          AND c.campaignType LIKE '%sb%'
+          AND k.keywordStatus = 'amazon_deleted'
+      `);
+      
+      // 同样恢复SB广告活动下被标记为amazon_deleted的商品定向
+      const ptCountResult = await safeQuery(db_, 'count_sb_deleted_pt', sql`
+        SELECT COUNT(*) as cnt
+        FROM product_targets pt
+        JOIN campaigns c ON pt.campaignId = c.campaignId
+        WHERE c.accountId = ${acctId}
+          AND c.campaignType LIKE '%sb%'
+          AND pt.targetStatus = 'amazon_deleted'
+      `);
+      
+      const ptRestoreResult = await safeQuery(db_, 'restore_sb_product_targets', sql`
+        UPDATE product_targets pt
+        JOIN campaigns c ON pt.campaignId = c.campaignId
+        SET pt.targetStatus = 'enabled'
+        WHERE c.accountId = ${acctId}
+          AND c.campaignType LIKE '%sb%'
+          AND pt.targetStatus = 'amazon_deleted'
+      `);
+      
+      const kwCount = countResult.success ? ((countResult.data as any[])?.[0]?.cnt || 0) : 0;
+      const ptCount = ptCountResult.success ? ((ptCountResult.data as any[])?.[0]?.cnt || 0) : 0;
+      
+      log.info(`[v502] SB关键词恢复: 关键词=${kwCount}个, 商品定向=${ptCount}个`);
+      
+      return {
+        restoredKeywords: kwCount,
+        restoredProductTargets: ptCount,
+        keywordRestore: restoreResult,
+        productTargetRestore: ptRestoreResult,
+      };
+    }),
+
+  /**
    * 执行优化目标调整 - 将广告活动分配到绩效组
    */
   executeGoalAdjustment: protectedProcedure

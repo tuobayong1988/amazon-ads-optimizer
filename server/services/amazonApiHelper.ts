@@ -139,28 +139,60 @@ export async function syncBidAdjustmentsToAmazon(
   const { keywords, productTargets } = await import('../../drizzle/schema');
   const { eq } = await import('drizzle-orm');
   
-  // v391: 批量IN查询解析关键词Amazon ID，消除N+1查询
-  const resolvedKeywordBids: Array<{ keywordId: string; bid: number; localId: number }> = [];
+  // v502: 批量IN查询解析关键词Amazon ID + campaignType + adGroupId，支持SP/SB/SD分流
+  const resolvedKeywordBids: Array<{ keywordId: string; bid: number; localId: number; campaignType: string; adGroupId: string; campaignId: string }> = [];
   if (keywordAdjustments.length > 0) {
     const { inArray } = await import('drizzle-orm');
+    const { campaigns: campaignsSchema, adGroups: adGroupsSchema } = await import('../../drizzle/schema');
     const kwLocalIds = keywordAdjustments.map(a => a.keywordId);
     
-    // v391+v477: 一次性查询所有keyword的Amazon ID，同时获取keywordStatus用于预过滤
+    // v502: 一次性查询所有keyword的Amazon ID、keywordStatus、campaignId、adGroupId
     const kwResults = await dbInstance
-      .select({ id: keywords.id, keywordId: keywords.keywordId, keywordStatus: keywords.keywordStatus })
+      .select({
+        id: keywords.id,
+        keywordId: keywords.keywordId,
+        keywordStatus: keywords.keywordStatus,
+        campaignId: keywords.campaignId,  // Amazon campaign ID (varchar)
+        adGroupId: keywords.adGroupId,    // Amazon adGroup ID (varchar)
+      })
       .from(keywords)
       .where(inArray(keywords.id, kwLocalIds));
     
-    const kwIdMap = new Map<number, string>();
-    const amazonDeletedKwIds = new Set<number>();  // v477: 收集已标记为amazon_deleted的keyword
+    // v502: 批量查询所有相关campaign的类型
+    const uniqueCampaignIds = [...new Set(kwResults.map(kw => kw.campaignId).filter(Boolean))];
+    const campaignTypeMap = new Map<string, string>();  // campaignId -> campaignType
+    if (uniqueCampaignIds.length > 0) {
+      try {
+        const campResults = await dbInstance
+          .select({ campaignId: campaignsSchema.campaignId, campaignType: campaignsSchema.campaignType })
+          .from(campaignsSchema)
+          .where(inArray(campaignsSchema.campaignId, uniqueCampaignIds));
+        for (const camp of campResults) {
+          if (camp.campaignId && camp.campaignType) {
+            campaignTypeMap.set(camp.campaignId, camp.campaignType);
+          }
+        }
+        log.info(`[v502] 批量查询campaign类型: ${uniqueCampaignIds.length}个campaign, ${campaignTypeMap.size}个已解析`);
+      } catch (campErr: unknown) {
+        log.warn(`[v502] 批量查询campaign类型失败: ${(campErr as Error).message}，将默认使用SP API`);
+      }
+    }
+    
+    const kwIdMap = new Map<number, { amazonId: string; campaignId: string; adGroupId: string; campaignType: string }>();
+    const amazonDeletedKwIds = new Set<number>();
     for (const kw of kwResults) {
-      // v477: 预过滤amazon_deleted和archived状态的keyword，避免发送到API后被拒绝
       if (kw.keywordStatus === 'amazon_deleted' || kw.keywordStatus === 'archived') {
         amazonDeletedKwIds.add(kw.id);
         continue;
       }
       if (kw.keywordId && kw.keywordId !== '0' && kw.keywordId !== '') {
-        kwIdMap.set(kw.id, kw.keywordId);
+        const campType = campaignTypeMap.get(kw.campaignId) || 'sp_manual';
+        kwIdMap.set(kw.id, {
+          amazonId: kw.keywordId,
+          campaignId: kw.campaignId || '',
+          adGroupId: kw.adGroupId || '',
+          campaignType: campType,
+        });
       }
     }
     if (amazonDeletedKwIds.size > 0) {
@@ -171,16 +203,14 @@ export async function syncBidAdjustmentsToAmazon(
         result.itemResults.set(deletedId, { status: 'failed', error: 'amazon_deleted/archived，跳过同步' });
       }
     }
-    log.info(`[v391] 批量解析关键词Amazon ID: ${kwLocalIds.length}个请求, ${kwIdMap.size}个已解析, ${amazonDeletedKwIds.size}个已过滤`);
+    log.info(`[v502] 批量解析关键词: ${kwLocalIds.length}个请求, ${kwIdMap.size}个已解析, ${amazonDeletedKwIds.size}个已过滤`);
     
-    // 处理每个keyword的解析结果
     for (const adj of keywordAdjustments) {
-      // v477: 跳过已预过滤的amazon_deleted/archived关键词
       if (amazonDeletedKwIds.has(adj.keywordId)) continue;
       
-      let amazonKeywordId = kwIdMap.get(adj.keywordId);
+      const kwInfo = kwIdMap.get(adj.keywordId);
+      let amazonKeywordId = kwInfo?.amazonId;
       
-      // v429: entityIdResolver优先，amazonIdResolver降级
       if (!amazonKeywordId) {
         try {
           const { resolveKeywordId } = await import('./entityIdResolver');
@@ -205,6 +235,9 @@ export async function syncBidAdjustmentsToAmazon(
           keywordId: String(amazonKeywordId),
           bid: Number(adj.newBid.toFixed(2)),
           localId: adj.keywordId,
+          campaignType: kwInfo?.campaignType || 'sp_manual',
+          adGroupId: kwInfo?.adGroupId || '',
+          campaignId: kwInfo?.campaignId || '',
         });
       } else {
         result.failed++;
@@ -215,28 +248,49 @@ export async function syncBidAdjustmentsToAmazon(
     }
   }
   
-  // v391: 批量IN查询解析商品定向Amazon ID，消除N+1查询
-  const resolvedTargetBids: Array<{ targetId: string; bid: number; localId: number }> = [];
+  // v502: 批量IN查询解析商品定向Amazon ID + campaignType，支持SP/SB/SD分流
+  const resolvedTargetBids: Array<{ targetId: string; bid: number; localId: number; campaignType: string }> = [];
   if (productTargetAdjustments.length > 0) {
     const { inArray } = await import('drizzle-orm');
+    const { campaigns: campaignsSchema } = await import('../../drizzle/schema');
     const ptLocalIds = productTargetAdjustments.map(a => a.productTargetId || a.keywordId);
     
-    // v391+v477: 一次性查询所有productTarget的Amazon ID，同时获取targetStatus用于预过滤
+    // v502: 一次性查询所有productTarget的Amazon ID、targetStatus、campaignId
     const ptResults = await dbInstance
-      .select({ id: productTargets.id, targetId: productTargets.targetId, targetStatus: productTargets.targetStatus })
+      .select({ id: productTargets.id, targetId: productTargets.targetId, targetStatus: productTargets.targetStatus, campaignId: productTargets.campaignId })
       .from(productTargets)
       .where(inArray(productTargets.id, ptLocalIds));
     
-    const ptIdMap = new Map<number, string>();
-    const amazonDeletedPtIds = new Set<number>();  // v477: 收集已标记为amazon_deleted的target
+    // v502: 批量查询所有相关campaign的类型
+    const ptUniqueCampaignIds = [...new Set(ptResults.map(pt => pt.campaignId).filter(Boolean))] as string[];
+    const ptCampaignTypeMap = new Map<string, string>();
+    if (ptUniqueCampaignIds.length > 0) {
+      try {
+        const campResults = await dbInstance
+          .select({ campaignId: campaignsSchema.campaignId, campaignType: campaignsSchema.campaignType })
+          .from(campaignsSchema)
+          .where(inArray(campaignsSchema.campaignId, ptUniqueCampaignIds));
+        for (const camp of campResults) {
+          if (camp.campaignId && camp.campaignType) {
+            ptCampaignTypeMap.set(camp.campaignId, camp.campaignType);
+          }
+        }
+        log.info(`[v502] 商品定向campaign类型查询: ${ptUniqueCampaignIds.length}个campaign, ${ptCampaignTypeMap.size}个已解析`);
+      } catch (campErr: unknown) {
+        log.warn(`[v502] 商品定向campaign类型查询失败: ${(campErr as Error).message}，将默认使用SP API`);
+      }
+    }
+    
+    const ptIdMap = new Map<number, { amazonId: string; campaignType: string }>();
+    const amazonDeletedPtIds = new Set<number>();
     for (const pt of ptResults) {
-      // v477: 预过滤amazon_deleted和archived状态的target
       if (pt.targetStatus === 'amazon_deleted' || pt.targetStatus === 'archived') {
         amazonDeletedPtIds.add(pt.id);
         continue;
       }
       if (pt.targetId && pt.targetId !== '0' && pt.targetId !== '') {
-        ptIdMap.set(pt.id, pt.targetId);
+        const campType = pt.campaignId ? (ptCampaignTypeMap.get(pt.campaignId) || 'sp_manual') : 'sp_manual';
+        ptIdMap.set(pt.id, { amazonId: pt.targetId, campaignType: campType });
       }
     }
     if (amazonDeletedPtIds.size > 0) {
@@ -247,16 +301,15 @@ export async function syncBidAdjustmentsToAmazon(
         result.itemResults.set(deletedId, { status: 'failed', error: 'amazon_deleted/archived，跳过同步' });
       }
     }
-    log.info(`[v391] 批量解析商品定向Amazon ID: ${ptLocalIds.length}个请求, ${ptIdMap.size}个已解析, ${amazonDeletedPtIds.size}个已过滤`);
+    log.info(`[v502] 批量解析商品定向: ${ptLocalIds.length}个请求, ${ptIdMap.size}个已解析, ${amazonDeletedPtIds.size}个已过滤`);
     
     for (const adj of productTargetAdjustments) {
       const actualId = adj.productTargetId || adj.keywordId;
-      // v477: 跳过已预过滤的amazon_deleted/archived商品定向
       if (amazonDeletedPtIds.has(actualId)) continue;
       
-      let amazonTargetId = ptIdMap.get(actualId);
+      const ptInfo = ptIdMap.get(actualId);
+      let amazonTargetId = ptInfo?.amazonId;
       
-      // v429: entityIdResolver优先，amazonIdResolver降级
       if (!amazonTargetId) {
         try {
           const { resolveProductTargetId } = await import('./entityIdResolver');
@@ -281,6 +334,7 @@ export async function syncBidAdjustmentsToAmazon(
           targetId: String(amazonTargetId),
           bid: Number(adj.newBid.toFixed(2)),
           localId: adj.keywordId,
+          campaignType: ptInfo?.campaignType || 'sp_manual',
         });
       } else {
         result.failed++;
@@ -293,7 +347,7 @@ export async function syncBidAdjustmentsToAmazon(
   
   // === 第二步: 批量发送到Amazon API ===
   
-  // v474: 去重 - 同一个keywordId只保留最后一条（最新的出价）
+  // v502: 去重 + 按campaignType分组
   const deduplicatedKeywordBids = Array.from(
     resolvedKeywordBids.reduce((map, item) => {
       map.set(item.keywordId, item);
@@ -304,42 +358,47 @@ export async function syncBidAdjustmentsToAmazon(
     log.warn(`[AmazonApiHelper] v474: 关键词出价去重: ${resolvedKeywordBids.length} -> ${deduplicatedKeywordBids.length}`);
   }
   
-  // v359: 批量更新关键词出价（每批最多1000条，与底层API一致）
-  if (deduplicatedKeywordBids.length > 0) {
-    log.info(`[AmazonApiHelper] v359: 批量发送 ${deduplicatedKeywordBids.length} 个关键词出价更新到Amazon`);
+  // v502: 按campaignType分组 — SP/SB/SD分别调用不同API端点
+  const spKeywordBids = deduplicatedKeywordBids.filter(r => {
+    const ct = (r.campaignType || '').toLowerCase();
+    return ct.includes('sp') || ct === '' || !ct.includes('sb') && !ct.includes('sd');
+  });
+  const sbKeywordBids = deduplicatedKeywordBids.filter(r => (r.campaignType || '').toLowerCase().includes('sb'));
+  const sdKeywordBids = deduplicatedKeywordBids.filter(r => (r.campaignType || '').toLowerCase().includes('sd'));
+  
+  log.info(`[v502] 关键词出价按类型分组: SP=${spKeywordBids.length}, SB=${sbKeywordBids.length}, SD=${sdKeywordBids.length}`);
+  
+  // === SP关键词出价更新 ===
+  if (spKeywordBids.length > 0) {
+    log.info(`[v502] 批量发送 ${spKeywordBids.length} 个SP关键词出价更新到Amazon`);
     try {
       const apiResult: unknown = await withRetry(
         () => (syncService as Record<string, unknown>).client.updateKeywordBids(
-          deduplicatedKeywordBids.map(r => ({ keywordId: r.keywordId, bid: r.bid }))
+          spKeywordBids.map(r => ({ keywordId: r.keywordId, bid: r.bid }))
         ),
-        { maxRetries: 3, baseDelayMs: 3000, label: `batchUpdateKeywordBids-${resolvedKeywordBids.length}`, accountId }
+        { maxRetries: 3, baseDelayMs: 3000, label: `batchUpdateSpKeywordBids-${spKeywordBids.length}`, accountId }
       );
       
-      // 处理成功的
-      const successCount = deduplicatedKeywordBids.length - (apiResult.errors?.length || 0);
+      const successCount = spKeywordBids.length - (apiResult.errors?.length || 0);
       result.success += successCount;
       const requestId = apiResult.requestIds?.[0] || '';
-      
-      // 标记成功的条目
       const failedKeywordIds = new Set((apiResult.errors || []).map((e: Record<string, unknown>) => String(e.keywordId)));
-      for (const item of deduplicatedKeywordBids) {
+      for (const item of spKeywordBids) {
         if (!failedKeywordIds.has(item.keywordId)) {
           result.itemResults.set(item.localId, { status: 'synced', apiResponseId: requestId });
         }
       }
       
-      // 处理失败的
-      const entityNotFoundKeywordIds: string[] = [];  // v454: 收集entityNotFoundError的keyword
+      const entityNotFoundKeywordIds: string[] = [];
       if (apiResult.errors && apiResult.errors.length > 0) {
         result.failed += apiResult.errors.length;
         for (const err of apiResult.errors as Array<Record<string, unknown>>) {
-          const localItem = resolvedKeywordBids.find(r => r.keywordId === String(err.keywordId));
-          const errMsg = `keyword ${err.keywordId}: ${err.details || (err as Record<string, unknown>).code || 'unknown'}`;
+          const localItem = spKeywordBids.find(r => r.keywordId === String(err.keywordId));
+          const errMsg = `SP keyword ${err.keywordId}: ${err.details || (err as Record<string, unknown>).code || 'unknown'}`;
           result.errors.push(errMsg);
           if (localItem) {
             result.itemResults.set(localItem.localId, { status: 'failed', error: String(err.details || (err as Record<string, unknown>).code) });
           }
-          // v454+v474: 检测entityNotFoundError和entityStateError(archived)，标记过期/归档实体
           const errStr = JSON.stringify(err).toLowerCase();
           if (errStr.includes('entitynotfounderror') || errStr.includes('entity_not_found') || errStr.includes('could not find') || errStr.includes('entitystateerror') || errStr.includes('archived entity')) {
             if (err.keywordId) entityNotFoundKeywordIds.push(String(err.keywordId));
@@ -347,28 +406,137 @@ export async function syncBidAdjustmentsToAmazon(
         }
       }
       
-      // v454: 自动标记Amazon端已不存在的关键词，避免后续重复同步失败
       if (entityNotFoundKeywordIds.length > 0) {
         try {
-          // 将这些关键词标记为amazon_deleted，后续优化引擎将跳过它们
           const idList = entityNotFoundKeywordIds.map(id => `'${String(id).replace(/'/g, "''")}'`).join(',');
           await dbInstance.execute(
             sql.raw(`UPDATE keywords SET keywordStatus = 'amazon_deleted' WHERE keywordId IN (${idList})`)
           );
-          log.warn(`[AmazonApiHelper] v454: 已标记${entityNotFoundKeywordIds.length}个关键词为amazon_deleted（Amazon端已不存在）: ${entityNotFoundKeywordIds.slice(0, 5).join(', ')}`);
+          log.warn(`[v502] 已标记${entityNotFoundKeywordIds.length}个SP关键词为amazon_deleted`);
         } catch (markErr: unknown) {
-          log.warn(`[AmazonApiHelper] v454: 标记过期关键词失败: ${(markErr as Error).message}`);
+          log.warn(`[v502] 标记过期SP关键词失败: ${(markErr as Error).message}`);
         }
       }
       
-      log.info(`[AmazonApiHelper] v359: 关键词出价批量更新完成: 成功=${successCount}, 失败=${apiResult.errors?.length || 0}, entityNotFound=${entityNotFoundKeywordIds.length}`);
+      log.info(`[v502] SP关键词出价更新完成: 成功=${successCount}, 失败=${apiResult.errors?.length || 0}`);
     } catch (batchErr: unknown) {
-      log.warn(`[AmazonApiHelper] v359: 关键词出价批量更新异常: ${(batchErr as Error).message}`);
-      result.failed += resolvedKeywordBids.length;
-      for (const item of resolvedKeywordBids) {
+      log.warn(`[v502] SP关键词出价批量更新异常: ${(batchErr as Error).message}`);
+      result.failed += spKeywordBids.length;
+      for (const item of spKeywordBids) {
         result.itemResults.set(item.localId, { status: 'failed', error: (batchErr as Error).message });
       }
-      result.errors.push(`关键词出价批量更新异常: ${(batchErr as Error).message}`);
+      result.errors.push(`SP关键词出价批量更新异常: ${(batchErr as Error).message}`);
+    }
+  }
+  
+  // === SB关键词出价更新 — 使用 updateSbKeywordBids ===
+  if (sbKeywordBids.length > 0) {
+    log.info(`[v502] 批量发送 ${sbKeywordBids.length} 个SB关键词出价更新到Amazon`);
+    // v502: SB API需要 keywordId + bid + adGroupId + campaignId
+    const sbUpdates = sbKeywordBids.filter(r => r.adGroupId && r.campaignId).map(r => ({
+      keywordId: r.keywordId,
+      bid: r.bid,
+      adGroupId: r.adGroupId,
+      campaignId: r.campaignId,
+    }));
+    const sbSkipped = sbKeywordBids.filter(r => !r.adGroupId || !r.campaignId);
+    if (sbSkipped.length > 0) {
+      log.warn(`[v502] ${sbSkipped.length}个SB关键词缺少adGroupId/campaignId，跳过`);
+      for (const item of sbSkipped) {
+        result.failed++;
+        result.errors.push(`SB keyword ${item.keywordId}: 缺少adGroupId或campaignId`);
+        result.itemResults.set(item.localId, { status: 'failed', error: '缺少adGroupId或campaignId' });
+      }
+    }
+    
+    if (sbUpdates.length > 0) {
+      try {
+        // v502: 批次间节流
+        if (spKeywordBids.length > 0) {
+          await new Promise(resolve => setTimeout(resolve, 5000));
+        }
+        const apiResult: unknown = await withRetry(
+          () => (syncService as Record<string, unknown>).client.updateSbKeywordBids(sbUpdates),
+          { maxRetries: 3, baseDelayMs: 3000, label: `batchUpdateSbKeywordBids-${sbUpdates.length}`, accountId }
+        );
+        
+        const sbFailedIds = new Map<string, string>();
+        if (apiResult.errors && apiResult.errors.length > 0) {
+          for (const err of apiResult.errors as Array<Record<string, unknown>>) {
+            sbFailedIds.set(String(err.keywordId), String(err.details || err.code || 'SB_API_ERROR'));
+          }
+        }
+        
+        for (const item of sbKeywordBids.filter(r => r.adGroupId && r.campaignId)) {
+          const failReason = sbFailedIds.get(item.keywordId);
+          if (failReason) {
+            // DUPLICATE视为成功
+            if (failReason.includes('DUPLICATE')) {
+              result.success++;
+              result.itemResults.set(item.localId, { status: 'synced' });
+            } else {
+              result.failed++;
+              result.errors.push(`SB keyword ${item.keywordId}: ${failReason}`);
+              result.itemResults.set(item.localId, { status: 'failed', error: failReason });
+              // entityNotFound标记
+              if (failReason.toLowerCase().includes('entitynotfounderror') || failReason.toLowerCase().includes('entity_not_found')) {
+                try {
+                  await dbInstance.execute(sql.raw(`UPDATE keywords SET keywordStatus = 'amazon_deleted' WHERE keywordId = '${String(item.keywordId).replace(/'/g, "''")}' LIMIT 1`));
+                } catch (_) { /* ignore */ }
+              }
+            }
+          } else {
+            result.success++;
+            result.itemResults.set(item.localId, { status: 'synced' });
+          }
+        }
+        
+        log.info(`[v502] SB关键词出价更新完成: 发送=${sbUpdates.length}, 成功=${sbUpdates.length - sbFailedIds.size}, 失败=${sbFailedIds.size}`);
+      } catch (batchErr: unknown) {
+        log.warn(`[v502] SB关键词出价批量更新异常: ${(batchErr as Error).message}`);
+        result.failed += sbUpdates.length;
+        for (const item of sbKeywordBids.filter(r => r.adGroupId && r.campaignId)) {
+          result.itemResults.set(item.localId, { status: 'failed', error: (batchErr as Error).message });
+        }
+        result.errors.push(`SB关键词出价批量更新异常: ${(batchErr as Error).message}`);
+      }
+    }
+  }
+  
+  // === SD关键词出价更新 — 使用 updateSdKeywordBids (如果存在) ===
+  if (sdKeywordBids.length > 0) {
+    log.info(`[v502] 批量发送 ${sdKeywordBids.length} 个SD关键词出价更新到Amazon`);
+    try {
+      if (sdKeywordBids.length > 0 && (spKeywordBids.length > 0 || sbKeywordBids.length > 0)) {
+        await new Promise(resolve => setTimeout(resolve, 5000));
+      }
+      // SD关键词使用与SP相同的格式（keywordId + bid）
+      const sdApiMethod = (syncService as Record<string, unknown>).client.updateSdKeywordBids || (syncService as Record<string, unknown>).client.updateKeywordBids;
+      const apiResult: unknown = await withRetry(
+        () => sdApiMethod.call((syncService as Record<string, unknown>).client,
+          sdKeywordBids.map(r => ({ keywordId: r.keywordId, bid: r.bid }))
+        ),
+        { maxRetries: 3, baseDelayMs: 3000, label: `batchUpdateSdKeywordBids-${sdKeywordBids.length}`, accountId }
+      );
+      
+      const successCount = sdKeywordBids.length - (apiResult.errors?.length || 0);
+      result.success += successCount;
+      const failedIds = new Set((apiResult.errors || []).map((e: Record<string, unknown>) => String(e.keywordId)));
+      for (const item of sdKeywordBids) {
+        if (!failedIds.has(item.keywordId)) {
+          result.itemResults.set(item.localId, { status: 'synced' });
+        } else {
+          result.failed++;
+          result.itemResults.set(item.localId, { status: 'failed', error: 'SD API error' });
+        }
+      }
+      log.info(`[v502] SD关键词出价更新完成: 成功=${successCount}, 失败=${apiResult.errors?.length || 0}`);
+    } catch (batchErr: unknown) {
+      log.warn(`[v502] SD关键词出价批量更新异常: ${(batchErr as Error).message}`);
+      result.failed += sdKeywordBids.length;
+      for (const item of sdKeywordBids) {
+        result.itemResults.set(item.localId, { status: 'failed', error: (batchErr as Error).message });
+      }
     }
   }
   
@@ -378,39 +546,50 @@ export async function syncBidAdjustmentsToAmazon(
     await new Promise(resolve => setTimeout(resolve, 10000));
   }
   
-  // v359: 批量更新商品定向出价
+  // v502: 商品定向出价按campaignType分组
+  const spTargetBids = resolvedTargetBids.filter(r => {
+    const ct = (r.campaignType || '').toLowerCase();
+    return ct.includes('sp') || ct === '' || (!ct.includes('sb') && !ct.includes('sd'));
+  });
+  const sbTargetBids = resolvedTargetBids.filter(r => (r.campaignType || '').toLowerCase().includes('sb'));
+  const sdTargetBids = resolvedTargetBids.filter(r => (r.campaignType || '').toLowerCase().includes('sd'));
+  
   if (resolvedTargetBids.length > 0) {
-    log.info(`[AmazonApiHelper] v359: 批量发送 ${resolvedTargetBids.length} 个商品定向出价更新到Amazon`);
+    log.info(`[v502] 商品定向出价按类型分组: SP=${spTargetBids.length}, SB=${sbTargetBids.length}, SD=${sdTargetBids.length}`);
+  }
+  
+  // === SP商品定向出价更新 ===
+  if (spTargetBids.length > 0) {
+    log.info(`[v502] 批量发送 ${spTargetBids.length} 个SP商品定向出价更新到Amazon`);
     try {
       const apiResult: unknown = await withRetry(
         () => (syncService as Record<string, unknown>).client.updateProductTargetBids(
-          resolvedTargetBids.map(r => ({ targetId: r.targetId, bid: r.bid }))
+          spTargetBids.map(r => ({ targetId: r.targetId, bid: r.bid }))
         ),
-        { maxRetries: 3, baseDelayMs: 3000, label: `batchUpdateProductTargetBids-${resolvedTargetBids.length}`, accountId }
+        { maxRetries: 3, baseDelayMs: 3000, label: `batchUpdateSpProductTargetBids-${spTargetBids.length}`, accountId }
       );
       
-      const successCount = resolvedTargetBids.length - (apiResult.errors?.length || 0);
+      const successCount = spTargetBids.length - (apiResult.errors?.length || 0);
       result.success += successCount;
       const requestId = apiResult.requestIds?.[0] || '';
       
       const failedTargetIds = new Set((apiResult.errors || []).map((e: Record<string, unknown>) => String(e.targetId)));
-      for (const item of resolvedTargetBids) {
+      for (const item of spTargetBids) {
         if (!failedTargetIds.has(item.targetId)) {
           result.itemResults.set(item.localId, { status: 'synced', apiResponseId: requestId });
         }
       }
       
-      const entityNotFoundTargetIds: string[] = [];  // v454: 收集entityNotFoundError的target
+      const entityNotFoundTargetIds: string[] = [];
       if (apiResult.errors && apiResult.errors.length > 0) {
         result.failed += apiResult.errors.length;
         for (const err of apiResult.errors as Array<Record<string, unknown>>) {
-          const localItem = resolvedTargetBids.find(r => r.targetId === String(err.targetId));
-          const errMsg = `product_target ${err.targetId}: ${err.details || (err as Record<string, unknown>).code || 'unknown'}`;
+          const localItem = spTargetBids.find(r => r.targetId === String(err.targetId));
+          const errMsg = `SP product_target ${err.targetId}: ${err.details || (err as Record<string, unknown>).code || 'unknown'}`;
           result.errors.push(errMsg);
           if (localItem) {
             result.itemResults.set(localItem.localId, { status: 'failed', error: String(err.details || (err as Record<string, unknown>).code) });
           }
-          // v454+v474: 检测entityNotFoundError和entityStateError(archived)
           const errStr = JSON.stringify(err).toLowerCase();
           if (errStr.includes('entitynotfounderror') || errStr.includes('entity_not_found') || errStr.includes('could not find') || errStr.includes('entitystateerror') || errStr.includes('archived entity')) {
             if (err.targetId) entityNotFoundTargetIds.push(String(err.targetId));
@@ -418,27 +597,98 @@ export async function syncBidAdjustmentsToAmazon(
         }
       }
       
-      // v454: 自动标记Amazon端已不存在的商品定向
       if (entityNotFoundTargetIds.length > 0) {
         try {
+          const idList = entityNotFoundTargetIds.map(id => `'${String(id).replace(/'/g, "''")}'`).join(',');
           await dbInstance.execute(
-            `UPDATE product_targets SET targetStatus = 'amazon_deleted' WHERE targetId IN (${entityNotFoundTargetIds.map(() => '?').join(',')})`,
-            entityNotFoundTargetIds
+            sql.raw(`UPDATE product_targets SET targetStatus = 'amazon_deleted' WHERE targetId IN (${idList})`)
           );
-          log.warn(`[AmazonApiHelper] v454: 已标记${entityNotFoundTargetIds.length}个商品定向为amazon_deleted`);
+          log.warn(`[v502] 已标记${entityNotFoundTargetIds.length}个SP商品定向为amazon_deleted`);
         } catch (markErr: unknown) {
-          log.warn(`[AmazonApiHelper] v454: 标记过期商品定向失败: ${(markErr as Error).message}`);
+          log.warn(`[v502] 标记过期SP商品定向失败: ${(markErr as Error).message}`);
         }
       }
       
-      log.info(`[AmazonApiHelper] v359: 商品定向出价批量更新完成: 成功=${successCount}, 失败=${apiResult.errors?.length || 0}, entityNotFound=${entityNotFoundTargetIds.length}`);
+      log.info(`[v502] SP商品定向出价更新完成: 成功=${successCount}, 失败=${apiResult.errors?.length || 0}`);
     } catch (batchErr: unknown) {
-      log.warn(`[AmazonApiHelper] v359: 商品定向出价批量更新异常: ${(batchErr as Error).message}`);
-      result.failed += resolvedTargetBids.length;
-      for (const item of resolvedTargetBids) {
+      log.warn(`[v502] SP商品定向出价批量更新异常: ${(batchErr as Error).message}`);
+      result.failed += spTargetBids.length;
+      for (const item of spTargetBids) {
         result.itemResults.set(item.localId, { status: 'failed', error: (batchErr as Error).message });
       }
-      result.errors.push(`商品定向出价批量更新异常: ${(batchErr as Error).message}`);
+      result.errors.push(`SP商品定向出价批量更新异常: ${(batchErr as Error).message}`);
+    }
+  }
+  
+  // === SB商品定向出价更新 — 使用 updateSbProductTargetBids ===
+  if (sbTargetBids.length > 0) {
+    log.info(`[v502] 批量发送 ${sbTargetBids.length} 个SB商品定向出价更新到Amazon`);
+    try {
+      if (spTargetBids.length > 0) {
+        await new Promise(resolve => setTimeout(resolve, 5000));
+      }
+      const sbApiMethod = (syncService as Record<string, unknown>).client.updateSbProductTargetBids || (syncService as Record<string, unknown>).client.updateProductTargetBids;
+      const apiResult: unknown = await withRetry(
+        () => sbApiMethod.call((syncService as Record<string, unknown>).client,
+          sbTargetBids.map(r => ({ targetId: r.targetId, bid: r.bid }))
+        ),
+        { maxRetries: 3, baseDelayMs: 3000, label: `batchUpdateSbProductTargetBids-${sbTargetBids.length}`, accountId }
+      );
+      
+      const successCount = sbTargetBids.length - (apiResult.errors?.length || 0);
+      result.success += successCount;
+      const failedIds = new Set((apiResult.errors || []).map((e: Record<string, unknown>) => String(e.targetId)));
+      for (const item of sbTargetBids) {
+        if (!failedIds.has(item.targetId)) {
+          result.itemResults.set(item.localId, { status: 'synced' });
+        } else {
+          result.failed++;
+          result.itemResults.set(item.localId, { status: 'failed', error: 'SB API error' });
+        }
+      }
+      log.info(`[v502] SB商品定向出价更新完成: 成功=${successCount}, 失败=${apiResult.errors?.length || 0}`);
+    } catch (batchErr: unknown) {
+      log.warn(`[v502] SB商品定向出价批量更新异常: ${(batchErr as Error).message}`);
+      result.failed += sbTargetBids.length;
+      for (const item of sbTargetBids) {
+        result.itemResults.set(item.localId, { status: 'failed', error: (batchErr as Error).message });
+      }
+    }
+  }
+  
+  // === SD商品定向出价更新 — 使用 updateSdProductTargetBids ===
+  if (sdTargetBids.length > 0) {
+    log.info(`[v502] 批量发送 ${sdTargetBids.length} 个SD商品定向出价更新到Amazon`);
+    try {
+      if (spTargetBids.length > 0 || sbTargetBids.length > 0) {
+        await new Promise(resolve => setTimeout(resolve, 5000));
+      }
+      const sdApiMethod = (syncService as Record<string, unknown>).client.updateSdProductTargetBids || (syncService as Record<string, unknown>).client.updateProductTargetBids;
+      const apiResult: unknown = await withRetry(
+        () => sdApiMethod.call((syncService as Record<string, unknown>).client,
+          sdTargetBids.map(r => ({ targetId: r.targetId, bid: r.bid }))
+        ),
+        { maxRetries: 3, baseDelayMs: 3000, label: `batchUpdateSdProductTargetBids-${sdTargetBids.length}`, accountId }
+      );
+      
+      const successCount = sdTargetBids.length - (apiResult.errors?.length || 0);
+      result.success += successCount;
+      const failedIds = new Set((apiResult.errors || []).map((e: Record<string, unknown>) => String(e.targetId)));
+      for (const item of sdTargetBids) {
+        if (!failedIds.has(item.targetId)) {
+          result.itemResults.set(item.localId, { status: 'synced' });
+        } else {
+          result.failed++;
+          result.itemResults.set(item.localId, { status: 'failed', error: 'SD API error' });
+        }
+      }
+      log.info(`[v502] SD商品定向出价更新完成: 成功=${successCount}, 失败=${apiResult.errors?.length || 0}`);
+    } catch (batchErr: unknown) {
+      log.warn(`[v502] SD商品定向出价批量更新异常: ${(batchErr as Error).message}`);
+      result.failed += sdTargetBids.length;
+      for (const item of sdTargetBids) {
+        result.itemResults.set(item.localId, { status: 'failed', error: (batchErr as Error).message });
+      }
     }
   }
   

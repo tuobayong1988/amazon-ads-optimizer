@@ -310,12 +310,39 @@ export async function getAlgorithmEffectStats(
         ? inArray(optimizationLogs.accountId, userAccountIds)
         : sql`1=0`);
 
-  // v235: 首先尝试从 optimization_events 表读取真实数据
+  // v502: 两阶段查询 — SQL COUNT获取准确总数 + 采样分析算法分布
   try {
     const startStr = startDate ? startDate.toISOString().slice(0, 19).replace('T', ' ') : undefined;
     const endStr = endDate ? endDate.toISOString().slice(0, 19).replace('T', ' ') : undefined;
     
-    // 查询所有出价调整事件
+    // 阶段1: SQL聚合获取准确总数（不受LIMIT限制）
+    const [totalCountResult] = await db
+      .select({
+        totalCount: sql<number>`COUNT(*)`,
+        syncedCount: sql<number>`SUM(CASE WHEN ${optimizationEvents.apiSyncStatus} = 'synced' THEN 1 ELSE 0 END)`,
+      })
+      .from(optimizationEvents)
+      .where(
+        and(
+          accountFilter,
+          accountId ? eq(optimizationEvents.accountId, accountId) : undefined,
+          inArray(optimizationEvents.eventCategory, ['bid_adjustment']),
+          inArray(optimizationEvents.actionType, ['bid_increase', 'bid_decrease', 'bid_auto_adjust']),
+          startStr ? gte(optimizationEvents.createdAt, startStr) : undefined,
+          endStr ? lte(optimizationEvents.createdAt, endStr) : undefined,
+          sql`${optimizationEvents.apiSyncStatus} != 'not_applicable'`,
+        )
+      );
+    
+    const realTotalCount = Number(totalCountResult?.totalCount) || 0;
+    log.info(`[v502] 准确总操作数: ${realTotalCount}, 已同步: ${totalCountResult?.syncedCount}`);
+    
+    if (realTotalCount === 0) {
+      // 没有数据，回退到备用数据源
+      throw new Error('No events found, fallback to logs');
+    }
+    
+    // 阶段2: 采样5000条用于算法分布和正向率分析
     const bidEvents = await db
       .select({
         id: optimizationEvents.id,
@@ -337,42 +364,43 @@ export async function getAlgorithmEffectStats(
           inArray(optimizationEvents.actionType, ['bid_increase', 'bid_decrease', 'bid_auto_adjust']),
           startStr ? gte(optimizationEvents.createdAt, startStr) : undefined,
           endStr ? lte(optimizationEvents.createdAt, endStr) : undefined,
-          // 排除 not_applicable 和 skipped 状态
           sql`${optimizationEvents.apiSyncStatus} != 'not_applicable'`,
         )
       )
       .orderBy(desc(optimizationEvents.createdAt))
       .limit(5000);
     
-    if (bidEvents.length > 0) {
-      // 按算法分组统计
-      const algorithmMap = new Map<string, { count: number; positive: number; totalBidChange: number }>();
+    // 按算法分组统计（基于采样）
+    const algorithmMap = new Map<string, { count: number; positive: number; totalBidChange: number }>();
+    const sampleSize = bidEvents.length;
+    
+    for (const event of bidEvents) {
+      const algorithm = parseAlgorithmFromDetail(event.actionDetail, event.changeReason);
+      const isPositive = isPositiveAction(event.actionDetail, event.actionType);
+      const bidChange = Number(event.bidChangePercent) || 0;
       
-      for (const event of bidEvents) {
-        const algorithm = parseAlgorithmFromDetail(event.actionDetail, event.changeReason);
-        const isPositive = isPositiveAction(event.actionDetail, event.actionType);
-        const bidChange = Number(event.bidChangePercent) || 0;
-        
-        if (!algorithmMap.has(algorithm)) {
-          algorithmMap.set(algorithm, { count: 0, positive: 0, totalBidChange: 0 });
-        }
-        const stats = algorithmMap.get(algorithm)!;
-        stats.count++;
-        if (isPositive) stats.positive++;
-        stats.totalBidChange += bidChange;
+      if (!algorithmMap.has(algorithm)) {
+        algorithmMap.set(algorithm, { count: 0, positive: 0, totalBidChange: 0 });
       }
-      
-      return Array.from(algorithmMap.entries()).map(([algorithm, stats]) => ({
-        algorithm,
-        count: stats.count,
-        avgROASChange: 0, // optimization_events不直接包含ROAS变化
-        avgACoSChange: 0, // optimization_events不直接包含ACoS变化
-        avgEffectScore: stats.count > 0 ? Math.round((stats.positive / stats.count) * 100) / 100 : 0,
-        positiveRate: stats.count > 0 ? Math.round((stats.positive / stats.count) * 100) : 0,
-      }));
+      const stats = algorithmMap.get(algorithm)!;
+      stats.count++;
+      if (isPositive) stats.positive++;
+      stats.totalBidChange += bidChange;
     }
+    
+    // v502: 按采样比例放大到真实总数
+    const scaleFactor = sampleSize > 0 ? realTotalCount / sampleSize : 1;
+    
+    return Array.from(algorithmMap.entries()).map(([algorithm, stats]) => ({
+      algorithm,
+      count: Math.round(stats.count * scaleFactor), // 按比例放大到真实总数
+      avgROASChange: 0,
+      avgACoSChange: 0,
+      avgEffectScore: stats.count > 0 ? Math.round((stats.positive / stats.count) * 100) / 100 : 0,
+      positiveRate: stats.count > 0 ? Math.round((stats.positive / stats.count) * 100) : 0,
+    }));
   } catch (eventsErr: unknown) {
-    log.warn('[algorithmEffectService] v235: optimization_events查询失败，回退到optimization_logs:', (eventsErr as Error).message);
+    log.warn('[algorithmEffectService] v502: optimization_events查询失败，回退到optimization_logs:', (eventsErr as Error).message);
   }
   
   // v235: 备用数据源 — 从 optimization_logs 表读取
