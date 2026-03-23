@@ -179,14 +179,15 @@ export const dashboardRecommendationRouter = router({
       `);
       
       // 6. 各campaign_type的关键词数量（当前账户）
+      // campaigns表字段用camelCase（Drizzle未显式指定列名）, keywords表字段也用camelCase
       const q6 = await safeQuery(db_, 'campaign_type_keywords', sql`
-        SELECT c.campaign_type, k.keyword_status, COUNT(*) as cnt
+        SELECT c.campaignType, k.keywordStatus, COUNT(*) as cnt
         FROM keywords k
-        JOIN campaigns c ON k.campaign_id = c.campaign_id
-        WHERE c.account_id = ${acctId}
-          AND k.campaign_id IS NOT NULL
-        GROUP BY c.campaign_type, k.keyword_status
-        ORDER BY c.campaign_type, k.keyword_status
+        JOIN campaigns c ON k.campaignId = c.campaignId
+        WHERE c.accountId = ${acctId}
+          AND k.campaignId IS NOT NULL
+        GROUP BY c.campaignType, k.keywordStatus
+        ORDER BY c.campaignType, k.keywordStatus
       `);
       
       // 7. 最近7天每天的优化事件数量（所有账户）
@@ -212,11 +213,11 @@ export const dashboardRecommendationRouter = router({
       
       // 9. 检查SB广告活动数量
       const q9 = await safeQuery(db_, 'sb_campaigns', sql`
-        SELECT campaign_type, COUNT(*) as cnt, 
-          SUM(CASE WHEN campaign_status = 'enabled' THEN 1 ELSE 0 END) as enabled_cnt
+        SELECT campaignType, COUNT(*) as cnt, 
+          SUM(CASE WHEN campaignStatus = 'enabled' THEN 1 ELSE 0 END) as enabled_cnt
         FROM campaigns 
-        WHERE account_id = ${acctId}
-        GROUP BY campaign_type
+        WHERE accountId = ${acctId}
+        GROUP BY campaignType
       `);
       
       // 10. 检查optimization_events中算法分布
@@ -233,44 +234,44 @@ export const dashboardRecommendationRouter = router({
       
       // 11. 按campaign_type分组的optimization_events（检查SB广告是否被优化）
       const q11 = await safeQuery(db_, 'events_by_campaign_type', sql`
-        SELECT c.campaign_type, oe.api_sync_status, COUNT(*) as cnt
+        SELECT c.campaignType, oe.api_sync_status, COUNT(*) as cnt
         FROM optimization_events oe
-        JOIN campaigns c ON oe.campaign_id = c.campaign_id
+        JOIN campaigns c ON oe.campaign_id = c.campaignId
         WHERE oe.account_id = ${acctId}
           AND oe.created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
-        GROUP BY c.campaign_type, oe.api_sync_status
-        ORDER BY c.campaign_type, cnt DESC
+        GROUP BY c.campaignType, oe.api_sync_status
+        ORDER BY c.campaignType, cnt DESC
       `);
       
       // 12. 检查permanently_failed的bid_adjustment任务详情
       const q12 = await safeQuery(db_, 'failed_tasks_detail', sql`
-        SELECT ot.task_type, ot.status, ot.error_message, ot.entity_type, COUNT(*) as cnt
-        FROM optimization_tasks ot
-        WHERE ot.status IN ('permanently_failed', 'failed')
-          AND ot.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
-        GROUP BY ot.task_type, ot.status, ot.error_message, ot.entity_type
+        SELECT task_type, status, LEFT(error_message, 200) as error_msg, entity_type, COUNT(*) as cnt
+        FROM optimization_tasks
+        WHERE status IN ('permanently_failed', 'failed')
+          AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+        GROUP BY task_type, status, LEFT(error_message, 200), entity_type
         ORDER BY cnt DESC
         LIMIT 20
       `);
       
       // 13. 检查优化目标(performance_groups)状态
       const q13 = await safeQuery(db_, 'optimization_targets', sql`
-        SELECT pg.id, pg.name, pg.status, pg.target_acos,
-          (SELECT COUNT(*) FROM campaigns c WHERE c.performance_group_id = pg.id) as campaign_count,
-          (SELECT COUNT(*) FROM campaigns c WHERE c.performance_group_id = pg.id AND c.campaign_type = 'sponsoredBrands') as sb_campaign_count
+        SELECT pg.id, pg.name, pg.status, pg.targetAcos as target_acos,
+          (SELECT COUNT(*) FROM campaigns c WHERE c.performanceGroupId = pg.id) as campaign_count,
+          (SELECT COUNT(*) FROM campaigns c WHERE c.performanceGroupId = pg.id AND c.campaignType = 'sb') as sb_campaign_count
         FROM performance_groups pg
-        WHERE pg.account_id = ${acctId}
+        WHERE pg.accountId = ${acctId}
         ORDER BY pg.id
       `);
       
       // 14. 检查SB广告活动的关键词是否有竞价调整记录
       const q14 = await safeQuery(db_, 'sb_bid_events', sql`
         SELECT oe.api_sync_status, oe.change_reason, oe.previous_bid, oe.new_bid, oe.created_at,
-          c.campaign_name, c.campaign_type
+          c.campaignName, c.campaignType
         FROM optimization_events oe
-        JOIN campaigns c ON oe.campaign_id = c.campaign_id
+        JOIN campaigns c ON oe.campaign_id = c.campaignId
         WHERE oe.account_id = ${acctId}
-          AND c.campaign_type = 'sponsoredBrands'
+          AND c.campaignType = 'sb'
           AND oe.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
         ORDER BY oe.created_at DESC
         LIMIT 10

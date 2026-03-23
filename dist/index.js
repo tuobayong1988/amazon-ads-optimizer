@@ -3192,13 +3192,13 @@ ${o.map((b,w)=>`${w+1}. "${b.keywordText}" - \u9500\u552E\u989D: $${parseFloat(b
         WHERE event_category = 'bid_adjustment'
         ORDER BY created_at DESC LIMIT 10
       `),u=await Xu(n,"campaign_type_keywords",_`
-        SELECT c.campaign_type, k.keyword_status, COUNT(*) as cnt
+        SELECT c.campaignType, k.keywordStatus, COUNT(*) as cnt
         FROM keywords k
-        JOIN campaigns c ON k.campaign_id = c.campaign_id
-        WHERE c.account_id = ${r}
-          AND k.campaign_id IS NOT NULL
-        GROUP BY c.campaign_type, k.keyword_status
-        ORDER BY c.campaign_type, k.keyword_status
+        JOIN campaigns c ON k.campaignId = c.campaignId
+        WHERE c.accountId = ${r}
+          AND k.campaignId IS NOT NULL
+        GROUP BY c.campaignType, k.keywordStatus
+        ORDER BY c.campaignType, k.keywordStatus
       `),l=await Xu(n,"daily_events",_`
         SELECT DATE(created_at) as event_date, COUNT(*) as cnt, 
           SUM(CASE WHEN api_sync_status = 'synced' THEN 1 ELSE 0 END) as synced,
@@ -3215,11 +3215,11 @@ ${o.map((b,w)=>`${w+1}. "${b.keywordText}" - \u9500\u552E\u989D: $${parseFloat(b
         GROUP BY event_category
         ORDER BY cnt DESC
       `),p=await Xu(n,"sb_campaigns",_`
-        SELECT campaign_type, COUNT(*) as cnt, 
-          SUM(CASE WHEN campaign_status = 'enabled' THEN 1 ELSE 0 END) as enabled_cnt
+        SELECT campaignType, COUNT(*) as cnt, 
+          SUM(CASE WHEN campaignStatus = 'enabled' THEN 1 ELSE 0 END) as enabled_cnt
         FROM campaigns 
-        WHERE account_id = ${r}
-        GROUP BY campaign_type
+        WHERE accountId = ${r}
+        GROUP BY campaignType
       `),m=await Xu(n,"algorithm_distribution",_`
         SELECT algorithm_used, COUNT(*) as cnt,
           SUM(CASE WHEN api_sync_status = 'synced' THEN 1 ELSE 0 END) as synced,
@@ -3230,35 +3230,35 @@ ${o.map((b,w)=>`${w+1}. "${b.keywordText}" - \u9500\u552E\u989D: $${parseFloat(b
         ORDER BY cnt DESC
         LIMIT 20
       `),g=await Xu(n,"events_by_campaign_type",_`
-        SELECT c.campaign_type, oe.api_sync_status, COUNT(*) as cnt
+        SELECT c.campaignType, oe.api_sync_status, COUNT(*) as cnt
         FROM optimization_events oe
-        JOIN campaigns c ON oe.campaign_id = c.campaign_id
+        JOIN campaigns c ON oe.campaign_id = c.campaignId
         WHERE oe.account_id = ${r}
           AND oe.created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
-        GROUP BY c.campaign_type, oe.api_sync_status
-        ORDER BY c.campaign_type, cnt DESC
+        GROUP BY c.campaignType, oe.api_sync_status
+        ORDER BY c.campaignType, cnt DESC
       `),f=await Xu(n,"failed_tasks_detail",_`
-        SELECT ot.task_type, ot.status, ot.error_message, ot.entity_type, COUNT(*) as cnt
-        FROM optimization_tasks ot
-        WHERE ot.status IN ('permanently_failed', 'failed')
-          AND ot.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
-        GROUP BY ot.task_type, ot.status, ot.error_message, ot.entity_type
+        SELECT task_type, status, LEFT(error_message, 200) as error_msg, entity_type, COUNT(*) as cnt
+        FROM optimization_tasks
+        WHERE status IN ('permanently_failed', 'failed')
+          AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+        GROUP BY task_type, status, LEFT(error_message, 200), entity_type
         ORDER BY cnt DESC
         LIMIT 20
       `),h=await Xu(n,"optimization_targets",_`
-        SELECT pg.id, pg.name, pg.status, pg.target_acos,
-          (SELECT COUNT(*) FROM campaigns c WHERE c.performance_group_id = pg.id) as campaign_count,
-          (SELECT COUNT(*) FROM campaigns c WHERE c.performance_group_id = pg.id AND c.campaign_type = 'sponsoredBrands') as sb_campaign_count
+        SELECT pg.id, pg.name, pg.status, pg.targetAcos as target_acos,
+          (SELECT COUNT(*) FROM campaigns c WHERE c.performanceGroupId = pg.id) as campaign_count,
+          (SELECT COUNT(*) FROM campaigns c WHERE c.performanceGroupId = pg.id AND c.campaignType = 'sb') as sb_campaign_count
         FROM performance_groups pg
-        WHERE pg.account_id = ${r}
+        WHERE pg.accountId = ${r}
         ORDER BY pg.id
       `),b=await Xu(n,"sb_bid_events",_`
         SELECT oe.api_sync_status, oe.change_reason, oe.previous_bid, oe.new_bid, oe.created_at,
-          c.campaign_name, c.campaign_type
+          c.campaignName, c.campaignType
         FROM optimization_events oe
-        JOIN campaigns c ON oe.campaign_id = c.campaign_id
+        JOIN campaigns c ON oe.campaign_id = c.campaignId
         WHERE oe.account_id = ${r}
-          AND c.campaign_type = 'sponsoredBrands'
+          AND c.campaignType = 'sb'
           AND oe.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
         ORDER BY oe.created_at DESC
         LIMIT 10
