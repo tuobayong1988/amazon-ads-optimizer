@@ -166,16 +166,19 @@ export async function getAccountPerformanceSummary(
       };
     }
     
-    // 无时间范围时，从campaigns表查询累计数据
+    // v500.2: 无时间范围时，从dailyPerformance表聚合全量数据（而不是从campaigns表，因为campaigns表的绩效字段可能不可靠）
     const [result] = await db.select({
-      totalSpend: sql<number>`COALESCE(SUM(${campaigns.spend}), 0)`,
-      totalSales: sql<number>`COALESCE(SUM(${campaigns.sales}), 0)`,
-      totalOrders: sql<number>`COALESCE(SUM(${campaigns.orders}), 0)`,
-      totalImpressions: sql<number>`COALESCE(SUM(${campaigns.impressions}), 0)`,
-      totalClicks: sql<number>`COALESCE(SUM(${campaigns.clicks}), 0)`,
+      totalSpend: sql<number>`COALESCE(SUM(CASE WHEN spend_usd > 0 THEN spend_usd ELSE ${dailyPerformance.spend} END), 0)`,
+      totalSales: sql<number>`COALESCE(SUM(CASE WHEN sales_usd > 0 THEN sales_usd ELSE ${dailyPerformance.sales} END), 0)`,
+      totalOrders: sql<number>`COALESCE(SUM(${dailyPerformance.orders}), 0)`,
+      totalImpressions: sql<number>`COALESCE(SUM(${dailyPerformance.impressions}), 0)`,
+      totalClicks: sql<number>`COALESCE(SUM(${dailyPerformance.clicks}), 0)`,
     })
-    .from(campaigns)
-    .where(eq(campaigns.accountId, accountId));
+    .from(dailyPerformance)
+    .where(and(
+      eq(dailyPerformance.accountId, accountId),
+      sql`${dailyPerformance.campaignId} IS NOT NULL`
+    ));
     
     return {
       totalSpend: Number(result?.totalSpend || 0),

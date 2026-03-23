@@ -910,8 +910,14 @@ export async function syncPlacementPerformance(service: SyncContext,days: number
 
 
 /**
- * 更新campaigns表的绩效汇总数据
- * 优先仍 ailyPerformance表汇总，如果没有数据则从keywords和productTargets表汇总
+ * v500.2: 更新campaigns表的绩效汇总数据
+ * 数据来源：仅从dailyPerformance表聚合最近30天数据
+ * 
+ * 重要修复：
+ * 1. 移除了从keywords/productTargets表回退聚合的逻辑（这些表的绩效字段是"最后一次同步时间段"的覆盖值，
+ *    时间范围不确定，与dailyPerformance的30天聚合值不可比，混合使用会导致数据不一致）
+ * 2. 添加了campaignId IS NOT NULL过滤，排除account-level汇总记录
+ * 3. 如果dailyPerformance没有数据，campaigns的绩效字段保持为0，而不是从不可靠来源回退
  */
 export async function updateCampaignPerformanceSummary(service: SyncContext,): Promise<void> {
   const db = await getDb();
@@ -930,6 +936,7 @@ export async function updateCampaignPerformanceSummary(service: SyncContext,): P
     const { startDate: startDateStr, endDate: endDateStr } = getMarketplaceDateRange(service.marketplace, 30);
 
     // v364: 批量查询消除N+1 - 一次性汇总所有campaign的绩效数据
+    // v500.2: 添加campaignId IS NOT NULL过滤，排除account-level汇总记录
     const dailySummaries = await db
       .select({
         campaignId: dailyPerformance.campaignId,
@@ -943,6 +950,7 @@ export async function updateCampaignPerformanceSummary(service: SyncContext,): P
       .where(
         and(
           eq(dailyPerformance.accountId, service.accountId),
+          sql`${dailyPerformance.campaignId} IS NOT NULL`,
           sql`${dailyPerformance.date} >= ${startDateStr}`,
           sql`${dailyPerformance.date} <= ${endDateStr}`
         )
@@ -955,58 +963,19 @@ export async function updateCampaignPerformanceSummary(service: SyncContext,): P
       if (ds.campaignId) dailySummaryMap.set(String(ds.campaignId), ds);
     }
     
-    log.info(`v364批量汇总完成: ${dailySummaries.length}个campaign有绩效数据`);
+    log.info(`v500.2批量汇总完成: ${dailySummaries.length}个campaign有绩效数据 (仅从dailyPerformance聚合)`);
 
     for (const campaign of (accountCampaigns as unknown[])) {
       // v364: 使用预查询Map替代循环内DB查询
       const dailySummary = dailySummaryMap.get(String(campaign.campaignId));
 
-      let totalImpressions = dailySummary?.totalImpressions || 0;
-      let totalClicks = dailySummary?.totalClicks || 0;
-      let totalSpend = parseFloat(dailySummary?.totalSpend || '0');
-      let totalSales = parseFloat(dailySummary?.totalSales || '0');
-      let totalOrders = dailySummary?.totalOrders || 0;
-
-      // 如果dailyPerformance没有数据，从keywords和productTargets表汇总
-      if (totalImpressions === 0 && totalClicks === 0 && totalSpend === 0) {
-        // 获取该广告活动下的所有广告组
-        const campaignAdGroups = await db
-          .select({ id: adGroups.id })
-          .from(adGroups)
-          .where(eq(adGroups.campaignId, String(campaign.campaignId)));
-
-        const adGroupIds = campaignAdGroups.map(ag => ag.id);
-
-        if (adGroupIds.length > 0) {
-          const [keywordSummary] = await db
-            .select({
-              totalImpressions: sql<number>`COALESCE(SUM(impressions), 0)`,
-              totalClicks: sql<number>`COALESCE(SUM(clicks), 0)`,
-              totalSpend: sql<string>`COALESCE(SUM(spend), 0)`,
-              totalSales: sql<string>`COALESCE(SUM(sales), 0)`,
-              totalOrders: sql<number>`COALESCE(SUM(orders), 0)`,
-            })
-            .from(keywords)
-            .where(sql`${keywords.internalAdGroupId} IN (${sql.join(adGroupIds, sql`, `)})`);
-
-          const [targetSummary] = await db
-            .select({
-              totalImpressions: sql<number>`COALESCE(SUM(impressions), 0)`,
-              totalClicks: sql<number>`COALESCE(SUM(clicks), 0)`,
-              totalSpend: sql<string>`COALESCE(SUM(spend), 0)`,
-              totalSales: sql<string>`COALESCE(SUM(sales), 0)`,
-              totalOrders: sql<number>`COALESCE(SUM(orders), 0)`,
-            })
-            .from(productTargets)
-            .where(sql`${productTargets.internalAdGroupId} IN (${sql.join(adGroupIds, sql`, `)})`);
-
-          totalImpressions = (keywordSummary?.totalImpressions || 0) + (targetSummary?.totalImpressions || 0);
-          totalClicks = (keywordSummary?.totalClicks || 0) + (targetSummary?.totalClicks || 0);
-          totalSpend = parseFloat(keywordSummary?.totalSpend || '0') + parseFloat(targetSummary?.totalSpend || '0');
-          totalSales = parseFloat(keywordSummary?.totalSales || '0') + parseFloat(targetSummary?.totalSales || '0');
-          totalOrders = (keywordSummary?.totalOrders || 0) + (targetSummary?.totalOrders || 0);
-        }
-      }
+      // v500.2: 仅从dailyPerformance获取数据，不再回退到keywords/productTargets
+      // 如果没有dailyPerformance数据，绩效字段保持为0
+      const totalImpressions = dailySummary?.totalImpressions || 0;
+      const totalClicks = dailySummary?.totalClicks || 0;
+      const totalSpend = parseFloat(dailySummary?.totalSpend || '0');
+      const totalSales = parseFloat(dailySummary?.totalSales || '0');
+      const totalOrders = dailySummary?.totalOrders || 0;
 
       // 更新campaigns表
       await db
@@ -1026,7 +995,7 @@ export async function updateCampaignPerformanceSummary(service: SyncContext,): P
         .where(eq(campaigns.id, campaign.id));
     }
 
-    log.info(`广告活动绩效汇总更新完成`);
+    log.info(`广告活动绩效汇总更新完成 (仅dailyPerformance来源)`);
   } catch (error) {
     log.warn('更新广告活动绩效汇总失败:', error);
   }

@@ -301,45 +301,9 @@ export async function upsertDailyPerformanceFromAms(data: {
     }
   }
   
-  // === 2. 同时维护账户级别汇总记录（campaignId=NULL） ===
-  const existingAccount = await getDailyPerformanceByAccountAndDate(
-    data.accountId,
-    data.date,
-    null
-  );
-  
-  if (existingAccount?.isFinalized) {
-    log.info(`[AMS DB] 跳过已校准账户汇总数据: ${data.date} accountId=${data.accountId}`);
-    return;
-  }
-  
-  if (existingAccount) {
-    // v442: 累加模式 — 账户级汇总也累加delta
-    const newImpressions = Math.max(0, (existingAccount.impressions || 0) + deltaImpressions);
-    const newClicks = Math.max(0, (existingAccount.clicks || 0) + deltaClicks);
-    const newSpend = Math.max(0, parseFloat(String(existingAccount.spend || '0')) + deltaCost);
-    await db.update(dailyPerformance)
-      .set({
-        impressions: newImpressions,
-        clicks: newClicks,
-        spend: String(newSpend.toFixed(2)),
-        dataSource: 'ams',
-      })
-      .where(eq(dailyPerformance.id, existingAccount.id));
-  } else {
-    await db.insert(dailyPerformance).values({
-      accountId: data.accountId,
-      date: data.date,
-      impressions: Math.max(0, deltaImpressions),
-      clicks: Math.max(0, deltaClicks),
-      spend: String(Math.max(0, deltaCost).toFixed(2)),
-      sales: '0',
-      orders: 0,
-      conversions: 0,
-      dataSource: 'ams',
-      isFinalized: 0,
-    });
-  }
+  // v500.2: 移除账户级别汇总记录的维护逻辑
+  // 原因：向daily_performance写入campaignId=NULL的账户级汇总记录会导致聚合查询时双重计算
+  // （campaign级数据 + account级汇总数据一起SUM）。账户级汇总应在查询层实时计算，而不是存储层写入。
 }
 
 /**
