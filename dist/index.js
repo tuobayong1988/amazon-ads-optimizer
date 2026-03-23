@@ -3196,6 +3196,7 @@ ${o.map((b,w)=>`${w+1}. "${b.keywordText}" - \u9500\u552E\u989D: $${parseFloat(b
         FROM keywords k
         JOIN campaigns c ON k.campaign_id = c.campaign_id
         WHERE c.account_id = ${r}
+          AND k.campaign_id IS NOT NULL
         GROUP BY c.campaign_type, k.keyword_status
         ORDER BY c.campaign_type, k.keyword_status
       `),l=await Xu(n,"daily_events",_`
@@ -3231,7 +3232,7 @@ ${o.map((b,w)=>`${w+1}. "${b.keywordText}" - \u9500\u552E\u989D: $${parseFloat(b
       `),g=await Xu(n,"events_by_campaign_type",_`
         SELECT c.campaign_type, oe.api_sync_status, COUNT(*) as cnt
         FROM optimization_events oe
-        JOIN campaigns c ON oe.campaign_id = c.id
+        JOIN campaigns c ON oe.campaign_id = c.campaign_id
         WHERE oe.account_id = ${r}
           AND oe.created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
         GROUP BY c.campaign_type, oe.api_sync_status
@@ -3255,7 +3256,7 @@ ${o.map((b,w)=>`${w+1}. "${b.keywordText}" - \u9500\u552E\u989D: $${parseFloat(b
         SELECT oe.api_sync_status, oe.change_reason, oe.previous_bid, oe.new_bid, oe.created_at,
           c.campaign_name, c.campaign_type
         FROM optimization_events oe
-        JOIN campaigns c ON oe.campaign_id = c.id
+        JOIN campaigns c ON oe.campaign_id = c.campaign_id
         WHERE oe.account_id = ${r}
           AND c.campaign_type = 'sponsoredBrands'
           AND oe.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)

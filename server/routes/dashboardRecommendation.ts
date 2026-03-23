@@ -184,6 +184,7 @@ export const dashboardRecommendationRouter = router({
         FROM keywords k
         JOIN campaigns c ON k.campaign_id = c.campaign_id
         WHERE c.account_id = ${acctId}
+          AND k.campaign_id IS NOT NULL
         GROUP BY c.campaign_type, k.keyword_status
         ORDER BY c.campaign_type, k.keyword_status
       `);
@@ -234,7 +235,7 @@ export const dashboardRecommendationRouter = router({
       const q11 = await safeQuery(db_, 'events_by_campaign_type', sql`
         SELECT c.campaign_type, oe.api_sync_status, COUNT(*) as cnt
         FROM optimization_events oe
-        JOIN campaigns c ON oe.campaign_id = c.id
+        JOIN campaigns c ON oe.campaign_id = c.campaign_id
         WHERE oe.account_id = ${acctId}
           AND oe.created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
         GROUP BY c.campaign_type, oe.api_sync_status
@@ -267,7 +268,7 @@ export const dashboardRecommendationRouter = router({
         SELECT oe.api_sync_status, oe.change_reason, oe.previous_bid, oe.new_bid, oe.created_at,
           c.campaign_name, c.campaign_type
         FROM optimization_events oe
-        JOIN campaigns c ON oe.campaign_id = c.id
+        JOIN campaigns c ON oe.campaign_id = c.campaign_id
         WHERE oe.account_id = ${acctId}
           AND c.campaign_type = 'sponsoredBrands'
           AND oe.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
