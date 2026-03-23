@@ -230,6 +230,62 @@ export const dashboardRecommendationRouter = router({
         LIMIT 20
       `);
       
+      // 11. 按campaign_type分组的optimization_events（检查SB广告是否被优化）
+      const q11 = await safeQuery(db_, 'events_by_campaign_type', sql`
+        SELECT c.campaign_type, oe.api_sync_status, COUNT(*) as cnt
+        FROM optimization_events oe
+        JOIN campaigns c ON oe.campaign_id = c.id
+        WHERE oe.account_id = ${acctId}
+          AND oe.created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+        GROUP BY c.campaign_type, oe.api_sync_status
+        ORDER BY c.campaign_type, cnt DESC
+      `);
+      
+      // 12. 检查permanently_failed的bid_adjustment任务详情
+      const q12 = await safeQuery(db_, 'failed_tasks_detail', sql`
+        SELECT ot.task_type, ot.status, ot.error_message, ot.entity_type, COUNT(*) as cnt
+        FROM optimization_tasks ot
+        WHERE ot.status IN ('permanently_failed', 'failed')
+          AND ot.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+        GROUP BY ot.task_type, ot.status, ot.error_message, ot.entity_type
+        ORDER BY cnt DESC
+        LIMIT 20
+      `);
+      
+      // 13. 检查优化目标(performance_groups)状态
+      const q13 = await safeQuery(db_, 'optimization_targets', sql`
+        SELECT pg.id, pg.name, pg.status, pg.target_acos,
+          (SELECT COUNT(*) FROM campaigns c WHERE c.performance_group_id = pg.id) as campaign_count,
+          (SELECT COUNT(*) FROM campaigns c WHERE c.performance_group_id = pg.id AND c.campaign_type = 'sponsoredBrands') as sb_campaign_count
+        FROM performance_groups pg
+        WHERE pg.account_id = ${acctId}
+        ORDER BY pg.id
+      `);
+      
+      // 14. 检查SB广告活动的关键词是否有竞价调整记录
+      const q14 = await safeQuery(db_, 'sb_bid_events', sql`
+        SELECT oe.api_sync_status, oe.change_reason, oe.previous_bid, oe.new_bid, oe.created_at,
+          c.campaign_name, c.campaign_type
+        FROM optimization_events oe
+        JOIN campaigns c ON oe.campaign_id = c.id
+        WHERE oe.account_id = ${acctId}
+          AND c.campaign_type = 'sponsoredBrands'
+          AND oe.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+        ORDER BY oe.created_at DESC
+        LIMIT 10
+      `);
+      
+      // 15. 检查算法效果概览的实际数据（模拟前端查询）
+      const q15 = await safeQuery(db_, 'algorithm_effect_real', sql`
+        SELECT COUNT(*) as total_events,
+          COUNT(DISTINCT DATE(created_at)) as active_days,
+          MIN(created_at) as earliest,
+          MAX(created_at) as latest
+        FROM optimization_events
+        WHERE account_id = ${acctId}
+          AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+      `);
+      
       return {
         q1_events_30d: q1,
         q2_logs_30d: q2,
@@ -241,6 +297,11 @@ export const dashboardRecommendationRouter = router({
         q8_event_categories: q8,
         q9_campaign_types: q9,
         q10_algorithm_distribution: q10,
+        q11_events_by_campaign_type: q11,
+        q12_failed_tasks_detail: q12,
+        q13_optimization_targets: q13,
+        q14_sb_bid_events: q14,
+        q15_algorithm_effect_real: q15,
       };
     }),
 
