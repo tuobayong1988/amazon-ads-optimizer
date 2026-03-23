@@ -23,6 +23,15 @@ import { sql } from 'drizzle-orm';
 
 const log = createModuleLogger('Route_dashboardRecommendation');
 
+async function safeQuery(db_: any, label: string, query: any) {
+  try {
+    const result = await db_.execute(query);
+    return { success: true, data: (result as unknown[][])[0] || [] };
+  } catch (err: unknown) {
+    return { success: false, error: `[${label}] ${(err as Error).message}` };
+  }
+}
+
 export const dashboardRecommendationRouter = router({
   /**
    * 扫描数据概览三类建议
@@ -104,7 +113,7 @@ export const dashboardRecommendationRouter = router({
     }),
 
   /**
-   * 诊断端点 - 查询优化引擎真实数据
+   * 诊断端点 - 查询优化引擎真实数据（每个查询独立try-catch）
    */
   diagnostics: protectedProcedure
     .input(z.object({ accountId: z.number() }))
@@ -113,116 +122,126 @@ export const dashboardRecommendationRouter = router({
       const db_ = await getDb();
       if (!db_) return { error: 'DB connection failed' };
       
-      try {
-        // 1. optimization_events表中30天bid_adjustment记录数和状态分布
-        const eventsCount = await db_.execute(sql`
-          SELECT COUNT(*) as total,
-            SUM(CASE WHEN api_sync_status = 'synced' THEN 1 ELSE 0 END) as synced,
-            SUM(CASE WHEN api_sync_status = 'failed' THEN 1 ELSE 0 END) as failed,
-            SUM(CASE WHEN api_sync_status = 'pending' THEN 1 ELSE 0 END) as pending_count,
-            SUM(CASE WHEN api_sync_status = 'not_applicable' THEN 1 ELSE 0 END) as not_applicable
-          FROM optimization_events 
-          WHERE event_category = 'bid_adjustment' 
-            AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
-            AND account_id = ${input.accountId}
-        `);
-        
-        // 2. optimization_logs表中30天bid_adjustment记录数
-        const logsCount = await db_.execute(sql`
-          SELECT COUNT(*) as total,
-            SUM(CASE WHEN api_sync_status = 'synced' THEN 1 ELSE 0 END) as synced,
-            SUM(CASE WHEN api_sync_status = 'failed' THEN 1 ELSE 0 END) as failed
-          FROM optimization_logs 
-          WHERE log_category = 'bid_adjustment' 
-            AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
-            AND account_id = ${input.accountId}
-        `);
-        
-        // 3. amazon_deleted关键词数量
-        const deletedKeywords = await db_.execute(sql`
-          SELECT COUNT(*) as total FROM keywords 
-          WHERE keyword_status = 'amazon_deleted'
-            AND campaign_id IN (SELECT campaign_id FROM campaigns WHERE account_id = ${input.accountId})
-        `);
-        
-        // 4. SB广告活动的关键词状态分布
-        const sbKeywordStatus = await db_.execute(sql`
-          SELECT k.keyword_status, COUNT(*) as cnt
-          FROM keywords k
-          JOIN campaigns c ON k.campaign_id = c.campaign_id
-          WHERE c.account_id = ${input.accountId}
-            AND (c.campaign_type LIKE '%sb%' OR c.campaign_type LIKE '%brand%')
-          GROUP BY k.keyword_status
-        `);
-        
-        // 5. optimization_tasks表中的任务状态
-        const tasksStatus = await db_.execute(sql`
-          SELECT status, task_type, COUNT(*) as cnt
-          FROM optimization_tasks
-          WHERE account_id = ${input.accountId}
-            AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
-          GROUP BY status, task_type
-        `);
-        
-        // 6. 最近10条bid_adjustment事件的详情
-        const recentEvents = await db_.execute(sql`
-          SELECT id, action_type, api_sync_status, change_reason, previous_bid, new_bid, created_at
-          FROM optimization_events 
-          WHERE event_category = 'bid_adjustment' 
-            AND account_id = ${input.accountId}
-          ORDER BY created_at DESC LIMIT 10
-        `);
-        
-        // 7. SB广告活动数量和关键词总数
-        const sbCampaignStats = await db_.execute(sql`
-          SELECT 
-            COUNT(DISTINCT c.id) as sb_campaigns,
-            (SELECT COUNT(*) FROM keywords k2 JOIN campaigns c2 ON k2.campaign_id = c2.campaign_id 
-             WHERE c2.account_id = ${input.accountId} AND (c2.campaign_type LIKE '%sb%' OR c2.campaign_type LIKE '%brand%') AND k2.keyword_status = 'enabled') as sb_enabled_keywords,
-            (SELECT COUNT(*) FROM keywords k3 JOIN campaigns c3 ON k3.campaign_id = c3.campaign_id 
-             WHERE c3.account_id = ${input.accountId} AND (c3.campaign_type LIKE '%sb%' OR c3.campaign_type LIKE '%brand%') AND k3.keyword_status = 'amazon_deleted') as sb_deleted_keywords
-          FROM campaigns c
-          WHERE c.account_id = ${input.accountId}
-            AND (c.campaign_type LIKE '%sb%' OR c.campaign_type LIKE '%brand%')
-        `);
-        
-        // 8. 各campaign类型的关键词数量
-        const campaignTypeKeywords = await db_.execute(sql`
-          SELECT c.campaign_type, k.keyword_status, COUNT(*) as cnt
-          FROM keywords k
-          JOIN campaigns c ON k.campaign_id = c.campaign_id
-          WHERE c.account_id = ${input.accountId}
-          GROUP BY c.campaign_type, k.keyword_status
-          ORDER BY c.campaign_type, k.keyword_status
-        `);
-        
-        // 9. 最近7天每天的优化事件数量
-        const dailyEvents = await db_.execute(sql`
-          SELECT DATE(created_at) as event_date, COUNT(*) as cnt, 
-            SUM(CASE WHEN api_sync_status = 'synced' THEN 1 ELSE 0 END) as synced
-          FROM optimization_events 
-          WHERE event_category = 'bid_adjustment' 
-            AND account_id = ${input.accountId}
-            AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
-          GROUP BY DATE(created_at)
-          ORDER BY event_date DESC
-        `);
-        
-        return {
-          optimizationEvents: (eventsCount as unknown[][])[0]?.[0] || {},
-          optimizationLogs: (logsCount as unknown[][])[0]?.[0] || {},
-          deletedKeywords: (deletedKeywords as unknown[][])[0]?.[0] || {},
-          sbKeywordStatus: (sbKeywordStatus as unknown[][])[0] || [],
-          tasksStatus: (tasksStatus as unknown[][])[0] || [],
-          recentEvents: (recentEvents as unknown[][])[0] || [],
-          sbCampaignStats: (sbCampaignStats as unknown[][])[0]?.[0] || {},
-          campaignTypeKeywords: (campaignTypeKeywords as unknown[][])[0] || [],
-          dailyEvents: (dailyEvents as unknown[][])[0] || [],
-        };
-      } catch (err: unknown) {
-        log.warn('[diagnostics] 查询失败:', (err as Error).message);
-        return { error: (err as Error).message };
-      }
+      const acctId = input.accountId;
+      
+      // 1. optimization_events表中30天bid_adjustment记录数和状态分布
+      const q1 = await safeQuery(db_, 'events_count', sql`
+        SELECT COUNT(*) as total,
+          SUM(CASE WHEN api_sync_status = 'synced' THEN 1 ELSE 0 END) as synced,
+          SUM(CASE WHEN api_sync_status = 'failed' THEN 1 ELSE 0 END) as failed,
+          SUM(CASE WHEN api_sync_status = 'pending' THEN 1 ELSE 0 END) as pending_count,
+          SUM(CASE WHEN api_sync_status = 'not_applicable' THEN 1 ELSE 0 END) as not_applicable
+        FROM optimization_events 
+        WHERE event_category = 'bid_adjustment' 
+          AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+          AND account_id = ${acctId}
+      `);
+      
+      // 2. optimization_logs表中30天bid_adjustment记录数
+      const q2 = await safeQuery(db_, 'logs_count', sql`
+        SELECT COUNT(*) as total,
+          SUM(CASE WHEN api_sync_status = 'synced' THEN 1 ELSE 0 END) as synced,
+          SUM(CASE WHEN api_sync_status = 'failed' THEN 1 ELSE 0 END) as failed
+        FROM optimization_logs 
+        WHERE log_category = 'bid_adjustment' 
+          AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+          AND account_id = ${acctId}
+      `);
+      
+      // 3. 所有账户的optimization_events总数（不按account_id过滤）
+      const q3 = await safeQuery(db_, 'all_events', sql`
+        SELECT COUNT(*) as total,
+          SUM(CASE WHEN api_sync_status = 'synced' THEN 1 ELSE 0 END) as synced,
+          SUM(CASE WHEN api_sync_status = 'failed' THEN 1 ELSE 0 END) as failed,
+          SUM(CASE WHEN api_sync_status = 'not_applicable' THEN 1 ELSE 0 END) as not_applicable
+        FROM optimization_events 
+        WHERE event_category = 'bid_adjustment' 
+          AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+      `);
+      
+      // 4. optimization_tasks表中的任务状态（不按account_id过滤）
+      const q4 = await safeQuery(db_, 'tasks_status', sql`
+        SELECT status, task_type, COUNT(*) as cnt
+        FROM optimization_tasks
+        WHERE created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+        GROUP BY status, task_type
+        ORDER BY cnt DESC
+        LIMIT 30
+      `);
+      
+      // 5. 最近10条bid_adjustment事件的详情（不按account_id过滤）
+      const q5 = await safeQuery(db_, 'recent_events', sql`
+        SELECT id, account_id, action_type, api_sync_status, change_reason, 
+          previous_bid, new_bid, created_at
+        FROM optimization_events 
+        WHERE event_category = 'bid_adjustment'
+        ORDER BY created_at DESC LIMIT 10
+      `);
+      
+      // 6. 各campaign_type的关键词数量（当前账户）
+      const q6 = await safeQuery(db_, 'campaign_type_keywords', sql`
+        SELECT c.campaign_type, k.keyword_status, COUNT(*) as cnt
+        FROM keywords k
+        JOIN campaigns c ON k.campaign_id = c.campaign_id
+        WHERE c.account_id = ${acctId}
+        GROUP BY c.campaign_type, k.keyword_status
+        ORDER BY c.campaign_type, k.keyword_status
+      `);
+      
+      // 7. 最近7天每天的优化事件数量（所有账户）
+      const q7 = await safeQuery(db_, 'daily_events', sql`
+        SELECT DATE(created_at) as event_date, COUNT(*) as cnt, 
+          SUM(CASE WHEN api_sync_status = 'synced' THEN 1 ELSE 0 END) as synced,
+          SUM(CASE WHEN api_sync_status = 'not_applicable' THEN 1 ELSE 0 END) as not_applicable
+        FROM optimization_events 
+        WHERE event_category = 'bid_adjustment' 
+          AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+        GROUP BY DATE(created_at)
+        ORDER BY event_date DESC
+      `);
+      
+      // 8. optimization_events中所有event_category的分布
+      const q8 = await safeQuery(db_, 'event_categories', sql`
+        SELECT event_category, COUNT(*) as cnt
+        FROM optimization_events 
+        WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+        GROUP BY event_category
+        ORDER BY cnt DESC
+      `);
+      
+      // 9. 检查SB广告活动数量
+      const q9 = await safeQuery(db_, 'sb_campaigns', sql`
+        SELECT campaign_type, COUNT(*) as cnt, 
+          SUM(CASE WHEN campaign_status = 'enabled' THEN 1 ELSE 0 END) as enabled_cnt
+        FROM campaigns 
+        WHERE account_id = ${acctId}
+        GROUP BY campaign_type
+      `);
+      
+      // 10. 检查optimization_events中算法分布
+      const q10 = await safeQuery(db_, 'algorithm_distribution', sql`
+        SELECT algorithm_used, COUNT(*) as cnt,
+          SUM(CASE WHEN api_sync_status = 'synced' THEN 1 ELSE 0 END) as synced,
+          SUM(CASE WHEN api_sync_status = 'not_applicable' THEN 1 ELSE 0 END) as not_applicable
+        FROM optimization_events 
+        WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+        GROUP BY algorithm_used
+        ORDER BY cnt DESC
+        LIMIT 20
+      `);
+      
+      return {
+        q1_events_30d: q1,
+        q2_logs_30d: q2,
+        q3_all_events_30d: q3,
+        q4_tasks_7d: q4,
+        q5_recent_events: q5,
+        q6_campaign_type_keywords: q6,
+        q7_daily_events: q7,
+        q8_event_categories: q8,
+        q9_campaign_types: q9,
+        q10_algorithm_distribution: q10,
+      };
     }),
 
   /**
