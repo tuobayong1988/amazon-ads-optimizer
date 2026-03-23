@@ -72,12 +72,19 @@ const OPTIMIZATION_TYPES = [
   { value: 'target_acos', label: '目标ACoS', description: '控制广告成本销售比' },
   { value: 'target_roas', label: '目标ROAS', description: '控制广告投资回报率' },
   { value: 'target_cpa', label: '目标转化成本', description: '控制每次转化的成本' },
+  // v500: SB/SD广告特有优化目标
+  { value: 'reach', label: '触达最大化', description: '最大化广告触达人群（SD广告）' },
+  { value: 'brand_impression_share', label: '品牌展示份额', description: '增长品牌展示份额（SB广告）' },
+  { value: 'leads', label: '线索收集', description: '优化线索收集效果（SD广告）' },
 ];
 
 // 优化大类
 const OPTIMIZATION_CATEGORIES = [
   { value: 'revenue', label: '销售额', description: '追求销售转化' },
   { value: 'vcpm', label: 'vCPM', description: '追求品牌曝光' },
+  // v500: 新增触达和线索大类
+  { value: 'reach', label: '触达', description: '追求广告触达人群' },
+  { value: 'leads', label: '线索', description: '追求线索收集' },
 ];
 
 export default function PerformanceGroupDetail() {

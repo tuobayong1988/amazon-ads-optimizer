@@ -18,6 +18,7 @@ import {
   searchTerms,
   negativeKeywords,
   optimizationEvents,
+  sdAudiences,
 } from '../../drizzle/schema';
 import { createModuleLogger } from '../utils/logger';
 import type { AmazonAdsApiClient, SpCampaign } from './amazonAdsApi';
@@ -42,6 +43,7 @@ declare module '../../amazonSyncService' {
     syncSdCampaigns(...args: unknown[]): unknown;
     syncSdAdGroups(...args: unknown[]): unknown;
     syncSdProductTargets(...args: unknown[]): unknown;
+    syncSdAudiences(...args: unknown[]): unknown;
     syncSdTargeting(...args: unknown[]): unknown;
     syncSdNegativeTargets(...args: unknown[]): unknown;
     syncSdBidRecommendations(...args: unknown[]): unknown;
@@ -164,10 +166,18 @@ AmazonSyncService.prototype.syncSdCampaigns = async function(this: AmazonSyncSer
 
       // 获取SD广告的竞价优化目标
       const sdBidOptimization = (apiCampaign as Record<string, unknown>).bidOptimization || null;
-      const validBidOpts = ['reach', 'pageVisits', 'conversions'];
+      const validBidOpts = ['reach', 'pageVisits', 'conversions', 'leads'];
       const normalizedBidOpt = validBidOpts.includes(sdBidOptimization) ? sdBidOptimization : null;
 
-      log.debug(`SD广告 ${apiCampaign.name}: goal=${sdGoal}, costType=${finalCostType}, tactic=${sdTactic}`);
+      // v500: 提取SD广告的优化策略（Optimization Strategy）
+      // SD广告的4种优化策略决定了计费和竞价模式:
+      //   - reach → vCPM计费，优化触达
+      //   - page_visits / drive_page_visits → CPC计费，优化页面访问
+      //   - conversions → CPC计费，优化转化
+      //   - leads → CPC计费，优化线索收集
+      const sdOptimizationStrategy = String(sdGoal || sdBidOptimization || 'conversions').toLowerCase();
+
+      log.debug(`SD广告 ${apiCampaign.name}: goal=${sdGoal}, costType=${finalCostType}, tactic=${sdTactic}, strategy=${sdOptimizationStrategy}`);
 
       const campaignData = {
         accountId: this.accountId,
@@ -186,6 +196,8 @@ AmazonSyncService.prototype.syncSdCampaigns = async function(this: AmazonSyncSer
         tactic: sdTactic, // ✅ 存储定向策略
         portfolioId: sdPortfolioId,
         amazonCreatedDate: sdStartDate, // Amazon侧创建日期
+        // v500: SD优化策略
+        sdOptimizationStrategy: sdOptimizationStrategy,
         updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
       };
 
@@ -849,5 +861,198 @@ AmazonSyncService.prototype.syncSdBidRecommendations = async function(this: Amaz
   } catch (error) {
     log.warn(`[v417] Error syncing SD bid recommendations: ${(error as Error).message || JSON.stringify(error)}`);
     return { synced: targetBidsUpdated, skipped: errors };
+  }
+};
+
+
+/**
+ * v500: 同步SD受众定向数据
+ * 从Amazon SD API获取受众定向列表并同步到sdAudiences表
+ * 
+ * SD广告的受众定向（Audience Targeting）是SD广告最核心的定向方式之一，包括：
+ * - Remarketing: views（浏览再营销）、purchases（购买再营销）、similarProducts（相似商品）
+ * - In-market: 基于购买意向的受众
+ * - Lifestyle: 基于兴趣和生活方式的受众
+ * - Custom: 自定义受众
+ * 
+ * SD API使用 /sd/targets 端点，受众定向和商品定向共用同一个端点，
+ * 通过 expression 中的 type 字段区分：
+ * - 商品定向: asinSameAs, asinCategorySameAs, asinBrandSameAs 等
+ * - 受众定向: views, purchases, audiences 等
+ */
+AmazonSyncService.prototype.syncSdAudiences = async function(this: AmazonSyncService): Promise<{ synced: number; skipped: number }> {
+  const db = await getDb();
+  if (!db) return { synced: 0, skipped: 0 };
+
+  try {
+    // SD API的targets端点同时返回商品定向和受众定向
+    // 我们需要从中筛选出受众定向类型的targets
+    const apiTargets = await this.client.listSdTargets();
+    let synced = 0;
+    let skipped = 0;
+
+    log.debug(`[v500] 获取到 ${apiTargets.length} 个SD targets，开始筛选受众定向`);
+
+    // v500: 批量预查询所有相关adGroup（消除N+1查询）
+    const sdAudAdGroupIds = [...new Set(apiTargets.map(t => String(t.adGroupId)))];
+    const sdAudAdGroupRows = sdAudAdGroupIds.length > 0
+      ? await db.select().from(adGroups).where(and(eq(adGroups.accountId, this.accountId), inArray(adGroups.adGroupId, sdAudAdGroupIds)))
+      : [];
+    const sdAudAdGroupMap = new Map(sdAudAdGroupRows.map(r => [r.adGroupId, r]));
+
+    // 预查询已存在的sdAudiences记录
+    const sdAudInternalAgIds = sdAudAdGroupRows.map(r => r.id);
+    const existingSdAudRows = sdAudInternalAgIds.length > 0
+      ? await db.select().from(sdAudiences).where(and(
+          eq(sdAudiences.accountId, this.accountId),
+          inArray(sdAudiences.internalAdGroupId, sdAudInternalAgIds)
+        ))
+      : [];
+    const existingSdAudMap = new Map(existingSdAudRows.map(r => [`${r.internalAdGroupId}:${r.audienceId}`, r]));
+
+    // 受众定向的expression type关键字
+    const AUDIENCE_EXPRESSION_TYPES = [
+      'views', 'purchases', 'audience', 'audiences',
+      'similar', 'similarproduct', 'lookback',
+      'inmarket', 'in-market', 'in_market',
+      'lifestyle', 'interest',
+      'custom',
+    ];
+
+    for (const apiTarget of apiTargets) {
+      // 解析expression判断是否为受众定向
+      const exprArray = apiTarget.expression || apiTarget.expressions || [];
+      if (!Array.isArray(exprArray) || exprArray.length === 0) {
+        continue;
+      }
+
+      // 检查expression类型是否为受众定向
+      let isAudienceTarget = false;
+      let audienceType: 'views' | 'purchases' | 'inMarket' | 'lifestyle' | 'custom' | 'similarProducts' | 'lookback' = 'views';
+      let audienceCategory = '';
+      let audienceSubCategory = '';
+      let amazonAudienceId: string | null = null;
+
+      for (const expr of exprArray) {
+        const et = String(expr.type || '').toLowerCase();
+        
+        // 判断是否为受众定向类型
+        if (AUDIENCE_EXPRESSION_TYPES.some(aud => et.includes(aud))) {
+          isAudienceTarget = true;
+          
+          // 分类受众类型
+          if (et.includes('views') || et.includes('view')) {
+            audienceType = 'views';
+            audienceCategory = 'remarketing';
+            audienceSubCategory = 'Product Views';
+          } else if (et.includes('purchases') || et.includes('purchase')) {
+            audienceType = 'purchases';
+            audienceCategory = 'remarketing';
+            audienceSubCategory = 'Product Purchases';
+          } else if (et.includes('similar')) {
+            audienceType = 'similarProducts';
+            audienceCategory = 'remarketing';
+            audienceSubCategory = 'Similar Products';
+          } else if (et.includes('lookback')) {
+            audienceType = 'lookback';
+            audienceCategory = 'remarketing';
+            audienceSubCategory = `Lookback ${expr.value || '30'} days`;
+          } else if (et.includes('inmarket') || et.includes('in-market') || et.includes('in_market')) {
+            audienceType = 'inMarket';
+            audienceCategory = 'in_market';
+            audienceSubCategory = expr.value || 'In-Market Audience';
+          } else if (et.includes('lifestyle') || et.includes('interest')) {
+            audienceType = 'lifestyle';
+            audienceCategory = 'lifestyle';
+            audienceSubCategory = expr.value || 'Lifestyle Audience';
+          } else if (et.includes('audience')) {
+            // 通用audience类型 - 可能是Amazon预定义受众
+            audienceType = 'custom';
+            audienceCategory = 'custom';
+            audienceSubCategory = expr.value || 'Custom Audience';
+            amazonAudienceId = expr.value || null;
+          } else if (et.includes('custom')) {
+            audienceType = 'custom';
+            audienceCategory = 'custom';
+            audienceSubCategory = expr.value || 'Custom Audience';
+          }
+          
+          break; // 找到第一个受众类型即可
+        }
+      }
+
+      // 如果不是受众定向，跳过（由syncSdProductTargets处理）
+      if (!isAudienceTarget) {
+        continue;
+      }
+
+      // 查找对应的adGroup
+      const adGroup = sdAudAdGroupMap.get(String(apiTarget.adGroupId));
+      if (!adGroup) {
+        skipped++;
+        continue;
+      }
+
+      const targetId = String(apiTarget.targetId);
+      const existing = existingSdAudMap.get(`${adGroup.id}:${targetId}`) || null;
+      const normalizedState = (apiTarget.state || 'enabled').toLowerCase() as 'enabled' | 'paused' | 'archived';
+
+      // 提取lookback天数
+      let lookbackDays = 30; // 默认30天
+      for (const expr of exprArray) {
+        if (expr.lookbackDays || expr.lookback) {
+          lookbackDays = Number(expr.lookbackDays || expr.lookback) || 30;
+          break;
+        }
+      }
+
+      const audienceData = {
+        accountId: this.accountId,
+        internalAdGroupId: adGroup.id,
+        audienceId: targetId,
+        audienceName: apiTarget.name || `${audienceCategory} - ${audienceSubCategory}`,
+        audienceType,
+        lookbackDays,
+        audienceCategory,
+        audienceSubCategory,
+        audienceExpression: JSON.stringify(exprArray),
+        amazonAudienceId,
+        bid: String(typeof apiTarget.bid === 'object' && apiTarget.bid !== null 
+          ? (apiTarget.bid as Record<string, unknown>).amount || 0 
+          : (apiTarget.bid || 0)),
+        state: normalizedState,
+        updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+      };
+
+      if (synced === 0) {
+        log.debug(`[v500] SD受众定向示例: type=${audienceType}, category=${audienceCategory}, sub=${audienceSubCategory}, bid=${audienceData.bid}`);
+      }
+
+      if (existing) {
+        await db
+          .update(sdAudiences)
+          .set(audienceData)
+          .where(eq(sdAudiences.id, existing.id));
+      } else {
+        await db.insert(sdAudiences).values({
+          ...audienceData,
+          createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+        });
+      }
+      synced++;
+    }
+
+    log.info(`[v500] SD受众定向同步完成: synced=${synced}, skipped=${skipped}`);
+    return { synced, skipped };
+  } catch (error: unknown) {
+    // @ts-expect-error - Axios error response access
+    const statusCode = error?.response?.status || 'unknown';
+    // @ts-expect-error - error message access
+    const errorMsg = error?.response?.data?.message || error?.message || 'unknown error';
+    log.warn(`[v500] Error syncing SD audiences: HTTP ${statusCode} - ${errorMsg}`);
+    if (statusCode === 403) {
+      log.warn('[v500] SD audiences API返回403，Profile缺少SD权限，跳过');
+    }
+    return { synced: 0, skipped: 0 };
   }
 };

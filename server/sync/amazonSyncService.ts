@@ -478,9 +478,9 @@ export class AmazonSyncService {
     }); // end Layer 1
     
     // ==================== Layer 2: 关键词+商品定位+广告素材（6个并行） ====================
-    await runLayer(2, '关键词/商品定位/素材同步', async () => {
-    log.info(`[syncAll] v359: Layer 2 - 关键词/商品定位/素材同步 (6个并行)`);
-    const [spKeywordResult, sbKeywordResult, spTargetResult, sbTargetResult, sdTargetResult, sbAdsResult] = await Promise.allSettled([
+    await runLayer(2, '关键词/商品定位/受众/素材同步', async () => {
+    log.info(`[syncAll] v500: Layer 2 - 关键词/商品定位/受众/素材同步 (7个并行)`);
+    const [spKeywordResult, sbKeywordResult, spTargetResult, sbTargetResult, sdTargetResult, sbAdsResult, sdAudienceResult] = await Promise.allSettled([
       // @ts-expect-error - runStep type inference
       runStep('SP关键词', () => this.syncSpKeywords()),
       // @ts-expect-error - runStep type inference
@@ -493,6 +493,9 @@ export class AmazonSyncService {
       runStep('SD商品定位', () => this.syncSdProductTargets()),
       // @ts-expect-error - runStep type inference
       runStep('SB广告素材', () => this.syncSbAds()),
+      // @ts-expect-error - runStep type inference
+      // v500: 新增SD受众定向同步
+      runStep('SD受众定向', () => this.syncSdAudiences()),
     ]);
     
     if (spKeywordResult.status === 'fulfilled' && spKeywordResult.value !== null) {
@@ -509,6 +512,10 @@ export class AmazonSyncService {
     }
     if (sdTargetResult.status === 'fulfilled' && sdTargetResult.value !== null) {
       results.targets += (sdTargetResult.value as Record<string, unknown>)?.synced as number || 0;
+    }
+    // v500: SD受众定向结果统计
+    if (sdAudienceResult.status === 'fulfilled' && sdAudienceResult.value !== null) {
+      results.targets += (sdAudienceResult.value as Record<string, unknown>)?.synced as number || 0;
     }
     
     // v360: 层间转换延迟

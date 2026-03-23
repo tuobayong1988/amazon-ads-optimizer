@@ -115,11 +115,17 @@ const campaignGoalLabels: Record<string, string> = {
   'growBrandImpressionShare': '增长品牌展示份额',
   'PROMOTE_PRODUCTS': '推广产品',
   'promoteProducts': '推广产品',
+  // v500: SB Reserve SOV目标
+  'RESERVE_SHARE_OF_VOICE': '预留展示份额 (Reserve SOV)',
+  'reserveShareOfVoice': '预留展示份额 (Reserve SOV)',
   // SD广告目标
   'reach': '触达用户',
   'pageVisits': '驱动页面访问',
   'page_visits': '驱动页面访问',
+  'drive_page_visits': '驱动页面访问',
   'conversions': '促进转化',
+  // v500: SD Leads目标
+  'leads': '线索收集',
 };
 
 // 广告格式映射（SB广告特有）

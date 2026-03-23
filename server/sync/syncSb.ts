@@ -155,6 +155,10 @@ AmazonSyncService.prototype.syncSbCampaigns = async function(this: AmazonSyncSer
       if (sbGoal === 'GROW_BRAND_IMPRESSION_SHARE' || sbGoal === 'growBrandImpressionShare') {
         sbCostType = 'vcpm';
       }
+      // v500: Reserve SOV使用固定价格（非竞价模式），以vCPM记录
+      if (sbGoal === 'RESERVE_SHARE_OF_VOICE' || sbGoal === 'reserveShareOfVoice') {
+        sbCostType = 'vcpm';
+      }
       // 也检查API是否直接返回了costType字段（某些API版本可能直接返回）
       if ((apiCampaign as Record<string, unknown>).costType) {
         const apiCostType = String((apiCampaign as Record<string, unknown>).costType).toLowerCase();
@@ -194,7 +198,53 @@ AmazonSyncService.prototype.syncSbCampaigns = async function(this: AmazonSyncSer
       const sbLandingPageUrl = (apiCampaign as Record<string, unknown>).landingPage?.url || (apiCampaign as Record<string, unknown>).landingPageUrl || null;
       const sbBrandEntityId = (apiCampaign as Record<string, unknown>).brandEntityId || null;
 
-      log.debug(`SB广告 ${apiCampaign.name}: goal=${sbGoal}, costType=${sbCostType}, adFormat=${normalizedAdFormat}`);
+      // v500: 提取SB广告的Placement Bid Adjustments（版位竞价调整）
+      // SB v4 API返回的bidding.adjustments数组包含版位竞价调整
+      // 格式: { predicate: 'placementTop'|'placementProductPage'|'placementRestOfSearch', percentage: number }
+      const biddingObj = (apiCampaign as Record<string, unknown>).bidding as Record<string, unknown> | undefined;
+      const bidAdjustments = (biddingObj?.adjustments || []) as Array<{ predicate?: string; percentage?: number }>;
+      let sbPlacementTopAdj = 0;
+      let sbPlacementProductAdj = 0;
+      let sbPlacementRestAdj = 0;
+      let sbAudienceBidAdj = 0;
+      for (const adj of bidAdjustments) {
+        const pred = (adj.predicate || '').toLowerCase();
+        const pct = adj.percentage || 0;
+        if (pred.includes('top') || pred === 'placementtop') {
+          sbPlacementTopAdj = pct;
+        } else if (pred.includes('product') || pred === 'placementproductpage') {
+          sbPlacementProductAdj = pct;
+        } else if (pred.includes('rest') || pred === 'placementrestofsearch') {
+          sbPlacementRestAdj = pct;
+        } else if (pred.includes('audience') || pred === 'audiences') {
+          sbAudienceBidAdj = pct;
+        }
+      }
+      // 也尝试从bidding对象的直接字段中获取（某些API版本）
+      if (sbPlacementTopAdj === 0 && biddingObj?.placementTop) {
+        sbPlacementTopAdj = Number(biddingObj.placementTop) || 0;
+      }
+      if (sbAudienceBidAdj === 0 && biddingObj?.audienceBidAdjustment) {
+        sbAudienceBidAdj = Number(biddingObj.audienceBidAdjustment) || 0;
+      }
+
+      // v500: 提取Reserve SOV特有字段
+      let sbReserveSovBudget: string | null = null;
+      let sbCampaignDurationDays: number | null = null;
+      if (sbGoal === 'RESERVE_SHARE_OF_VOICE' || sbGoal === 'reserveShareOfVoice') {
+        // Reserve SOV使用固定预算（非竞价模式）
+        const sovBudget = (apiCampaign as Record<string, unknown>).reservedBudget || 
+                          (apiCampaign as Record<string, unknown>).fixedBudget || null;
+        if (sovBudget) sbReserveSovBudget = String(sovBudget);
+        // 活动持续天数
+        if (sbStartDate && sbEndDate) {
+          const start = new Date(sbStartDate);
+          const end = new Date(sbEndDate);
+          sbCampaignDurationDays = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+        }
+      }
+
+      log.debug(`SB广告 ${apiCampaign.name}: goal=${sbGoal}, costType=${sbCostType}, adFormat=${normalizedAdFormat}, placementTop=${sbPlacementTopAdj}%, audienceAdj=${sbAudienceBidAdj}%`);
 
       const campaignData = {
         accountId: this.accountId,
@@ -217,6 +267,18 @@ AmazonSyncService.prototype.syncSbCampaigns = async function(this: AmazonSyncSer
         portfolioId: sbPortfolioId,
         biddingStrategy: sbBiddingStrategy as 'legacyForSales' | 'autoForSales' | 'manual' | 'ruleBasedBidding',
         amazonCreatedDate: sbStartDate, // Amazon侧创建日期
+        // v500: SB版位竞价调整
+        placementTopSearchBidAdjustment: sbPlacementTopAdj,
+        placementProductPageBidAdjustment: sbPlacementProductAdj,
+        placementRestBidAdjustment: sbPlacementRestAdj,
+        // v500: SB受众竞价调整
+        sbAudienceBidAdjustment: sbAudienceBidAdj,
+        sbPlacementTopMultiplier: sbPlacementTopAdj > 0 ? String(1 + sbPlacementTopAdj / 100) : null,
+        sbPlacementProductMultiplier: sbPlacementProductAdj > 0 ? String(1 + sbPlacementProductAdj / 100) : null,
+        sbPlacementRestMultiplier: sbPlacementRestAdj > 0 ? String(1 + sbPlacementRestAdj / 100) : null,
+        // v500: Reserve SOV特有字段
+        sbReserveSovBudget: sbReserveSovBudget,
+        sbCampaignDurationDays: sbCampaignDurationDays,
         updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
       };
 

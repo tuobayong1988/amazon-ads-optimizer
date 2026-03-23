@@ -1362,6 +1362,20 @@ export const campaigns = mysqlTable("campaigns", {
 	placementTopSearchBidAdjustment: int().default(0),
 	placementProductPageBidAdjustment: int().default(0),
 	placementRestBidAdjustment: int().default(0),
+	/** v500: SB广告受众竞价调整百分比(0-900) */
+	sbAudienceBidAdjustment: int("sb_audience_bid_adjustment").default(0),
+	/** v500: SB Top of Search版位竞价乘数 */
+	sbPlacementTopMultiplier: decimal("sb_placement_top_multiplier", { precision: 5, scale: 2 }),
+	/** v500: SB Product Page版位竞价乘数 */
+	sbPlacementProductMultiplier: decimal("sb_placement_product_multiplier", { precision: 5, scale: 2 }),
+	/** v500: SB Rest of Search版位竞价乘数 */
+	sbPlacementRestMultiplier: decimal("sb_placement_rest_multiplier", { precision: 5, scale: 2 }),
+	/** v500: SD优化策略 */
+	sdOptimizationStrategy: varchar("sd_optimization_strategy", { length: 50 }),
+	/** v500: Reserve SOV固定预算 */
+	sbReserveSovBudget: decimal("sb_reserve_sov_budget", { precision: 15, scale: 2 }),
+	/** v500: Reserve SOV活动持续天数(30-92) */
+	sbCampaignDurationDays: int("sb_campaign_duration_days"),
 	impressions: int().default(0),
 	clicks: int().default(0),
 	spend: decimal({ precision: 10, scale: 2 }).default('0.00'),
@@ -1462,13 +1476,13 @@ export const campaigns = mysqlTable("campaigns", {
 	portfolioId: varchar({ length: 64 }),
 	portfolioName: varchar({ length: 255 }),
 	adFormat: mysqlEnum("ad_format", ['productCollection','video','storeSpotlight','brandVideo']),
-	campaignGoal: mysqlEnum("campaign_goal", ['DRIVE_PAGE_VISITS','GROW_BRAND_IMPRESSION_SHARE','PROMOTE_PRODUCTS']),
+	campaignGoal: mysqlEnum("campaign_goal", ['DRIVE_PAGE_VISITS','GROW_BRAND_IMPRESSION_SHARE','PROMOTE_PRODUCTS','RESERVE_SHARE_OF_VOICE']),
 	landingPageType: mysqlEnum("landing_page_type", ['store','productList','customUrl']),
 	landingPageUrl: varchar("landing_page_url", { length: 1000 }),
 	storePageId: varchar("store_page_id", { length: 64 }),
 	brandEntityId: varchar("brand_entity_id", { length: 64 }),
 	headline: varchar({ length: 500 }),
-	bidOptimization: mysqlEnum("bid_optimization", ['reach','pageVisits','conversions']),
+	bidOptimization: mysqlEnum("bid_optimization", ['reach','pageVisits','conversions','leads']),
 	tactic: varchar({ length: 20 }),
 	viewAttributedSales: decimal("view_attributed_sales", { precision: 15, scale: 2 }).default('0'),
 	viewAttributedOrders: int("view_attributed_orders").default(0),
@@ -2303,7 +2317,7 @@ export const performanceGroups = mysqlTable("performance_groups", {
 	accountId: int().notNull(),
 	name: varchar({ length: 255 }).notNull(),
 	description: text(),
-	optimizationGoal: mysqlEnum(['maximize_sales','target_acos','target_roas','daily_spend_limit','daily_cost']).default('maximize_sales'),
+	optimizationGoal: mysqlEnum(['maximize_sales','target_acos','target_roas','daily_spend_limit','daily_cost','reach','brand_impression_share','leads']).default('maximize_sales'),
 	targetAcos: decimal({ precision: 5, scale: 2 }),
 	targetRoas: decimal({ precision: 10, scale: 2 }),
 	dailySpendLimit: decimal({ precision: 10, scale: 2 }),
@@ -2480,7 +2494,7 @@ export const sbCampaignSettings = mysqlTable("sb_campaign_settings", {
 	campaignId: varchar("campaign_id", { length: 50 }).notNull(),
 	accountId: varchar("account_id", { length: 50 }).notNull(),
 	campaignName: varchar("campaign_name", { length: 255 }),
-	campaignType: mysqlEnum("campaign_type", ['video','store_spotlight','product_collection']).default('product_collection'),
+	campaignType: mysqlEnum("campaign_type", ['video','store_spotlight','product_collection','brand_video']).default('product_collection'),
 	landingPageType: mysqlEnum("landing_page_type", ['store','product_list','custom_url']).default('store'),
 	brandEntityId: varchar("brand_entity_id", { length: 50 }),
 	autoOptimizeKeywords: tinyint("auto_optimize_keywords").default(0),
@@ -2489,6 +2503,20 @@ export const sbCampaignSettings = mysqlTable("sb_campaign_settings", {
 	minBid: decimal("min_bid", { precision: 10, scale: 2 }),
 	maxBid: decimal("max_bid", { precision: 10, scale: 2 }),
 	creativeOptimizationEnabled: tinyint("creative_optimization_enabled").default(0),
+	/** v500: Top of Search版位竞价调整% */
+	placementBidTopOfSearch: int("placement_bid_top_of_search").default(0),
+	/** v500: Product Page版位竞价调整% */
+	placementBidProductPage: int("placement_bid_product_page").default(0),
+	/** v500: Rest of Search版位竞价调整% */
+	placementBidRestOfSearch: int("placement_bid_rest_of_search").default(0),
+	/** v500: 受众竞价调整% */
+	audienceBidAdjustment: int("audience_bid_adjustment").default(0),
+	/** v500: SB广告目标 */
+	campaignGoal: varchar("campaign_goal", { length: 50 }),
+	/** v500: 竞价优化目标 */
+	bidOptimization: varchar("bid_optimization", { length: 30 }),
+	/** v500: 计费类型 */
+	costType: varchar("cost_type", { length: 10 }),
 	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP'),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
 },
@@ -2527,7 +2555,7 @@ export const sdAudienceTargeting = mysqlTable("sd_audience_targeting", {
 	id: int().autoincrement().notNull(),
 	campaignId: varchar("campaign_id", { length: 50 }).notNull(),
 	adGroupId: varchar("ad_group_id", { length: 50 }).notNull(),
-	audienceType: mysqlEnum("audience_type", ['views','purchases','similar_products','categories','audiences']).notNull(),
+	audienceType: mysqlEnum("audience_type", ['views','purchases','similar_products','categories','audiences','inMarket','lifestyle','custom','remarketing','lookback']).notNull(),
 	audienceId: varchar("audience_id", { length: 100 }),
 	audienceName: varchar("audience_name", { length: 255 }),
 	lookbackWindow: int("lookback_window"),
@@ -2553,8 +2581,16 @@ export const sdAudiences = mysqlTable("sd_audiences", {
 	internalAdGroupId: int("internal_ad_group_id").notNull(),  // v418: ID体系重构
 	audienceId: varchar("audience_id", { length: 64 }).notNull(),
 	audienceName: varchar("audience_name", { length: 500 }),
-	audienceType: mysqlEnum("audience_type", ['views','purchases','inMarket','lifestyle','custom']).notNull(),
+	audienceType: mysqlEnum("audience_type", ['views','purchases','inMarket','lifestyle','custom','similarProducts','lookback']).notNull(),
 	lookbackDays: int("lookback_days").default(30),
+	/** v500: 受众分类 */
+	audienceCategory: varchar("audience_category", { length: 100 }),
+	/** v500: 受众子分类 */
+	audienceSubCategory: varchar("audience_sub_category", { length: 255 }),
+	/** v500: 受众定向表达式(JSON) */
+	audienceExpression: text("audience_expression"),
+	/** v500: Amazon侧受众ID */
+	amazonAudienceId: varchar("amazon_audience_id", { length: 64 }),
 	bid: decimal({ precision: 10, scale: 2 }),
 	state: mysqlEnum(['enabled','paused','archived']).default('enabled'),
 	impressions: int().default(0),
@@ -2584,7 +2620,7 @@ export const sdCampaignSettings = mysqlTable("sd_campaign_settings", {
 	campaignName: varchar("campaign_name", { length: 255 }),
 	tactic: mysqlEnum(['T00020','T00030','remarketing','contextual']).default('contextual'),
 	costType: mysqlEnum("cost_type", ['cpc','vcpm']).default('cpc'),
-	optimizationGoal: mysqlEnum("optimization_goal", ['reach','page_visits','conversions']).default('conversions'),
+	optimizationGoal: mysqlEnum("optimization_goal", ['reach','page_visits','conversions','leads']).default('conversions'),
 	autoOptimizeAudiences: tinyint("auto_optimize_audiences").default(0),
 	autoOptimizeBids: tinyint("auto_optimize_bids").default(0),
 	targetAcos: decimal("target_acos", { precision: 10, scale: 4 }),
