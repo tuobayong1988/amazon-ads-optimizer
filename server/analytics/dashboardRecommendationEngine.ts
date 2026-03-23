@@ -17,6 +17,7 @@ import {
   productTargets,
   performanceGroups,
   adGroups,
+  negativeKeywords,
 } from '../../drizzle/schema';
 import { createModuleLogger } from '../utils/logger';
 
@@ -113,6 +114,39 @@ async function scanEmergencyBleeding(accountId: number): Promise<DashboardRecomm
   const items: EmergencyBleedingItem[] = [];
 
   try {
+    // v501.2: 先获取已添加否定关键词的搜索词列表（用于排除已处理项）
+    const existingNegatives = await db_.select({
+      negativeText: negativeKeywords.negativeText,
+      campaignId: negativeKeywords.campaignId,
+    }).from(negativeKeywords)
+      .where(and(
+        eq(negativeKeywords.accountId, accountId),
+        eq(negativeKeywords.negativeType, 'keyword'),
+        sql`${negativeKeywords.negativeStatus} != 'removed'`,
+      ));
+    
+    // 构建已否定搜索词的Set（campaignId + negativeText 组合作为唯一键）
+    const negatedSearchTermSet = new Set(
+      existingNegatives.map(n => `${n.campaignId}||${n.negativeText.toLowerCase()}`)
+    );
+    log.info(`[紧急止血扫描] 已有 ${negatedSearchTermSet.size} 个否定关键词，将排除已处理项`);
+
+    // v501.2: 获取已有pending/processing状态的optimization_tasks中的商品投放ID（用于排除已处理项）
+    const existingBidTasks = await db_.execute(
+      sql`SELECT target_entity_id FROM optimization_tasks 
+          WHERE account_id = ${accountId} 
+          AND task_type = 'bid_adjustment' 
+          AND target_entity_type = 'product_target'
+          AND action = 'adjust_bid'
+          AND algorithm_used = 'dashboard_emergency_bleeding'
+          AND status IN ('pending', 'processing', 'synced')`
+    );
+    const processedPtIds = new Set(
+      (existingBidTasks as unknown as {rows: {target_entity_id: number}[]}).rows?.map((r: {target_entity_id: number}) => r.target_entity_id) || 
+      (existingBidTasks as unknown as {target_entity_id: number}[])?.map?.((r: {target_entity_id: number}) => r.target_entity_id) || []
+    );
+    log.info(`[紧急止血扫描] 已有 ${processedPtIds.size} 个商品投放竞价调整任务，将排除已处理项`);
+
     // 1. 扫描零转化高花费搜索词 (花费 > $10, 订单 = 0)
     const zeroConvSearchTerms = await db_.select({
       id: searchTerms.id,
@@ -133,6 +167,12 @@ async function scanEmergencyBleeding(accountId: number): Promise<DashboardRecomm
 
     // 获取关联的广告活动和广告组信息
     for (const st of zeroConvSearchTerms) {
+      // v501.2: 排除已添加否定关键词的搜索词
+      const negKey = `${st.campaignId}||${st.searchTerm.toLowerCase()}`;
+      if (negatedSearchTermSet.has(negKey)) {
+        continue; // 跳过已处理的搜索词
+      }
+
       const campaignInfo = await db_.select({
         id: campaigns.id,
         campaignName: campaigns.campaignName,
@@ -195,6 +235,11 @@ async function scanEmergencyBleeding(accountId: number): Promise<DashboardRecomm
       .orderBy(sql`CAST(${productTargets.spend} AS DECIMAL(10,2)) DESC`);
 
     for (const pt of zeroConvTargets) {
+      // v501.2: 排除已提交过竞价调整任务的商品投放
+      if (processedPtIds.has(pt.id)) {
+        continue; // 跳过已处理的商品投放
+      }
+
       const campaignInfo = await db_.select({
         id: campaigns.id,
         campaignName: campaigns.campaignName,
@@ -260,6 +305,23 @@ async function scanHighAcos(accountId: number): Promise<DashboardRecommendationR
   const items: HighAcosItem[] = [];
 
   try {
+    // v501.2: 获取已有pending/processing/synced状态的高ACOS抑制竞价调整任务（用于排除已处理项）
+    const existingKwBidTasks = await db_.execute(
+      sql`SELECT target_entity_id, target_entity_type FROM optimization_tasks 
+          WHERE account_id = ${accountId} 
+          AND task_type = 'bid_adjustment' 
+          AND algorithm_used = 'dashboard_high_acos_suppression'
+          AND status IN ('pending', 'processing', 'synced')`
+    );
+    const processedKwIds = new Set<number>();
+    const processedPtAcosIds = new Set<number>();
+    const taskRows = (existingKwBidTasks as unknown as {rows?: unknown[]})?.rows || (existingKwBidTasks as unknown as unknown[]) || [];
+    for (const r of (taskRows as {target_entity_id: number; target_entity_type: string}[])) {
+      if (r.target_entity_type === 'keyword') processedKwIds.add(r.target_entity_id);
+      if (r.target_entity_type === 'product_target') processedPtAcosIds.add(r.target_entity_id);
+    }
+    log.info(`[高ACOS扫描] 已有 ${processedKwIds.size} 个关键词和 ${processedPtAcosIds.size} 个商品投放竞价调整任务，将排除已处理项`);
+
     // 1. 扫描高ACOS关键词 (ACOS > 100%, 花费 > $5, 状态 = enabled)
     const highAcosKeywords = await db_.select({
       id: keywords.id,
@@ -284,6 +346,11 @@ async function scanHighAcos(accountId: number): Promise<DashboardRecommendationR
       .orderBy(sql`CAST(${keywords.keywordAcos} AS DECIMAL(5,2)) DESC`);
 
     for (const kw of highAcosKeywords) {
+      // v501.2: 排除已提交过竞价调整任务的关键词
+      if (processedKwIds.has(kw.id)) {
+        continue; // 跳过已处理的关键词
+      }
+
       const campaignInfo = await db_.select({
         id: campaigns.id,
         campaignName: campaigns.campaignName,
@@ -361,6 +428,11 @@ async function scanHighAcos(accountId: number): Promise<DashboardRecommendationR
       .orderBy(sql`CAST(${productTargets.targetAcos} AS DECIMAL(5,2)) DESC`);
 
     for (const pt of highAcosTargets) {
+      // v501.2: 排除已提交过竞价调整任务的商品投放
+      if (processedPtAcosIds.has(pt.id)) {
+        continue; // 跳过已处理的商品投放
+      }
+
       const campaignInfo = await db_.select({
         id: campaigns.id,
         campaignName: campaigns.campaignName,
