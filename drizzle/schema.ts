@@ -1,4 +1,4 @@
-import { mysqlTable, mysqlSchema, AnyMySqlColumn, index, unique, int, datetime, date, decimal, varchar, text, mysqlEnum, timestamp, json, time, foreignKey, tinyint } from "drizzle-orm/mysql-core"
+import { mysqlTable, mysqlSchema, AnyMySqlColumn, index, unique, uniqueIndex, int, datetime, date, decimal, varchar, text, mysqlEnum, timestamp, json, time, foreignKey, tinyint } from "drizzle-orm/mysql-core"
 import { sql } from "drizzle-orm"
 
 export const abTestCampaignAssignments = mysqlTable("ab_test_campaign_assignments", {
@@ -678,7 +678,7 @@ export const autoTargetingPerformance = mysqlTable("auto_targeting_performance",
 	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP'),
 },
 (table) => [
-	index("unique_perf").on(table.campaignId, table.adGroupId, table.targetingType, table.date),
+	uniqueIndex("unique_perf").on(table.campaignId, table.adGroupId, table.targetingType, table.date),
 ]);
 
 export const autoTargetingSettings = mysqlTable("auto_targeting_settings", {

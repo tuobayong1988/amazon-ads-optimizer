@@ -140,6 +140,7 @@ export async function getAccountPerformanceSummary(
       const endDateStr = endDate.toISOString().split('T')[0];
       
       // v426: 移除DATE()包裹，直接使用范围比较以利用idx_daily_perf_account_date索引
+      // v500: 添加campaignId IS NOT NULL过滤，排除account-level汇总记录，防止双重计算
       const [result] = await db.select({
         totalSpend: sql<number>`COALESCE(SUM(CASE WHEN spend_usd > 0 THEN spend_usd ELSE ${dailyPerformance.spend} END), 0)`,
         totalSales: sql<number>`COALESCE(SUM(CASE WHEN sales_usd > 0 THEN sales_usd ELSE ${dailyPerformance.sales} END), 0)`,
@@ -150,6 +151,8 @@ export async function getAccountPerformanceSummary(
       .from(dailyPerformance)
       .where(and(
         eq(dailyPerformance.accountId, accountId),
+        // ✅ v500: 只汇总campaign级别的记录，排除account-level汇总记录（campaignId IS NULL），避免双重计算
+        sql`${dailyPerformance.campaignId} IS NOT NULL`,
         sql`${dailyPerformance.date} >= ${startDateStr}`,
         sql`${dailyPerformance.date} < DATE_ADD(${endDateStr}, INTERVAL 1 DAY)`
       ));
@@ -230,6 +233,7 @@ export async function getDailyTrendData(
     }
     
     // v426: 移除DATE()包裹，直接使用date列进行范围比较和分组
+    // v500: 添加campaignId IS NOT NULL过滤，排除account-level汇总记录，防止趋势图数据双重计算
     const results = await db.execute(sql`
       SELECT 
         date as report_date,
@@ -238,6 +242,7 @@ export async function getDailyTrendData(
         COALESCE(SUM(orders), 0) as orders
       FROM daily_performance
       WHERE accountId IN (${safeInClause(accountIds)})
+        AND campaignId IS NOT NULL
         AND date >= ${startDateStr}
         AND date < DATE_ADD(${endDateStr}, INTERVAL 1 DAY)
       GROUP BY date

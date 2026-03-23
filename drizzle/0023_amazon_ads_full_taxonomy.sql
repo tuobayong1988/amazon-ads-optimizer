@@ -15,15 +15,14 @@ ALTER TABLE `campaigns`
   MODIFY COLUMN `bid_optimization` ENUM('reach','pageVisits','conversions','leads') DEFAULT NULL;
 
 -- Step 3: 新增SB广告受众竞价调整字段（Audience Bid Adjustments）
--- SB广告支持按受众类别调整竞价（如In-market, Lifestyle等）
+-- 使用正确的列名 placementRestBidAdjustment（驼峰命名）
 ALTER TABLE `campaigns` 
-  ADD COLUMN `sb_audience_bid_adjustment` INT DEFAULT 0 COMMENT 'SB受众竞价调整百分比(0-900)' AFTER `placement_rest_bid_adjustment`,
+  ADD COLUMN `sb_audience_bid_adjustment` INT DEFAULT 0 COMMENT 'SB受众竞价调整百分比(0-900)' AFTER `placementRestBidAdjustment`,
   ADD COLUMN `sb_placement_top_multiplier` DECIMAL(5,2) DEFAULT NULL COMMENT 'SB Top of Search版位竞价乘数' AFTER `sb_audience_bid_adjustment`,
   ADD COLUMN `sb_placement_product_multiplier` DECIMAL(5,2) DEFAULT NULL COMMENT 'SB Product Page版位竞价乘数' AFTER `sb_placement_top_multiplier`,
   ADD COLUMN `sb_placement_rest_multiplier` DECIMAL(5,2) DEFAULT NULL COMMENT 'SB Rest of Search版位竞价乘数' AFTER `sb_placement_product_multiplier`;
 
 -- Step 4: 新增SD广告优化策略字段
--- SD广告的优化策略（Optimization Strategy）决定计费和竞价模式
 ALTER TABLE `campaigns` 
   ADD COLUMN `sd_optimization_strategy` VARCHAR(50) DEFAULT NULL COMMENT 'SD优化策略: reach/page_visits/drive_page_visits/conversions/leads' AFTER `sb_placement_rest_multiplier`;
 
@@ -96,3 +95,25 @@ ALTER TABLE `sb_campaign_settings`
 -- Step 13: campaigns表新增campaignGoal索引（便于按广告目标筛选）
 CREATE INDEX `idx_campaigns_goal` ON `campaigns` (`campaign_goal`);
 CREATE INDEX `idx_campaigns_ad_format` ON `campaigns` (`ad_format`);
+
+-- ============================================================
+-- Phase 8: v500 数据完整性修复
+-- ============================================================
+
+-- Step 14: 修复auto_targeting_performance表的INDEX为UNIQUE约束
+-- 防止重复数据插入
+
+-- 先删除重复数据（保留id最小的记录）
+DELETE t1 FROM auto_targeting_performance t1
+INNER JOIN auto_targeting_performance t2
+WHERE t1.id > t2.id
+  AND t1.campaignId = t2.campaignId
+  AND t1.adGroupId = t2.adGroupId
+  AND t1.targetingType = t2.targetingType
+  AND t1.date = t2.date;
+
+-- 删除旧的普通INDEX
+DROP INDEX `unique_perf` ON `auto_targeting_performance`;
+
+-- 创建新的UNIQUE INDEX
+CREATE UNIQUE INDEX `unique_perf` ON `auto_targeting_performance` (`campaignId`, `adGroupId`, `targetingType`, `date`);
