@@ -612,12 +612,20 @@ export async function executeEmergencyBleeding(
   for (const item of selectedItems) {
     try {
       if (item.entityType === 'search_term' && item.suggestedAction === 'add_negative_exact') {
-        // 添加精准否定关键词到数据库
-        await db_.insert(
-          // @ts-expect-error - dynamic table reference
-          sql`INSERT INTO negative_keywords (account_id, campaign_id, internal_ad_group_id, negative_level, negative_type, negative_text, negative_match_type, negative_source, source_reason, negative_status)
-              VALUES (${accountId}, ${item.campaignId}, ${item.adGroupId}, 'campaign', 'keyword', ${item.entityText}, 'negative_exact', 'auto_optimization', '紧急止血-零转化高花费搜索词', 'active')`
-        );
+        // v501.3: 修复INSERT语法 - 使用标准Drizzle ORM写法（替代错误的 db_.insert(sql`...`) ）
+        await db_.insert(negativeKeywords).values({
+          accountId: accountId,
+          campaignId: item.campaignId,
+          internalAdGroupId: item.adGroupId,
+          negativeLevel: 'campaign',
+          negativeType: 'keyword',
+          negativeText: item.entityText,
+          negativeMatchType: 'negative_exact',
+          negativeSource: 'auto_optimization',
+          sourceReason: '紧急止血-零转化高花费搜索词',
+          negativeStatus: 'active',
+        });
+        log.info(`[紧急止血] 已插入否定关键词: campaignId=${item.campaignId}, text=${item.entityText}`);
 
         // v501.1: 创建Amazon API同步任务（修复字段匹配）
         syncTasks.push({
@@ -679,17 +687,19 @@ export async function executeEmergencyBleeding(
     }
   }
 
-  // 入队同步任务
+  // v501.3: 入队同步任务（添加详细日志）
   if (syncTasks.length > 0) {
     try {
+      log.info(`[紧急止血] 准备入队 ${syncTasks.length} 个同步任务, batchId=${batchId}`);
       const { enqueueTasks } = await import('../sync/optimizationSyncEngine');
-      await enqueueTasks(syncTasks as unknown[]);
-      log.info(`[紧急止血] 已入队 ${syncTasks.length} 个同步任务`);
+      const resultBatchId = await enqueueTasks(syncTasks as unknown[]);
+      log.info(`[紧急止血] ✅ 同步任务入队成功: batchId=${resultBatchId}, ${syncTasks.length}条任务`);
     } catch (err) {
-      log.warn(`[紧急止血] 同步任务入队失败: ${(err as Error).message}`);
+      log.error(`[紧急止血] ❌ 同步任务入队失败: ${(err as Error).message}`, err);
     }
   }
 
+  log.info(`[紧急止血] 执行完成: 成功=${successCount}, 失败=${failCount}`);
   return { successCount, failCount, details };
 }
 
@@ -780,17 +790,19 @@ export async function executeHighAcosSuppression(
     }
   }
 
-  // 入队同步任务
+  // v501.3: 入队同步任务（添加详细日志）
   if (syncTasks.length > 0) {
     try {
+      log.info(`[高ACOS抑制] 准备入队 ${syncTasks.length} 个同步任务, batchId=${batchId}`);
       const { enqueueTasks } = await import('../sync/optimizationSyncEngine');
-      await enqueueTasks(syncTasks as unknown[]);
-      log.info(`[高ACOS抑制] 已入队 ${syncTasks.length} 个同步任务`);
+      const resultBatchId = await enqueueTasks(syncTasks as unknown[]);
+      log.info(`[高ACOS抑制] ✅ 同步任务入队成功: batchId=${resultBatchId}, ${syncTasks.length}条任务`);
     } catch (err) {
-      log.warn(`[高ACOS抑制] 同步任务入队失败: ${(err as Error).message}`);
+      log.error(`[高ACOS抑制] ❌ 同步任务入队失败: ${(err as Error).message}`, err);
     }
   }
 
+  log.info(`[高ACOS抑制] 执行完成: 成功=${successCount}, 失败=${failCount}`);
   return { successCount, failCount, details };
 }
 
