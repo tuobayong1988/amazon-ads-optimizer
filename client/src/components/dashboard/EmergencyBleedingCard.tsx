@@ -1,7 +1,10 @@
 /**
- * 紧急止血建议卡片 v501
+ * 紧急止血建议卡片 v501.1
  * 
- * 展示零转化高花费的搜索词和商品投放，支持一键添加否定词或降低竞价。
+ * 修复：
+ * - 全选现在选中所有项目（不只是展开的5项）
+ * - 执行优化后强制清除缓存并重新扫描
+ * - 默认展开显示所有项目
  */
 import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
@@ -30,6 +33,8 @@ export function EmergencyBleedingCard({ accountId }: Props) {
   const [expanded, setExpanded] = useState(false);
   const [executing, setExecuting] = useState(false);
 
+  const utils = trpc.useUtils();
+
   const { data: scanResult, isLoading, refetch } = trpc.dashboardRecommendation.scan.useQuery(
     { accountId },
     { enabled: !!accountId, staleTime: 5 * 60 * 1000, refetchInterval: 10 * 60 * 1000 }
@@ -40,6 +45,8 @@ export function EmergencyBleedingCard({ accountId }: Props) {
       toast.success(`紧急止血完成！成功${data.successCount}项${data.failCount > 0 ? `，失败${data.failCount}项` : ''}`);
       setExecuting(false);
       setSelectedIds(new Set());
+      // v501.1: 强制清除缓存并重新扫描，确保已优化的项目从列表中消失
+      utils.dashboardRecommendation.scan.invalidate({ accountId });
       refetch();
     },
     onError: (err) => {
@@ -68,6 +75,9 @@ export function EmergencyBleedingCard({ accountId }: Props) {
     );
   }
 
+  // v501.1: 所有项目（不只是展开的5项）
+  const allItems = bleeding.items;
+
   const toggleSelect = (id: string) => {
     const next = new Set(selectedIds);
     if (next.has(id)) next.delete(id);
@@ -75,11 +85,12 @@ export function EmergencyBleedingCard({ accountId }: Props) {
     setSelectedIds(next);
   };
 
+  // v501.1: 全选/取消全选所有项目（不只是当前展开的）
   const toggleSelectAll = () => {
-    if (selectedIds.size === bleeding.items.length) {
+    if (selectedIds.size === allItems.length) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(bleeding.items.map(i => i.id)));
+      setSelectedIds(new Set(allItems.map(i => i.id)));
     }
   };
 
@@ -93,11 +104,12 @@ export function EmergencyBleedingCard({ accountId }: Props) {
     executeMutation.mutate({
       accountId,
       itemIds: ids,
-      items: bleeding.items.filter(i => ids.includes(i.id)),
+      items: allItems.filter(i => ids.includes(i.id)),
     });
   };
 
-  const displayItems = expanded ? bleeding.items : bleeding.items.slice(0, 5);
+  // 默认显示5项，展开后显示全部
+  const displayItems = expanded ? allItems : allItems.slice(0, 5);
 
   return (
     <div className="space-y-2">
@@ -115,11 +127,11 @@ export function EmergencyBleedingCard({ accountId }: Props) {
       <div className="flex items-center justify-between px-1">
         <label className="flex items-center gap-1.5 text-xs cursor-pointer">
           <Checkbox
-            checked={selectedIds.size === bleeding.items.length && bleeding.items.length > 0}
+            checked={selectedIds.size === allItems.length && allItems.length > 0}
             onCheckedChange={toggleSelectAll}
             className="h-3.5 w-3.5"
           />
-          全选 ({selectedIds.size}/{bleeding.items.length})
+          全选 ({selectedIds.size}/{allItems.length})
         </label>
         <Button
           size="sm"
@@ -182,13 +194,13 @@ export function EmergencyBleedingCard({ accountId }: Props) {
       </div>
 
       {/* 展开/收起 */}
-      {bleeding.items.length > 5 && (
+      {allItems.length > 5 && (
         <button
           className="text-[10px] text-muted-foreground hover:text-foreground flex items-center gap-0.5 px-1"
           onClick={() => setExpanded(!expanded)}
         >
           {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-          {expanded ? '收起' : `查看全部${bleeding.items.length}项`}
+          {expanded ? '收起' : `查看全部${allItems.length}项`}
         </button>
       )}
     </div>

@@ -129,8 +129,7 @@ async function scanEmergencyBleeding(accountId: number): Promise<DashboardRecomm
         sql`CAST(${searchTerms.searchTermSpend} AS DECIMAL(10,2)) > 10`,
         sql`${searchTerms.searchTermOrders} = 0`,
       ))
-      .orderBy(sql`CAST(${searchTerms.searchTermSpend} AS DECIMAL(10,2)) DESC`)
-      .limit(20);
+      .orderBy(sql`CAST(${searchTerms.searchTermSpend} AS DECIMAL(10,2)) DESC`);
 
     // 获取关联的广告活动和广告组信息
     for (const st of zeroConvSearchTerms) {
@@ -193,8 +192,7 @@ async function scanEmergencyBleeding(accountId: number): Promise<DashboardRecomm
         sql`CAST(${productTargets.spend} AS DECIMAL(10,2)) > 10`,
         sql`${productTargets.orders} = 0`,
       ))
-      .orderBy(sql`CAST(${productTargets.spend} AS DECIMAL(10,2)) DESC`)
-      .limit(20);
+      .orderBy(sql`CAST(${productTargets.spend} AS DECIMAL(10,2)) DESC`);
 
     for (const pt of zeroConvTargets) {
       const campaignInfo = await db_.select({
@@ -241,8 +239,9 @@ async function scanEmergencyBleeding(accountId: number): Promise<DashboardRecomm
     items.sort((a, b) => b.spend - a.spend);
     const totalWasted = items.reduce((sum, item) => sum + item.spend, 0);
 
+    // v501.1: 返回所有项目，不再截断，确保全选能选中所有项
     return {
-      items: items.slice(0, 15),
+      items,
       totalCount: items.length,
       totalWastedSpend: Math.round(totalWasted * 100) / 100,
     };
@@ -282,8 +281,7 @@ async function scanHighAcos(accountId: number): Promise<DashboardRecommendationR
         sql`CAST(${keywords.sales} AS DECIMAL(10,2)) > 0`,
         sql`CAST(${keywords.keywordAcos} AS DECIMAL(5,2)) > 100`,
       ))
-      .orderBy(sql`CAST(${keywords.keywordAcos} AS DECIMAL(5,2)) DESC`)
-      .limit(20);
+      .orderBy(sql`CAST(${keywords.keywordAcos} AS DECIMAL(5,2)) DESC`);
 
     for (const kw of highAcosKeywords) {
       const campaignInfo = await db_.select({
@@ -306,9 +304,14 @@ async function scanHighAcos(accountId: number): Promise<DashboardRecommendationR
       const sales = parseFloat(String(kw.sales || '0'));
       const acos = parseFloat(String(kw.keywordAcos || '0'));
       const currentBid = parseFloat(String(kw.bid || '0'));
+      // v501.1: 修复currentBid=0或acos=0时产生Infinity/NaN的bug
       // 建议竞价 = 当前竞价 × (目标ACOS 30% / 当前ACOS)，最低不低于 $0.10
-      const suggestedBid = Math.max(0.10, currentBid * (30 / acos));
-      const reductionPercent = Math.round((1 - suggestedBid / currentBid) * 100);
+      const suggestedBid = (currentBid > 0 && acos > 0) 
+        ? Math.max(0.10, currentBid * (30 / acos)) 
+        : 0.10;
+      const reductionPercent = currentBid > 0 
+        ? Math.min(99, Math.max(0, Math.round((1 - suggestedBid / currentBid) * 100)))
+        : 100; // currentBid=0时，建议竞价$0.10视为100%调整
 
       items.push({
         id: `kw-${kw.id}`,
@@ -355,8 +358,7 @@ async function scanHighAcos(accountId: number): Promise<DashboardRecommendationR
         sql`CAST(${productTargets.sales} AS DECIMAL(10,2)) > 0`,
         sql`CAST(${productTargets.targetAcos} AS DECIMAL(5,2)) > 100`,
       ))
-      .orderBy(sql`CAST(${productTargets.targetAcos} AS DECIMAL(5,2)) DESC`)
-      .limit(20);
+      .orderBy(sql`CAST(${productTargets.targetAcos} AS DECIMAL(5,2)) DESC`);
 
     for (const pt of highAcosTargets) {
       const campaignInfo = await db_.select({
@@ -379,8 +381,13 @@ async function scanHighAcos(accountId: number): Promise<DashboardRecommendationR
       const sales = parseFloat(String(pt.sales || '0'));
       const acos = parseFloat(String(pt.targetAcos || '0'));
       const currentBid = parseFloat(String(pt.bid || '0'));
-      const suggestedBid = Math.max(0.10, currentBid * (30 / acos));
-      const reductionPercent = Math.round((1 - suggestedBid / currentBid) * 100);
+      // v501.1: 修复currentBid=0或acos=0时产生Infinity/NaN的bug
+      const suggestedBid = (currentBid > 0 && acos > 0) 
+        ? Math.max(0.10, currentBid * (30 / acos)) 
+        : 0.10;
+      const reductionPercent = currentBid > 0 
+        ? Math.min(99, Math.max(0, Math.round((1 - suggestedBid / currentBid) * 100)))
+        : 100; // currentBid=0时，建议竞价$0.10视为100%调整
 
       items.push({
         id: `pt-${pt.id}`,
@@ -411,8 +418,9 @@ async function scanHighAcos(accountId: number): Promise<DashboardRecommendationR
     // 超额花费 = 花费 - 销售额 × 30%（目标ACOS）
     const totalExcess = items.reduce((sum, item) => sum + Math.max(0, item.spend - item.sales * 0.3), 0);
 
+    // v501.1: 返回所有项目，不再截断，确保全选能选中所有项
     return {
-      items: items.slice(0, 15),
+      items,
       totalCount: items.length,
       totalExcessSpend: Math.round(totalExcess * 100) / 100,
     };
@@ -475,7 +483,7 @@ async function scanGoalAdjustment(accountId: number): Promise<DashboardRecommend
     const totalUnmanagedSpend = items.reduce((sum, item) => sum + item.recent7dSpend, 0);
 
     return {
-      items: items.slice(0, 20),
+      items,  // v501.1: 返回所有项目
       totalCount: items.length,
       totalUnmanagedSpend: Math.round(totalUnmanagedSpend * 100) / 100,
     };
@@ -525,6 +533,9 @@ export async function executeEmergencyBleeding(
   let failCount = 0;
   const details: string[] = [];
   const syncTasks: Record<string, unknown>[] = [];
+  // v501.1: 生成统一的batchId
+  const { randomUUID } = await import('crypto');
+  const batchId = randomUUID();
 
   for (const item of selectedItems) {
     try {
@@ -536,18 +547,24 @@ export async function executeEmergencyBleeding(
               VALUES (${accountId}, ${item.campaignId}, ${item.adGroupId}, 'campaign', 'keyword', ${item.entityText}, 'negative_exact', 'auto_optimization', '紧急止血-零转化高花费搜索词', 'active')`
         );
 
-        // 创建Amazon API同步任务
+        // v501.1: 创建Amazon API同步任务（修复字段匹配）
         syncTasks.push({
+          batchId,
+          optimizationTargetId: 0, // 0 = 系统自动优化（非绩效组触发）
           accountId,
           taskType: 'negative_keyword',
-          targetEntityType: 'search_term',
-          targetEntityId: item.entityId,
+          targetEntityType: 'campaign', // 否定关键词添加到campaign级别
+          targetEntityId: item.campaignDbId, // 使用campaign的数据库内部ID
+          amazonEntityId: item.campaignId, // Amazon campaignId
           targetEntityName: item.entityText,
           action: 'create_negative_exact',
           newValue: item.entityText,
-          source: 'dashboard_emergency_bleeding',
+          changeReason: '紧急止血-零转化高花费搜索词',
+          algorithmUsed: 'dashboard_emergency_bleeding',
           priority: 0, // P0最高优先级
           campaignId: item.campaignDbId,
+          campaignName: item.campaignName,
+          adGroupId: item.adGroupId,
         });
 
         details.push(`✅ 已添加否定词「${item.entityText}」(花费$${item.spend.toFixed(2)})`);
@@ -560,20 +577,25 @@ export async function executeEmergencyBleeding(
           .set({ bid: String(newBid) })
           .where(eq(productTargets.id, item.entityId));
 
-        // 创建Amazon API同步任务
+        // v501.1: 创建Amazon API同步任务（修复字段匹配）
         syncTasks.push({
+          batchId,
+          optimizationTargetId: 0, // 0 = 系统自动优化
           accountId,
-          taskType: 'product_target_bid',
+          taskType: 'bid_adjustment', // v501.1: 修正为bid_adjustment（同步引擎通过target_entity_type区分）
           targetEntityType: 'product_target',
           targetEntityId: item.entityId,
           amazonEntityId: item.amazonEntityId,
           targetEntityName: item.entityText,
           action: 'adjust_bid',
           oldValue: String(item.currentBid),
-          newValue: String(newBid),
-          source: 'dashboard_emergency_bleeding',
+          newValue: String(Math.round(newBid * 100) / 100),
+          changeReason: '紧急止血-零转化商品投放降价90%',
+          algorithmUsed: 'dashboard_emergency_bleeding',
           priority: 0,
           campaignId: item.campaignDbId,
+          campaignName: item.campaignName,
+          adGroupId: item.adGroupId,
         });
 
         details.push(`✅ 已降低「${item.entityText}」竞价90%($${item.currentBid.toFixed(2)}→$${newBid.toFixed(2)})`);
@@ -615,6 +637,9 @@ export async function executeHighAcosSuppression(
   let failCount = 0;
   const details: string[] = [];
   const syncTasks: Record<string, unknown>[] = [];
+  // v501.1: 生成统一的batchId
+  const { randomUUID } = await import('crypto');
+  const batchId = randomUUID();
 
   for (const item of selectedItems) {
     try {
@@ -624,7 +649,10 @@ export async function executeHighAcosSuppression(
           .set({ bid: String(item.suggestedBid) })
           .where(eq(keywords.id, item.entityId));
 
+        // v501.1: 修复字段匹配，确保同步引擎能正确处理
         syncTasks.push({
+          batchId,
+          optimizationTargetId: 0, // 0 = 系统自动优化
           accountId,
           taskType: 'bid_adjustment',
           targetEntityType: 'keyword',
@@ -634,9 +662,12 @@ export async function executeHighAcosSuppression(
           action: 'adjust_bid',
           oldValue: String(item.currentBid),
           newValue: String(item.suggestedBid),
-          source: 'dashboard_high_acos_suppression',
+          changeReason: `高ACOS抑制-ACoS ${item.acos.toFixed(0)}%降价${item.reductionPercent}%`,
+          algorithmUsed: 'dashboard_high_acos_suppression',
           priority: 1, // P1高优先级
           campaignId: item.campaignDbId,
+          campaignName: item.campaignName,
+          adGroupId: item.adGroupId,
         });
 
         details.push(`✅ 「${item.entityText}」竞价降${item.reductionPercent}%($${item.currentBid.toFixed(2)}→$${item.suggestedBid.toFixed(2)}, ACoS:${item.acos.toFixed(0)}%)`);
@@ -647,9 +678,12 @@ export async function executeHighAcosSuppression(
           .set({ bid: String(item.suggestedBid) })
           .where(eq(productTargets.id, item.entityId));
 
+        // v501.1: 修复字段匹配，taskType统一为bid_adjustment
         syncTasks.push({
+          batchId,
+          optimizationTargetId: 0, // 0 = 系统自动优化
           accountId,
-          taskType: 'product_target_bid',
+          taskType: 'bid_adjustment', // v501.1: 修正为bid_adjustment（同步引擎通过target_entity_type区分）
           targetEntityType: 'product_target',
           targetEntityId: item.entityId,
           amazonEntityId: item.amazonEntityId,
@@ -657,9 +691,12 @@ export async function executeHighAcosSuppression(
           action: 'adjust_bid',
           oldValue: String(item.currentBid),
           newValue: String(item.suggestedBid),
-          source: 'dashboard_high_acos_suppression',
+          changeReason: `高ACOS抑制-ACoS ${item.acos.toFixed(0)}%降价${item.reductionPercent}%`,
+          algorithmUsed: 'dashboard_high_acos_suppression',
           priority: 1,
           campaignId: item.campaignDbId,
+          campaignName: item.campaignName,
+          adGroupId: item.adGroupId,
         });
 
         details.push(`✅ 「${item.entityText}」竞价降${item.reductionPercent}%($${item.currentBid.toFixed(2)}→$${item.suggestedBid.toFixed(2)}, ACoS:${item.acos.toFixed(0)}%)`);
