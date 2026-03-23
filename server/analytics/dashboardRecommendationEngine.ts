@@ -141,9 +141,10 @@ async function scanEmergencyBleeding(accountId: number): Promise<DashboardRecomm
           AND algorithm_used = 'dashboard_emergency_bleeding'
           AND status IN ('pending', 'processing', 'synced')`
     );
+    // v501.4: 修复 db_.execute() 返回值格式 — MySQL2返回 [rows[], fields[]]，需要取 [0] 获取行数据
+    const bidTaskRows = (existingBidTasks as unknown as unknown[][])[0] || [];
     const processedPtIds = new Set(
-      (existingBidTasks as unknown as {rows: {target_entity_id: number}[]}).rows?.map((r: {target_entity_id: number}) => r.target_entity_id) || 
-      (existingBidTasks as unknown as {target_entity_id: number}[])?.map?.((r: {target_entity_id: number}) => r.target_entity_id) || []
+      (bidTaskRows as {target_entity_id: number}[]).map(r => r.target_entity_id)
     );
     log.info(`[紧急止血扫描] 已有 ${processedPtIds.size} 个商品投放竞价调整任务，将排除已处理项`);
 
@@ -315,7 +316,8 @@ async function scanHighAcos(accountId: number): Promise<DashboardRecommendationR
     );
     const processedKwIds = new Set<number>();
     const processedPtAcosIds = new Set<number>();
-    const taskRows = (existingKwBidTasks as unknown as {rows?: unknown[]})?.rows || (existingKwBidTasks as unknown as unknown[]) || [];
+    // v501.4: 修复 db_.execute() 返回值格式 — MySQL2返回 [rows[], fields[]]，需要取 [0] 获取行数据
+    const taskRows = (existingKwBidTasks as unknown as unknown[][])[0] || [];
     for (const r of (taskRows as {target_entity_id: number; target_entity_type: string}[])) {
       if (r.target_entity_type === 'keyword') processedKwIds.add(r.target_entity_id);
       if (r.target_entity_type === 'product_target') processedPtAcosIds.add(r.target_entity_id);
