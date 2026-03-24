@@ -234,14 +234,23 @@ export async function executeDaypartingOptimization(
         );
       }
       
-      // v337: 分时竞价全量开启 — draft状态的策略自动分析数据并升级为active
+      // v337+v510: 分时竞价全量开启 — draft状态的策略自动分析数据并升级为active
+      // v510: 使用严格数据充分性校验替代简单的7天门槛
       if (strategy && strategy.daypartingStatus === 'draft') {
         try {
-          // 检查广告活动是否有足够数据（至少7天的每日数据）
+          // v510: 严格数据充分性校验（30天连续投放 + 50次点击 + $20花费 + 时段密度）
+          const dataValidation = await daypartingService.validateDaypartingDataSufficiency(Number(campaignAmazonId), 30);
+          
+          if (!dataValidation.isValid) {
+            dpDiag.draftInsufficient++;
+            log.info(`[DaypartingOptimization] v510: 广告活动 ${campaign.campaignName} 数据不足，保持draft | ${dataValidation.failedChecks.join('; ')} | ${dataValidation.recommendation}`);
+          }
+          
+          // 只有通过严格校验才允许升级
           const weeklyData = await daypartingService.analyzeWeeklyPerformance(Number(campaignAmazonId), 30);
           const totalDataPoints = weeklyData.reduce((sum: number, d: Record<string, unknown>) => sum + d.dataPoints, 0);
           
-          if (totalDataPoints >= 7) {
+          if (dataValidation.isValid && totalDataPoints >= 7) {
             // 有足够数据，自动分析并生成有意义的分时规则
             const hourlyData = await daypartingService.analyzeHourlyPerformance(Number(campaignAmazonId), 30);
             
@@ -290,8 +299,10 @@ export async function executeDaypartingOptimization(
               strategy.daypartingStatus = 'active';
               log.info(`[DaypartingOptimization] v337: 自动升级分时策略 strategyId=${strategy.id} 从draft→active，数据点=${totalDataPoints}，小时数据=${hourlyData.length}条`);
             }
+          } else if (!dataValidation.isValid) {
+            // v510: 数据不足，已在上方记录日志，跳过
           } else {
-            log.info(`[DaypartingOptimization] v337: 广告活动 ${campaign.campaignName} 数据不足(${totalDataPoints}<7)，保持draft状态`);
+            log.info(`[DaypartingOptimization] v510: 广告活动 ${campaign.campaignName} 数据点不足(${totalDataPoints}<7)，保持draft状态`);
           }
         } catch (upgradeErr: unknown) {
           dpDiag.draftUpgradeFailed++;
@@ -407,9 +418,10 @@ export async function executeDaypartingOptimization(
         const finalMultiplier = baseDaypartingMultiplier * comboBidMultiplier * comboTimeMultiplier;
         let adjustedBid = baseBid * finalMultiplier;
         
-        // 安全护栏: 单次调整不超过基础出价的40%
-        const maxAdjustedBid = baseBid * 1.40;
-        const minAdjustedBid = baseBid * 0.60;
+        // v510: 安全护栏收紧 — 单次分时调整不超过基础出价的20%（从±40%收紧到±20%）
+        // 原理：分时竞价是微调而非大幅调整，过大的分时波动会破坏出价稳定性
+        const maxAdjustedBid = baseBid * daypartingService.DAYPARTING_DATA_THRESHOLDS.maxBidMultiplierUp;
+        const minAdjustedBid = baseBid * daypartingService.DAYPARTING_DATA_THRESHOLDS.maxBidMultiplierDown;
         adjustedBid = Math.min(adjustedBid, maxAdjustedBid);
         adjustedBid = Math.max(adjustedBid, minAdjustedBid);
         

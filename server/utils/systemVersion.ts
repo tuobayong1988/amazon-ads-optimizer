@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 509;  // v509: event_id外键关联+同步状态自动回写+数据一致性检查器+Amazon API错误码统一映射表
+export const SYSTEM_VERSION = 510;  // v510: 稳定性与抗断崖升级 — (1)护栏收紧单次调价上限1降至15% (2)动态历史CPC底线 (3)数据断崖主动监控引擎 (4)矿渣提炼服务 (5)分时竞价严格数据门槛

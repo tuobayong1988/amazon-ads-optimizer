@@ -23,7 +23,7 @@ export const DEFAULT_GROUP_AVG_AOV = 30;
 export const DEFAULT_GROUP_AVG_CPC = 0.75;
 
 /** 单次出价调整最大变动百分比 (防止剧烈波动) */
-export const MAX_BID_CHANGE_PERCENT = 0.25;
+export const MAX_BID_CHANGE_PERCENT = 0.15; // v510: 从25%收紧至15%，落实竞价锚定原则防止位置骤降
 
 /** 探索上限绝对值 ($) */
 export const EXPLORATION_CEILING_ABSOLUTE = 3.00;

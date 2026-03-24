@@ -57,11 +57,35 @@ const DEFAULT_CONFIG: Record<string, Omit<ConfigParameter, 'updatedAt' | 'update
   // ===== 安全护栏参数 =====
   'safety.cooldown_hours': {
     key: 'safety.cooldown_hours',
-    value: 4, // v273: 从6小时降至4小时，提高优化频率避免停滞感
+    value: 72, // v510: 默认冷却期提升至72小时(3天)，尊重归因周期
     category: 'safety',
-    description: '出价调整冷却时间窗口（小时）',
-    defaultValue: 4,
-    range: { min: 1, max: 24 },
+    description: '出价调整冷却时间窗口（小时）— 默认值，SP广告使用',
+    defaultValue: 72,
+    range: { min: 24, max: 168 },
+  },
+  'safety.cooldown_hours_sp': {
+    key: 'safety.cooldown_hours_sp',
+    value: 72, // v510: SP广告3天冷却期（48h数据延迟+部分归因）
+    category: 'safety',
+    description: 'SP广告出价调整冷却时间（小时）— 7天归因窗口',
+    defaultValue: 72,
+    range: { min: 48, max: 168 },
+  },
+  'safety.cooldown_hours_sb': {
+    key: 'safety.cooldown_hours_sb',
+    value: 120, // v510: SB广告5天冷却期（14天归因窗口更长）
+    category: 'safety',
+    description: 'SB广告出价调整冷却时间（小时）— 14天归因窗口',
+    defaultValue: 120,
+    range: { min: 72, max: 168 },
+  },
+  'safety.cooldown_hours_sd': {
+    key: 'safety.cooldown_hours_sd',
+    value: 120, // v510: SD广告5天冷却期（14天归因窗口更长）
+    category: 'safety',
+    description: 'SD广告出价调整冷却时间（小时）— 14天归因窗口',
+    defaultValue: 120,
+    range: { min: 72, max: 168 },
   },
   'safety.min_adjustment_percent': {
     key: 'safety.min_adjustment_percent',
@@ -73,19 +97,19 @@ const DEFAULT_CONFIG: Record<string, Omit<ConfigParameter, 'updatedAt' | 'update
   },
   'safety.max_adjustments_per_day': {
     key: 'safety.max_adjustments_per_day',
-    value: 4, // v273: 从3次提升至4次，配合冷却期缩短提高优化吸入量
+    value: 1, // v510: 配合冷却期延长至72h+，每日最多1次调整
     category: 'safety',
     description: '24小时内最大调整次数',
-    defaultValue: 4,
-    range: { min: 1, max: 10 },
+    defaultValue: 1,
+    range: { min: 1, max: 4 },
   },
   'safety.max_cumulative_decrease_7d': {
     key: 'safety.max_cumulative_decrease_7d',
-    value: 0.20,
+    value: 0.15, // v510: 从20%收紧至15%，配合冷却期延长防止死亡螺旋
     category: 'safety',
     description: '7天内累计降价幅度上限',
-    defaultValue: 0.20,
-    range: { min: 0.10, max: 0.50 },
+    defaultValue: 0.15,
+    range: { min: 0.10, max: 0.30 },
   },
   'safety.max_consecutive_decreases': {
     key: 'safety.max_consecutive_decreases',
@@ -113,11 +137,11 @@ const DEFAULT_CONFIG: Record<string, Omit<ConfigParameter, 'updatedAt' | 'update
   },
   'safety.max_bid_change_percent': {
     key: 'safety.max_bid_change_percent',
-    value: 0.20,
+    value: 0.15, // v510: 从20%收紧至15%，防止单次调价引发位置骤降
     category: 'safety',
     description: '单次最大出价变化幅度',
-    defaultValue: 0.20,
-    range: { min: 0.05, max: 0.50 },
+    defaultValue: 0.15,
+    range: { min: 0.05, max: 0.25 },
   },
   
   // ===== 算法参数 =====

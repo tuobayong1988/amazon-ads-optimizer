@@ -71,16 +71,34 @@ const log = createModuleLogger('NextGen');
  *   3. 新增累计降价追踪：7天内累计降幅不超过30%
  *   4. 新增连续降价计数：连续3次降价后强制hold
  */
-// v272 P0-1: 从systemConfigService动态获取冷却配置，消除硬编码
-function getBidCooldownConfig() {
+// v510: 支持按广告类型获取不同的冷却期配置
+// SP广告: 72h(3天) — 7天归因窗口
+// SB/SD广告: 120h(5天) — 14天归因窗口
+function getBidCooldownConfig(adType?: string) {
+  // v510: 根据广告类型获取对应的冷却期
+  let cooldownHours: number;
+  const normalizedAdType = (adType || '').toLowerCase().replace('sponsored_', '').replace('sponsored', '');
+  switch (normalizedAdType) {
+    case 'sb':
+      cooldownHours = getConfig<number>('safety.cooldown_hours_sb');
+      break;
+    case 'sd':
+      cooldownHours = getConfig<number>('safety.cooldown_hours_sd');
+      break;
+    case 'sp':
+      cooldownHours = getConfig<number>('safety.cooldown_hours_sp');
+      break;
+    default:
+      cooldownHours = getConfig<number>('safety.cooldown_hours');
+  }
   return {
-    cooldownHours: getConfig<number>('safety.cooldown_hours'),
+    cooldownHours,
     minAdjustmentPercent: getConfig<number>('safety.min_adjustment_percent'),
     minAdjustmentAbsolute: 0.02, // 绝对值保持固定
     maxAdjustmentsPerDay: getConfig<number>('safety.max_adjustments_per_day'),
   };
 }
-// v272: 动态获取，每次调用时读取最新配置
+// v510: 默认配置（未知广告类型时使用）
 const BID_COOLDOWN_CONFIG = getBidCooldownConfig();
 
 /**
@@ -98,7 +116,7 @@ const BID_COOLDOWN_CONFIG = getBidCooldownConfig();
 const BID_CIRCUIT_BREAKER_CONFIG = {
   /** v266 P0-3: 降低熔断触发阈值，使熔断机制能真正生效 */
   /** 7天内累计降价幅度上限（百分比）：超过此值触发熔断 */
-  maxCumulativeDecreasePercent7d: 0.20, // v266: 从30%降至20%，更早触发熔断防止死亡螺旋
+  maxCumulativeDecreasePercent7d: 0.15, // v510: 从20%收紧至15%，配合冷却期延长更早触发熔断
   /** 连续降价次数上限：超过此值强制hold一个周期 */
   maxConsecutiveDecreases: 2, // v266: 从3次降至2次，连续2次降价即触发熔断
   /** 最低出价保护：出价不得低于初始出价的此比例 */
@@ -386,18 +404,38 @@ async function checkCircuitBreaker(
       };
     }
     
-    // === Layer 3: 最低出价保护 ===
-    const bidFloor = initialBid * BID_CIRCUIT_BREAKER_CONFIG.minBidFloorRatio;
-    guardrailInfo.bidFloor = bidFloor;
+    // === Layer 3: v510增强 — 动态历史CPC底线 + 固定比例底线 ===
+    // 新底线公式: Bid Floor = max(历史稳定出单期CPC × 0.85, 初始出价 × minBidFloorRatio)
+    const ratioFloor = initialBid * BID_CIRCUIT_BREAKER_CONFIG.minBidFloorRatio;
+    let dynamicFloor = ratioFloor;
+    let floorSource = 'ratio_fallback';
     
-    if (proposedBid < bidFloor) {
-      // v259: 最低保护触发时，将出价拉回到底线并小幅提升
-      const recoveryBid = bidFloor * (1 + BID_CIRCUIT_BREAKER_CONFIG.recoveryBoostPercent * 0.5);
-      guardrailInfo.recoveryMode = 'bid_floor_recovery';
+    try {
+      const { getDynamicBidFloor } = await import('../services/historicalCpcFloorService');
+      const entityType = keywordId ? 'keyword' as const : 'product_target' as const;
+      const entityId = keywordId || targetId || 0;
+      const floorResult = await getDynamicBidFloor(accountId, entityType, entityId, currentBid || 0);
+      dynamicFloor = Math.max(floorResult.dynamicFloor, ratioFloor);
+      floorSource = floorResult.source;
+      guardrailInfo.historicalCpc = floorResult.historicalCpc;
+      guardrailInfo.historicalOrders = floorResult.historicalOrders;
+      guardrailInfo.floorPeriod = floorResult.periodDescription;
+    } catch (floorErr: unknown) {
+      log.warn(`[CircuitBreaker] 动态底线查询失败，回退固定比例: ${(floorErr as Error).message}`);
+    }
+    
+    guardrailInfo.bidFloor = dynamicFloor;
+    guardrailInfo.bidFloorSource = floorSource;
+    guardrailInfo.ratioFloor = ratioFloor;
+    
+    if (proposedBid < dynamicFloor) {
+      // v510: 底线保护触发时，将出价拉回到动态底线并小幅提升
+      const recoveryBid = dynamicFloor * (1 + BID_CIRCUIT_BREAKER_CONFIG.recoveryBoostPercent * 0.5);
+      guardrailInfo.recoveryMode = 'dynamic_floor_recovery';
       guardrailInfo.recoveryBid = recoveryBid;
       return {
         tripped: true,
-        reason: `[v259熔断-底线恢复] 拟调出价$${proposedBid.toFixed(2)}低于保护底线$${bidFloor.toFixed(2)}: 恢复到$${recoveryBid.toFixed(2)}`,
+        reason: `[v510动态底线保护] 拟调出价$${proposedBid.toFixed(2)}低于动态底线$${dynamicFloor.toFixed(2)}(来源:${floorSource}): 恢复到$${recoveryBid.toFixed(2)}`,
         guardrailInfo,
       };
     }
@@ -531,7 +569,7 @@ export interface SafetyConfig {
 }
 
 const DEFAULT_SAFETY: SafetyConfig = {
-  maxBidChangePercent: 0.30,
+  maxBidChangePercent: 0.15, // v510: 从30%收紧至15%，落实竞价锚定原则
   minBid: 0.02,
   maxBid: 10.00,
   targetAcos: 0.30,
@@ -570,11 +608,9 @@ function safetyValidate(
   // 2. 单次变化幅度限制
   if (currentBid > 0) {
     const maxIncrease = currentBid * (1 + config.maxBidChangePercent);
-    // v232: 增强安全护栏 - 当提议的出价降幅超过30%时，允许最大50%的降幅以加速止损
-    // 这确保规则引擎计算的紧急降价不会被安全阀截断
-    const proposedDecrease = (currentBid - safeBid) / currentBid;
-    const decreasePercent = proposedDecrease > config.maxBidChangePercent ? 0.50 : config.maxBidChangePercent;
-    const maxDecrease = currentBid * (1 - decreasePercent);
+    // v510: 移除紧急降价放宽逻辑，严格执行15%单次降价上限
+    // 原版允许紧急降价时放宽到 50%，但这会导致位置骤降和死亡螺旋
+    const maxDecrease = currentBid * (1 - config.maxBidChangePercent);
 
     safeBid = Math.max(maxDecrease, Math.min(maxIncrease, safeBid));
   }
@@ -1099,7 +1135,7 @@ export async function calculateNextGenBid(
   
   // 使用进化参数覆盖默认安全配置（如果可用）
   const effectiveMaxChange = evolvedMaxIncrease 
-    ? Math.min(evolvedMaxIncrease, 0.50) // 安全上限50%
+    ? Math.min(evolvedMaxIncrease, 0.15) // v510: 安全上限从50%收紧至15%
     : DEFAULT_SAFETY.maxBidChangePercent;
   
   const safetyConfig: SafetyConfig = {
@@ -1316,9 +1352,29 @@ export async function calculateNextGenBid(
       finalReason += ' | v257: 调整幅度低于最小阈值，维持不变';
     }
     
+    // ===== v510: 断崖修复锁定检查 =====
+    // 如果实体正在断崖修复期间，禁止任何降价操作
+    if (safeBid < target.currentBid - 0.005) {
+      try {
+        const { isInCliffRecoveryLockdown } = await import('../services/dataCliffAutoRecoveryEngine');
+        const lockdown = await isInCliffRecoveryLockdown(
+          accountId,
+          target.type === 'keyword' ? 'keyword' : 'product_target',
+          target.id
+        );
+        if (lockdown.locked) {
+          log.info(`[NextGenOrchestrator] v510断崖锁定: target=${target.id}, ${lockdown.reason}`);
+          return buildResult(target, target.currentBid, 'cliff_lockdown_hold', 0.6,
+            `${lockdown.reason}: 维持当前出价等待流量恢复`, 'guardrail');
+        }
+      } catch (lockdownErr: unknown) {
+        log.warn(`[NextGenOrchestrator] v510断崖锁定检查异常: ${(lockdownErr as Error).message}`);
+      }
+    }
+    
     // ===== v258: 降价熔断检查 =====
     // 在规则引擎做出降价决策后，检查是否触发熔断保护
-    // 防止"死亡螺旋"：持续降价 → 曝光减少 → ACoS更高 → 继续降价
+    // 防止“死亡螺旋”：持续降价 → 曝光减少 → ACoS更高 → 继续降价
     if (safeBid < target.currentBid - 0.005) {
       const keywordId = target.type === 'keyword' ? target.id : undefined;
       const targetIdForCB = target.type === 'product_target' ? target.id : undefined;

@@ -2054,6 +2054,102 @@ export async function startOptimizationScheduler(): Promise<void> {
   } catch (defenseErr: unknown) {
     log.warn(`[OptimizationScheduler] v504: 系统防线启动失败: ${(defenseErr as Error).message}`);
   }
+
+  // v510: 数据断崖主动监控引擎 - 每6小时执行一次，启动后15分钟执行首次扫描
+  try {
+    const { scanAndRecoverDataCliffs } = await import('../services/dataCliffAutoRecoveryEngine');
+    const { getAdAccounts: getCliffAccounts } = await import('../db/accounts');
+    
+    // 首次扫描延迟15分钟
+    setTimeout(async () => {
+      try {
+        const accounts = await getCliffAccounts();
+        for (const account of (accounts as Array<{ id: number }>)) {
+          try {
+            const result = await scanAndRecoverDataCliffs(account.id);
+            if (result.cliffsDetected > 0) {
+              log.info(`[DataCliffRecovery] 账户${account.id}: 检测${result.cliffsDetected}个断崖, 修复${result.cliffsRepaired}个`);
+            }
+          } catch (accountErr: unknown) {
+            log.warn(`[DataCliffRecovery] 账户${account.id}断崖扫描失败: ${(accountErr as Error).message}`);
+          }
+        }
+      } catch (err: unknown) {
+        log.warn(`[DataCliffRecovery] 首次断崖扫描失败: ${(err as Error).message}`);
+      }
+    }, 15 * 60 * 1000);
+    
+    // 定时扫描 - 每6小时
+    optimizationIntervals.data_cliff_recovery = setInterval(async () => {
+      try {
+        const accounts = await getCliffAccounts();
+        for (const account of (accounts as Array<{ id: number }>)) {
+          try {
+            const result = await scanAndRecoverDataCliffs(account.id);
+            if (result.cliffsDetected > 0) {
+              log.info(`[DataCliffRecovery] 账户${account.id}: 检测${result.cliffsDetected}个断崖, 修复${result.cliffsRepaired}个`);
+            }
+          } catch (accountErr: unknown) {
+            log.warn(`[DataCliffRecovery] 账户${account.id}断崖扫描失败: ${(accountErr as Error).message}`);
+          }
+        }
+      } catch (err: unknown) {
+        log.warn(`[DataCliffRecovery] 定时断崖扫描失败: ${(err as Error).message}`);
+      }
+    }, 6 * 3600 * 1000) as unknown as ReturnType<typeof setInterval>;
+    
+    log.info(`[OptimizationScheduler] v510: 数据断崖主动监控已启动，间隔: 6小时，首次执行: 15分钟后`);
+  } catch (cliffErr: unknown) {
+    log.warn(`[OptimizationScheduler] v510: 数据断崖监控启动失败: ${(cliffErr as Error).message}`);
+  }
+
+  // v510: 历史数据主动回溯与矿渣提炼 - 每周执行一次，启动后30分钟执行首次扫描
+  try {
+    const { scanAndRecoverDormantTargets } = await import('../services/historicalDataRecoveryService');
+    const { getAdAccounts: getRecoveryAccounts } = await import('../db/accounts');
+    
+    // 首次扫描延迟30分钟
+    setTimeout(async () => {
+      try {
+        const accounts = await getRecoveryAccounts();
+        for (const account of (accounts as Array<{ id: number }>)) {
+          try {
+            const result = await scanAndRecoverDormantTargets(account.id);
+            if (result.recovered > 0) {
+              log.info(`[HistoricalRecovery] 账户${account.id}: 发现${result.candidatesFound}个候选, 恢复${result.recovered}个`);
+            }
+          } catch (accountErr: unknown) {
+            log.warn(`[HistoricalRecovery] 账户${account.id}矿渣提炼失败: ${(accountErr as Error).message}`);
+          }
+        }
+      } catch (err: unknown) {
+        log.warn(`[HistoricalRecovery] 首次矿渣提炼失败: ${(err as Error).message}`);
+      }
+    }, 30 * 60 * 1000);
+    
+    // 定时扫描 - 每7天（168小时）
+    optimizationIntervals.historical_recovery = setInterval(async () => {
+      try {
+        const accounts = await getRecoveryAccounts();
+        for (const account of (accounts as Array<{ id: number }>)) {
+          try {
+            const result = await scanAndRecoverDormantTargets(account.id);
+            if (result.recovered > 0) {
+              log.info(`[HistoricalRecovery] 账户${account.id}: 发现${result.candidatesFound}个候选, 恢复${result.recovered}个`);
+            }
+          } catch (accountErr: unknown) {
+            log.warn(`[HistoricalRecovery] 账户${account.id}矿渣提炼失败: ${(accountErr as Error).message}`);
+          }
+        }
+      } catch (err: unknown) {
+        log.warn(`[HistoricalRecovery] 定时矿渣提炼失败: ${(err as Error).message}`);
+      }
+    }, 7 * 24 * 3600 * 1000) as unknown as ReturnType<typeof setInterval>;
+    
+    log.info(`[OptimizationScheduler] v510: 矿渣提炼服务已启动，间隔: 7天，首次执行: 30分钟后`);
+  } catch (recoveryErr: unknown) {
+    log.warn(`[OptimizationScheduler] v510: 矿渣提炼服务启动失败: ${(recoveryErr as Error).message}`);
+  }
 }
 
 /**

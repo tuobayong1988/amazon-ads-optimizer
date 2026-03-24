@@ -37,19 +37,19 @@ import {
 
 /** 渐进式竞价调整配置 */
 export const GRADUAL_BID_CONFIG = {
-  // 单次最大调整幅度（按数据置信度分级）
+  // v510: 单次最大调整幅度（按数据置信度分级）— 全面收紧落实竞价锚定原则
   maxChangeByConfidence: {
-    high: 0.18,         // 高置信度：最多18%
-    medium: 0.10,       // 中置信度：最多10%
-    low: 0.06,          // 低置信度：最多6%
-    insufficient: 0.03, // 数据不足：最多3%
+    high: 0.12,         // v510: 高置信度从18%收紧至12%
+    medium: 0.08,       // v510: 中置信度从10%收紧至8%
+    low: 0.04,          // v510: 低置信度从6%收紧至4%
+    insufficient: 0.02, // v510: 数据不足从3%收紧至2%
   },
   // 连续同向调整降速因子
   consecutiveSameDirectionDampening: 0.80, // 每次连续同向调整，幅度降低20%
   // 最大连续同向调整次数（超过后暂停该方向调整）
   maxConsecutiveSameDirection: 5,
-  // 降价保守系数（降价幅度 = 提价幅度 × 此系数）
-  decreaseCaution: 0.70,
+  // v510: 降价保守系数从0.70收紧至0.60，降价更保守以保护流量基本盘
+  decreaseCaution: 0.60,
 };
 
 /** 渐进式预算调整配置 */

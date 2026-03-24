@@ -926,3 +926,150 @@ export async function getHourlyRule(
     isEnabled: (rule as Record<string, unknown>).ruleEnabled ?? true
   };
 }
+
+
+// ==================== v510: 分时竞价严格数据门槛 ====================
+
+/**
+ * v510: 分时竞价数据充分性校验
+ * 
+ * 核心原则：分时竞价是基于时间维度的精细化操作，
+ * 如果数据量不足，分时分析的结论将充满统计噪声，
+ * 强行分时不仅无法提升效果，反而会引入不必要的波动。
+ * 
+ * 严格前置条件：
+ * 1. 连续投放天数 >= 30天（确保覆盖完整的周期模式）
+ * 2. 总点击数 >= 50次（确保有足够的转化信号）
+ * 3. 总花费 >= $20（确保广告活动有实质性投放）
+ * 4. 每个时段平均数据点 >= 3（确保每个2小时时段至少有3天数据）
+ */
+export const DAYPARTING_DATA_THRESHOLDS = {
+  /** 最少连续投放天数 */
+  minContinuousDays: 30,
+  /** 最少总点击数 */
+  minTotalClicks: 50,
+  /** 最少总花费（美元） */
+  minTotalSpend: 20,
+  /** 每个时段最少数据点数 */
+  minDataPointsPerSlot: 3,
+  /** 分时调整最大上浮比例（从±40%收紧到±20%） */
+  maxBidMultiplierUp: 1.20,
+  /** 分时调整最大下浮比例 */
+  maxBidMultiplierDown: 0.80,
+};
+
+export interface DaypartingDataValidation {
+  isValid: boolean;
+  continuousDays: number;
+  totalClicks: number;
+  totalSpend: number;
+  avgDataPointsPerSlot: number;
+  failedChecks: string[];
+  recommendation: string;
+}
+
+/**
+ * v510: 校验广告活动是否满足分时竞价的数据充分性要求
+ */
+export async function validateDaypartingDataSufficiency(
+  campaignId: number,
+  lookbackDays: number = 30
+): Promise<DaypartingDataValidation> {
+  const db = await getDb();
+  const failedChecks: string[] = [];
+  
+  if (!db) {
+    return {
+      isValid: false,
+      continuousDays: 0,
+      totalClicks: 0,
+      totalSpend: 0,
+      avgDataPointsPerSlot: 0,
+      failedChecks: ['数据库不可用'],
+      recommendation: '数据库连接失败，无法校验',
+    };
+  }
+  
+  const amazonCampaignId = await resolveAmazonCampaignId(campaignId);
+  
+  // 1. 查询连续投放天数和总体数据
+  const summaryResult = await db.execute(sql`
+    SELECT 
+      COUNT(DISTINCT DATE(report_date)) as active_days,
+      SUM(CAST(clicks AS UNSIGNED)) as total_clicks,
+      SUM(CAST(spend AS DECIMAL(10,2))) as total_spend,
+      MIN(report_date) as first_date,
+      MAX(report_date) as last_date
+    FROM daily_performance
+    WHERE campaign_id = ${amazonCampaignId}
+      AND report_date >= DATE_SUB(CURDATE(), INTERVAL ${lookbackDays + ATTRIBUTION_DELAY_DAYS} DAY)
+      AND report_date <= DATE_SUB(CURDATE(), INTERVAL ${ATTRIBUTION_DELAY_DAYS} DAY)
+  `);
+  
+  const rows = Array.isArray(summaryResult) ? (Array.isArray(summaryResult[0]) ? summaryResult[0] : summaryResult) : [];
+  const summary = (rows as Array<Record<string, unknown>>)[0] || {};
+  
+  const continuousDays = Number(summary.active_days) || 0;
+  const totalClicks = Number(summary.total_clicks) || 0;
+  const totalSpend = Number(summary.total_spend) || 0;
+  
+  // 2. 查询每个时段的数据点数
+  const hourlyResult = await db.execute(sql`
+    SELECT 
+      day_of_week, hour,
+      COUNT(*) as data_points
+    FROM hourly_performance
+    WHERE campaign_id = ${amazonCampaignId}
+      AND date >= DATE_SUB(CURDATE(), INTERVAL ${lookbackDays + ATTRIBUTION_DELAY_DAYS} DAY)
+      AND date <= DATE_SUB(CURDATE(), INTERVAL ${ATTRIBUTION_DELAY_DAYS} DAY)
+    GROUP BY day_of_week, hour
+  `);
+  
+  const hourlyRows = Array.isArray(hourlyResult) ? (Array.isArray(hourlyResult[0]) ? hourlyResult[0] : hourlyResult) : [];
+  const hourlyDataPoints = (hourlyRows as Array<Record<string, unknown>>).map(r => Number(r.data_points) || 0);
+  const avgDataPointsPerSlot = hourlyDataPoints.length > 0 
+    ? hourlyDataPoints.reduce((sum, dp) => sum + dp, 0) / (7 * 12) // 7天×12个2小时时段
+    : 0;
+  
+  // 3. 逐项校验
+  const thresholds = DAYPARTING_DATA_THRESHOLDS;
+  
+  if (continuousDays < thresholds.minContinuousDays) {
+    failedChecks.push(`投放天数不足: ${continuousDays}天 < ${thresholds.minContinuousDays}天`);
+  }
+  
+  if (totalClicks < thresholds.minTotalClicks) {
+    failedChecks.push(`总点击不足: ${totalClicks}次 < ${thresholds.minTotalClicks}次`);
+  }
+  
+  if (totalSpend < thresholds.minTotalSpend) {
+    failedChecks.push(`总花费不足: $${totalSpend.toFixed(2)} < $${thresholds.minTotalSpend}`);
+  }
+  
+  if (avgDataPointsPerSlot < thresholds.minDataPointsPerSlot) {
+    failedChecks.push(`时段数据密度不足: 平均${avgDataPointsPerSlot.toFixed(1)}点/时段 < ${thresholds.minDataPointsPerSlot}点/时段`);
+  }
+  
+  const isValid = failedChecks.length === 0;
+  
+  let recommendation = '';
+  if (isValid) {
+    recommendation = '数据充分，可以启用分时竞价';
+  } else if (continuousDays < 14) {
+    recommendation = `广告活动投放时间过短(${continuousDays}天)，建议至少投放30天后再启用分时竞价`;
+  } else if (totalClicks < 20) {
+    recommendation = `点击量过少(${totalClicks}次)，当前数据无法支撑分时分析，建议先优化基础出价提升流量`;
+  } else {
+    recommendation = `数据量接近门槛但尚未达标，建议继续积累${thresholds.minContinuousDays - continuousDays}天数据后再启用`;
+  }
+  
+  return {
+    isValid,
+    continuousDays,
+    totalClicks,
+    totalSpend,
+    avgDataPointsPerSlot,
+    failedChecks,
+    recommendation,
+  };
+}

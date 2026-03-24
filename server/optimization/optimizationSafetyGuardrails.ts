@@ -25,8 +25,8 @@ import { getGuardrailConfigService, type AdType } from '../services/guardrailCon
 
 export const SAFETY_LIMITS = {
   bid: {
-    maxSingleChangePercent: 0.20,     // 单次最大调整幅度 20%
-    maxDailyChangePercent: 0.30,      // 每日累计最大调整幅度 30%
+    maxSingleChangePercent: 0.15,     // v510: 单次最大调整幅度从20%收紧至15%
+    maxDailyChangePercent: 0.25,      // v510: 每日累计最大调整幅度从30%收紧至25%
     minBid: 0.02,                     // 最低出价 $0.02
     maxBid: 100,                      // 最高出价 $100（绝对上限）
     consecutiveSameDirectionSlowdown: 3, // 连续同方向调整N次后降速

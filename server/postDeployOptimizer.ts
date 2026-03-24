@@ -77,6 +77,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 510,
+    description: 'v510: [稳定性与抗断崖架构升级] — (1)P0-护栏收紧: 单次调价上限从25%/20%/30%统一降至15%,7天累计降幅上限从20%降至15%,冷却期区分SP(72h)/SB-SD(120h) (2)P0-动态历史CPC底线: 查询30-90天历史出单期CPC作为动态底线,替代固定比例底线 (3)P0-数据断崖主动监控引擎: 每6小时扫描所有账户,远期(30-90天)vs近期(7天)对比检测断崖,三段式阶梯恢复(70%→85%→100%历史CPC),断崖修复期7天内禁止降价 (4)P1-矿渣提炼服务: 每周扫描历史订单>=10但近30天零订单且出价被压制的投放词,渐进式恢复出价至历史CPC×85% (5)P1-分时竞价严格数据门槛: draft→active升级门槛从7天提高到30天连续投放+50次点击+$20花费,分时调整范围从±40%收紧到±20%',
+    affectedModules: ['bid', 'optimization', 'dayparting'],
+    correctionActions: ['rerun_optimization'],
+  },
+  {
     version: 509,
     description: 'v509: [同步状态自动回写架构] — (1)P0-event_id外键: optimization_tasks新增 event_id列建立与optimization_events的精确关联，同步完成时自动回写events状态 (2)P0-数据一致性检查器: 每2小时扫描pending超24小时的记录，通过event_id和keyword_id匹配自动修复状态 (3)P0-Amazon API错误码统一映射表: 替代同步引擎中9处硬编码字符串匹配，统一归类处理entityNotFoundError/malformedValueError等错误 (4)P1-历史数据回填: 迁移时自动匹配7天内的tasks和events并回填event_id，立即回写synced/permanently_failed状态',
     affectedModules: ['sync'],
