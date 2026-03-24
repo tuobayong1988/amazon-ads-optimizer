@@ -1403,7 +1403,8 @@ type OptimizationTaskType =
   | 'nextgen_model_training'
   | 'nextgen_budget_optimization'
   | 'ab_test_metrics'  // v267 P2-2: A/B测试每日指标收集
-  | 'auto_stop_loss';  // v503: 自动止血扫描
+  | 'auto_stop_loss'  // v503: 自动止血扫描
+  | 'system_defense';  // v504: 系统防线全量扫描
 
 interface OptimizationScheduleConfig {
   type: OptimizationTaskType;
@@ -1513,9 +1514,16 @@ const OPTIMIZATION_SCHEDULE: Record<OptimizationTaskType, OptimizationScheduleCo
   auto_stop_loss: {
     type: 'auto_stop_loss',
     description: 'v503: 自动止血扫描 - 高ACoS Campaign暂停、搜索词自动否定、重新激活防护、数据悬崖修复',
-    intervalMs: 4 * 60 * 60 * 1000, // 每4小时执行一次
-    cronHours: [], // 纯间隔驱动
-    specificModules: [], // 独立执行，不走优化目标引擎
+    intervalMs: 4 * 60 * 60 * 1000,
+    cronHours: [],
+    specificModules: [],
+  },
+  system_defense: {
+    type: 'system_defense',
+    description: 'v504: 系统防线全量扫描 - 同步清理、算法熔断、死亡螺旋干预、紧急优化',
+    intervalMs: 6 * 60 * 60 * 1000, // 每6小时执行一次
+    cronHours: [],
+    specificModules: [],
   },
 };
 
@@ -1536,6 +1544,7 @@ let optimizationIntervals: Record<OptimizationTaskType, NodeJS.Timeout | null> =
   nextgen_budget_optimization: null,
   ab_test_metrics: null,  // v267 P2-2
   auto_stop_loss: null,  // v503
+  system_defense: null,  // v504
 };
 
 // v122: 执行锁 - 防止同一任务重复执行
@@ -1985,6 +1994,35 @@ export async function startOptimizationScheduler(): Promise<void> {
     log.info(`[OptimizationScheduler] v503: 自动止血扫描已启动，间隔: ${OPTIMIZATION_SCHEDULE.auto_stop_loss.intervalMs / 3600000}小时，首次执行: 5分钟后`);
   } catch (stopLossErr: unknown) {
     log.warn(`[OptimizationScheduler] v503: 自动止血服务启动失败: ${(stopLossErr as Error).message}`);
+  }
+
+  // v504: 系统防线全量扫描
+  try {
+    const { runSystemDefenseScan } = await import('../system/systemDefenseService');
+    
+    // 首次扫描: 服务启动后10分钟执行
+    setTimeout(async () => {
+      try {
+        const scanResult = await runSystemDefenseScan();
+        log.info(`[SystemDefense] 首次扫描完成: ${scanResult.summary}`);
+      } catch (firstErr: unknown) {
+        log.warn(`[SystemDefense] 首次扫描失败: ${(firstErr as Error).message}`);
+      }
+    }, 10 * 60 * 1000);
+
+    // 定时扫描: 每6小时执行一次
+    optimizationIntervals.system_defense = setInterval(async () => {
+      try {
+        const scanResult = await runSystemDefenseScan();
+        log.info(`[SystemDefense] 定时扫描完成: ${scanResult.summary}`);
+      } catch (err: unknown) {
+        log.warn(`[SystemDefense] 定时扫描失败: ${(err as Error).message}`);
+      }
+    }, OPTIMIZATION_SCHEDULE.system_defense.intervalMs);
+
+    log.info(`[OptimizationScheduler] v504: 系统防线已启动，间隔: ${OPTIMIZATION_SCHEDULE.system_defense.intervalMs / 3600000}小时，首次执行: 10分钟后`);
+  } catch (defenseErr: unknown) {
+    log.warn(`[OptimizationScheduler] v504: 系统防线启动失败: ${(defenseErr as Error).message}`);
   }
 }
 

@@ -534,7 +534,35 @@ export async function executeBidOptimization(
           log.info(`[BidOptimization] v434: keyword ${nextGenResult.targetId} bid $${nextGenResult.newBid.toFixed(2)} 超出${kwAdTypeKey}约束[$${kwConstraint.minBid}~$${kwConstraint.maxBid}]，调整为$${finalBid} (marketplace=${campMarketplace})`);
         }
         
+        // v504: 系统防线检查 — 阻止死亡螺旋/紧急模式下的加价操作，阻止被熔断算法的操作
         if (nextGenResult.actionType !== 'hold' && Math.abs(finalBid - nextGenResult.previousBid) > 0.01) {
+          // v504: 如果是加价操作，检查是否被系统防线阻止
+          if (finalBid > nextGenResult.previousBid) {
+            try {
+              const { isAccountBidIncreaseBlocked } = await import('../system/systemDefenseService');
+              const blockCheck = await isAccountBidIncreaseBlocked(config.accountId);
+              if (blockCheck.blocked) {
+                log.info(`[BidOptimization] v504: 系统防线阻止加价 - keyword ${nextGenResult.targetId} $${nextGenResult.previousBid}→$${finalBid} 被阻止. 原因: ${blockCheck.reason}`);
+                continue; // 跳过此加价操作
+              }
+            } catch (defenseErr) {
+              // 防线检查失败不阻塞正常流程
+              log.warn(`[BidOptimization] v504: 系统防线检查异常: ${(defenseErr as Error).message}`);
+            }
+          }
+          // v504: 检查算法是否被熔断
+          if (nextGenResult.algorithmUsed) {
+            try {
+              const { isAlgorithmCircuitBroken } = await import('../system/systemDefenseService');
+              const isBroken = await isAlgorithmCircuitBroken(nextGenResult.algorithmUsed);
+              if (isBroken) {
+                log.info(`[BidOptimization] v504: 算法${nextGenResult.algorithmUsed}已熔断，跳过其出价建议 - keyword ${nextGenResult.targetId}`);
+                continue; // 跳过被熔断算法的操作
+              }
+            } catch (algoErr) {
+              log.warn(`[BidOptimization] v504: 算法熔断检查异常: ${(algoErr as Error).message}`);
+            }
+          }
           const keyword = keywords.find(k => k.id === nextGenResult.targetId);
           details.push({
             keywordId: nextGenResult.targetId,
@@ -625,6 +653,26 @@ export async function executeBidOptimization(
         }
         
         if (nextGenResult.actionType !== 'hold' && Math.abs(finalBid - nextGenResult.previousBid) > 0.01) {
+          // v504: 系统防线检查 — 商品定向加价也需要检查
+          if (finalBid > nextGenResult.previousBid) {
+            try {
+              const { isAccountBidIncreaseBlocked } = await import('../system/systemDefenseService');
+              const blockCheck = await isAccountBidIncreaseBlocked(config.accountId);
+              if (blockCheck.blocked) {
+                log.info(`[BidOptimization] v504: 系统防线阻止商品定向加价 - target ${nextGenResult.targetId} 被阻止`);
+                continue;
+              }
+            } catch { /* 防线检查失败不阻塞 */ }
+          }
+          if (nextGenResult.algorithmUsed) {
+            try {
+              const { isAlgorithmCircuitBroken } = await import('../system/systemDefenseService');
+              if (await isAlgorithmCircuitBroken(nextGenResult.algorithmUsed)) {
+                log.info(`[BidOptimization] v504: 算法${nextGenResult.algorithmUsed}已熔断，跳过商品定向 - target ${nextGenResult.targetId}`);
+                continue;
+              }
+            } catch { /* 熔断检查失败不阻塞 */ }
+          }
           const target = allTargets.find(t => t.id === nextGenResult.targetId);
           details.push({
             keywordId: nextGenResult.targetId, // v230: 保持向后兼容，商品定向也用keywordId字段传递本地ID
