@@ -3035,41 +3035,46 @@ async function backfillNegativeKeywordIds(database: unknown, accountId: number):
       return results;
     }
     
-    // 收集所有涉及的campaignId，并建立本地ID到Amazon ID的映射
-    const localCampaignIds = [...new Set(missingIdRows.map((r: Record<string, unknown>) => r.campaignId).filter(Boolean))];
-    const localToAmazonCampaignIdMap = new Map<number, string>(); // localId -> amazonCampaignId
-    for (const rawId of localCampaignIds) {
-      const localId = Number(rawId);
-      if (isNaN(localId)) continue;
+    // v507: 收集所有涉及的campaignId，并建立到Amazon Campaign ID的映射
+    // 注意: negative_keywords.campaignId 存储的是 Amazon Campaign ID (varchar)，不是本地自增ID
+    const rawCampaignIds = [...new Set(missingIdRows.map((r: Record<string, unknown>) => r.campaignId).filter(Boolean))];
+    const campaignIdToAmazonIdMap = new Map<string, string>(); // rawCampaignId(string) -> amazonCampaignId
+    for (const rawId of rawCampaignIds) {
+      const rawIdStr = String(rawId);
       
-      // v458: 先尝试作为内部ID查找，再尝试作为Amazon ID查找
-      const campRows = await database
-        .select({ campaignId: campaigns.campaignId })
+      // v507: 优先作为Amazon Campaign ID查找（这是最常见的情况）
+      const campByAmazonId = await database
+        .select({ id: campaigns.id, campaignId: campaigns.campaignId })
         .from(campaigns)
-        .where(eq(campaigns.id, localId))
+        .where(eq(campaigns.campaignId, rawIdStr))
         .limit(1);
-      if (campRows.length > 0 && campRows[0].campaignId) {
-        localToAmazonCampaignIdMap.set(localId, String(campRows[0].campaignId));
-        log.debug(`v203: 否定词回塬campaignId解析: localId=${localId} -> amazonId=${campRows[0].campaignId}`);
+      if (campByAmazonId.length > 0 && campByAmazonId[0].campaignId) {
+        campaignIdToAmazonIdMap.set(rawIdStr, String(campByAmazonId[0].campaignId));
+        log.debug(`v507: 否定词回填campaignId解析(Amazon ID匹配): rawId=${rawIdStr} -> amazonId=${campByAmazonId[0].campaignId}`);
       } else {
-        // v458: rawId可能已经是Amazon campaignId（字符串），直接用它查找
-        const campByAmazonId = await database
-          .select({ id: campaigns.id, campaignId: campaigns.campaignId })
-          .from(campaigns)
-          .where(eq(campaigns.campaignId, String(rawId)))
-          .limit(1);
-        if (campByAmazonId.length > 0 && campByAmazonId[0].campaignId) {
-          localToAmazonCampaignIdMap.set(localId, String(campByAmazonId[0].campaignId));
-          log.debug(`v458: 否定词回塬campaignId解析(通过Amazon ID): rawId=${rawId} -> amazonId=${campByAmazonId[0].campaignId}`);
+        // fallback: 尝试作为本地自增ID查找
+        const localId = Number(rawId);
+        if (!isNaN(localId) && localId > 0 && localId < 2147483647) {
+          const campRows = await database
+            .select({ campaignId: campaigns.campaignId })
+            .from(campaigns)
+            .where(eq(campaigns.id, localId))
+            .limit(1);
+          if (campRows.length > 0 && campRows[0].campaignId) {
+            campaignIdToAmazonIdMap.set(rawIdStr, String(campRows[0].campaignId));
+            log.debug(`v507: 否定词回填campaignId解析(本地ID匹配): localId=${localId} -> amazonId=${campRows[0].campaignId}`);
+          } else {
+            log.warn(`v507: 否定词回填campaignId解析失败: rawId=${rawIdStr} 在campaigns表中不存在`);
+          }
         } else {
-          log.warn(`v203: 否定词回塬campaignId解析失败: localId=${localId} 在campaigns表中不存在或无Amazon ID`);
+          log.warn(`v507: 否定词回填campaignId解析失败: rawId=${rawIdStr} 既不是有效的Amazon ID也不是有效的本地ID`);
         }
       }
     }
     
     // 从Amazon查询每个campaign的否定词列表
     const amazonNegMap = new Map<string, string>(); // key: amazonCampaignId:text:matchType -> amazonId
-    for (const [localId, amazonCampaignId] of localToAmazonCampaignIdMap.entries()) {
+    for (const [rawId, amazonCampaignId] of campaignIdToAmazonIdMap.entries()) {
       try {
         const existing = await (syncService as Record<string, unknown>).client.listSpCampaignNegativeKeywords(amazonCampaignId);
         for (const neg of existing) {
@@ -3079,15 +3084,16 @@ async function backfillNegativeKeywordIds(database: unknown, accountId: number):
           }
         }
       } catch (listErr: unknown) {
-          log.warn(`v203: 查询campaign localId=${localId} amazonId=${amazonCampaignId} 否定词失败: ${(listErr as Error).message}`);
+          log.warn(`v507: 查询campaign rawId=${rawId} amazonId=${amazonCampaignId} 否定词失败: ${(listErr as Error).message}`);
       }
     }
     
     // 匹配并回填
     for (const row of (missingIdRows as unknown[])) {
-      const amazonCampaignId = localToAmazonCampaignIdMap.get(row.campaignId);
+      // v507: 使用String确保类型一致（raw SQL返回的campaignId可能是string或number）
+      const amazonCampaignId = campaignIdToAmazonIdMap.get(String(row.campaignId));
       if (!amazonCampaignId) {
-        log.warn(`v203: 跳过否定词回填: id=${row.id}, localCampaignId=${row.campaignId} 无法解析Amazon ID`);
+        log.warn(`v507: 跳过否定词回填: id=${row.id}, campaignId=${row.campaignId} 无法解析Amazon Campaign ID`);
         continue;
       }
       const matchType = (row.negativeMatchType || '').replace('negative_', 'negative').toLowerCase();

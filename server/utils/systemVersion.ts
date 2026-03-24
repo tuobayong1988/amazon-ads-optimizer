@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 506;  // v506: 修复SB关键词adGroupId缺失 - 通过JOIN ad_groups表获取Amazon adGroupId
+export const SYSTEM_VERSION = 507;  // v507: 修复否定词回填ID类型不匹配 - Map key从Number改为String，优先用Amazon Campaign ID查找

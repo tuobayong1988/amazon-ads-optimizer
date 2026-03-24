@@ -77,6 +77,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 507,
+    description: 'v507: [否定词回填ID类型不匹配修复] — (1)P0-backfillNegativeKeywordIds中Map key类型不匹配: negative_keywords.campaignId存储的是Amazon Campaign ID(varchar)，但回填代码用Number()转换后作为Map key，而查找时用原始campaignId(string)做Map.get()，严格相等导致永远不匹配 (2)P0-查找顺序优化: 从eq(campaigns.id, localId)优先改为eq(campaigns.campaignId, rawIdStr)优先，因为否定词表中存储的是Amazon ID而非本地自增ID (3)P1-日志改进: 更新所有回填日志为v507前缀，明确区分Amazon ID匹配和本地ID匹配路径',
+    affectedModules: ['optimization', 'sync'],
+    correctionActions: ['rerun_optimization'],
+  },
+  {
     version: 506,
     description: 'v506: [SB关键词adGroupId缺失修复] — (1)P0-amazonApiHelper的syncBidAdjustmentsToAmazon: keywords表的adGroupId列在v418迁移中已重命名为internal_ad_group_id(int)，但代码仍引用不存在的keywords.adGroupId导致所有SB关键词出价同步失败。修复为通过LEFT JOIN ad_groups表获取Amazon adGroupId (2)P0-这是同步失败数从4275增加到5433的根本原因: 纠错器每次重试SB关键词都因缺少adGroupId而失败，产生新的失败记录',
     affectedModules: ['sync', 'bid'],
