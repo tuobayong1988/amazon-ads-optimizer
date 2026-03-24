@@ -27,7 +27,7 @@ export interface BidAction {
   adGroupId?: number;
   bidBefore: number;
   bidAfter: number;
-  actionSource: 'rule_based' | 'ucb' | 'linucb' | 'cql' | 'manual';
+  actionSource: 'rule_based' | 'ucb' | 'linucb' | 'cql' | 'manual' | 'cold_start';
 }
 
 export interface StateSnapshot {

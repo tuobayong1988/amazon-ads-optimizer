@@ -77,6 +77,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 511,
+    description: 'v511: [冷启动智能出价引擎升级] — (1)P0-多级动态锚点冷启动出价: 重写suggestedBidColdStartEngine实现四级出价策略(AdGroup优质词CPC→Campaign优质词CPC→贝叶斯平滑→动态系数探索),支持匹配类型/广告类型动态系数调整 (2)P0-同活动优质词CPC参考: 优先参考同AdGroup/Campaign内已出单且投产较好的投放词的实际CPC作为出价锚点 (3)P0-贝叶斯平滑活动级先验: bayesianBidSmoothingEngine升级支持Campaign级先验构建,优先使用同活动数据而非账户级数据 (4)P1-RL数据记录器升级: actionSource新增cold_start类型,实现冷启动出价的完整强化学习闭环追踪',
+    affectedModules: ['bid', 'optimization'],
+    correctionActions: ['rerun_optimization'],
+  },
+  {
     version: 510,
     description: 'v510: [稳定性与抗断崖架构升级] — (1)P0-护栏收紧: 单次调价上限从25%/20%/30%统一降至15%,7天累计降幅上限从20%降至15%,冷却期区分SP(72h)/SB-SD(120h) (2)P0-动态历史CPC底线: 查询30-90天历史出单期CPC作为动态底线,替代固定比例底线 (3)P0-数据断崖主动监控引擎: 每6小时扫描所有账户,远期(30-90天)vs近期(7天)对比检测断崖,三段式阶梯恢复(70%→85%→100%历史CPC),断崖修复期7天内禁止降价 (4)P1-矿渣提炼服务: 每周扫描历史订单>=10但近30天零订单且出价被压制的投放词,渐进式恢复出价至历史CPC×85% (5)P1-分时竞价严格数据门槛: draft→active升级门槛从7天提高到30天连续投放+50次点击+$20花费,分时调整范围从±40%收紧到±20%',
     affectedModules: ['bid', 'optimization', 'dayparting'],

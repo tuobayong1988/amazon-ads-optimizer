@@ -106,10 +106,24 @@ export async function estimateKeywordBid(
   matchType?: string,
   campaignType?: string,
   entityPerformance?: { impressions: number; clicks: number; spend: number; sales: number; orders: number },
+  campaignId?: string,
 ): Promise<BayesianBidEstimate> {
   try {
-    // Step 1: 构建先验分布 — 从同账户同匹配类型的关键词中收集
-    const prior = await buildKeywordPrior(accountId, matchType);
+    // v511: 优先使用活动级先验（更精确），回退到账户级先验
+    let prior: BayesianPrior | null = null;
+    
+    // Step 1a: 尝试活动级先验
+    if (campaignId) {
+      prior = await buildCampaignLevelKeywordPrior(accountId, campaignId, matchType);
+      if (prior) {
+        log.info(`[BayesianBidSmoothing] 使用活动级先验: ${prior.source}`);
+      }
+    }
+    
+    // Step 1b: 活动级先验不足，回退到账户级先验
+    if (!prior || prior.priorSampleCount < 3) {
+      prior = await buildKeywordPrior(accountId, matchType);
+    }
     
     if (!prior || prior.priorSampleCount < BAYESIAN_CONFIG.MIN_PRIOR_SAMPLES) {
       return createFailedEstimate(currentBid, '同类关键词数据不足，无法构建有效先验');
@@ -133,9 +147,22 @@ export async function estimateProductTargetBid(
   currentBid: number,
   targetType?: string,
   entityPerformance?: { impressions: number; clicks: number; spend: number; sales: number; orders: number },
+  campaignId?: string,
 ): Promise<BayesianBidEstimate> {
   try {
-    const prior = await buildProductTargetPrior(accountId, targetType);
+    // v511: 优先使用活动级先验，回退到账户级先验
+    let prior: BayesianPrior | null = null;
+    
+    if (campaignId) {
+      prior = await buildCampaignLevelTargetPrior(accountId, campaignId, targetType);
+      if (prior) {
+        log.info(`[BayesianBidSmoothing] 使用活动级先验: ${prior.source}`);
+      }
+    }
+    
+    if (!prior || prior.priorSampleCount < 3) {
+      prior = await buildProductTargetPrior(accountId, targetType);
+    }
     
     if (!prior || prior.priorSampleCount < BAYESIAN_CONFIG.MIN_PRIOR_SAMPLES) {
       return createFailedEstimate(currentBid, '同类商品定向数据不足，无法构建有效先验');
@@ -223,6 +250,150 @@ export async function estimateBid(
 }
 
 // ==================== 先验构建函数 ====================
+
+/**
+ * v511: 从同Campaign内的关键词构建活动级先验分布
+ * 比账户级先验更精确，因为同活动内的关键词竞争环境和客单价更接近
+ */
+async function buildCampaignLevelKeywordPrior(
+  accountId: number,
+  campaignId: string,
+  matchType?: string,
+): Promise<BayesianPrior | null> {
+  const db = await getDb();
+  if (!db) return null;
+
+  const conditions: unknown[] = [
+    eq(keywords.accountId, accountId),
+    eq(keywords.campaignId, campaignId),
+    eq(keywords.keywordStatus, 'enabled'),
+    gt(keywords.bid, '0'),
+  ];
+  
+  if (matchType) {
+    conditions.push(eq(keywords.matchType, matchType as 'broad' | 'phrase' | 'exact'));
+  }
+
+  const [stats] = await db.select({
+    count: sql<number>`COUNT(*)`,
+    avgBid: sql<number>`AVG(CAST(${keywords.bid} AS DECIMAL(10,4)))`,
+    stdBid: sql<number>`STDDEV(CAST(${keywords.bid} AS DECIMAL(10,4)))`,
+    suggestedBidCount: sql<number>`SUM(CASE WHEN ${keywords.suggestedBid} IS NOT NULL AND ${keywords.suggestedBid} > 0 THEN 1 ELSE 0 END)`,
+    avgSuggestedBid: sql<number>`AVG(CASE WHEN ${keywords.suggestedBid} IS NOT NULL AND ${keywords.suggestedBid} > 0 THEN CAST(${keywords.suggestedBid} AS DECIMAL(10,4)) ELSE NULL END)`,
+    avgCpc: sql<number>`AVG(CASE WHEN ${keywords.keywordCpc} IS NOT NULL AND ${keywords.keywordCpc} > 0 THEN CAST(${keywords.keywordCpc} AS DECIMAL(10,4)) ELSE NULL END)`,
+  })
+  .from(keywords)
+  .where(and(...(conditions as Parameters<typeof and>)));
+
+  const count = Number(stats?.count || 0);
+  // 活动级先验需要至少3个样本（比账户级的5个更宽松，因为同活动数据更精确）
+  if (count < 3) {
+    if (matchType) {
+      return buildCampaignLevelKeywordPrior(accountId, campaignId, undefined);
+    }
+    return null;
+  }
+
+  const avgBid = Number(stats?.avgBid || 0);
+  const stdBid = Number(stats?.stdBid || 0) || avgBid * BAYESIAN_CONFIG.DEFAULT_CV;
+  const suggestedBidCount = Number(stats?.suggestedBidCount || 0);
+  const avgSuggestedBid = stats?.avgSuggestedBid ? Number(stats.avgSuggestedBid) : null;
+  const avgCpc = stats?.avgCpc ? Number(stats.avgCpc) : null;
+
+  let priorMean: number;
+  let source: string;
+  
+  if (avgSuggestedBid && suggestedBidCount >= 2) {
+    priorMean = avgSuggestedBid * 0.6 + avgBid * 0.4;
+    source = `活动级suggestedBid加权(${suggestedBidCount}个suggestedBid, ${count}个bid, campaign=${campaignId})`;
+  } else if (avgCpc && avgCpc > 0) {
+    priorMean = avgCpc * 0.5 + avgBid * 0.5;
+    source = `活动级CPC加权(avgCpc=$${avgCpc.toFixed(2)}, ${count}个bid, campaign=${campaignId})`;
+  } else {
+    priorMean = avgBid;
+    source = `活动级bid均值(${count}个${matchType || '全部'}关键词, campaign=${campaignId})`;
+  }
+
+  return {
+    priorMean: Math.max(0.02, priorMean),
+    priorStd: Math.max(0.01, stdBid),
+    priorSampleCount: count,
+    suggestedBidCount,
+    suggestedBidMean: avgSuggestedBid,
+    source,
+  };
+}
+
+/**
+ * v511: 从同Campaign内的商品定向构建活动级先验分布
+ */
+async function buildCampaignLevelTargetPrior(
+  accountId: number,
+  campaignId: string,
+  targetType?: string,
+): Promise<BayesianPrior | null> {
+  const db = await getDb();
+  if (!db) return null;
+
+  const conditions: unknown[] = [
+    eq(productTargets.accountId, accountId),
+    eq(productTargets.campaignId, campaignId),
+    eq(productTargets.targetStatus, 'enabled'),
+    gt(productTargets.bid, '0'),
+  ];
+  
+  if (targetType) {
+    conditions.push(eq(productTargets.targetType, targetType as 'asin' | 'category'));
+  }
+
+  const [stats] = await db.select({
+    count: sql<number>`COUNT(*)`,
+    avgBid: sql<number>`AVG(CAST(${productTargets.bid} AS DECIMAL(10,4)))`,
+    stdBid: sql<number>`STDDEV(CAST(${productTargets.bid} AS DECIMAL(10,4)))`,
+    suggestedBidCount: sql<number>`SUM(CASE WHEN ${productTargets.suggestedBid} IS NOT NULL AND ${productTargets.suggestedBid} > 0 THEN 1 ELSE 0 END)`,
+    avgSuggestedBid: sql<number>`AVG(CASE WHEN ${productTargets.suggestedBid} IS NOT NULL AND ${productTargets.suggestedBid} > 0 THEN CAST(${productTargets.suggestedBid} AS DECIMAL(10,4)) ELSE NULL END)`,
+    avgCpc: sql<number>`AVG(CASE WHEN ${productTargets.targetCpc} IS NOT NULL AND ${productTargets.targetCpc} > 0 THEN CAST(${productTargets.targetCpc} AS DECIMAL(10,4)) ELSE NULL END)`,
+  })
+  .from(productTargets)
+  .where(and(...(conditions as Parameters<typeof and>)));
+
+  const count = Number(stats?.count || 0);
+  if (count < 3) {
+    if (targetType) {
+      return buildCampaignLevelTargetPrior(accountId, campaignId, undefined);
+    }
+    return null;
+  }
+
+  const avgBid = Number(stats?.avgBid || 0);
+  const stdBid = Number(stats?.stdBid || 0) || avgBid * BAYESIAN_CONFIG.DEFAULT_CV;
+  const suggestedBidCount = Number(stats?.suggestedBidCount || 0);
+  const avgSuggestedBid = stats?.avgSuggestedBid ? Number(stats.avgSuggestedBid) : null;
+  const avgCpc = stats?.avgCpc ? Number(stats.avgCpc) : null;
+
+  let priorMean: number;
+  let source: string;
+  
+  if (avgSuggestedBid && suggestedBidCount >= 2) {
+    priorMean = avgSuggestedBid * 0.6 + avgBid * 0.4;
+    source = `活动级suggestedBid加权(${suggestedBidCount}个suggestedBid, ${count}个${targetType || '全部'}定向, campaign=${campaignId})`;
+  } else if (avgCpc && avgCpc > 0) {
+    priorMean = avgCpc * 0.5 + avgBid * 0.5;
+    source = `活动级CPC加权(avgCpc=$${avgCpc.toFixed(2)}, ${count}个定向, campaign=${campaignId})`;
+  } else {
+    priorMean = avgBid;
+    source = `活动级bid均值(${count}个${targetType || '全部'}定向, campaign=${campaignId})`;
+  }
+
+  return {
+    priorMean: Math.max(0.02, priorMean),
+    priorStd: Math.max(0.01, stdBid),
+    priorSampleCount: count,
+    suggestedBidCount,
+    suggestedBidMean: avgSuggestedBid,
+    source,
+  };
+}
 
 /**
  * 从同账户同匹配类型的关键词中构建先验分布

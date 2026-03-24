@@ -1265,6 +1265,7 @@ export async function calculateNextGenBid(
       suggestedBidRangeEnd: (target as Record<string, unknown>).suggestedBidRangeEnd as number | undefined,
       matchType: (target as Record<string, unknown>).matchType as string | undefined,
       keywordText: (target as Record<string, unknown>).keywordText as string | undefined,
+      adGroupId: (target as Record<string, unknown>).internalAdGroupId as number | undefined,
       campaignId: (target as Record<string, unknown>).amazonCampaignId as number | undefined,
       clicks: (target as Record<string, unknown>).clicks as number | undefined,
       impressions: (target as Record<string, unknown>).impressions as number | undefined,
@@ -1297,7 +1298,7 @@ export async function calculateNextGenBid(
         adGroupId: (target as Record<string, unknown>).internalAdGroupId || undefined,
         bidBefore: target.currentBid,
         bidAfter: safeBid,
-        actionSource: 'rule_based',
+        actionSource: 'cold_start',
       }).catch(err => log.warn('[NextGenOrchestrator] RL recording error:', err));
       
       return buildResult(target, safeBid, `cold_start_${coldStartResult.strategy}`,
