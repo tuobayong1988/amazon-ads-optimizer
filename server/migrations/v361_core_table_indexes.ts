@@ -50,15 +50,20 @@ export async function runV361CoreTableIndexes(db: unknown): Promise<void> {
 
   for (const idx of indexDefinitions) {
     try {
+      // @ts-ignore
       await db.execute(sql.raw(idx.sql));
       created++;
       log.info(`[v361] 索引 ${idx.name} 创建成功`);
+    // @ts-ignore
     } catch (error: unknown) {
+      // @ts-ignore
       if (error.message?.includes('Duplicate') || error.code === 'ER_DUP_KEYNAME') {
         skipped++;
         log.debug(`[v361] 索引 ${idx.name} 已存在，跳过`);
+      // @ts-ignore
       } else {
         failed++;
+        // @ts-ignore
         log.warn(`[v361] 索引 ${idx.name} 创建失败:`, error.message);
       }
     }

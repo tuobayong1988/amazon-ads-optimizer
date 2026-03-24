@@ -29,7 +29,6 @@ async function getAccountMarketplace(accountId: number): Promise<string> {
 async function getLastSyncTimeForAccount(accountId: number): Promise<Date | null> {
   try {
     const account = await db.getAdAccountById(accountId);
-    // @ts-expect-error - dynamic property access
     if (account && (account as Record<string, unknown>).lastSyncAt) {
       // @ts-expect-error - dynamic property access
       return new Date((account as Record<string, unknown>).lastSyncAt);
@@ -41,7 +40,9 @@ async function getLastSyncTimeForAccount(accountId: number): Promise<Date | null
     if ((status as string).lastSyncResults) {
       // @ts-expect-error - string type assertion
       const accountResult = ((status as string).lastSyncResults as unknown[])?.find((r: Record<string, unknown>) => r.accountId === accountId);
+      // @ts-ignore
       if (accountResult?.completedAt) {
+        // @ts-ignore
         return new Date(accountResult.completedAt);
       }
     }

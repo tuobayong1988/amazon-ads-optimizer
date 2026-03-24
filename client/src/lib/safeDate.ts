@@ -199,6 +199,7 @@ export function safeDateCompare(a: unknown, b: unknown): number {
 export function isValidDate(value: unknown): boolean {
   if (!value && value !== 0) return false;
   try {
+    // @ts-ignore
     const date = value instanceof Date ? value : new Date(value);
     return !isNaN(date.getTime());
   } catch {

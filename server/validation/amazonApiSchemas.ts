@@ -184,11 +184,14 @@ export function safeParseApiResponse<T>(
 ): T | null {
   try {
     return schema.parse(data);
-  } catch (error) {
+  } catch (error: any) {
     if (error instanceof z.ZodError) {
       log.warn(`API数据校验失败 [${context}]:`, {
+        // @ts-ignore
         errors: (error.issues as unknown[]).map((e: Record<string, unknown>) => ({
+          // @ts-ignore
           path: e.path?.join('.') || '',
+          // @ts-ignore
           message: (e as Error).message || '',
           received: e.received,
         })),

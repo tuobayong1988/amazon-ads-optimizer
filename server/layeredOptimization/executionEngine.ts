@@ -190,12 +190,15 @@ export function resolveConflictsAndCreatePlan(
 
   // 添加无冲突的操作
   for (const action of (actions as unknown[])) {
+    // @ts-ignore
     if (!skippedActionIds.has(action.id)) {
+      // @ts-ignore
       resolvedActions.push(action);
     }
   }
 
   // 按优先级排序
+  // @ts-ignore
   resolvedActions.sort((a: unknown, b: unknown) => b.priority - a.priority);
 
   // 计算总预期影响

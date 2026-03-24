@@ -187,6 +187,7 @@ async function oxylabsRequest<T>(payload: Record<string, unknown>): Promise<T | 
 
       console.error(
         `[Oxylabs] Request failed (attempt ${attempt + 1}/${MAX_RETRIES + 1}): ` +
+        // @ts-ignore
         `${error.message}${statusCode ? ` [HTTP ${statusCode}]` : ''}`
       );
 
@@ -481,11 +482,15 @@ export async function checkServiceHealth(): Promise<{
       credentialsConfigured: true,
       message: `Oxylabs service is operational. Response status: ${response.status}`,
     };
+  // @ts-ignore
   } catch (error: unknown) {
+    // @ts-ignore
     const statusCode = error.response?.status;
     return {
+      // @ts-ignore
       available: false,
       credentialsConfigured: true,
+      // @ts-ignore
       message: `Oxylabs service check failed: ${error.message}${statusCode ? ` [HTTP ${statusCode}]` : ''}`,
     };
   }

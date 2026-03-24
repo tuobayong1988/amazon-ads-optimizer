@@ -102,7 +102,6 @@ async function checkDatabase() {
 }
 
 export const devRouter = router({
-  // @ts-expect-error - runtime type mismatch
   // v371: 开发工具仅管理员可访问
   verifySync: adminProcedure
     .query(async () => {

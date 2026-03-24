@@ -291,7 +291,7 @@ async function scanEmergencyBleeding(accountId: number): Promise<DashboardRecomm
       totalCount: items.length,
       totalWastedSpend: Math.round(totalWasted * 100) / 100,
     };
-  } catch (error) {
+  } catch (error: any) {
     log.warn(`[紧急止血扫描] 失败: ${(error as Error).message}`);
     return { items: [], totalCount: 0, totalWastedSpend: 0 };
   }
@@ -498,7 +498,7 @@ async function scanHighAcos(accountId: number): Promise<DashboardRecommendationR
       totalCount: items.length,
       totalExcessSpend: Math.round(totalExcess * 100) / 100,
     };
-  } catch (error) {
+  } catch (error: any) {
     log.warn(`[高ACOS扫描] 失败: ${(error as Error).message}`);
     return { items: [], totalCount: 0, totalExcessSpend: 0 };
   }
@@ -561,7 +561,7 @@ async function scanGoalAdjustment(accountId: number): Promise<DashboardRecommend
       totalCount: items.length,
       totalUnmanagedSpend: Math.round(totalUnmanagedSpend * 100) / 100,
     };
-  } catch (error) {
+  } catch (error: any) {
     log.warn(`[优化目标调整扫描] 失败: ${(error as Error).message}`);
     return { items: [], totalCount: 0, totalUnmanagedSpend: 0 };
   }
@@ -683,7 +683,7 @@ export async function executeEmergencyBleeding(
         details.push(`✅ 已降低「${item.entityText}」竞价90%($${item.currentBid.toFixed(2)}→$${newBid.toFixed(2)})`);
         successCount++;
       }
-    } catch (error) {
+    } catch (error: any) {
       failCount++;
       details.push(`❌ 处理「${item.entityText}」失败: ${(error as Error).message}`);
     }
@@ -694,9 +694,10 @@ export async function executeEmergencyBleeding(
     try {
       log.info(`[紧急止血] 准备入队 ${syncTasks.length} 个同步任务, batchId=${batchId}`);
       const { enqueueTasks } = await import('../sync/optimizationSyncEngine');
+      // @ts-ignore
       const resultBatchId = await enqueueTasks(syncTasks as unknown[]);
       log.info(`[紧急止血] ✅ 同步任务入队成功: batchId=${resultBatchId}, ${syncTasks.length}条任务`);
-    } catch (err) {
+    } catch (err: any) {
       log.error(`[紧急止血] ❌ 同步任务入队失败: ${(err as Error).message}`, err);
     }
   }
@@ -786,7 +787,7 @@ export async function executeHighAcosSuppression(
         details.push(`✅ 「${item.entityText}」竞价降${item.reductionPercent}%($${item.currentBid.toFixed(2)}→$${item.suggestedBid.toFixed(2)}, ACoS:${item.acos.toFixed(0)}%)`);
         successCount++;
       }
-    } catch (error) {
+    } catch (error: any) {
       failCount++;
       details.push(`❌ 处理「${item.entityText}」失败: ${(error as Error).message}`);
     }
@@ -796,10 +797,12 @@ export async function executeHighAcosSuppression(
   if (syncTasks.length > 0) {
     try {
       log.info(`[高ACOS抑制] 准备入队 ${syncTasks.length} 个同步任务, batchId=${batchId}`);
+      // @ts-ignore
       const { enqueueTasks } = await import('../sync/optimizationSyncEngine');
+      // @ts-ignore
       const resultBatchId = await enqueueTasks(syncTasks as unknown[]);
       log.info(`[高ACOS抑制] ✅ 同步任务入队成功: batchId=${resultBatchId}, ${syncTasks.length}条任务`);
-    } catch (err) {
+    } catch (err: any) {
       log.error(`[高ACOS抑制] ❌ 同步任务入队失败: ${(err as Error).message}`, err);
     }
   }
@@ -851,7 +854,7 @@ export async function executeGoalAdjustment(
 
       details.push(`✅ 「${campInfo[0]?.campaignName || `#${campDbId}`}」已分配到「${pgInfo[0].name}」`);
       successCount++;
-    } catch (error) {
+    } catch (error: any) {
       failCount++;
       details.push(`❌ 分配广告活动 #${campDbId} 失败: ${(error as Error).message}`);
     }

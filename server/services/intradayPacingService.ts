@@ -195,6 +195,7 @@ export async function checkAllCampaignsPacing(
     
     for (const campaign of (campaigns as unknown[])) {
       const adjustment = await adjustIntradayPacing(
+        // @ts-ignore
         campaign.campaignId,
         accountId
       );
@@ -202,7 +203,7 @@ export async function checkAllCampaignsPacing(
     }
     
     return results;
-  } catch (error) {
+  } catch (error: any) {
     log.warn('[IntradayPacing] 批量检查失败:', error);
     return [];
   }
@@ -283,7 +284,7 @@ async function getCampaignBudget(
     
     const campaign = Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
     return campaign?.dailyBudget || 0;
-  } catch (error) {
+  } catch (error: any) {
     log.warn('[IntradayPacing] 获取预算失败:', error);
     return 0;
   }

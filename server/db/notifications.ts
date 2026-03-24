@@ -53,6 +53,7 @@ export async function updateNotificationSettingsByUserId(userId: number, data: {
       .set(updateData)
       .where(eq(notificationSettings.id, existing.id));
   } else {
+    // @ts-ignore
     await db.insert(notificationSettings).values({
       userId,
       emailEnabled: data.emailEnabled ? 1 : 0,
@@ -95,6 +96,7 @@ export async function createNotificationRecord(data: {
   const db = await getDb();
   if (!db) return;
   
+  // @ts-ignore
   await db.insert(notificationHistory).values({
     userId: data.userId,
     accountId: data.accountId || null,

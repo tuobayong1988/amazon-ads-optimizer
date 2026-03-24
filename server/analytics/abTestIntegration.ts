@@ -185,9 +185,7 @@ async function getActiveExperiments(accountId: number): Promise<ActiveExperiment
       experiments.push({
         testId: test.id,
         experimentType: test.testType || 'bid_strategy',
-        // @ts-expect-error - dynamic property access
         controlConfig: ((controlVariant as Record<string, unknown>).config as ExperimentVariantConfig) || {},
-        // @ts-expect-error - dynamic property access
         treatmentConfig: ((treatmentVariant as Record<string, unknown>).config as ExperimentVariantConfig) || {},
         controlCampaignIds,
         treatmentCampaignIds,
@@ -198,7 +196,7 @@ async function getActiveExperiments(accountId: number): Promise<ActiveExperiment
     cacheLastRefresh = now;
     
     return experiments;
-  } catch (error) {
+  } catch (error: any) {
     log.warn(`[ABTestIntegration] 加载活跃实验失败:`, error);
     return [];
   }
@@ -258,7 +256,7 @@ export async function recordExperimentDailyMetrics(accountId: number): Promise<v
       }
       
       log.info(`[ABTestIntegration] 实验 ${exp.testId} 每日指标记录完成`);
-    } catch (error) {
+    } catch (error: any) {
       log.warn(`[ABTestIntegration] 实验 ${exp.testId} 指标记录失败:`, error);
     }
   }
@@ -285,7 +283,7 @@ export async function checkAndCompleteExpiredExperiments(): Promise<number> {
         try {
           const analysis = await abTestService.analyzeABTestResults(test.id);
           log.info(`[ABTestIntegration] 实验 ${test.id} (${test.testName}) 自动完成并分析: winner=${JSON.stringify(analysis)}`);
-        } catch (analysisError) {
+        } catch (analysisError: any) {
           log.warn(`[ABTestIntegration] 实验 ${test.id} 分析失败:`, analysisError);
         }
         
@@ -295,7 +293,7 @@ export async function checkAndCompleteExpiredExperiments(): Promise<number> {
     }
     
     return completedCount;
-  } catch (error) {
+  } catch (error: any) {
     log.warn(`[ABTestIntegration] 检查到期实验失败:`, error);
     return 0;
   }

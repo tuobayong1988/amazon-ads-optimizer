@@ -236,7 +236,7 @@ async function startServer() {
       } else {
         log.warn('[NextGen] 数据库表创建失败:', result.error);
       }
-    }).catch(err => {
+    }).catch((err: any) => {
       log.warn('[NextGen] 数据库表检查异常:', (err as Error).message);
     });
 
@@ -247,7 +247,7 @@ async function startServer() {
       } else {
         log.warn('[AutoDbMigration] v248数据库迁移失败:', result.results.join('; '));
       }
-    }).catch(err => {
+    }).catch((err: any) => {
       log.warn('[AutoDbMigration] v248迁移异常:', (err as Error).message);
     });
 
@@ -258,7 +258,7 @@ async function startServer() {
       } else {
         log.warn('[PrelaunchDb] 预发布引擎表迁移失败:', result.results.join('; '));
       }
-    }).catch(err => {
+    }).catch((err: any) => {
       log.warn('[PrelaunchDb] 预发布引擎表迁移异常:', (err as Error).message);
     });
 
@@ -269,14 +269,16 @@ async function startServer() {
       } else {
         log.warn(`[RLS] RLS初始化部分失败: ${result.errors.join('; ')}`);
       }
-    }).catch(err => {
+    }).catch((err: any) => {
       log.warn('[RLS] RLS初始化异常:', (err as Error).message);
     });
 
     // v146: 启动时自动执行数据迁移（旧表 → optimization_events）
     runAutoMigration().then(result => {
       if (result.success) {
+        // @ts-ignore
         const total = Object.values(result.migrated).reduce((a: unknown, b: unknown) => a + b, 0);
+        // @ts-ignore
         if (total > 0) {
           log.info(`[AutoMigration] v146数据迁移完成: 共迁移 ${total} 条记录`, result.migrated);
         } else {
@@ -285,7 +287,7 @@ async function startServer() {
       } else {
         log.warn('[AutoMigration] v146数据迁移失败:', result.skipped);
       }
-    }).catch(err => {
+    }).catch((err: any) => {
       log.warn('[AutoMigration] v146迁移异常:', (err as Error).message);
     });
 
@@ -293,7 +295,7 @@ async function startServer() {
     migrateCampaignIdsToAmazonIds().then(() => {
       log.info('[AutoMigration] v208 campaignId标准化迁移完成');
       logMigration('CampaignIdMigration', 'v208 campaignId标准化迁移完成');
-    }).catch(err => {
+    }).catch((err: any) => {
       log.warn('[AutoMigration] v208 campaignId迁移异常:', (err as Error).message);
       logMigration('CampaignIdMigration', `v208 campaignId迁移异常: ${(err as Error).message}`);
     });
@@ -318,7 +320,7 @@ async function startServer() {
       } else {
         log.info('[Redis] v427: Redis 不可用，分布式锁将使用 MySQL sync_locks 表');
       }
-    }).catch(err => {
+    }).catch((err: any) => {
       log.warn(`[Redis] v427: Redis 初始化异常: ${(err as Error).message}`);
     });
 
@@ -338,7 +340,7 @@ async function startServer() {
     if (process.env.AWS_SQS_QUEUE_TRAFFIC_URL || process.env.AWS_SQS_QUEUE_CONVERSION_URL || process.env.AWS_SQS_QUEUE_BUDGET_URL) {
       startSQSConsumer().then(() => {
         log.info('[SQS Consumer] AMS实时数据流消费者已启动');
-      }).catch(err => {
+      }).catch((err: any) => {
         log.warn('[SQS Consumer] 启动失败:', (err as Error).message);
       });
     } else {
@@ -362,13 +364,13 @@ async function startServer() {
     // v451: 启动时初始化汇率服务，避免首次访问时返回not_initialized
     getExchangeRates().then(rates => {
       log.info(`[ExchangeRate] v451: 汇率服务初始化完成，共${Object.keys(rates).length}种货币`);
-    }).catch(err => {
+    }).catch((err: any) => {
       log.warn(`[ExchangeRate] v451: 汇率服务初始化失败: ${(err as Error).message}，将使用静态兆底汇率`);
     });
     
     // v185: 启动部署生命周期管理器（优雅关闭 + 心跳 + 启动诊断 + 任务恢复 + 纠错 + 重优化）
     // 替代原来的 setTimeout 30秒后运行纠错和重优化的逻辑
-    orchestrateStartup(server).catch(err => {
+    orchestrateStartup(server).catch((err: any) => {
       log.warn('[LifecycleManager] 启动协调失败:', (err as Error).message);
     });
   });

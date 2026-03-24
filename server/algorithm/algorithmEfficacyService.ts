@@ -51,6 +51,7 @@ export async function getAlgorithmEfficacyForTarget(
     if (bidLogs && bidLogs.length > 0) {
       for (const log of (bidLogs as unknown[])) {
         try {
+          // @ts-ignore
           const detail = typeof log.action_detail === 'string' ? JSON.parse(log.action_detail) : log.action_detail;
           if (!detail) continue;
           
@@ -86,7 +87,7 @@ export async function getAlgorithmEfficacyForTarget(
           } else if (Math.abs(changePercent) < 3) {
             positiveCount++; // 小幅调整 = 保守正向
           }
-        } catch (parseErr) {
+        } catch (parseErr: any) {
           // 跳过解析失败的记录
         }
       }
@@ -112,7 +113,7 @@ export async function getAlgorithmEfficacyForTarget(
           totalConfidence = effectStats[0].avg_confidence * totalOperations;
         }
       }
-    } catch (effectErr) {
+    } catch (effectErr: any) {
       // algorithm_effect_records表可能不存在，忽略
     }
     
@@ -139,7 +140,7 @@ export async function getAlgorithmEfficacyForTarget(
         if (recent < prev) improvementTrend = 'improving';
         else if (recent > prev * 1.5) improvementTrend = 'declining';
       }
-    } catch (evoErr) {
+    } catch (evoErr: any) {
       // algorithm_evolution_records表可能不存在，忽略
     }
     

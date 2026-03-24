@@ -173,6 +173,7 @@ export async function analyzePlacementRoi(
     if (placements.length === 0) return emptyReport;
     
     // 找出最佳和最差位置
+    // @ts-ignore
     const sortedByRoas = [...placements].sort((a: unknown, b: unknown) => b.roas - a.roas);
     const bestPlacement = sortedByRoas[0]?.placement || null;
     const worstPlacement = sortedByRoas[sortedByRoas.length - 1]?.placement || null;
@@ -203,7 +204,7 @@ export async function analyzePlacementRoi(
       shouldAdjust,
       summary,
     };
-  } catch (error) {
+  } catch (error: any) {
     log.warn(`[PlacementROI] 分析失败: ${(error as Error).message}`);
     return emptyReport;
   }

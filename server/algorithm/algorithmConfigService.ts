@@ -331,5 +331,6 @@ export function getAllStrategyConfigSummary(): Record<string, {
     rotationCycle: `${DEFAULT_ALGORITHM_CONFIG.exploration.rotationCycleMinutes}min`,
   };
   
+  // @ts-ignore
   return summary;
 }

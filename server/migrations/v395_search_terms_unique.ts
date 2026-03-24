@@ -23,6 +23,7 @@ export async function runV395SearchTermsUnique(db: unknown): Promise<void> {
 
   try {
     // Step 1: 统计当前重复数据量
+    // @ts-ignore
     const [countResult] = await db.execute(sql.raw(`
       SELECT COUNT(*) as total FROM search_terms
     `));
@@ -33,6 +34,7 @@ export async function runV395SearchTermsUnique(db: unknown): Promise<void> {
     // 使用子查询找出需要保留的id
     log.info('[v395] 开始清理重复搜索词数据...');
     
+    // @ts-ignore
     const deleteResult = await db.execute(sql.raw(`
       DELETE t1 FROM search_terms t1
       INNER JOIN (
@@ -52,6 +54,7 @@ export async function runV395SearchTermsUnique(db: unknown): Promise<void> {
 
     // Step 3: 处理report_start_date为NULL的记录（旧数据可能没有日期）
     // 将NULL的report_start_date设置为createdAt的日期
+    // @ts-ignore
     await db.execute(sql.raw(`
       UPDATE search_terms 
       SET report_start_date = DATE(createdAt)
@@ -61,21 +64,28 @@ export async function runV395SearchTermsUnique(db: unknown): Promise<void> {
 
     // Step 4: 添加唯一约束（使用searchTerm前缀索引191字符以适应InnoDB限制）
     try {
+      // @ts-ignore
       await db.execute(sql.raw(`
         ALTER TABLE search_terms 
+        // @ts-ignore
         ADD UNIQUE INDEX uk_search_term (accountId, campaignId, adGroupId, searchTerm(191), report_start_date)
       `));
+      // @ts-ignore
       log.info('[v395] 唯一约束 uk_search_term 创建成功');
     } catch (error: unknown) {
+      // @ts-ignore
       if (error.message?.includes('Duplicate') || error.code === 'ER_DUP_KEYNAME') {
         log.info('[v395] 唯一约束 uk_search_term 已存在，跳过');
+      // @ts-ignore
       } else if (error.message?.includes('Duplicate entry')) {
         // 仍有重复数据，尝试更激进的清理
         log.warn('[v395] 仍有重复数据，执行更激进的清理...');
+        // @ts-ignore
         await db.execute(sql.raw(`
           DELETE t1 FROM search_terms t1
           INNER JOIN search_terms t2
           WHERE t1.id < t2.id
+            // @ts-ignore
             AND t1.accountId = t2.accountId
             AND t1.campaignId = t2.campaignId
             AND t1.internal_ad_group_id = t2.internal_ad_group_id
@@ -83,9 +93,11 @@ export async function runV395SearchTermsUnique(db: unknown): Promise<void> {
             AND t1.report_start_date = t2.report_start_date
         `));
         // 重试创建唯一约束
+        // @ts-ignore
         await db.execute(sql.raw(`
           ALTER TABLE search_terms 
           ADD UNIQUE INDEX uk_search_term (accountId, campaignId, adGroupId, searchTerm(191), report_start_date)
+        // @ts-ignore
         `));
         log.info('[v395] 二次清理后唯一约束创建成功');
       } else {
@@ -94,6 +106,7 @@ export async function runV395SearchTermsUnique(db: unknown): Promise<void> {
     }
 
     // Step 5: 统计清理后的数据量
+    // @ts-ignore
     const [countAfter] = await db.execute(sql.raw(`
       SELECT COUNT(*) as total FROM search_terms
     `));

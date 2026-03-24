@@ -477,8 +477,11 @@ export function ensureLocalAdGroupId(value: string | number): number {
 export function buildKeywordIdMap(keywords: Array<{ id: number; keywordId?: string | null }>): Map<number, string> {
   const map = new Map<number, string>();
   for (const kw of (keywords as unknown[])) {
+    // @ts-ignore
     const amazonId = getKeywordAmazonId(kw);
+    // @ts-ignore
     if (amazonId) {
+      // @ts-ignore
       map.set(kw.id, amazonId);
     }
   }

@@ -174,7 +174,7 @@ export async function safeExecute<T>(
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
       return await fn();
-    } catch (error) {
+    } catch (error: any) {
       lastError = error;
       
       if (attempt < maxRetries) {
@@ -203,7 +203,7 @@ export function safeExecuteSync<T>(
 ): T | undefined {
   try {
     return fn();
-  } catch (error) {
+  } catch (error: any) {
     handleError(error, context, { severity: ErrorSeverity.LOW });
     return defaultValue;
   }
@@ -221,6 +221,7 @@ function normalizeError(error: unknown): Error {
   if (typeof error === 'string') return new Error(error);
   if (typeof error === 'object' && error !== null) {
     const msg = (error as Record<string, unknown>).message || (error as Record<string, unknown>).msg || JSON.stringify(error);
+    // @ts-ignore
     return new Error(msg);
   }
   return new Error(String(error));

@@ -196,7 +196,7 @@ export function recordAudit(entry: AuditLogEntry): void {
   
   // 缓冲区满时立即刷新
   if (buffer.length >= BUFFER_SIZE) {
-    flushBuffer().catch(err => {
+    flushBuffer().catch((err: any) => {
       log.warn(`[AuditLog] 刷新缓冲区失败: ${(err as Error).message}`);
     });
   }
@@ -204,7 +204,7 @@ export function recordAudit(entry: AuditLogEntry): void {
   // 确保定时刷新器运行
   if (!flushTimer) {
     flushTimer = setInterval(() => {
-      flushBuffer().catch(err => {
+      flushBuffer().catch((err: any) => {
         log.warn(`[AuditLog] 定时刷新失败: ${(err as Error).message}`);
       });
     }, FLUSH_INTERVAL_MS);
@@ -257,13 +257,13 @@ async function flushBuffer(): Promise<void> {
           status: drizzleStatus,
           errorMessage: e.errorMessage || null,
         } as Record<string, unknown>);
-      } catch (insertErr) {
+      } catch (insertErr: any) {
         log.warn(`[AuditLog] 单条审计日志写入失败: ${(insertErr as Error).message} | action=${e.action}`);
       }
     }
     
     log.debug(`[AuditLog] 已写入${entries.length}条审计日志`);
-  } catch (err) {
+  } catch (err: any) {
     log.warn(`[AuditLog] 写入审计日志失败: ${(err as Error).message}`);
     // 将失败的条目放回缓冲区（最多保留BUFFER_SIZE/2条）
     buffer = [...entries.slice(-Math.floor(BUFFER_SIZE / 2)), ...buffer].slice(0, BUFFER_SIZE);
@@ -293,13 +293,11 @@ export async function queryAuditLogs(params: {
     if (params.accountId) conditions.push(eq(auditLogs.accountId, params.accountId));
     if (params.action) {
       const drizzleAction = mapActionToDrizzle(params.action);
-      // @ts-expect-error - runtime type mismatch
       conditions.push(eq(auditLogs.actionType, drizzleAction));
     }
     if (params.entityType) {
       const drizzleTarget = mapEntityTypeToDrizzle(params.entityType);
       if (drizzleTarget) {
-        // @ts-expect-error - runtime type mismatch
         conditions.push(eq(auditLogs.targetType, drizzleTarget));
       }
     }
@@ -317,7 +315,6 @@ export async function queryAuditLogs(params: {
       .limit(limit)
       .offset(offset);
     
-    // @ts-expect-error - Drizzle sql template type
     const [countResult] = await db.select({ count: sql<number>`COUNT(*)` }).from(auditLogs).where(whereCondition);
     const total = Number(countResult?.count || 0);
     
@@ -325,7 +322,7 @@ export async function queryAuditLogs(params: {
       logs: logs as unknown as Record<string, unknown>[],
       total,
     };
-  } catch (err) {
+  } catch (err: any) {
     log.warn(`[AuditLog] 查询审计日志失败: ${(err as Error).message}`);
     return { logs: [], total: 0 };
   }

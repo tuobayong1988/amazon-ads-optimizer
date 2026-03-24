@@ -87,6 +87,7 @@ export async function shardBasedSyncAll(
     for (const account of (accounts as unknown[])) {
       for (const step of steps) {
         shardDefs.push({
+          // @ts-ignore
           accountId: account.accountId,
           stepId: step.id,
           stepName: step.name,

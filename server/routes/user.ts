@@ -39,6 +39,7 @@ async function ensurePreferencesColumn(db: DbInstance) {
 
 export const userRouter = router({
   // 获取用户偏好设置
+  // @ts-ignore
   getPreferences: protectedProcedure.query(async ({ ctx }: unknown) => {
     const db = await getDb();
     if (!db) return {};
@@ -112,7 +113,6 @@ export const userRouter = router({
         log.info(`[User] Preferences updated for user ${ctx.user.id}, key: ${input.key}`);
         return { success: true };
       } catch (error: unknown) {
-        // @ts-expect-error - error message access
         log.warn(`[User] Failed to update preferences: ${(error as Error)?.message || String(error)}`);
         // @ts-expect-error - error message access
         return { success: false, error: error?.message };

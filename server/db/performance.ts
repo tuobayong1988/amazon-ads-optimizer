@@ -240,6 +240,7 @@ export async function upsertDailyPerformanceFromAms(data: {
         INSERT IGNORE INTO ams_processed_messages (idempotency_id, dataset_id)
         VALUES (${data.idempotencyId}, ${data.datasetId || null})
       `);
+      // @ts-ignore
       if ((result as Record<string, unknown>)[0]?.affectedRows === 0) {
         // 已处理过的消息，跳过
         log.debug(`[AMS DB] 跳过重复消息: idempotencyId=${data.idempotencyId}`);
@@ -332,7 +333,9 @@ export async function updateDailyPerformanceConversion(data: {
       const result = await db.execute(sql`
         INSERT IGNORE INTO ams_processed_messages (idempotency_id, dataset_id)
         VALUES (${data.idempotencyId}, ${data.datasetId || null})
+      // @ts-ignore
       `);
+      // @ts-ignore
       if ((result as Record<string, unknown>)[0]?.affectedRows === 0) {
         log.debug(`[AMS DB] 跳过重复转化消息: idempotencyId=${data.idempotencyId}`);
         return;

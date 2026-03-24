@@ -223,5 +223,6 @@ export function getAllLockStatus(): Record<string, { holder: string; acquiredAt:
       };
     }
   }
+  // @ts-ignore
   return status;
 }

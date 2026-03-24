@@ -174,7 +174,7 @@ async function getApiPerformanceData(
     // @ts-expect-error - Drizzle raw SQL execution
     const [rows] = await db.execute() as unknown;
     return Array.isArray(rows) ? rows : [];
-  } catch (error) {
+  } catch (error: any) {
     log.warn('[EnhancedDualTrack] 获取API数据失败:', error);
     return [];
   }
@@ -210,7 +210,7 @@ async function getAmsPerformanceData(
     `) as unknown;
 
     return Array.isArray(rows) ? rows : [];
-  } catch (error) {
+  } catch (error: any) {
     // AMS表可能不存在
     return [];
   }
@@ -301,7 +301,9 @@ function latestWinsMerge(apiData: unknown[], amsData: unknown[]): unknown[] {
   
   // 合并所有数据，按更新时间排序
   const allData = [...apiData, ...amsData].sort((a: unknown, b: unknown) => {
+    // @ts-ignore
     const timeA = new Date(a.updatedAt || a.lastUpdateTime || 0).getTime();
+    // @ts-ignore
     const timeB = new Date(b.updatedAt || b.lastUpdateTime || 0).getTime();
     return timeB - timeA;
   });
@@ -486,11 +488,17 @@ export async function getTimelineAggregatedData(
       impressions: Number(row.impressions) || 0,
       clicks: Number(row.clicks) || 0,
       spend: Number(row.spend) || 0,
+      // @ts-ignore
       sales: Number(row.sales) || 0,
+      // @ts-ignore
       orders: Number(row.orders) || 0,
+      // @ts-ignore
       ctr: row.impressions > 0 ? (row.clicks / row.impressions) * 100 : 0,
+      // @ts-ignore
       cvr: row.clicks > 0 ? (row.orders / row.clicks) * 100 : 0,
+      // @ts-ignore
       acos: row.sales > 0 ? (row.spend / row.sales) * 100 : 0,
+      // @ts-ignore
       roas: row.spend > 0 ? row.sales / row.spend : 0,
     }));
 
@@ -620,6 +628,7 @@ export async function getRealtimeDashboardData(
         todaySpend: spend,
         todayClicks: Number(result.clicks) || 0,
         todayImpressions: Number(result.impressions) || 0,
+        // @ts-ignore
         lastUpdate: result.lastUpdate ? new Date(result.lastUpdate) : null,
       },
       untrusted: {

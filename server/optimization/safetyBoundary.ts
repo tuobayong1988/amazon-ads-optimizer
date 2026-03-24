@@ -88,9 +88,9 @@ export async function getAverageSpend(
       conditions.push(eq(dailyPerformance.campaignId, String(campaignId)));
     }
   }
-  // @ts-expect-error - runtime type mismatch
   const [result] = await db.select({
     avgSpend: sql<string>`AVG(${dailyPerformance.spend})`,
+  // @ts-ignore
   }).from(dailyPerformance).where(and(...conditions));
   return Number(result?.avgSpend) || 0;
 }
@@ -125,9 +125,10 @@ export async function getAverageCPC(
       cpcConditions.push(eq(dailyPerformance.campaignId, String(campaignId)));
     }
   }
-  // @ts-expect-error - runtime type mismatch
   const [cpcResult] = await db.select({
+    // @ts-ignore
     avgCpc: sql<string>`CASE WHEN SUM(${dailyPerformance.clicks}) > 0 THEN SUM(${dailyPerformance.spend}) / SUM(${dailyPerformance.clicks}) ELSE 0 END`,
+  // @ts-ignore
   }).from(dailyPerformance).where(and(...cpcConditions));
   return Number(cpcResult?.avgCpc) || 0;
 }

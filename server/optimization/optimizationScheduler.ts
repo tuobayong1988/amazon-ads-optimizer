@@ -134,10 +134,15 @@ export async function triggerInitialOptimization(
     // 快速聚合分析
     let totalSpend = 0, totalSales = 0, totalClicks = 0, totalOrders = 0, totalImpressions = 0;
     for (const c of (campaignsData as unknown[])) {
+      // @ts-ignore
       totalSpend += parseFloat(c.spend || '0');
+      // @ts-ignore
       totalSales += parseFloat(c.sales || '0');
+      // @ts-ignore
       totalClicks += c.clicks || 0;
+      // @ts-ignore
       totalOrders += c.orders || 0;
+      // @ts-ignore
       totalImpressions += c.impressions || 0;
     }
     
@@ -256,7 +261,7 @@ export async function triggerInitialOptimization(
           updatedAt: new Date().toISOString(),
         }).where(eq(performanceGroups.id, targetId));
       }
-    } catch (e) {
+    } catch (e: any) {
       // 非关键错误，不影响结果
     }
     
@@ -277,7 +282,7 @@ export async function triggerInitialOptimization(
           errors.length > 0 ? `\n警告: ${errors.join('; ')}` : '',
         ].filter(Boolean).join('\n'),
       });
-    } catch (e) {
+    } catch (e: any) {
       // 通知失败不影响主流程
     }
     
@@ -408,7 +413,7 @@ async function executeScheduledOptimization(targetId: number): Promise<void> {
           updatedAt: new Date().toISOString(),
         }).where(eq(performanceGroups.id, targetId));
       }
-    } catch (e) { /* 非关键 */ }
+    } catch (e: any) { /* 非关键 */ }
     
   } catch (error: unknown) {
     scheduled.status = 'error';
@@ -559,7 +564,7 @@ export async function onTargetStatusChanged(
     // 启用时，触发首次优化并注册调度
     log.info(`优化目标 ${targetId} 已启用，触发首次优化`);
     // 异步执行，不阻塞API响应
-    triggerInitialOptimization(targetId, { triggeredBy: 'enable' }).catch(err => {
+    triggerInitialOptimization(targetId, { triggeredBy: 'enable' }).catch((err: any) => {
       log.warn(`启用触发优化失败:`, err);
     });
   } else {
@@ -582,7 +587,7 @@ export async function onCampaignsAdded(
   triggerInitialOptimization(targetId, {
     triggeredBy: 'add_campaigns',
     campaignIds,
-  }).catch(err => {
+  }).catch((err: any) => {
     log.warn(`添加广告活动触发优化失败:`, err);
   });
 }

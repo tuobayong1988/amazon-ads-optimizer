@@ -139,6 +139,71 @@ export async function syncAutoTargeting(service: SyncContext,days: number = 14):
     }
 
     log.info(`自动定向同步完成: ${synced} 条记录`);
+
+    // v512: 通过SP Targeting List API获取自动广告匹配对象的真实bid
+    // 报告API不返回bid，但List API返回真实的bid值
+    try {
+      log.info('[v512] 开始通过SP Targeting List API回填自动广告匹配对象的真实bid...');
+      let bidUpdated = 0;
+      
+      // 获取所有自动广告活动的adGroup
+      const autoCampaigns = await db
+        .select({ campaignId: campaigns.campaignId })
+        .from(campaigns)
+        .where(
+          and(
+            eq(campaigns.accountId, service.accountId),
+            sql`${campaigns.campaignType} LIKE '%auto%'`
+          )
+        );
+      
+      for (const camp of autoCampaigns) {
+        const campAdGroups = await db
+          .select({ id: adGroups.id, adGroupId: adGroups.adGroupId })
+          .from(adGroups)
+          .where(eq(adGroups.campaignId, camp.campaignId));
+        
+        for (const ag of campAdGroups) {
+          try {
+            // 调用SP Targeting List API获取该adGroup下所有targets的真实bid
+            const apiTargets = await service.client.listSpProductTargets(Number(ag.adGroupId));
+            
+            for (const apiTarget of apiTargets) {
+              // 只处理自动定向类型(expressionType === 'auto')
+              if (apiTarget.expressionType !== 'auto') continue;
+              if (apiTarget.bid <= 0) continue;
+              
+              // 通过targetId匹配本地记录并更新bid
+              const [localTarget] = await db
+                .select()
+                .from(productTargets)
+                .where(
+                  and(
+                    eq(productTargets.internalAdGroupId, ag.id),
+                    eq(productTargets.targetId, String(apiTarget.targetId))
+                  )
+                )
+                .limit(1);
+              
+              if (localTarget && (localTarget.bid === '0.00' || localTarget.bid === '0' || !localTarget.bid)) {
+                await db
+                  .update(productTargets)
+                  .set({ bid: apiTarget.bid.toFixed(2) })
+                  .where(eq(productTargets.id, localTarget.id));
+                bidUpdated++;
+              }
+            }
+          } catch (agErr) {
+            log.debug(`[v512] 获取adGroup ${ag.adGroupId} 的自动定向bid失败: ${(agErr as Error).message}`);
+          }
+        }
+      }
+      
+      log.info(`[v512] 自动广告匹配对象bid回填完成: ${bidUpdated} 条更新`);
+    } catch (bidErr) {
+      log.warn(`[v512] 自动广告bid回填失败(不影响主流程): ${(bidErr as Error).message}`);
+    }
+
     return synced;
   } catch (error) {
     log.warn('同步自动定向失败:', error);
@@ -254,6 +319,71 @@ export async function syncSdTargeting(service: SyncContext,days: number = 14): P
     }
 
     log.info(`SD定向同步完成: ${synced} 条记录`);
+
+    // v512: 通过SD Targeting List API获取SD定向的真实bid
+    try {
+      log.info('[v512] 开始通过SD Targeting List API回填SD定向bid...');
+      let bidUpdated = 0;
+      
+      // 获取所有SD广告活动的adGroup
+      const sdCampaigns = await db
+        .select({ campaignId: campaigns.campaignId })
+        .from(campaigns)
+        .where(
+          and(
+            eq(campaigns.accountId, service.accountId),
+            sql`${campaigns.adType} = 'sd'`
+          )
+        );
+      
+      for (const camp of sdCampaigns) {
+        const campAdGroups = await db
+          .select({ id: adGroups.id, adGroupId: adGroups.adGroupId })
+          .from(adGroups)
+          .where(eq(adGroups.campaignId, camp.campaignId));
+        
+        for (const ag of campAdGroups) {
+          try {
+            const apiTargets = await service.client.listSdTargets(Number(ag.adGroupId));
+            
+            for (const apiTarget of (apiTargets as Record<string, unknown>[])) {
+              const bid = Number(apiTarget.bid || 0);
+              if (bid <= 0) continue;
+              
+              const targetIdStr = String(apiTarget.targetId || '');
+              if (!targetIdStr) continue;
+              
+              // 通过targetId或targetExpression匹配本地记录
+              const [localTarget] = await db
+                .select()
+                .from(productTargets)
+                .where(
+                  and(
+                    eq(productTargets.internalAdGroupId, ag.id),
+                    eq(productTargets.targetId, targetIdStr)
+                  )
+                )
+                .limit(1);
+              
+              if (localTarget && (localTarget.bid === '0.00' || localTarget.bid === '0' || !localTarget.bid)) {
+                await db
+                  .update(productTargets)
+                  .set({ bid: bid.toFixed(2) })
+                  .where(eq(productTargets.id, localTarget.id));
+                bidUpdated++;
+              }
+            }
+          } catch (agErr) {
+            log.debug(`[v512] 获取SD adGroup ${ag.adGroupId} 的定向bid失败: ${(agErr as Error).message}`);
+          }
+        }
+      }
+      
+      log.info(`[v512] SD定向bid回填完成: ${bidUpdated} 条更新`);
+    } catch (bidErr) {
+      log.warn(`[v512] SD定向bid回填失败(不影响主流程): ${(bidErr as Error).message}`);
+    }
+
     return synced;
   } catch (error) {
     log.warn('同步SD定向失败:', error);
@@ -360,6 +490,104 @@ export async function syncSbTargeting(service: SyncContext,days: number = 14): P
     }
 
     log.info(`SB定向同步完成: ${synced} 条记录`);
+
+    // v512: 通过SB Keywords/Targets List API获取SB定向的真实bid
+    try {
+      log.info('[v512] 开始通过SB List API回填SB定向bid...');
+      let bidUpdated = 0;
+      
+      // 获取所有SB广告活动的adGroup
+      const sbCampaigns = await db
+        .select({ campaignId: campaigns.campaignId })
+        .from(campaigns)
+        .where(
+          and(
+            eq(campaigns.accountId, service.accountId),
+            sql`${campaigns.adType} = 'sb'`
+          )
+        );
+      
+      for (const camp of sbCampaigns) {
+        const campAdGroups = await db
+          .select({ id: adGroups.id, adGroupId: adGroups.adGroupId })
+          .from(adGroups)
+          .where(eq(adGroups.campaignId, camp.campaignId));
+        
+        for (const ag of campAdGroups) {
+          try {
+            // SB关键词的bid回填
+            const apiKeywords = await service.client.listSbKeywords(String(ag.adGroupId));
+            for (const apiKw of apiKeywords) {
+              const bid = Number(apiKw.bid || 0);
+              if (bid <= 0) continue;
+              
+              const kwText = String(apiKw.keywordText || apiKw.keyword || '');
+              if (!kwText) continue;
+              
+              // 通过keywordText匹配本地记录
+              const [localKw] = await db
+                .select()
+                .from(keywords)
+                .where(
+                  and(
+                    eq(keywords.internalAdGroupId, ag.id),
+                    eq(keywords.keywordText, kwText)
+                  )
+                )
+                .limit(1);
+              
+              if (localKw && (localKw.bid === '0.00' || localKw.bid === '0' || !localKw.bid)) {
+                await db
+                  .update(keywords)
+                  .set({ bid: bid.toFixed(2) })
+                  .where(eq(keywords.id, localKw.id));
+                bidUpdated++;
+              }
+            }
+          } catch (agErr) {
+            log.debug(`[v512] 获取SB adGroup ${ag.adGroupId} 的关键词bid失败: ${(agErr as Error).message}`);
+          }
+          
+          try {
+            // SB商品定向的bid回填
+            const apiTargets = await service.client.listSbTargets(String(ag.adGroupId));
+            for (const apiTarget of apiTargets) {
+              const bid = Number(apiTarget.bid || 0);
+              if (bid <= 0) continue;
+              
+              const targetIdStr = String(apiTarget.targetId || '');
+              if (!targetIdStr) continue;
+              
+              const [localTarget] = await db
+                .select()
+                .from(productTargets)
+                .where(
+                  and(
+                    eq(productTargets.internalAdGroupId, ag.id),
+                    eq(productTargets.targetId, targetIdStr)
+                  )
+                )
+                .limit(1);
+              
+              if (localTarget && (localTarget.bid === '0.00' || localTarget.bid === '0' || !localTarget.bid)) {
+                await db
+                  .update(productTargets)
+                  .set({ bid: bid.toFixed(2) })
+                  .where(eq(productTargets.id, localTarget.id));
+                bidUpdated++;
+              }
+            }
+          } catch (agErr) {
+            log.debug(`[v512] 获取SB adGroup ${ag.adGroupId} 的商品定向bid失败: ${(agErr as Error).message}`);
+          }
+        }
+      }
+      
+      log.info(`[v512] SB定向bid回填完成: ${bidUpdated} 条更新`);
+    } catch (bidErr) {
+      log.warn(`[v512] SB定向bid回填失败(不影响主流程): ${(bidErr as Error).message}`);
+    }
+
     return synced;
   } catch (error) {
     log.warn('同步SB定向失败:', error);

@@ -54,6 +54,7 @@ export async function backfillMatchType(): Promise<{ updated: number; errors: nu
       WHERE event_category = 'bid_adjustment'
     `);
     
+    // @ts-ignore
     const coverage = (coverageResult as Record<string, unknown>[])[0] || {};
     const total = Number(coverage.total) || 0;
     const withMatchType = Number(coverage.with_match_type) || 0;

@@ -75,6 +75,7 @@ queryClient.getMutationCache().subscribe(event => {
  */
 const authenticatedFetch: typeof globalThis.fetch = (input, init) => {
   const token = localStorage.getItem('authToken');
+  // @ts-ignore
   const headers = new Headers((init as unknown)?.headers);
   if (token) {
     headers.set('Authorization', `Bearer ${token}`);

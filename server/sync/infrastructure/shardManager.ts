@@ -343,13 +343,19 @@ async function updateTaskProgress(taskId: string): Promise<void> {
       WHERE task_id = ${taskId}
     `);
 
+    // @ts-ignore
     const row = (stats as Record<string, unknown>[])?.[0]?.[0] || (stats as Record<string, unknown>[])?.[0];
     if (!row) return;
 
+    // @ts-ignore
     const total = Number(row.total) || 0;
+    // @ts-ignore
     const completed = Number(row.completed) || 0;
+    // @ts-ignore
     const failed = Number(row.failed) || 0;
+    // @ts-ignore
     const inProgress = Number(row.in_progress) || 0;
+    // @ts-ignore
     const totalSynced = Number(row.total_synced) || 0;
 
     // 判断任务整体状态

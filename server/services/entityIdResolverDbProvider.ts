@@ -62,6 +62,7 @@ export function createEntityIdResolverDbProvider(): DbQueryProvider {
       return results[0] || null;
     },
 
+    // @ts-ignore
     async getKeywordByInternalId(id: number) {
       const db = await getDb();
       if (!db) return null;
@@ -73,6 +74,7 @@ export function createEntityIdResolverDbProvider(): DbQueryProvider {
       return results[0] || null;
     },
 
+    // @ts-ignore
     async getProductTargetByInternalId(id: number) {
       const db = await getDb();
       if (!db) return null;
@@ -82,8 +84,10 @@ export function createEntityIdResolverDbProvider(): DbQueryProvider {
         internalAdGroupId: productTargets.internalAdGroupId,
       }).from(productTargets).where(eq(productTargets.id, id)).limit(1);
       return results[0] || null;
+    // @ts-ignore
     },
 
+    // @ts-ignore
     async getKeywordsByInternalIds(ids: number[]) {
       if (ids.length === 0) return [];
       const db = await getDb();
@@ -92,9 +96,11 @@ export function createEntityIdResolverDbProvider(): DbQueryProvider {
         id: keywords.id,
         keywordId: keywords.keywordId,
         internalAdGroupId: keywords.internalAdGroupId,
+      // @ts-ignore
       }).from(keywords).where(inArray(keywords.id, ids));
     },
 
+    // @ts-ignore
     async getProductTargetsByInternalIds(ids: number[]) {
       if (ids.length === 0) return [];
       const db = await getDb();

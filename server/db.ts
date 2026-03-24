@@ -64,3 +64,4 @@ export * from './db/syncJobs';
 export * from './db/analytics';
 export * from './db/optimizationEvents';
 export * from './db/goalProgress';
+export * from './db/sdAudiences';

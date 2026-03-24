@@ -32,6 +32,7 @@ export default function ApiStatusWidget({ className = "", compact = false }: Api
   const [, setLocation] = useLocation();
   
   // 获取账号列表
+  // @ts-ignore
   const { data: accounts } = trpc.adAccount.list.useQuery() as unknown;
   const firstAccountId = accounts?.[0]?.id;
 

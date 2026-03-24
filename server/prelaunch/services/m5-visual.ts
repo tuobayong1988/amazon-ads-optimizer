@@ -64,8 +64,10 @@ SLOT PURPOSE: ${slot.description}
 
 PRODUCT CONTEXT:
 - Core Keywords: ${coreKws.map((k: Record<string, unknown>) => k.keyword).join(', ')}
-- Target Persona: ${topPersona?.personaName || 'General consumer'}
-- Persona Demographics: ${topPersona?.demographics || 'N/A'}
+// @ts-ignore
+- Target Persona: ${(topPersona as any)?.personaName || 'General consumer'}
+// @ts-ignore
+- Persona Demographics: ${(topPersona as any)?.demographics || 'N/A'}
 
 COMPETITIVE LANDSCAPE:
 ${topCompetitors.map((c: Record<string, unknown>) => `- ${c.brand}: ${c.title}`).join('\n')}

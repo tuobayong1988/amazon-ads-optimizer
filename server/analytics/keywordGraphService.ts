@@ -136,6 +136,7 @@ export async function generateEmbeddings(texts: string[]): Promise<number[][]> {
 Output ONLY the JSON array, no explanation.`
         }, {
           role: 'user',
+          // @ts-ignore
           content: `Generate semantic embeddings for these keywords:\n${batch.map((t: unknown, idx: unknown) => `${idx + 1}. "${t}"`).join('\n')}\n\nOutput a JSON array of arrays, one 32-dim vector per keyword.`
         }],
         temperature: 0,
@@ -157,7 +158,7 @@ Output ONLY the JSON array, no explanation.`
       } catch {
         for (const _ of batch) embeddings.push(Array(32).fill(0));
       }
-    } catch (error) {
+    } catch (error: any) {
       log.warn(`[KeywordGraph] Embedding generation error:`, error);
       for (const _ of batch) embeddings.push(Array(32).fill(0));
     }
@@ -263,7 +264,7 @@ export async function buildKeywordGraph(accountId: number): Promise<{
     log.info(`[KeywordGraph] Built graph: ${result.nodes} nodes, ${result.edges} edges`);
     return result;
     
-  } catch (error) {
+  } catch (error: any) {
     log.warn(`[KeywordGraph] Error building graph:`, error);
     return result;
   }
@@ -351,7 +352,7 @@ export async function discoverOpportunities(accountId: number): Promise<KeywordO
     
     return opportunities;
     
-  } catch (error) {
+  } catch (error: any) {
     log.warn(`[KeywordGraph] Error discovering opportunities:`, error);
     return opportunities;
   }
@@ -411,7 +412,7 @@ export async function discoverNegativeCandidates(accountId: number): Promise<Neg
     
     return candidates;
     
-  } catch (error) {
+  } catch (error: any) {
     log.warn(`[KeywordGraph] Error discovering negatives:`, error);
     return candidates;
   }

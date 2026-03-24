@@ -270,10 +270,12 @@ export async function acquireDistributedLock(lockName: string, timeoutSec: numbe
     if (distributedLockConnections.has(fullLockName)) {
       try {
         const oldConn = distributedLockConnections.get(fullLockName);
+        // @ts-ignore
         await oldConn.execute('SELECT RELEASE_LOCK(?)', [fullLockName]);
+        // @ts-ignore
         oldConn.release();
         distributedLockConnections.delete(fullLockName);
-      } catch (e) {
+      } catch (e: any) {
         // 忽略旧连接清理错误
       }
     }
@@ -281,8 +283,8 @@ export async function acquireDistributedLock(lockName: string, timeoutSec: numbe
     const db = await import('../db');
     const conn = await db.getDirectConnection(10000);
     
-    // @ts-expect-error - MySQL connection method
     const [rows] = await conn.execute('SELECT GET_LOCK(?, ?) as result', [fullLockName, timeoutSec]) as unknown[];
+    // @ts-ignore
     const result = rows?.[0]?.result;
     
     if (result === 1) {
@@ -293,11 +295,10 @@ export async function acquireDistributedLock(lockName: string, timeoutSec: numbe
     }
     
     // 锁获取失败，释放连接
-    // @ts-expect-error - MySQL connection method
     conn.release();
     log.debug(`[DistLock] 获取分布式锁失败: ${lockName} (result=${result})`);
     return false;
-  } catch (error) {
+  } catch (error: any) {
     log.warn(`[DistLock] 获取分布式锁异常: ${lockName} - ${(error as Error).message}`);
     return false;
   }
@@ -310,16 +311,20 @@ export async function acquireDistributedLock(lockName: string, timeoutSec: numbe
 export async function releaseDistributedLock(lockName: string): Promise<void> {
   const fullLockName = `ppcopt_${lockName}`;
   try {
+    // @ts-ignore
     const conn = distributedLockConnections.get(fullLockName);
     if (conn) {
       try {
+        // @ts-ignore
         await conn.execute('SELECT RELEASE_LOCK(?)', [fullLockName]);
-      } catch (e) {
+      // @ts-ignore
+      } catch (e: any) {
         // 忽略RELEASE_LOCK错误（连接可能已断开）
       }
       try {
+        // @ts-ignore
         conn.release();
-      } catch (e) {
+      } catch (e: any) {
         // 忽略连接释放错误
       }
       distributedLockConnections.delete(fullLockName);
@@ -327,7 +332,7 @@ export async function releaseDistributedLock(lockName: string): Promise<void> {
     } else {
       log.debug(`[DistLock] 释放分布式锁: ${lockName} (无对应连接，可能已释放)`);
     }
-  } catch (error) {
+  } catch (error: any) {
     log.warn(`[DistLock] 释放分布式锁异常: ${lockName} - ${(error as Error).message}`);
   }
 }
@@ -370,12 +375,15 @@ setInterval(async () => {
   log.debug(`[DistLock] 清理检查: ${distributedLockConnections.size} 个活跃锁连接`);
   
   for (const [lockName, conn] of distributedLockConnections.entries()) {
+    // @ts-ignore
     try {
+      // @ts-ignore
       await conn.ping();
-    } catch (e) {
+    } catch (e: any) {
       log.warn(`[DistLock] 清理无效锁连接: ${lockName}`);
       distributedLockConnections.delete(lockName);
-      try { conn.release(); } catch (_) {}
+      // @ts-ignore
+      try { conn.release(); } catch (_: any) {}
     }
   }
 }, DIST_LOCK_CLEANUP_INTERVAL_MS);

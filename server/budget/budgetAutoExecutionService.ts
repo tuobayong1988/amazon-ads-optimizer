@@ -354,7 +354,7 @@ export async function executeBudgetAllocation(configId: number): Promise<{
           totalBudgetAfter += budgetBefore;
           skippedCampaigns++;
         }
-      } catch (error) {
+      } catch (error: any) {
         errorCampaigns++;
         details.push({
           campaignId: suggestion.campaignId,
@@ -383,6 +383,7 @@ export async function executeBudgetAllocation(configId: number): Promise<{
         changeReason: suggestion.reasons.join('; '),
         // @ts-expect-error - dynamic property access
         performanceScore: String((suggestion as Record<string, unknown>).compositeScore || 0),
+        // @ts-ignore
         confidence: String((suggestion as Record<string, unknown>).confidence || 0),
         apiSyncStatus: 'pending',
       } as Record<string, unknown>);
@@ -445,7 +446,7 @@ export async function executeBudgetAllocation(configId: number): Promise<{
       summary,
       details,
     };
-  } catch (error) {
+  } catch (error: any) {
     // 更新执行记录为失败
     await db.update(budgetAutoExecutionHistory)
       .set({
@@ -605,7 +606,7 @@ export async function checkAndExecutePendingTasks(): Promise<{
     try {
       await executeBudgetAllocation(config.id);
       executed++;
-    } catch (error) {
+    } catch (error: any) {
       failed++;
       errors.push(`配置${config.id}执行失败: ${error instanceof Error ? (error as Error).message : '未知错误'}`);
     }

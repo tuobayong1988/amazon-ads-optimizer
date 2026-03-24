@@ -52,6 +52,7 @@ describe('FloatingActionButton 交互测试', () => {
 
     it('应在桌面端不渲染（useIsMobile 返回 false）', async () => {
       const { useIsMobile } = await import('@/hooks/useMobile');
+      // @ts-ignore
       (useIsMobile as Record<string, unknown>).mockReturnValueOnce(false);
 
       const { container } = render(<FloatingActionButton actions={mockActions} />);

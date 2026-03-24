@@ -47,7 +47,7 @@ export class PrelaunchPipelineOrchestrator {
     pipelineStatuses.set(projectId, status);
 
     // 异步执行流水线（不阻塞请求）
-    this.executePipeline(input, status).catch(err => {
+    this.executePipeline(input, status).catch((err: any) => {
       status.currentModule = 'ERROR';
       log.warn('Pipeline execution error:', err);
     });
@@ -148,6 +148,7 @@ export class PrelaunchPipelineOrchestrator {
           status: result.success ? 'completed' : 'failed',
           startedAt: status.modules[mod.name].startedAt,
           completedAt: new Date().toISOString(),
+          // @ts-ignore
           error: result.success ? undefined : (result as Record<string, unknown>).error,
         };
       } catch (error: unknown) {

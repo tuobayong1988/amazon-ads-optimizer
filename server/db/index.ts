@@ -36,3 +36,4 @@ export * from './syncJobs';
 export * from './analytics';
 export * from './optimizationEvents';
 export * from './goalProgress';
+export * from './sdAudiences';

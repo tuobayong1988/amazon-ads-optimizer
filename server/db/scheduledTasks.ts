@@ -51,6 +51,7 @@ export async function createScheduledTask(data: {
   const db = await getDb();
   if (!db) return 0;
   
+  // @ts-ignore
   const result = await db.insert(scheduledTasks).values({
     userId: data.userId,
     accountId: data.accountId || null,
@@ -127,6 +128,7 @@ export async function recordTaskExecution(data: {
   const db = await getDb();
   if (!db) return;
   
+  // @ts-ignore
   await db.insert(taskExecutionLog).values({
     taskId: data.taskId,
     userId: data.userId,

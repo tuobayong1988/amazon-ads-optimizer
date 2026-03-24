@@ -254,7 +254,7 @@ export async function resolveKeywordId(internalId: number): Promise<ResolvedIds>
       const adGroupResolved = await resolveAdGroupId(keyword.internalAdGroupId);
       amazonAdGroupId = adGroupResolved.amazonAdGroupId;
       amazonCampaignId = adGroupResolved.amazonCampaignId;
-    } catch (e) {
+    } catch (e: any) {
       log.warn(`Failed to resolve adGroup for keyword ${internalId}: ${(e as Error).message}`);
     }
   }
@@ -302,7 +302,7 @@ export async function resolveProductTargetId(internalId: number): Promise<Resolv
       const adGroupResolved = await resolveAdGroupId(target.internalAdGroupId);
       amazonAdGroupId = adGroupResolved.amazonAdGroupId;
       amazonCampaignId = adGroupResolved.amazonCampaignId;
-    } catch (e) {
+    } catch (e: any) {
       log.warn(`Failed to resolve adGroup for productTarget ${internalId}: ${(e as Error).message}`);
     }
   }
@@ -421,7 +421,7 @@ export async function batchResolveKeywordIds(internalIds: number[]): Promise<Bat
       keywordCache.set(id, resolved);
       reverseKeywordCache.set(keyword.keywordId, id);
       result.resolved.set(id, resolved);
-    } catch (e) {
+    } catch (e: any) {
       result.failed.push(id);
       result.errors.push(`Keyword ${id}: ${(e as Error).message}`);
     }
@@ -487,7 +487,7 @@ export async function batchResolveProductTargetIds(internalIds: number[]): Promi
       productTargetCache.set(id, resolved);
       reverseTargetCache.set(target.targetId, id);
       result.resolved.set(id, resolved);
-    } catch (e) {
+    } catch (e: any) {
       result.failed.push(id);
       result.errors.push(`ProductTarget ${id}: ${(e as Error).message}`);
     }
@@ -576,6 +576,7 @@ export async function safeResolveAmazonKeywordId(
 export function validateAmazonId(id: string | number | null | undefined, entityType: EntityType): boolean {
   if (id === null || id === undefined) return false;
   const strId = String(id);
+  // @ts-ignore
   if (!isValidAmazonId(strId as unknown)) {
     log.warn(`Invalid Amazon ${entityType} ID: "${strId}"`);
     return false;
