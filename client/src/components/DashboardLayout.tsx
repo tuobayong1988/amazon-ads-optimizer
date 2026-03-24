@@ -516,9 +516,7 @@ function DashboardLayoutContent({
               <MenuGroup 
                 // @ts-ignore
                 key={group.title} 
-                // @ts-ignore
                 group={group} 
-                // @ts-ignore
                 groupIndex={groupIndex}
                 location={location}
                 setLocation={setLocation}
@@ -748,19 +746,14 @@ function DashboardLayoutContent({
           <div className="flex items-center gap-2">
             {/* @ts-ignore */}
             {isMobile && <SidebarTrigger className="h-9 w-9 rounded-lg bg-background" />}
-            // @ts-ignore
             {/* 面包屑导航（PC端显示） */}
             {!isMobile && breadcrumbs.length > 1 && (
-              // @ts-ignore
               <nav className="flex items-center gap-1 text-sm">
                 {breadcrumbs.map((crumb: unknown, idx: unknown) => (
-                  // @ts-ignore
                   <span key={crumb.path} className="flex items-center gap-1">
                     {/* @ts-ignore */}
                     {idx > 0 && <ChevronRight className="h-3 w-3 text-muted-foreground" />}
-                    // @ts-ignore
                     {idx === breadcrumbs.length - 1 ? (
-                      // @ts-ignore
                       <span className="text-foreground font-medium">{crumb.label}</span>
                     ) : (
                       <button
@@ -832,7 +825,6 @@ function DashboardLayoutContent({
                       // @ts-ignore
                       };
                       return (
-                        // @ts-ignore
                         <div key={n.id} className={`flex items-start gap-3 px-4 py-3 border-b border-border/50 hover:bg-muted/30 transition-colors ${!n.read ? 'bg-muted/10' : ''}`}>
                           {/* @ts-ignore */}
                           <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${(typeColors as Record<string, string>)[n.type]}`} />
@@ -886,7 +878,6 @@ function DashboardLayoutContent({
               </div>
               {/* @ts-ignore */}
               {searchResults.length > 0 && (
-                // @ts-ignore
                 <div className="max-h-[300px] overflow-y-auto p-2">
                   {searchResults.map((result: unknown) => {
                     // @ts-ignore

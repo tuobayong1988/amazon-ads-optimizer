@@ -33,7 +33,6 @@ export default function PrelaunchM2Competitors() {
   if (!projectId && projects.length > 0) setProjectId(projects[0].id);
 
   const competitorsQuery = trpc.prelaunch.getCompetitors.useQuery(
-    // @ts-ignore
     { projectId: projectId!, tier: tierFilter as unknown || undefined, page, pageSize: 20 },
     { enabled: !!projectId }
   );
@@ -87,7 +86,6 @@ export default function PrelaunchM2Competitors() {
             <select className="h-8 rounded-md border border-input bg-transparent px-2 text-xs"
               value={projectId || ''} onChange={(e) => { setProjectId(Number(e.target.value)); setPage(1); }}>
               <option value="">选择项目</option>
-              // @ts-ignore
               {projects.map((p: unknown) => <option key={(p as any).id} value={(p as any).id}>{(p as any).projectName}</option>)}
             </select>
             <Button variant="outline" size="sm" onClick={() => competitorsQuery.refetch()} disabled={competitorsQuery.isFetching}>
@@ -140,7 +138,6 @@ export default function PrelaunchM2Competitors() {
           <TabsContent value="competitors" className="space-y-4">
             <div className="flex items-center gap-2">
               {tiers.map((t: unknown) => (
-                // @ts-ignore
                 <Button key={t.key} variant={tierFilter === t.key ? "default" : "outline"} size="sm" className="h-7 text-xs"
                   // @ts-ignore
                   onClick={() => { setTierFilter(t.key); setPage(1); }}>
@@ -181,9 +178,7 @@ export default function PrelaunchM2Competitors() {
                         </tr>
                       </thead>
                       <tbody>
-                        // @ts-ignore
                         {competitorsData.map((comp: unknown) => (
-                          // @ts-ignore
                           <tr key={comp.id} className="border-b border-border/30 hover:bg-muted/20 transition-colors">
                             <td className="px-4 py-2.5">
                               {/* @ts-ignore */}
@@ -247,9 +242,7 @@ export default function PrelaunchM2Competitors() {
                   </Button>
                 </div>
               </div>
-            // @ts-ignore
             )}
-          // @ts-ignore
           </TabsContent>
 
           <TabsContent value="matrix" className="space-y-4">
@@ -273,9 +266,7 @@ export default function PrelaunchM2Competitors() {
                     </CardHeader>
                     <CardContent>
                       <div className="flex flex-wrap gap-1">
-                        // @ts-ignore
                         {((item as any).competitors || (item as any).asins || []).slice(0, 5).map((c: unknown, j: number) => (
-                          // @ts-ignore
                           <Badge key={j} variant="outline" className="text-xs">{typeof c === 'string' ? c : c.asin}</Badge>
                         ))}
                       </div>

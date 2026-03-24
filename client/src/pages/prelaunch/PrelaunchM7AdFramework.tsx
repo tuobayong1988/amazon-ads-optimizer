@@ -89,7 +89,6 @@ export default function PrelaunchM7AdFramework() {
             <select className="h-8 rounded-md border border-input bg-transparent px-2 text-xs"
               value={projectId || ''} onChange={(e) => setProjectId(Number(e.target.value))}>
               <option value="">选择项目</option>
-              // @ts-ignore
               {projects.map((p: unknown) => <option key={(p as any).id} value={(p as any).id}>{(p as any).projectName}</option>)}
             </select>
             <Button variant="outline" size="sm" onClick={() => frameworksQuery.refetch()} disabled={frameworksQuery.isFetching}>
@@ -118,18 +117,14 @@ export default function PrelaunchM7AdFramework() {
                 <Card
                   // @ts-ignore
                   key={fw.id}
-                  // @ts-ignore
                   className={`cursor-pointer transition-colors ${selectedFramework === fw.id ? 'border-indigo-500/50 bg-indigo-500/5' : 'hover:border-indigo-500/20'}`}
-                  // @ts-ignore
                   onClick={() => setSelectedFramework(fw.id)}
                 >
                   {/* @ts-ignore */}
                   <CardContent className="py-3 px-4">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        // @ts-ignore
                         {String(statusIcons[(fw as any).status] || statusIcons.draft)}
-                        // @ts-ignore
                         <span className="text-sm font-medium">{(fw as any).frameworkName || (fw as any).frameworkType || `框架 #${(fw as any).id}`}</span>
                       </div>
                       {/* @ts-ignore */}
@@ -237,7 +232,6 @@ export default function PrelaunchM7AdFramework() {
                           {/* @ts-ignore */}
                           </div>
                         ) : (
-                          // @ts-ignore
                           <div className="overflow-x-auto">
                             {/* @ts-ignore */}
                             <table className="w-full text-sm">

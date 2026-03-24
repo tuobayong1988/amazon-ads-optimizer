@@ -142,7 +142,6 @@ export default function AutoOptimizationDashboard() {
             <div className="text-2xl font-bold">{safeMetrics?.totalActionsToday || 0}</div>
             {/* @ts-ignore */}
             <p className="text-xs text-gray-600 mt-1">
-              // @ts-ignore
               成功: {(safeMetrics as any)?.completedActions || 0} | 失败: {(safeMetrics as any)?.failedActions || 0}
             </p>
           </CardContent>
@@ -174,7 +173,6 @@ export default function AutoOptimizationDashboard() {
             <div className="flex items-center gap-2">
               <TrendingDown className="w-5 h-5 text-blue-600" />
               <div className="text-2xl font-bold text-blue-600">
-                // @ts-ignore
                 ¥{((safeMetrics as any)?.totalCostSavings || 0).toLocaleString('zh-CN')}
               </div>
             </div>
@@ -244,7 +242,6 @@ export default function AutoOptimizationDashboard() {
           <div className="space-y-4">
             {safeActions.length > 0 ? (
               safeActions.map((action: unknown) => (
-                // @ts-ignore
                 <div
                   // @ts-ignore
                   key={action.id}
@@ -255,13 +252,11 @@ export default function AutoOptimizationDashboard() {
                     {/* @ts-ignore */}
                     {/* @ts-ignore */}
                     {getStatusIcon(action.status)}
-                    // @ts-ignore
                     <div className="flex-1">
                       {/* @ts-ignore */}
                       <div className="font-semibold">{action.campaignName || `广告活动 #${action.campaignId}`}</div>
                       <div className="text-sm text-gray-600 mt-1">
                         {/* @ts-ignore */}
-                        // @ts-ignore
                         {getActionTypeLabel(action.actionType)}: {action.actionDescription}
                       </div>
                       {/* @ts-ignore */}
@@ -273,7 +268,6 @@ export default function AutoOptimizationDashboard() {
                         </div>
                       )}
                       <div className="text-xs text-gray-500 mt-1">
-                        // @ts-ignore
                         {(action as any).createdAt ? new Date((action as any).createdAt).toLocaleString('zh-CN') : ''}
                       </div>
                     </div>
@@ -305,30 +299,23 @@ export default function AutoOptimizationDashboard() {
         <CardContent>
           {/* @ts-ignore */}
           <div className="space-y-3">
-            // @ts-ignore
             {(safeMetrics as any) && (safeMetrics as any).pendingActions > 0 && (
               <Alert>
                 {/* @ts-ignore */}
                 <Clock className="h-4 w-4" />
                 <AlertDescription>
-                  // @ts-ignore
                   有{(safeMetrics as any).pendingActions}个待执行的优化动作，系统将在下一个执行周期自动处理
                 </AlertDescription>
               </Alert>
-            // @ts-ignore
             )}
-            // @ts-ignore
             {(safeMetrics as any) && (safeMetrics as any).failedActions > 0 && (
               <Alert className="border-yellow-200 bg-yellow-50">
                 <AlertCircle className="h-4 w-4 text-yellow-600" />
                 <AlertDescription className="text-yellow-800">
-                  // @ts-ignore
                   有{(safeMetrics as any).failedActions}个优化动作执行失败，请检查相关账号的API授权状态
                 </AlertDescription>
               </Alert>
-            // @ts-ignore
             )}
-            // @ts-ignore
             {(safeMetrics as any) && (safeMetrics as any).successRate < 80 && (safeMetrics as any).totalActionsToday > 0 && (
               <Alert className="border-orange-200 bg-orange-50">
                 <AlertCircle className="h-4 w-4 text-orange-600" />
@@ -336,9 +323,7 @@ export default function AutoOptimizationDashboard() {
                   成功率低于80%，建议检查系统配置和API连接状态
                 </AlertDescription>
               </Alert>
-            // @ts-ignore
             )}
-            // @ts-ignore
             {(safeMetrics as any) && ((safeMetrics as any).successRate >= 80 || (safeMetrics as any).totalActionsToday === 0) && (safeMetrics as any).failedActions === 0 && (
               <Alert className="border-green-200 bg-green-50">
                 <CheckCircle className="h-4 w-4 text-green-600" />

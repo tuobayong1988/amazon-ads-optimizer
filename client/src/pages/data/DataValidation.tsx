@@ -191,7 +191,6 @@ const [validationStatus, setValidationStatus] = useState<ValidationStatus>('idle
                   setValidationStatus('idle');
                   setValidationResults([]);
                 }}
-              // @ts-ignore
               >
                 {/* @ts-ignore */}
                 <SelectTrigger>
@@ -199,7 +198,6 @@ const [validationStatus, setValidationStatus] = useState<ValidationStatus>('idle
                 </SelectTrigger>
                 <SelectContent>
                   {accounts?.map((account: unknown) => (
-                    // @ts-ignore
                     <SelectItem key={account.id} value={account.id.toString()}>
                       {/* @ts-ignore */}
                       {account.accountName} ({account.marketplace})
@@ -346,7 +344,6 @@ const [validationStatus, setValidationStatus] = useState<ValidationStatus>('idle
             <CardHeader>
               <CardTitle className="text-lg">校验结果详情</CardTitle>
               <CardDescription>
-                // @ts-ignore
                 校验时间: {format(new Date(), 'yyyy-MM-dd HH:mm:ss')}
               </CardDescription>
             {/* @ts-ignore */}
@@ -371,7 +368,6 @@ const [validationStatus, setValidationStatus] = useState<ValidationStatus>('idle
                           // @ts-ignore
                           : 'bg-yellow-500/5 border-yellow-500/20'
                       }`}
-                    // @ts-ignore
                     >
                       {/* @ts-ignore */}
                       <div className="flex items-center justify-between">
@@ -379,10 +375,8 @@ const [validationStatus, setValidationStatus] = useState<ValidationStatus>('idle
                           {/* @ts-ignore */}
                           {result.status === 'match' ? (
                             <CheckCircle2 className="w-5 h-5 text-green-500" />
-                          // @ts-ignore
                           ) : result.status === 'error' ? (
                             <XCircle className="w-5 h-5 text-red-500" />
-                          // @ts-ignore
                           ) : (
                             <AlertTriangle className="w-5 h-5 text-yellow-500" />
                           )}
@@ -391,7 +385,6 @@ const [validationStatus, setValidationStatus] = useState<ValidationStatus>('idle
                             <p className="font-medium">{getEntityTypeName(result.entityType)}</p>
                             <p className="text-sm text-muted-foreground">
                               {/* @ts-ignore */}
-                              // @ts-ignore
                               {result.status === 'match' ? '数据一致' : 
                                // @ts-ignore
                                result.status === 'error' ? '校验失败' : '数据不一致'}
@@ -418,7 +411,6 @@ const [validationStatus, setValidationStatus] = useState<ValidationStatus>('idle
                           <div className={`px-3 py-1 rounded-full ${diffDisplay.bgColor}`}>
                             <span className={`flex items-center gap-1 text-sm font-medium ${diffDisplay.color}`}>
                               {diffDisplay.icon}
-                              // @ts-ignore
                               {(result as any).difference > 0 ? '+' : ''}{(result as any).difference}
                             </span>
                           </div>

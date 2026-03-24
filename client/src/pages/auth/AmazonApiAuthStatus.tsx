@@ -108,7 +108,6 @@ export default function AmazonApiAuthStatus() {
       </div>
 
       {/* 状态概览 */}
-      // @ts-ignore
       {/* @ts-ignore */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
@@ -157,34 +156,27 @@ export default function AmazonApiAuthStatus() {
         </Card>
       </div>
 
-      // @ts-ignore
       {/* @ts-ignore */}
       {safeSummary && safeSummary.expiredAccounts > 0 && (
         <Alert className="border-red-200 bg-red-50">
           {/* @ts-ignore */}
           <AlertTriangle className="h-4 w-4 text-red-600" />
           <AlertDescription className="text-red-800">
-            // @ts-ignore
             有{(safeSummary as any).expiredAccounts}个账号的API Token已过期，请立即重新授权以恢复数据同步功能
-          // @ts-ignore
           </AlertDescription>
         </Alert>
       )}
 
-      // @ts-ignore
       {safeSummary && (safeSummary as any).expiringAccounts > 0 && (
         <Alert className="border-yellow-200 bg-yellow-50">
           <Clock className="h-4 w-4 text-yellow-600" />
           <AlertDescription className="text-yellow-800">
-            // @ts-ignore
             有{(safeSummary as any).expiringAccounts}个账号的API Token即将过期，建议提前重新授权
           </AlertDescription>
         </Alert>
-      // @ts-ignore
       )}
 
       {/* 账号列表 */}
-      // @ts-ignore
       <Card>
         <CardHeader>
           <CardTitle>账号授权状态</CardTitle>
@@ -198,7 +190,6 @@ export default function AmazonApiAuthStatus() {
             {safeSummary?.accounts && safeSummary.accounts.length > 0 ? (
               // @ts-ignore
               safeSummary.accounts.map((account: unknown) => (
-                // @ts-ignore
                 <div
                   // @ts-ignore
                   key={account.accountId}
@@ -213,7 +204,6 @@ export default function AmazonApiAuthStatus() {
                       <div className="font-semibold">{account.accountName}</div>
                       {/* @ts-ignore */}
                       <div className="text-sm text-gray-600">
-                        // @ts-ignore
                         Profile ID: {(account as any).profileId} | Marketplace: {(account as any).marketplace}
                       </div>
                       <div className="text-sm text-gray-500 mt-1">
@@ -223,7 +213,6 @@ export default function AmazonApiAuthStatus() {
                       {/* @ts-ignore */}
                       {account.tokenExpiresAt && (
                         <div className="text-xs text-gray-500 mt-1">
-                          // @ts-ignore
                           过期时间: {safeToLocaleString((account as any).tokenExpiresAt, 'zh-CN')}
                         </div>
                       )}
@@ -233,14 +222,12 @@ export default function AmazonApiAuthStatus() {
                   <div className="flex items-center gap-3">
                     {/* @ts-ignore */}
                     {getStatusBadge(account.status)}
-                    // @ts-ignore
                     {((account as any).status === 'expired' || (account as any).status === 'expiring_soon') && (
                       <Button
                         size="sm"
                         variant="outline"
                         // @ts-ignore
                         onClick={() => handleRefreshToken(account.accountId)}
-                        // @ts-ignore
                         disabled={refreshing === account.accountId}
                       >
                         {/* @ts-ignore */}

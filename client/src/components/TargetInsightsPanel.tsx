@@ -174,7 +174,6 @@ export function TargetInsightsPanel({ groupId, accountId }: TargetInsightsPanelP
                           <Badge variant="outline" className="text-xs">
                             {/* @ts-ignore */}
                             {item.eventCategory || item.actionType}
-                          // @ts-ignore
                           </Badge>
                           {/* @ts-ignore */}
                           <Badge className={`text-xs ${ratingColors[item.effectRating] || ''}`}>
@@ -185,7 +184,6 @@ export function TargetInsightsPanel({ groupId, accountId }: TargetInsightsPanelP
                           <span className="text-xs text-muted-foreground">
                             {/* @ts-ignore */}
                             {safeToLocaleDateString(item.createdAt, 'zh-CN')}
-                          // @ts-ignore
                           </span>
                         {/* @ts-ignore */}
                         </div>
@@ -197,17 +195,12 @@ export function TargetInsightsPanel({ groupId, accountId }: TargetInsightsPanelP
                         {/* @ts-ignore */}
                         {item.previousBid && item.newBid && (
                           <p className="text-xs text-muted-foreground mt-1">
-                            // @ts-ignore
                             出价: ${(item as any).previousBid} → ${(item as any).newBid}
-                            // @ts-ignore
                             {(item as any).bidChangePercent && (
-                              // @ts-ignore
                               <span className={parseFloat(item.bidChangePercent) > 0 ? 'text-red-500' : 'text-green-500'}>
-                                // @ts-ignore
                                 {' '}({parseFloat((item as any).bidChangePercent) > 0 ? '+' : ''}{parseFloat((item as any).bidChangePercent).toFixed(1)}%)
                               {/* @ts-ignore */}
                               </span>
-                            // @ts-ignore
                             )}
                           </p>
                         )}
@@ -218,20 +211,16 @@ export function TargetInsightsPanel({ groupId, accountId }: TargetInsightsPanelP
                           {/* @ts-ignore */}
                           {item.deltaRoas > 0 ? (
                             <ArrowUpRight className="w-4 h-4 text-green-500" />
-                          // @ts-ignore
                           ) : item.deltaRoas < 0 ? (
                             <ArrowDownRight className="w-4 h-4 text-red-500" />
                           ) : (
                             <Minus className="w-4 h-4 text-gray-400" />
                           )}
-                          // @ts-ignore
                           <span className={`text-sm font-medium ${(item as any).deltaRoas > 0 ? 'text-green-600' : (item as any).deltaRoas < 0 ? 'text-red-600' : ''}`}>
-                            // @ts-ignore
                             ROAS {(item as any).deltaRoas > 0 ? '+' : ''}{(item as any).deltaRoas?.toFixed(2) || '0.00'}
                           </span>
                         </div>
                         <p className="text-xs text-muted-foreground mt-1">
-                          // @ts-ignore
                           效果分: {(item as any).effectScore?.toFixed(0) || '0'}
                         </p>
                       </div>
@@ -247,7 +236,6 @@ export function TargetInsightsPanel({ groupId, accountId }: TargetInsightsPanelP
               {/* @ts-ignore */}
               <p className="text-xs">系统需要积累优化操作数据后才能生成归因分析</p>
             </div>
-          // @ts-ignore
           )}
         </TabsContent>
 
@@ -256,16 +244,12 @@ export function TargetInsightsPanel({ groupId, accountId }: TargetInsightsPanelP
           {trendsLoading ? (
             <div className="flex items-center justify-center h-40 text-muted-foreground">
               <RefreshCw className="w-5 h-5 animate-spin mr-2" />
-              // @ts-ignore
               加载趋势分析数据...
-            // @ts-ignore
             </div>
           ) : trends && trends.length > 0 ? (
-            // @ts-ignore
             <>
               {/* 趋势概要卡片 */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                // @ts-ignore
                 {trends.slice(0, 4).map((trend: unknown, idx: number) => (
                   <Card key={idx}>
                     <CardContent className="pt-3 pb-2 px-4">
@@ -275,10 +259,8 @@ export function TargetInsightsPanel({ groupId, accountId }: TargetInsightsPanelP
                         {/* @ts-ignore */}
                         {trend.direction === 'up' ? (
                           <TrendingUp className="w-4 h-4 text-green-500" />
-                        // @ts-ignore
                         ) : trend.direction === 'down' ? (
                           <TrendingDown className="w-4 h-4 text-red-500" />
-                        // @ts-ignore
                         ) : (
                           <Minus className="w-4 h-4 text-gray-400" />
                         )}
@@ -288,13 +270,10 @@ export function TargetInsightsPanel({ groupId, accountId }: TargetInsightsPanelP
                           // @ts-ignore
                           trend.direction === 'down' ? 'text-red-600' : ''
                         }`}>
-                          // @ts-ignore
                           {(trend as any).changePercent > 0 ? '+' : ''}{(trend as any).changePercent?.toFixed(1)}%
-                        // @ts-ignore
                         </span>
                         <Badge variant="outline" className="text-xs ml-1">
                           {/* @ts-ignore */}
-                          // @ts-ignore
                           {trend.trendStrength === 'strong' ? '强' : trend.trendStrength === 'moderate' ? '中' : '弱'}
                         </Badge>
                       </div>
@@ -341,18 +320,15 @@ export function TargetInsightsPanel({ groupId, accountId }: TargetInsightsPanelP
                   </CardContent>
                 {/* @ts-ignore */}
                 </Card>
-              // @ts-ignore
               ))}
             </>
           ) : (
-            // @ts-ignore
             <div className="flex flex-col items-center justify-center h-40 text-muted-foreground">
               <Info className="w-8 h-8 mb-2" />
               {/* @ts-ignore */}
               <p>暂无趋势数据</p>
             </div>
           )}
-        // @ts-ignore
         </TabsContent>
 
         {/* 异常检测 - anomalies是AnomalyDetection[] */}
@@ -363,9 +339,7 @@ export function TargetInsightsPanel({ groupId, accountId }: TargetInsightsPanelP
               {/* @ts-ignore */}
               <RefreshCw className="w-5 h-5 animate-spin mr-2" />
               加载异常检测数据...
-            // @ts-ignore
             </div>
-          // @ts-ignore
           ) : anomalies && anomalies.length > 0 ? (
             <div className="space-y-3">
               {anomalies.map((anomaly: unknown, idx: number) => (
@@ -390,24 +364,19 @@ export function TargetInsightsPanel({ groupId, accountId }: TargetInsightsPanelP
                           {/* @ts-ignore */}
                           <span className="text-sm font-medium">{anomaly.metricLabel}</span>
                           <Badge variant="outline" className="text-xs">
-                            // @ts-ignore
                             {(anomaly as any).severity === 'critical' ? '严重' : (anomaly as any).severity === 'warning' ? '警告' : '信息'}
                           </Badge>
                           <Badge variant="outline" className="text-xs">
-                            // @ts-ignore
                             {(anomaly as any).direction === 'spike' ? '飙升' : '骤降'}
                           </Badge>
                         </div>
                         <p className="text-sm text-muted-foreground">
-                          // @ts-ignore
                           实际值: {(anomaly as any).actualValue?.toFixed(2)} / 预期值: {(anomaly as any).expectedValue?.toFixed(2)}
                         </p>
                         {/* @ts-ignore */}
                         {anomaly.possibleCauses?.length > 0 && (
                           <p className="text-xs text-muted-foreground mt-1">
-                            // @ts-ignore
                             可能原因：{(anomaly as any).possibleCauses[0].description}
-                            // @ts-ignore
                             {(anomaly as any).possibleCauses[0].confidence > 0 && ` (置信度: ${(anomaly as any).possibleCauses[0].confidence}%)`}
                           </p>
                         )}
@@ -416,7 +385,6 @@ export function TargetInsightsPanel({ groupId, accountId }: TargetInsightsPanelP
                         {/* @ts-ignore */}
                         <p className="text-xs text-muted-foreground">{anomaly.date}</p>
                         <p className="text-sm font-medium">
-                          // @ts-ignore
                           偏离 {(anomaly as any).deviationPercent?.toFixed(1)}%
                         </p>
                       </div>
@@ -424,10 +392,8 @@ export function TargetInsightsPanel({ groupId, accountId }: TargetInsightsPanelP
                   </CardContent>
                 </Card>
               ))}
-            // @ts-ignore
             </div>
           ) : (
-            // @ts-ignore
             <div className="flex flex-col items-center justify-center h-40 text-muted-foreground">
               {/* @ts-ignore */}
               <CheckCircle className="w-8 h-8 mb-2 text-green-500" />
@@ -442,7 +408,6 @@ export function TargetInsightsPanel({ groupId, accountId }: TargetInsightsPanelP
         {/* @ts-ignore */}
         <TabsContent value="roi" className="space-y-4">
           {roiLoading ? (
-            // @ts-ignore
             <div className="flex items-center justify-center h-40 text-muted-foreground">
               <RefreshCw className="w-5 h-5 animate-spin mr-2" />
               加载策略ROI数据...
@@ -478,7 +443,6 @@ export function TargetInsightsPanel({ groupId, accountId }: TargetInsightsPanelP
                           {/* @ts-ignore */}
                           <p className="text-sm font-medium">{strategy.strategyName}</p>
                           <p className="text-xs text-muted-foreground">
-                            // @ts-ignore
                             执行 {(strategy as any).totalEvents} 次 · 
                             // @ts-ignore
                             成功 {(strategy as any).successEvents} 次 · 
@@ -488,13 +452,11 @@ export function TargetInsightsPanel({ groupId, accountId }: TargetInsightsPanelP
                         </div>
                         <div className="text-right">
                           <p className="text-sm font-medium">
-                            // @ts-ignore
                             成功率: {(strategy as any).successRate?.toFixed(0)}%
                           </p>
                           {/* @ts-ignore */}
                           {strategy.roi7D !== null && (
                             <p className="text-xs text-muted-foreground">
-                              // @ts-ignore
                               7日ROI: {(strategy as any).roi7D?.toFixed(1)}%
                             </p>
                           )}

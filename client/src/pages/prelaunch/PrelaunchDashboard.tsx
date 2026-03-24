@@ -191,9 +191,7 @@ function ModuleProgressBar({ moduleStats }: { moduleStats?: Record<string, numbe
           <div
             // @ts-ignore
             key={m}
-            // @ts-ignore
             className={`w-3 h-1.5 rounded-full ${(moduleStats[m] || 0) > 0 ? 'bg-green-400' : 'bg-muted/50'}`}
-            // @ts-ignore
             title={`${m}: ${moduleStats[m] || 0} 条`}
           />
         ))}
@@ -212,11 +210,9 @@ function PipelineFlowVisualization({ pipelineStatus, modules, onModuleClick }: {
   const psData = pipelineStatus as unknown;
 
   return (
-    // @ts-ignore
     <div className="w-full overflow-x-auto pb-4">
       {/* @ts-ignore */}
       <div className="flex items-center gap-0 min-w-[900px] px-4 py-6">
-        // @ts-ignore
         {MODULE_CONFIG.map((mod: unknown, idx: unknown) => {
           // @ts-ignore
           const moduleStatus = psData?.data?.modules?.[mod.key]?.status || 'pending';
@@ -232,13 +228,11 @@ function PipelineFlowVisualization({ pipelineStatus, modules, onModuleClick }: {
             'bg-muted/30 border-border/50';
 
           return (
-            // @ts-ignore
             <div key={mod.key} className="flex items-center">
               {/* @ts-ignore */}
               <div
                 className={`relative flex flex-col items-center p-3 rounded-xl border cursor-pointer transition-all hover:scale-105 ${bgColor}`}
                 style={{ minWidth: '100px' }}
-                // @ts-ignore
                 onClick={() => onModuleClick(mod.route)}
               >
                 {/* @ts-ignore */}
@@ -267,7 +261,6 @@ function PipelineFlowVisualization({ pipelineStatus, modules, onModuleClick }: {
       </div>
     {/* @ts-ignore */}
     </div>
-  // @ts-ignore
   );
 // @ts-ignore
 }
@@ -335,7 +328,6 @@ function ProjectCard({ project, isSelected, onSelect, onEdit, onDelete }: {
             <DropdownMenuContent align="end" className="w-40">
               <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit(); }}>
                 <Edit3 className="w-3.5 h-3.5 mr-2" />编辑项目
-              // @ts-ignore
               </DropdownMenuItem>
               {/* @ts-ignore */}
               <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onSelect(); }}>
@@ -360,9 +352,7 @@ function ProjectCard({ project, isSelected, onSelect, onEdit, onDelete }: {
               {project.asin}
             </span>
           )}
-          // @ts-ignore
           {(project as any).category && (
-            // @ts-ignore
             <span className="truncate">{project.category}</span>
           )}
         </div>
@@ -384,9 +374,7 @@ function ProjectCard({ project, isSelected, onSelect, onEdit, onDelete }: {
           </div>
         )}
 
-        // @ts-ignore
         {/* 模块进度 & 数据统计 */}
-        // @ts-ignore
         <div className="flex items-center justify-between pt-1 border-t border-border/30">
           {/* @ts-ignore */}
           <ModuleProgressBar moduleStats={moduleStats} />
@@ -397,7 +385,6 @@ function ProjectCard({ project, isSelected, onSelect, onEdit, onDelete }: {
         {/* 创建时间 */}
         <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
           <Calendar className="w-3 h-3" />
-          // @ts-ignore
           {(project as any).createdAt ? new Date((project as any).createdAt).toLocaleDateString('zh-CN') : '-'}
         </div>
       </CardContent>
@@ -517,7 +504,6 @@ function ProjectDetailDialog({ project, open, onClose, onSaved }: {
             )}
           </div>
           <DialogDescription>
-            // @ts-ignore
             {isEditing ? '修改项目信息后点击保存' : `项目 ID: ${(project as any).id}`}
           </DialogDescription>
         </DialogHeader>
@@ -636,10 +622,8 @@ function ProjectDetailDialog({ project, open, onClose, onSaved }: {
                 <Badge variant="secondary" className="text-xs">{seedKeywords.length} 个</Badge>
               </h4>
               {seedKeywords.length > 0 ? (
-                // @ts-ignore
                 <div className="flex flex-wrap gap-1.5">
                   {seedKeywords.map((kw: string, i: number) => (
-                    // @ts-ignore
                     <Badge key={i} variant="outline" className="text-xs font-normal">{kw}</Badge>
                   ))}
                 </div>
@@ -659,7 +643,6 @@ function ProjectDetailDialog({ project, open, onClose, onSaved }: {
                   // @ts-ignore
                   const count = moduleStats[mod.key] || 0;
                   return (
-                    // @ts-ignore
                     <div key={mod.key} className={`flex items-center gap-2 p-2 rounded-lg border ${count > 0 ? 'border-green-500/20 bg-green-500/5' : 'border-border/30'}`}>
                       {/* @ts-ignore */}
                       <mod.icon className={`w-4 h-4 ${count > 0 ? mod.iconColor : 'text-muted-foreground'}`} />
@@ -730,14 +713,11 @@ function CreateProjectWizard({ onClose, onCreated }: {
         <div className="flex items-center justify-between">
           <CardTitle className="text-base flex items-center gap-2">
             <Rocket className="w-4 h-4 text-blue-400" />
-            // @ts-ignore
             创建预发布项目
           </CardTitle>
           {/* @ts-ignore */}
           <div className="flex items-center gap-2">
-            // @ts-ignore
             {[1, 2, 3, 4].map((s: unknown) => (
-              // @ts-ignore
               <div key={s} className={`flex items-center gap-1 ${s <= step ? 'text-blue-400' : 'text-muted-foreground'}`}>
                 {/* @ts-ignore */}
                 <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold border ${
@@ -747,11 +727,9 @@ function CreateProjectWizard({ onClose, onCreated }: {
                   'border-border'
                 // @ts-ignore
                 }`}>
-                  // @ts-ignore
                   {Number(s) < step ? <CheckCircle className="w-3 h-3" /> : String(s)}
                 </div>
                 {/* @ts-ignore */}
-                // @ts-ignore
                 {s < 4 && <div className={`w-4 h-0.5 ${s < step ? 'bg-green-500/60' : 'bg-border'}`} />}
               </div>
             ))}
@@ -810,7 +788,6 @@ function CreateProjectWizard({ onClose, onCreated }: {
                       ? `bg-gradient-to-br ${mod.color}`
                       : 'border-border/50 hover:border-border'
                   }`}
-                  // @ts-ignore
                   onClick={() => toggleModule(mod.key)}
                 >
                   <div className={`w-5 h-5 rounded border flex items-center justify-center ${
@@ -855,7 +832,6 @@ function CreateProjectWizard({ onClose, onCreated }: {
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div><span className="text-muted-foreground">项目名称:</span> <span className="font-medium">{projectName}</span></div>
                 <div><span className="text-muted-foreground">目标站点:</span> <span className="font-medium">{MARKETPLACE_LABELS[marketplace]?.flag} {marketplace}</span></div>
-                // @ts-ignore
                 {asin && <div><span className="text-muted-foreground">ASIN:</span> <span className="font-medium">{asin}</span></div>}
                 {category && <div><span className="text-muted-foreground">类目:</span> <span className="font-medium">{category}</span></div>}
               </div>
@@ -866,7 +842,6 @@ function CreateProjectWizard({ onClose, onCreated }: {
                   {selectedModules.map((key: unknown) => {
                     const mod = MODULE_CONFIG.find(m => m.key === key);
                     return mod ? (
-                      // @ts-ignore
                       <Badge key={key} variant="secondary" className="text-xs">{mod.key}: {mod.name}</Badge>
                     ) : null;
                   })}
@@ -878,7 +853,6 @@ function CreateProjectWizard({ onClose, onCreated }: {
                 <p className="text-xs text-muted-foreground mb-1">种子关键词:</p>
                 <div className="flex flex-wrap gap-1">
                   {seedKeywords.split(/[,，\n]/).map(s => s.trim()).filter(Boolean).map((kw: unknown, i: unknown) => (
-                    // @ts-ignore
                     <Badge key={i} variant="outline" className="text-xs">{kw}</Badge>
                   ))}
                 </div>
@@ -902,13 +876,9 @@ function CreateProjectWizard({ onClose, onCreated }: {
               下一步 <ChevronRight className="w-4 h-4 ml-1" />
             </Button>
           ) : (
-            // @ts-ignore
             <Button onClick={handleSubmit} disabled={createProject.isPending}
-              // @ts-ignore
               className="bg-gradient-to-r from-blue-600 to-purple-600">
-              // @ts-ignore
               {createProject.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Rocket className="w-4 h-4 mr-2" />}
-              // @ts-ignore
               创建并启动
             </Button>
           )}
@@ -1014,7 +984,6 @@ export default function PrelaunchDashboard() {
       deleteProjectMutation.mutate({ projectId: deleteProject.id });
     // @ts-ignore
     }
-  // @ts-ignore
   }, [deleteProject, deleteProjectMutation]);
 
   return (
@@ -1049,7 +1018,6 @@ export default function PrelaunchDashboard() {
         {/* @ts-ignore */}
         {/* 新建项目向导 */}
         {showCreateWizard && (
-          // @ts-ignore
           <CreateProjectWizard
             onClose={() => setShowCreateWizard(false)}
             onCreated={(id) => {
@@ -1087,7 +1055,6 @@ export default function PrelaunchDashboard() {
                     <X className="w-3 h-3" />
                   </Button>
                 )}
-              // @ts-ignore
               </div>
               <div className="flex items-center gap-1">
                 {[
@@ -1100,7 +1067,6 @@ export default function PrelaunchDashboard() {
                   <Button
                     // @ts-ignore
                     key={f.key}
-                    // @ts-ignore
                     variant={projectStatusFilter === f.key ? "default" : "ghost"}
                     size="sm"
                     className="h-7 text-xs px-2"
@@ -1109,7 +1075,6 @@ export default function PrelaunchDashboard() {
                   >
                     {/* @ts-ignore */}
                     {f.label}
-                    // @ts-ignore
                     {(f as any).count > 0 && <span className="ml-1 opacity-60">({(f as any).count})</span>}
                   </Button>
                 ))}
@@ -1136,17 +1101,13 @@ export default function PrelaunchDashboard() {
                   <RefreshCw className="w-4 h-4 mr-1" /> 重新加载
                 </Button>
               </div>
-            // @ts-ignore
             ) : Array.isArray(projects) && projects.length > 0 ? (
-              // @ts-ignore
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-                // @ts-ignore
                 {projects.map((p: unknown) => (
                   <ProjectCard
                     // @ts-ignore
                     key={p.id}
                     project={p}
-                    // @ts-ignore
                     isSelected={selectedProjectId === p.id}
                     onSelect={() => {
                       // @ts-ignore
@@ -1155,7 +1116,6 @@ export default function PrelaunchDashboard() {
                       setDetailProject(p);
                       setShowDetailDialog(true);
                     }}
-                    // @ts-ignore
                     onEdit={() => {
                       setDetailProject(p);
                       setShowDetailDialog(true);
@@ -1201,18 +1161,15 @@ export default function PrelaunchDashboard() {
               {selectedProject.asin && (
                 <Badge variant="outline" className="text-xs">{selectedProject.asin}</Badge>
               )}
-              // @ts-ignore
               <div className="flex-1" />
               <Button variant="ghost" size="sm" className="h-7 text-xs"
                 onClick={() => { setDetailProject(selectedProject); setShowDetailDialog(true); }}>
                 <Eye className="w-3 h-3 mr-1" />详情
-              // @ts-ignore
               </Button>
             </div>
           );
         })()}
 
-        // @ts-ignore
         {/* Tabs: 模块总览 / 流水线 */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="grid grid-cols-2 w-full max-w-sm">
@@ -1244,9 +1201,7 @@ export default function PrelaunchDashboard() {
                     <Card
                       // @ts-ignore
                       key={mod.key}
-                      // @ts-ignore
                       className={`bg-gradient-to-br ${mod.color} cursor-pointer hover:scale-[1.02] ${mod.hoverBorder} transition-all group`}
-                      // @ts-ignore
                       onClick={() => setLocation(mod.route)}
                     >
                       <CardHeader className="pb-2">
@@ -1328,9 +1283,7 @@ export default function PrelaunchDashboard() {
                         </div>
                       </div>
                     )}
-                  // @ts-ignore
                   </>
-                // @ts-ignore
                 )}
               </CardContent>
             </Card>
@@ -1359,7 +1312,6 @@ export default function PrelaunchDashboard() {
                           className={`flex items-center gap-4 p-3 rounded-lg border transition-colors cursor-pointer hover:bg-muted/20 ${
                             isActive ? 'border-blue-500/50 bg-blue-500/10' : 'border-border/50'
                           }`}
-                          // @ts-ignore
                           onClick={() => setLocation(mod.route)}
                         >
                           <div className={`p-2 rounded-lg ${isActive ? 'bg-blue-500/20' : 'bg-muted/50'}`}>
@@ -1389,7 +1341,6 @@ export default function PrelaunchDashboard() {
               </Card>
             )}
 
-            // @ts-ignore
             {/* 广告框架预览 */}
             {selectedProjectId && (
               <Card>
@@ -1426,7 +1377,6 @@ export default function PrelaunchDashboard() {
           <AlertDialogHeader>
             <AlertDialogTitle>确认删除项目</AlertDialogTitle>
             <AlertDialogDescription>
-              // @ts-ignore
               确定要删除项目 <strong>"{(deleteProject as any)?.projectName}"</strong> 吗？此操作将同时删除该项目下所有模块的数据（关键词、竞品、用户画像、文案、视觉框架、视频脚本、广告框架），且无法恢复。
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -1491,7 +1441,6 @@ function AdFrameworkPreview({ projectId }: { projectId: number }) {
         // @ts-ignore
         const typeInfo = AD_TYPE_LABELS[fw.frameworkType] || { label: fw.frameworkType, color: 'bg-gray-500/20' };
         return (
-          // @ts-ignore
           <div key={fw.id} className="flex items-center justify-between p-3 rounded-lg border border-border/50 hover:border-border transition-colors">
             <div className="flex items-center gap-3">
               <Badge className={typeInfo.color}>{typeInfo.label}</Badge>
@@ -1515,7 +1464,6 @@ function AdFrameworkPreview({ projectId }: { projectId: number }) {
               </Button>
               <Button size="sm"
                 onClick={() => toast.info("即将部署到Amazon Ads API，请确认...")}
-                // @ts-ignore
                 disabled={fw.status === 'deployed'}
                 className="bg-gradient-to-r from-indigo-600 to-blue-600">
                 <Upload className="w-3 h-3 mr-1" />部署

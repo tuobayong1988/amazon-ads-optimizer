@@ -199,7 +199,6 @@ function GroupOptimalBidCard({ groupId, accountId, onApplySuccess }: {
             <div className="max-h-48 overflow-y-auto space-y-2">
               <p className="text-xs text-muted-foreground font-medium">广告活动明细</p>
               {campaigns.map((campaign: unknown) => (
-                // @ts-ignore
                 <div key={campaign.campaignId} className="flex items-center justify-between text-xs p-2 bg-muted/20 rounded">
                   {/* @ts-ignore */}
                   <span className="truncate max-w-[200px]" title={campaign.campaignName}>{campaign.campaignName}</span>
@@ -374,7 +373,6 @@ const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
             <DialogContent className="sm:max-w-[500px]">
               <CreatePerformanceGroupForm
                 accountId={accountId!}
-                // @ts-ignore
                 onSubmit={(data) => createGroup.mutate(data)}
                 isLoading={createGroup.isPending}
               />
@@ -445,14 +443,12 @@ const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
         {/* Performance Groups Grid */}
         {/* @ts-ignore */}
         {isLoading ? (
-          // @ts-ignore
           <div className="flex items-center justify-center h-64">
             <Loader2 className="w-8 h-8 animate-spin text-primary" />
           </div>
         ) : performanceGroups && performanceGroups.length > 0 ? (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
             {performanceGroups.map((group: unknown) => (
-              // @ts-ignore
               <Card key={group.id} className="relative overflow-hidden">
                 <div className={`absolute top-0 left-0 right-0 h-1 ${
                   // @ts-ignore
@@ -500,7 +496,6 @@ const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
                         <p className="font-semibold">{group.targetAcos}%</p>
                       </div>
                     )}
-                    // @ts-ignore
                     {(group as any).targetRoas && (
                       <div>
                         <p className="text-muted-foreground">目标ROAS</p>
@@ -508,7 +503,6 @@ const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
                         <p className="font-semibold">{group.targetRoas}</p>
                       </div>
                     )}
-                    // @ts-ignore
                     {(group as any).dailySpendLimit && (
                       <div>
                         <p className="text-muted-foreground">每日花费上限</p>
@@ -516,7 +510,6 @@ const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
                         <p className="font-semibold">${group.dailySpendLimit}</p>
                       </div>
                     )}
-                    // @ts-ignore
                     {(group as any).dailyCostTarget && (
                       <div>
                         <p className="text-muted-foreground">天成本目标</p>
@@ -573,7 +566,6 @@ const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
                       <div className="grid grid-cols-2 gap-4 text-sm">
                         {/* @ts-ignore */}
                         {group.currentAcos && (
-                          // @ts-ignore
                           <div>
                             {/* @ts-ignore */}
                             <p className="text-muted-foreground">当前ACoS</p>
@@ -581,7 +573,6 @@ const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
                             <p className="font-semibold">{group.currentAcos}%</p>
                           </div>
                         )}
-                        // @ts-ignore
                         {(group as any).currentRoas && (
                           <div>
                             <p className="text-muted-foreground">当前ROAS</p>
@@ -610,7 +601,6 @@ const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
                       size="sm"
                       // @ts-ignore
                       onClick={() => handleRunOptimization(group.id, false)}
-                      // @ts-ignore
                       disabled={isOptimizing === group.id}
                     >
                       {/* @ts-ignore */}

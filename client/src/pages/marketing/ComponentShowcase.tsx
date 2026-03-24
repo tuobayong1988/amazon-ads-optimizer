@@ -1192,7 +1192,6 @@ export default function ComponentsShowcase() {
                 <Carousel className="w-full max-w-xs mx-auto">
                   <CarouselContent>
                     {Array.from({ length: 5 }).map((_: unknown, index: unknown) => (
-                      // @ts-ignore
                       <CarouselItem key={index}>
                         <div className="p-1">
                           <Card>
@@ -1276,11 +1275,8 @@ export default function ComponentsShowcase() {
                     <div className="p-4">
                       {/* @ts-ignore */}
                       <div className="space-y-4">
-                        // @ts-ignore
                         {Array.from({ length: 20 }).map((_: unknown, i: unknown) => (
-                          // @ts-ignore
                           <div key={i} className="text-sm">
-                            // @ts-ignore
                             Item {(i as any) + 1}: This is a scrollable content area
                           </div>
                         ))}

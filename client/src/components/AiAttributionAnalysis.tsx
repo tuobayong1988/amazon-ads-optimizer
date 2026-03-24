@@ -80,7 +80,6 @@ export function AiAttributionAnalysis({
       }
     }
 
-    // @ts-ignore
     if (bidDecreaseActions.length > 0) {
       // @ts-ignore
       const totalCampaigns = bidDecreaseActions.reduce((sum: number, a: Record<string, unknown>) => sum + (a.count || 0), 0);
@@ -89,7 +88,6 @@ export function AiAttributionAnalysis({
         parts.push(`降低了 ${totalCampaigns} 个广告活动的竞价`);
       // @ts-ignore
       }
-    // @ts-ignore
     }
 
     if (bidIncreaseActions.length > 0) {
@@ -188,14 +186,11 @@ export function AiAttributionAnalysis({
         {/* @ts-ignore */}
         {/* 具体操作列表 */}
         {actions.length > 0 && (
-          // @ts-ignore
           <div className="space-y-2">
             <div className="text-sm font-medium">优化操作详情</div>
             {/* @ts-ignore */}
             <div className="space-y-2">
-              // @ts-ignore
               {actions.map((action: unknown, index: unknown) => (
-                // @ts-ignore
                 <div key={index} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
                   {/* @ts-ignore */}
                   <div className="flex items-center gap-3">

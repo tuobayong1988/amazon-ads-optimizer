@@ -140,7 +140,6 @@ export function TargetAlgorithmEffectPanel({ accountId, groupId }: TargetAlgorit
       )}
 
       {/* 各算法效果对比 */}
-      // @ts-ignore
       {effectStats && (effectStats as any).length > 0 && (
         <Card>
           <CardHeader className="pb-2">
@@ -150,9 +149,7 @@ export function TargetAlgorithmEffectPanel({ accountId, groupId }: TargetAlgorit
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              // @ts-ignore
               {(effectStats as any).map((stat: unknown, idx: number) => (
-                // @ts-ignore
                 <div key={idx} className="flex items-center justify-between p-2 rounded-lg border text-sm">
                   {/* @ts-ignore */}
                   <div>
@@ -165,7 +162,6 @@ export function TargetAlgorithmEffectPanel({ accountId, groupId }: TargetAlgorit
                     {/* @ts-ignore */}
                     <p className="text-sm">效果分: {stat.avgEffectScore?.toFixed(0)}</p>
                     <p className="text-xs text-muted-foreground">
-                      // @ts-ignore
                       ROAS变化: {(stat as any).avgROASChange > 0 ? '+' : ''}{(stat as any).avgROASChange?.toFixed(2)} · 
                       // @ts-ignore
                       正向率: {(stat as any).positiveRate?.toFixed(0)}%
@@ -191,12 +187,9 @@ export function TargetAlgorithmEffectPanel({ accountId, groupId }: TargetAlgorit
             <div className="flex items-center justify-center h-20 text-muted-foreground">
               <RefreshCw className="w-4 h-4 animate-spin mr-2" />
               加载中...
-            // @ts-ignore
             </div>
           ) : bidHistory?.records?.length ? (
-            // @ts-ignore
             <div className="space-y-2 max-h-[400px] overflow-y-auto">
-              // @ts-ignore
               {bidHistory.records.map((record: unknown, idx: number) => (
                 <div key={idx} className="flex items-center justify-between p-2 rounded-lg border text-sm">
                   <div className="flex-1">
@@ -211,12 +204,10 @@ export function TargetAlgorithmEffectPanel({ accountId, groupId }: TargetAlgorit
                   <div className="text-center px-3">
                     {/* @ts-ignore */}
                     <p className="text-xs">
-                      // @ts-ignore
                       ${parseFloat((record as any).previousBid || 0).toFixed(2)} → ${parseFloat((record as any).newBid || 0).toFixed(2)}
                     </p>
                     {/* @ts-ignore */}
                     <p className={`text-xs font-medium ${parseFloat(record.bidChangePercent || 0) > 0 ? 'text-red-500' : 'text-green-500'}`}>
-                      // @ts-ignore
                       {parseFloat((record as any).bidChangePercent || 0) > 0 ? '+' : ''}{parseFloat((record as any).bidChangePercent || 0).toFixed(1)}%
                     </p>
                   {/* @ts-ignore */}
@@ -232,10 +223,8 @@ export function TargetAlgorithmEffectPanel({ accountId, groupId }: TargetAlgorit
                       {/* @ts-ignore */}
                       {(record.apiSyncStatus === 'synced' || record.syncedToAmazon) ? (
                         <><CheckCircle className="w-3 h-3 mr-1" />已同步</>
-                      // @ts-ignore
                       ) : record.apiSyncStatus === 'failed' ? (
                         <><XCircle className="w-3 h-3 mr-1" />同步失败</>
-                      // @ts-ignore
                       ) : !record.apiSyncStatus ? (
                         <><Info className="w-3 h-3 mr-1" />无状态</>
                       ) : (

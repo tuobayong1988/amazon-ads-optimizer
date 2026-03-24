@@ -307,16 +307,12 @@ export default function AuditLogs() {
                     <SelectContent>
                       {/* @ts-ignore */}
                       <SelectItem value="all">全部类型</SelectItem>
-                      // @ts-ignore
                       {actionCategories.map((category: unknown) => (
-                        // @ts-ignore
                         <div key={category.key}>
                           {/* @ts-ignore */}
                           {/* @ts-ignore */}
                           <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">{category.label}</div>
-                          // @ts-ignore
                           {(category as any).actions.map((action: unknown) => (
-                            // @ts-ignore
                             <SelectItem key={action} value={action}>
                               {/* @ts-ignore */}
                               {getActionDescription(action)}
@@ -441,7 +437,6 @@ export default function AuditLogs() {
                       </TableHeader>
                       <TableBody>
                         {logsData.logs.map((log: unknown) => (
-                          // @ts-ignore
                           <TableRow key={log.id}>
                             <TableCell className="text-sm text-muted-foreground">
                               <div className="flex items-center gap-1">
@@ -474,9 +469,7 @@ export default function AuditLogs() {
                               <div className="max-w-[300px] truncate" title={log.description || ""}>
                                 {/* @ts-ignore */}
                                 {log.description}
-                                // @ts-ignore
                                 {(log as any).targetName && (
-                                  // @ts-ignore
                                   <span className="text-muted-foreground ml-1">({log.targetName})</span>
                                 )}
                               </div>
@@ -484,7 +477,6 @@ export default function AuditLogs() {
                             <TableCell>
                               {/* @ts-ignore */}
                               {log.accountName ? (
-                                // @ts-ignore
                                 <span className="text-sm">{log.accountName}</span>
                               ) : (
                                 <span className="text-muted-foreground">-</span>
@@ -565,15 +557,12 @@ export default function AuditLogs() {
                           key={index}
                           className="flex-1 bg-primary/20 hover:bg-primary/40 transition-colors rounded-t"
                           style={{ height: `${Math.max(height, 2)}%` }}
-                          // @ts-ignore
                           title={`${day.date}: ${day.count} 次操作`}
                         />
                       );
                     })}
                   </div>
-                // @ts-ignore
                 ) : (
-                  // @ts-ignore
                   <div className="h-[200px] flex items-center justify-center text-muted-foreground">
                     暂无数据
                   </div>
@@ -616,14 +605,11 @@ export default function AuditLogs() {
                             </div>
                           {/* @ts-ignore */}
                           </div>
-                        // @ts-ignore
                         );
                       })}
                   </div>
-                // @ts-ignore
                 ) : (
                   <div className="py-8 text-center text-muted-foreground">暂无数据</div>
-                // @ts-ignore
                 )}
               </CardContent>
             </Card>
@@ -638,7 +624,6 @@ export default function AuditLogs() {
                 {userStats?.recentActions && userStats.recentActions.length > 0 ? (
                   <div className="space-y-3">
                     {userStats.recentActions.map((log: unknown) => (
-                      // @ts-ignore
                       <div key={log.id} className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
                         <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
                           <Activity className="w-4 h-4 text-primary" />
@@ -654,17 +639,14 @@ export default function AuditLogs() {
                         <div className="text-xs text-muted-foreground whitespace-nowrap">
                           {/* @ts-ignore */}
                           {formatTime(log.createdAt)}
-                        // @ts-ignore
                         </div>
                         {/* @ts-ignore */}
                         {getStatusBadge(log.status || "success")}
                       </div>
-                    // @ts-ignore
                     ))}
                   </div>
                 ) : (
                   <div className="py-8 text-center text-muted-foreground">暂无数据</div>
-                // @ts-ignore
                 )}
               </CardContent>
             </Card>
@@ -684,7 +666,6 @@ export default function AuditLogs() {
             </DialogHeader>
             {/* @ts-ignore */}
             {selectedLog && (
-              // @ts-ignore
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
@@ -726,7 +707,6 @@ export default function AuditLogs() {
                       <p className="mt-1">{selectedLog.targetName}</p>
                     </div>
                   )}
-                  // @ts-ignore
                   {(selectedLog as any).accountName && (
                     <div>
                       <label className="text-sm font-medium text-muted-foreground">关联账号</label>
@@ -734,7 +714,6 @@ export default function AuditLogs() {
                       <p className="mt-1">{selectedLog.accountName}</p>
                     </div>
                   )}
-                  // @ts-ignore
                   {(selectedLog as any).ipAddress && (
                     <div>
                       <label className="text-sm font-medium text-muted-foreground">IP地址</label>
@@ -742,7 +721,6 @@ export default function AuditLogs() {
                       <p className="mt-1">{selectedLog.ipAddress}</p>
                     </div>
                   )}
-                  // @ts-ignore
                   {(selectedLog as any).errorMessage && (
                     <div className="col-span-2">
                       <label className="text-sm font-medium text-muted-foreground">错误信息</label>
@@ -766,7 +744,6 @@ export default function AuditLogs() {
                           </pre>
                         </div>
                       )}
-                      // @ts-ignore
                       {(selectedLog as any).newValue && (
                         <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/20">
                           <div className="text-xs font-medium text-green-500 mb-2">变更后</div>

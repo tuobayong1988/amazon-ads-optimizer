@@ -56,7 +56,6 @@ export default function PrelaunchM3Persona() {
               // @ts-ignore
               value={projectId || ''} onChange={(e) => setProjectId(Number(e.target.value))}>
               <option value="">选择项目</option>
-              // @ts-ignore
               {projects.map((p: unknown) => <option key={(p as any).id} value={(p as any).id}>{(p as any).projectName}</option>)}
             </select>
             <Button variant="outline" size="sm" onClick={() => personasQuery.refetch()} disabled={personasQuery.isFetching}>
@@ -82,11 +81,9 @@ export default function PrelaunchM3Persona() {
               </Button>
             </CardContent>
           </Card>
-        // @ts-ignore
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {personasData.map((persona: unknown) => (
-              // @ts-ignore
               <Card key={persona.id} className="hover:border-green-500/30 transition-colors overflow-hidden">
                 <div className="h-2 bg-gradient-to-r from-green-500 to-emerald-500" />
                 <CardHeader className="pb-3">
@@ -109,29 +106,22 @@ export default function PrelaunchM3Persona() {
                 <CardContent className="space-y-4">
                   {/* @ts-ignore */}
                   {persona.description && (
-                    // @ts-ignore
                     <p className="text-sm text-muted-foreground">{persona.description}</p>
-                  // @ts-ignore
                   )}
 
-                  // @ts-ignore
                   {(persona as any).painPoints && (
                     <div>
                       <p className="text-xs font-medium flex items-center gap-1 mb-2">
                         <Heart className="w-3 h-3 text-red-400" />痛点
-                      // @ts-ignore
                       </p>
                       <div className="flex flex-wrap gap-1">
-                        // @ts-ignore
                         {(Array.isArray((persona as any).painPoints) ? (persona as any).painPoints : [(persona as any).painPoints]).map((p: string, i: number) => (
                           <Badge key={i} variant="outline" className="text-xs border-red-500/30 text-red-400">{p}</Badge>
                         ))}
-                      // @ts-ignore
                       </div>
                     </div>
                   )}
 
-                  // @ts-ignore
                   {(persona as any).motivations && (
                     <div>
                       {/* @ts-ignore */}
@@ -139,23 +129,19 @@ export default function PrelaunchM3Persona() {
                         <Target className="w-3 h-3 text-blue-400" />动机
                       </p>
                       <div className="flex flex-wrap gap-1">
-                        // @ts-ignore
                         {(Array.isArray((persona as any).motivations) ? (persona as any).motivations : [(persona as any).motivations]).map((m: string, i: number) => (
-                          // @ts-ignore
                           <Badge key={i} variant="outline" className="text-xs border-blue-500/30 text-blue-400">{m}</Badge>
                         ))}
                       </div>
                     </div>
                   )}
 
-                  // @ts-ignore
                   {(persona as any).buyingScenarios && (
                     <div>
                       <p className="text-xs font-medium flex items-center gap-1 mb-2">
                         <ShoppingBag className="w-3 h-3 text-amber-400" />购买场景
                       </p>
                       <div className="flex flex-wrap gap-1">
-                        // @ts-ignore
                         {(Array.isArray((persona as any).buyingScenarios) ? (persona as any).buyingScenarios : [(persona as any).buyingScenarios]).map((s: string, i: number) => (
                           <Badge key={i} variant="outline" className="text-xs border-amber-500/30 text-amber-400">{s}</Badge>
                         ))}

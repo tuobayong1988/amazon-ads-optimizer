@@ -384,9 +384,7 @@ export default function AdAutomation() {
                 <SelectValue placeholder="选择广告账号" />
               </SelectTrigger>
               <SelectContent>
-                // @ts-ignore
                 {accounts?.map((account: unknown) => (
-                  // @ts-ignore
                   <SelectItem key={account.id} value={account.id.toString()}>
                     {/* @ts-ignore */}
                     {account.accountName}
@@ -713,7 +711,6 @@ export default function AdAutomation() {
                               {/* @ts-ignore */}
                               <tbody>
                                 {conflict.campaigns.map((campaign: unknown, i: unknown) => (
-                                  // @ts-ignore
                                   <tr 
                                     // @ts-ignore
                                     key={i} 
@@ -731,9 +728,7 @@ export default function AdAutomation() {
                                         {/* @ts-ignore */}
                                         {campaign.campaignName === conflict.recommendation.winnerCampaign && (
                                           <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                                        // @ts-ignore
                                         )}
-                                        // @ts-ignore
                                         <span className="truncate max-w-[150px]">{(campaign as any).campaignName}</span>
                                       {/* @ts-ignore */}
                                       </div>
@@ -770,7 +765,6 @@ export default function AdAutomation() {
                                 {/* @ts-ignore */}
                                 <p className="text-sm text-muted-foreground mt-1">
                                   {conflict.recommendation.reason}
-                                // @ts-ignore
                                 </p>
                                 {/* @ts-ignore */}
                                 {/* 显示每个失败活动的否定层级 */}
@@ -782,7 +776,6 @@ export default function AdAutomation() {
                                         ? { name: loser, negativeLevel: 'ad_group' as const }
                                         : loser;
                                       return (
-                                        // @ts-ignore
                                         <div key={i} className="flex items-center gap-2 text-sm">
                                           <Ban className="w-3 h-3 text-red-400" />
                                           {/* @ts-ignore */}

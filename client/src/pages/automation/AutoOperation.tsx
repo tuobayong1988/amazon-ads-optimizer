@@ -156,9 +156,7 @@ const [isExecuting, setIsExecuting] = useState(false);
                 <SelectValue placeholder="选择账号" />
               </SelectTrigger>
               <SelectContent>
-                // @ts-ignore
                 {accounts?.map((account: unknown) => (
-                  // @ts-ignore
                   <SelectItem key={account.id} value={account.id.toString()}>
                     {/* @ts-ignore */}
                     {account.storeName || account.accountName}
@@ -395,7 +393,6 @@ const [isExecuting, setIsExecuting] = useState(false);
                     {/* @ts-ignore */}
                     <TableBody>
                       {logs.map((log: unknown) => (
-                        // @ts-ignore
                         <TableRow key={log.id}>
                           {/* @ts-ignore */}
                           <TableCell>{formatDateTime(log.startedAt)}</TableCell>
@@ -412,26 +409,19 @@ const [isExecuting, setIsExecuting] = useState(false);
                                 完成
                               </Badge>
                             )}
-                            // @ts-ignore
                             {(log as any).status === 'failed' && (
-                              // @ts-ignore
                               <Badge variant="destructive">
                                 <XCircle className="h-3 w-3 mr-1" />
                                 失败
-                              // @ts-ignore
                               </Badge>
-                            // @ts-ignore
                             )}
-                            // @ts-ignore
                             {(log as any).status === 'running' && (
-                              // @ts-ignore
                               <Badge className="bg-blue-500">
                                 {/* @ts-ignore */}
                                 <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
                                 运行中
                               </Badge>
                             )}
-                            // @ts-ignore
                             {(log as any).status === 'pending' && (
                               <Badge variant="secondary">
                                 <Clock className="h-3 w-3 mr-1" />
@@ -440,13 +430,11 @@ const [isExecuting, setIsExecuting] = useState(false);
                             )}
                           </TableCell>
                           <TableCell>
-                            // @ts-ignore
                             {(log as any).duration ? formatDuration((log as any).duration) : '-'}
                           </TableCell>
                           <TableCell>
                             {/* @ts-ignore */}
                             {log.errorMessage ? (
-                              // @ts-ignore
                               <span className="text-red-500 text-sm">{log.errorMessage}</span>
                             ) : (
                               <span className="text-muted-foreground text-sm">
@@ -461,17 +449,13 @@ const [isExecuting, setIsExecuting] = useState(false);
                           </TableCell>
                         </TableRow>
                       ))}
-                    // @ts-ignore
                     </TableBody>
                   </Table>
-                // @ts-ignore
                 ) : (
                   <div className="text-center py-8 text-muted-foreground">
                     暂无执行日志
                   </div>
-                // @ts-ignore
                 )}
-              // @ts-ignore
               </CardContent>
             </Card>
           {/* @ts-ignore */}
@@ -498,7 +482,6 @@ const [isExecuting, setIsExecuting] = useState(false);
               <CardContent>
                 <div className="space-y-4">
                   {OPERATION_STEPS.map((step: unknown, index: unknown) => (
-                    // @ts-ignore
                     <div key={step.key} className="flex items-start gap-4 p-4 border rounded-lg">
                       <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
                         {/* @ts-ignore */}
@@ -516,15 +499,10 @@ const [isExecuting, setIsExecuting] = useState(false);
                         <div className="mt-2 text-xs text-muted-foreground">
                           {/* @ts-ignore */}
                           {step.key === 'data_sync' && '从Amazon Advertising API获取最新的广告活动、关键词、搜索词报告等数据'}
-                          // @ts-ignore
                           {(step as any).key === 'ngram_analysis' && '对搜索词进行N-Gram分词分析，识别高频无效词根，生成否定关键词建议'}
-                          // @ts-ignore
                           {(step as any).key === 'funnel_sync' && '根据漏斗层级配置，自动将否定词同步到上层广告活动，防止流量泄漏'}
-                          // @ts-ignore
                           {(step as any).key === 'conflict_detection' && '检测同一搜索词在多个广告活动中的竞争情况，计算浪费花费并生成解决方案'}
-                          // @ts-ignore
                           {(step as any).key === 'migration_suggestion' && '分析关键词表现，生成从自动广告到手动广告、从广泛匹配到精确匹配的迁移建议'}
-                          // @ts-ignore
                           {(step as any).key === 'bid_optimization' && '基于市场曲线模型和历史数据，自动计算并应用最优出价调整'}
                         </div>
                       </div>

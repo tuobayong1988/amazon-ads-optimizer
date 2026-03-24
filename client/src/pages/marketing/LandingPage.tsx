@@ -133,21 +133,16 @@ export default function LandingPage() {
             {/* 核心指标 */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
               {performanceMetrics.map((metric: unknown, i: unknown) => (
-                // @ts-ignore
                 <div key={i} className="bg-card/50 backdrop-blur-sm border border-border/50 rounded-lg p-4">
                   {/* @ts-ignore */}
                   <div className="flex items-center gap-2 mb-1">
                     {/* @ts-ignore */}
                     {/* @ts-ignore */}
                     {metric.trend === "up" ? (
-                      // @ts-ignore
                       <ArrowUpRight className={`w-4 h-4 ${metric.color}`} />
-                    // @ts-ignore
                     ) : (
-                      // @ts-ignore
                       <ArrowDownRight className={`w-4 h-4 ${metric.color}`} />
                     )}
-                    // @ts-ignore
                     <span className={`text-2xl font-bold ${(metric as any).color}`}>{(metric as any).value}</span>
                   </div>
                   {/* @ts-ignore */}
@@ -181,16 +176,13 @@ export default function LandingPage() {
             <Badge variant="outline" className="mb-4">核心能力</Badge>
             <h2 className="text-3xl lg:text-4xl font-bold mb-4">为什么选择 PPC Optimizer</h2>
             <p className="text-muted-foreground max-w-2xl mx-auto">
-              // @ts-ignore
               不只是降低ACoS，而是从算法、博弈、安全、执行四个维度全面优化您的广告投放
             </p>
           {/* @ts-ignore */}
           </div>
 
           <div className="grid md:grid-cols-2 gap-6 max-w-5xl mx-auto">
-            // @ts-ignore
             {highlights.map((item: unknown, i: unknown) => (
-              // @ts-ignore
               <Card key={i} className={`${item.borderColor} hover:shadow-lg transition-all duration-300 group`}>
                 {/* @ts-ignore */}
                 <CardHeader>
@@ -234,7 +226,6 @@ export default function LandingPage() {
           </div>
           <div className="grid md:grid-cols-3 gap-8 max-w-3xl mx-auto">
             {adTypes.map((ad: unknown, i: unknown) => (
-              // @ts-ignore
               <div key={i} className="text-center p-8 rounded-2xl bg-card border border-border/50 hover:border-primary/30 transition-colors">
                 <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
                   {/* @ts-ignore */}
@@ -253,7 +244,6 @@ export default function LandingPage() {
 
       {/* 博客预览 */}
       {blogPosts.length > 0 && (
-        // @ts-ignore
         <section className="py-24 bg-card/30">
           {/* @ts-ignore */}
           <div className="container">
@@ -266,9 +256,7 @@ export default function LandingPage() {
               </p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
-              // @ts-ignore
               {blogPosts.map((post: unknown) => (
-                // @ts-ignore
                 <Link key={post.id} href={`/blog/${post.slug}`}>
                   {/* @ts-ignore */}
                   <Card className="overflow-hidden hover:shadow-lg transition-all duration-300 group cursor-pointer h-full">
@@ -276,13 +264,10 @@ export default function LandingPage() {
                       <img
                         // @ts-ignore
                         src={post.coverImage}
-                        // @ts-ignore
                         alt={post.title}
-                        // @ts-ignore
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                       />
                       <Badge className="absolute top-3 left-3 bg-primary/90">
-                        // @ts-ignore
                         {(post as any).category === 'algorithm' ? '算法解析' : (post as any).category === 'case-study' ? '客户案例' : '教程'}
                       </Badge>
                     </div>
@@ -307,14 +292,12 @@ export default function LandingPage() {
                     </CardContent>
                   </Card>
                 </Link>
-              // @ts-ignore
               ))}
             </div>
             <div className="text-center">
               {/* @ts-ignore */}
               <Button variant="outline" size="lg" asChild>
                 <Link href="/blog">
-                  // @ts-ignore
                   查看更多文章
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Link>
@@ -334,7 +317,6 @@ export default function LandingPage() {
           </div>
           <div className="max-w-3xl mx-auto space-y-4">
             {faqs.map((faq: unknown, i: unknown) => (
-              // @ts-ignore
               <div key={i} className="bg-card border border-border/50 rounded-lg overflow-hidden">
                 <button
                   className="w-full px-6 py-4 text-left flex items-center justify-between hover:bg-muted/50 transition-colors"

@@ -230,7 +230,6 @@ const { data: sessions, isLoading: sessionsLoading, refetch: refetchSessions } =
                     </SelectTrigger>
                     <SelectContent>
                       {adAccounts?.map((account: unknown) => (
-                        // @ts-ignore
                         <SelectItem key={account.id} value={account.id.toString()}>
                           {/* @ts-ignore */}
                           {account.accountName}
@@ -299,7 +298,6 @@ const { data: sessions, isLoading: sessionsLoading, refetch: refetchSessions } =
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    // @ts-ignore
                     {sessions.map((session: unknown) => (
                       <div
                         // @ts-ignore
@@ -310,9 +308,7 @@ const { data: sessions, isLoading: sessionsLoading, refetch: refetchSessions } =
                             ? 'border-primary bg-primary/5' 
                             : 'hover:bg-muted/50'
                         }`}
-                        // @ts-ignore
                         onClick={() => setSelectedSession(session.id)}
-                      // @ts-ignore
                       >
                         <div className="flex items-center justify-between mb-2">
                           <span className="font-medium text-sm">
@@ -455,7 +451,6 @@ const { data: sessions, isLoading: sessionsLoading, refetch: refetchSessions } =
                     <CardContent>
                       <ul className="space-y-2">
                         {recommendations.map((rec: unknown, index: unknown) => (
-                          // @ts-ignore
                           <li key={index} className="flex items-start gap-2 text-sm">
                             <ArrowRight className="h-4 w-4 mt-0.5 text-primary flex-shrink-0" />
                             {/* @ts-ignore */}
@@ -533,19 +528,15 @@ const { data: sessions, isLoading: sessionsLoading, refetch: refetchSessions } =
                         </TableHeader>
                         <TableBody>
                           {corrections.map((correction: unknown) => (
-                            // @ts-ignore
                             <TableRow key={correction.id}>
                               <TableCell>
                                 {/* @ts-ignore */}
                                 {correction.wasIncorrect && (
-                                  // @ts-ignore
                                   <Checkbox
                                     // @ts-ignore
                                     checked={selectedCorrections.includes(correction.id)}
-                                    // @ts-ignore
                                     onCheckedChange={() => handleToggleCorrection(correction.id)}
                                   />
-                                // @ts-ignore
                                 )}
                               </TableCell>
                               <TableCell>
@@ -565,9 +556,7 @@ const { data: sessions, isLoading: sessionsLoading, refetch: refetchSessions } =
                               {/* @ts-ignore */}
                               <TableCell>{formatCurrency(correction.adjustedBid)}</TableCell>
                               <TableCell className="font-medium text-primary">
-                                // @ts-ignore
                                 {(correction as any).wasIncorrect ? formatCurrency((correction as any).suggestedBid) : '-'}
-                              // @ts-ignore
                               </TableCell>
                               {/* @ts-ignore */}
                               <TableCell>
@@ -595,7 +584,6 @@ const { data: sessions, isLoading: sessionsLoading, refetch: refetchSessions } =
                                   correction.correctionStatus === 'dismissed' ? 'secondary' :
                                   'outline'
                                 }>
-                                  // @ts-ignore
                                   {(correction as any).correctionStatus === 'pending_review' ? '待复盘' :
                                    // @ts-ignore
                                    correction.correctionStatus === 'approved' ? '已批准' :

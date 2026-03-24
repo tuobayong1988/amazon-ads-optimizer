@@ -36,11 +36,9 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
               // @ts-ignore
               const isActive = location === link.href || (link.href !== "/" && location.startsWith(link.href));
               return (
-                // @ts-ignore
                 <Link
                   // @ts-ignore
                   key={link.href}
-                  // @ts-ignore
                   href={link.href}
                   className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                     isActive
@@ -80,7 +78,6 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
         {mobileMenuOpen && (
           <div className="md:hidden border-t border-border/50 bg-background/95 backdrop-blur-lg">
             <div className="container py-4 space-y-2">
-              // @ts-ignore
               {NAV_LINKS.map((link: unknown) => {
                 // @ts-ignore
                 const isActive = location === link.href || (link.href !== "/" && location.startsWith(link.href));
@@ -88,9 +85,7 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
                   <Link
                     // @ts-ignore
                     key={link.href}
-                    // @ts-ignore
                     href={link.href}
-                    // @ts-ignore
                     className={`block px-4 py-3 rounded-md text-sm font-medium transition-colors ${
                       isActive
                         ? "text-primary bg-primary/10"

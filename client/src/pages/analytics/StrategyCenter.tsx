@@ -382,7 +382,6 @@ export default function StrategyCenter() {
                   <Button>
                     <Plus className="h-4 w-4 mr-2" />
                     创建第一个优化目标
-                  // @ts-ignore
                   </Button>
                 {/* @ts-ignore */}
                 </Link>
@@ -398,7 +397,6 @@ export default function StrategyCenter() {
                 const templateInfo = group.strategyTemplateName 
                   // @ts-ignore
                   ? STRATEGY_TEMPLATE_LABELS[group.strategyTemplateName] || { name: group.strategyTemplateName, color: "text-blue-400 bg-blue-500/20", icon: "📋" }
-                  // @ts-ignore
                   : null;
                 
                 // @ts-ignore
@@ -428,10 +426,8 @@ export default function StrategyCenter() {
                             {templateInfo.icon} {templateInfo.name}
                           </Badge>
                         )}
-                        // @ts-ignore
                         <Badge variant="outline" className="text-muted-foreground">
                           {goalLabel}
-                        // @ts-ignore
                         </Badge>
                       </div>
                     </CardHeader>
@@ -447,13 +443,11 @@ export default function StrategyCenter() {
                         </div>
                         {/* @ts-ignore */}
                         {group.optimizationGoal === 'target_acos' || group.targetAcos ? (
-                          // @ts-ignore
                           <div>
                             <p className="text-muted-foreground text-xs">目标ACoS</p>
                             {/* @ts-ignore */}
                             <p className="font-semibold text-lg">{group.targetAcos || '-'}%</p>
                           </div>
-                        // @ts-ignore
                         ) : group.optimizationGoal === 'target_roas' || group.targetRoas ? (
                           <div>
                             <p className="text-muted-foreground text-xs">目标ROAS</p>
@@ -462,14 +456,12 @@ export default function StrategyCenter() {
                             <p className="font-semibold text-lg">{typeof group.targetRoas === 'number' ? group.targetRoas.toFixed(1) : (parseFloat(group.targetRoas) || 0).toFixed(1)}</p>
                           </div>
                         ) : (
-                          // @ts-ignore
                           <div>
                             <p className="text-muted-foreground text-xs">目标ACoS</p>
                             {/* @ts-ignore */}
                             <p className="font-semibold text-lg">{group.targetAcos || '-'}%</p>
                           {/* @ts-ignore */}
                           </div>
-                        // @ts-ignore
                         )}
                         <div>
                           <p className="text-muted-foreground text-xs">每日预算</p>
@@ -504,7 +496,6 @@ export default function StrategyCenter() {
                               {/* @ts-ignore */}
                               {/* @ts-ignore */}
                               {(group.avgAcos || 0).toFixed(1)}%
-                            // @ts-ignore
                             </p>
                           </div>
                         {/* @ts-ignore */}
@@ -512,9 +503,7 @@ export default function StrategyCenter() {
                       )}
 
                       {/* v162: 多维度目标达成度展示 */}
-                      // @ts-ignore
                       {(group as any).goalProgress !== null && (group as any).goalProgress !== undefined && (group as any).goalProgress > 0 && (
-                        // @ts-ignore
                         <div className="mb-3 p-3 rounded-lg bg-muted/20 space-y-2">
                           {/* @ts-ignore */}
                           {/* 总分进度条 */}
@@ -536,7 +525,6 @@ export default function StrategyCenter() {
                                   'bg-red-500/20 text-red-400'
                                 }`}>
                                   {/* @ts-ignore */}
-                                  // @ts-ignore
                                   {group.goalProgressDetail.level === 'excellent' ? '优秀' :
                                    // @ts-ignore
                                    group.goalProgressDetail.level === 'good' ? '良好' :
@@ -544,7 +532,6 @@ export default function StrategyCenter() {
                                    group.goalProgressDetail.level === 'fair' ? '一般' : '待改善'}
                                 </span>
                               )}
-                              // @ts-ignore
                               <span className={`text-sm font-bold ${
                                 // @ts-ignore
                                 group.goalProgress >= 85 ? 'text-green-400' :
@@ -568,7 +555,6 @@ export default function StrategyCenter() {
                                 group.goalProgress >= 40 ? 'bg-gradient-to-r from-yellow-500 to-amber-400' :
                                 'bg-gradient-to-r from-red-500 to-orange-400'
                               }`}
-                              // @ts-ignore
                               style={{ width: `${Math.min(100, Math.max(0, group.goalProgress))}%` }}
                             />
                           </div>
@@ -576,11 +562,8 @@ export default function StrategyCenter() {
                           {/* v164: 五维度得分明细 */}
                           {/* @ts-ignore */}
                           {group.goalProgressDetail?.dimensions && group.goalProgressDetail.dimensions.length > 0 && (
-                            // @ts-ignore
                             <div className={`grid gap-1 mt-2 ${group.goalProgressDetail.dimensions.length >= 5 ? 'grid-cols-5' : 'grid-cols-4'}`}>
-                              // @ts-ignore
                               {(group as any).goalProgressDetail.dimensions.map((dim: unknown) => (
-                                // @ts-ignore
                                 <div key={dim.name} className="text-center" title={dim.detail}>
                                   {/* @ts-ignore */}
                                   <div className="text-[10px] text-muted-foreground truncate">{dim.nameZh}</div>
@@ -605,9 +588,7 @@ export default function StrategyCenter() {
                                         dim.score >= 40 ? 'bg-yellow-500' :
                                         'bg-red-500'
                                       }`}
-                                      // @ts-ignore
                                       style={{ width: `${Math.min(100, Math.max(0, dim.score))}%` }}
-                                    // @ts-ignore
                                     />
                                   </div>
                                   {/* @ts-ignore */}
@@ -615,17 +596,14 @@ export default function StrategyCenter() {
                                 </div>
                               ))}
                             </div>
-                          // @ts-ignore
                           )}
 
                           {/* 总结说明 */}
-                          // @ts-ignore
                           {(group as any).goalProgressDetail?.summary && (
                             <p className="text-[10px] text-muted-foreground mt-1 leading-relaxed">
                               {/* @ts-ignore */}
                               {/* @ts-ignore */}
                               {group.goalProgressDetail.summary}
-                            // @ts-ignore
                             </p>
                           )}
                         </div>
@@ -688,7 +666,6 @@ export default function StrategyCenter() {
                             // @ts-ignore
                             handleToggleStatus(group.id, group.status);
                           }}
-                          // @ts-ignore
                           disabled={group.status === 'archived'}
                         >
                           {/* @ts-ignore */}

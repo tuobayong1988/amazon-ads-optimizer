@@ -288,12 +288,10 @@ export default function GlobalAccountSelector({ compact = false }: GlobalAccount
           <DropdownMenuLabel>选择店铺</DropdownMenuLabel>
           {/* @ts-ignore */}
           <DropdownMenuSeparator />
-          // @ts-ignore
           {stores.map((store: unknown) => (
             <DropdownMenuItem
               // @ts-ignore
               key={store}
-              // @ts-ignore
               onClick={() => handleStoreChange(store)}
               className="flex items-center justify-between cursor-pointer"
             >
@@ -332,11 +330,9 @@ export default function GlobalAccountSelector({ compact = false }: GlobalAccount
           <DropdownMenuLabel>选择站点</DropdownMenuLabel>
           <DropdownMenuSeparator />
           {marketplaces.map((marketplace: unknown) => (
-            // @ts-ignore
             <DropdownMenuItem
               // @ts-ignore
               key={marketplace}
-              // @ts-ignore
               onClick={() => handleMarketplaceChange(marketplace)}
               className="flex items-center justify-between cursor-pointer"
             >

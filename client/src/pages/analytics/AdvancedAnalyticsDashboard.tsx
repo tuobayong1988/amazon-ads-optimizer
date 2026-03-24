@@ -106,9 +106,7 @@ export default function AdvancedAnalyticsDashboard() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">全部账户</SelectItem>
-                // @ts-ignore
                 {accounts?.map((acc: unknown) => (
-                  // @ts-ignore
                   <SelectItem key={acc.id} value={String(acc.id)}>{acc.accountName || `账户 ${acc.id}`}</SelectItem>
                 ))}
               </SelectContent>
@@ -245,7 +243,6 @@ export default function AdvancedAnalyticsDashboard() {
                           ]) as unknown} />
                           <Bar dataKey="score" name="效果评分">
                             {attribution.results.map((entry: unknown, index: number) => (
-                              // @ts-ignore
                               <Cell key={index} fill={entry.effectScore >= 10 ? '#10b981' : entry.effectScore >= -10 ? '#6b7280' : '#ef4444'} />
                             ))}
                           </Bar>
@@ -271,14 +268,12 @@ export default function AdvancedAnalyticsDashboard() {
                         </thead>
                         {/* @ts-ignore */}
                         <tbody>
-                          // @ts-ignore
                           {attribution.results.map((r: unknown) => {
                             // @ts-ignore
                             const config = effectRatingConfig[r.effectRating as keyof typeof effectRatingConfig];
                             const Icon = config?.icon || Minus;
                             // @ts-ignore
                             return (
-                              // @ts-ignore
                               <tr key={r.eventId} className="border-b hover:bg-muted/30">
                                 <td className="p-2">
                                   {/* @ts-ignore */}
@@ -293,13 +288,9 @@ export default function AdvancedAnalyticsDashboard() {
                                 <td className="p-2 text-center tabular-nums">
                                   {/* @ts-ignore */}
                                   {r.previousBid && r.newBid ? (
-                                    // @ts-ignore
                                     <span className={parseFloat(r.bidChangePercent || '0') > 0 ? 'text-red-600' : 'text-green-600'}>
-                                      // @ts-ignore
                                       ${(r as any).previousBid} → ${(r as any).newBid}
-                                    // @ts-ignore
                                     </span>
-                                  // @ts-ignore
                                   ) : '-'}
                                 </td>
                                 {/* @ts-ignore */}
@@ -314,14 +305,12 @@ export default function AdvancedAnalyticsDashboard() {
                                 <td className="p-2 text-center tabular-nums">
                                   {/* @ts-ignore */}
                                   <span className={r.deltaSales > 0 ? 'text-green-600' : r.deltaSales < 0 ? 'text-red-600' : ''}>
-                                    // @ts-ignore
                                     {(r as any).deltaSales >= 0 ? '+' : ''}{(r as any).deltaSales.toFixed(2)}
                                   </span>
                                 </td>
                                 <td className="p-2 text-center tabular-nums">
                                   {/* @ts-ignore */}
                                   <span className={r.deltaSpend < 0 ? 'text-green-600' : r.deltaSpend > 0 ? 'text-orange-600' : ''}>
-                                    // @ts-ignore
                                     {(r as any).deltaSpend >= 0 ? '+' : ''}{(r as any).deltaSpend.toFixed(2)}
                                   </span>
                                 </td>
@@ -361,7 +350,6 @@ export default function AdvancedAnalyticsDashboard() {
                     <p className="text-xs mt-1">请确保已选择账户并有足够的优化事件和广告效果数据</p>
                   </div>
                 )}
-              // @ts-ignore
               </CardContent>
             </Card>
           {/* @ts-ignore */}
@@ -389,25 +377,19 @@ export default function AdvancedAnalyticsDashboard() {
                     <RefreshCw className="h-5 w-5 animate-spin mr-2" />分析趋势数据...
                   </div>
                 ) : trends && trends.length > 0 ? (
-                  // @ts-ignore
                   <div className="space-y-6">
                     {/* 趋势摘要卡片 */}
                     <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                       {trends.map((t: unknown) => (
-                        // @ts-ignore
                         <div key={t.metric} className="p-3 rounded-lg border">
                           <div className="flex items-center justify-between mb-1">
                             {/* @ts-ignore */}
                             <span className="text-xs font-medium text-muted-foreground">{t.metricLabel}</span>
                             {/* @ts-ignore */}
                             {t.direction === 'up' ? (
-                              // @ts-ignore
                               <ArrowUpRight className={`h-4 w-4 ${t.metric === 'acos' ? 'text-red-500' : 'text-green-500'}`} />
-                            // @ts-ignore
                             ) : t.direction === 'down' ? (
-                              // @ts-ignore
                               <ArrowDownRight className={`h-4 w-4 ${t.metric === 'acos' ? 'text-green-500' : 'text-red-500'}`} />
-                            // @ts-ignore
                             ) : (
                               <Minus className="h-4 w-4 text-gray-400" />
                             )}
@@ -420,11 +402,9 @@ export default function AdvancedAnalyticsDashboard() {
                             // @ts-ignore
                             (t.direction === 'up' ? 'text-green-600' : 'text-red-600'))
                           }`}>
-                            // @ts-ignore
                             {(t as any).changePercent >= 0 ? '+' : ''}{(t as any).changePercent.toFixed(1)}%
                           </p>
                           <Badge variant="outline" className="text-[10px] mt-1">
-                            // @ts-ignore
                             {(t as any).trendStrength === 'strong' ? '强趋势' : (t as any).trendStrength === 'moderate' ? '中等趋势' : '弱趋势'}
                           </Badge>
                         </div>
@@ -433,14 +413,12 @@ export default function AdvancedAnalyticsDashboard() {
 
                     {/* 趋势图表 */}
                     {trends.map((t: unknown) => (
-                      // @ts-ignore
                       <div key={t.metric} className="border rounded-lg p-4">
                         <div className="flex items-center justify-between mb-3">
                           {/* @ts-ignore */}
                           <h4 className="font-medium text-sm">{t.metricLabel} 趋势</h4>
                           {/* @ts-ignore */}
                           <Badge variant={t.direction === 'up' ? 'default' : t.direction === 'down' ? 'destructive' : 'secondary'}>
-                            // @ts-ignore
                             {(t as any).direction === 'up' ? '上升' : (t as any).direction === 'down' ? '下降' : '稳定'} {Math.abs((t as any).changePercent).toFixed(1)}%
                           </Badge>
                         </div>
@@ -458,9 +436,7 @@ export default function AdvancedAnalyticsDashboard() {
                               <Area type="monotone" dataKey="value" name={t.metricLabel} fill="#3b82f620" stroke="#3b82f6" strokeWidth={1.5} />
                               {/* @ts-ignore */}
                               {t.movingAverage.length > 0 && (
-                                // @ts-ignore
                                 <Line type="monotone" data={t.movingAverage} dataKey="value" name="7日均线" stroke="#f97316" strokeWidth={2} dot={false} strokeDasharray="5 5" />
-                              // @ts-ignore
                               )}
                             </ComposedChart>
                           {/* @ts-ignore */}
@@ -497,7 +473,6 @@ export default function AdvancedAnalyticsDashboard() {
               <CardContent>
                 {/* @ts-ignore */}
                 {anomaliesLoading ? (
-                  // @ts-ignore
                   <div className="flex items-center justify-center py-12 text-muted-foreground">
                     {/* @ts-ignore */}
                     <RefreshCw className="h-5 w-5 animate-spin mr-2" />检测异常数据...
@@ -505,7 +480,6 @@ export default function AdvancedAnalyticsDashboard() {
                 ) : anomalies && anomalies.length > 0 ? (
                   <div className="space-y-3">
                     {anomalies.map((a: unknown) => (
-                      // @ts-ignore
                       <div key={a.id} className={`border rounded-lg p-4 ${
                         // @ts-ignore
                         a.severity === 'critical' ? 'border-red-200 bg-red-50/50' :
@@ -518,7 +492,6 @@ export default function AdvancedAnalyticsDashboard() {
                             {/* @ts-ignore */}
                             {a.severity === 'critical' ? (
                               <AlertCircle className="h-5 w-5 text-red-500 shrink-0" />
-                            // @ts-ignore
                             ) : a.severity === 'warning' ? (
                               <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0" />
                             ) : (
@@ -526,18 +499,15 @@ export default function AdvancedAnalyticsDashboard() {
                             )}
                             <div>
                               <p className="font-medium text-sm">
-                                // @ts-ignore
                                 {(a as any).metricLabel} {(a as any).direction === 'spike' ? '异常飙升' : '异常下跌'}
                               </p>
                               <p className="text-xs text-muted-foreground mt-0.5">
-                                // @ts-ignore
                                 {(a as any).date} · 实际值: {(a as any).actualValue.toFixed(2)} · 预期值: {(a as any).expectedValue.toFixed(2)} · 偏差: {(a as any).deviationPercent >= 0 ? '+' : ''}{(a as any).deviationPercent.toFixed(1)}%
                               </p>
                             </div>
                           </div>
                           {/* @ts-ignore */}
                           <Badge variant={a.severity === 'critical' ? 'destructive' : a.severity === 'warning' ? 'default' : 'secondary'}>
-                            // @ts-ignore
                             {(a as any).severity === 'critical' ? '严重' : (a as any).severity === 'warning' ? '警告' : '提示'}
                           </Badge>
                         </div>
@@ -548,7 +518,6 @@ export default function AdvancedAnalyticsDashboard() {
                           <div className="mt-3 pl-7">
                             <p className="text-xs font-medium text-muted-foreground mb-1.5">可能原因：</p>
                             <div className="space-y-1.5">
-                              // @ts-ignore
                               {(a as any).possibleCauses.slice(0, 3).map((cause: unknown, idx: number) => (
                                 <div key={idx} className="flex items-center gap-2 text-xs">
                                   {/* @ts-ignore */}
@@ -564,7 +533,6 @@ export default function AdvancedAnalyticsDashboard() {
                             </div>
                           </div>
                         )}
-                      // @ts-ignore
                       </div>
                     ))}
                   </div>
@@ -610,12 +578,10 @@ export default function AdvancedAnalyticsDashboard() {
               <CardContent>
                 {/* @ts-ignore */}
                 {roiLoading ? (
-                  // @ts-ignore
                   <div className="flex items-center justify-center py-12 text-muted-foreground">
                     <RefreshCw className="h-5 w-5 animate-spin mr-2" />计算策略ROI...
                   </div>
                 ) : strategyROI && strategyROI.length > 0 ? (
-                  // @ts-ignore
                   <div className="space-y-6">
                     {/* @ts-ignore */}
                     {/* ROI排行榜图表 */}
@@ -689,7 +655,6 @@ export default function AdvancedAnalyticsDashboard() {
                               <td className="p-2 text-center tabular-nums">
                                 {/* @ts-ignore */}
                                 <span className={s.avgBidChange > 0 ? 'text-red-600' : s.avgBidChange < 0 ? 'text-green-600' : ''}>
-                                  // @ts-ignore
                                   {(s as any).avgBidChange >= 0 ? '+' : ''}{(s as any).avgBidChange.toFixed(1)}%
                                 </span>
                               </td>
@@ -698,12 +663,10 @@ export default function AdvancedAnalyticsDashboard() {
                               <td className="p-2 text-center tabular-nums">
                                 {/* @ts-ignore */}
                                 <span className={s.totalActualProfit7D > 0 ? 'text-green-600' : s.totalActualProfit7D < 0 ? 'text-red-600' : ''}>
-                                  // @ts-ignore
                                   ${(s as any).totalActualProfit7D.toFixed(2)}
                                 </span>
                               </td>
                               <td className="p-2 text-center tabular-nums">
-                                // @ts-ignore
                                 {(s as any).profitAccuracy !== null ? `${(s as any).profitAccuracy.toFixed(1)}%` : '-'}
                               </td>
                               {/* @ts-ignore */}

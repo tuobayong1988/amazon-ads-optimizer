@@ -327,7 +327,6 @@ export default function Scheduler() {
                       {/* @ts-ignore */}
                       <SelectContent>
                         {['周日', '周一', '周二', '周三', '周四', '周五', '周六'].map((day: unknown, i: unknown) => (
-                          // @ts-ignore
                           <SelectItem key={i} value={i.toString()}>{day}</SelectItem>
                         ))}
                       </SelectContent>
@@ -406,7 +405,6 @@ export default function Scheduler() {
                   const config = taskTypeConfig[task.taskType as TaskType];
                   const Icon = config?.icon || Clock;
                   return (
-                    // @ts-ignore
                     <Card key={task.id}>
                       <CardContent className="p-6">
                         <div className="flex items-start justify-between">
@@ -425,9 +423,7 @@ export default function Scheduler() {
                                   <Badge className="bg-green-500/10 text-green-500 border-green-500/20">启用</Badge>
                                 ) : (
                                   <Badge variant="secondary">禁用</Badge>
-                                // @ts-ignore
                                 )}
-                                // @ts-ignore
                                 {getStatusBadge((task as any).lastRunStatus)}
                               </div>
                               {/* @ts-ignore */}
@@ -442,12 +438,9 @@ export default function Scheduler() {
                                 {/* @ts-ignore */}
                                 {task.lastRunAt && (
                                   <span>
-                                    // @ts-ignore
                                     上次执行: {safeToLocaleString((task as any).lastRunAt, 'zh-CN')}
-                                  // @ts-ignore
                                   </span>
                                 )}
-                                // @ts-ignore
                                 {(task as any).autoApply && (
                                   <Badge variant="outline" className="text-xs">自动应用</Badge>
                                 )}
@@ -465,7 +458,6 @@ export default function Scheduler() {
                             >
                               {runTaskMutation.isPending ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />
-                              // @ts-ignore
                               ) : (
                                 <Play className="h-4 w-4" />
                               )}
@@ -476,7 +468,6 @@ export default function Scheduler() {
                               // @ts-ignore
                               onClick={() => handleToggleEnabled(task.id, !task.enabled)}
                             >
-                              // @ts-ignore
                               {(task as any).enabled ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
                             </Button>
                             <Button
@@ -586,7 +577,6 @@ export default function Scheduler() {
                       </SelectTrigger>
                       <SelectContent>
                         {tasks.map((task: unknown) => (
-                          // @ts-ignore
                           <SelectItem key={task.id} value={task.id.toString()}>
                             {/* @ts-ignore */}
                             {task.name}
@@ -607,7 +597,6 @@ export default function Scheduler() {
                     {/* @ts-ignore */}
                     </div>
                   ) : executionHistory && executionHistory.length > 0 ? (
-                    // @ts-ignore
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -625,7 +614,6 @@ export default function Scheduler() {
                       </TableHeader>
                       <TableBody>
                         {executionHistory.map((execution: unknown) => (
-                          // @ts-ignore
                           <TableRow key={execution.id}>
                             <TableCell>
                               {/* @ts-ignore */}
@@ -635,7 +623,6 @@ export default function Scheduler() {
                               {/* @ts-ignore */}
                               {execution.status === 'success' ? (
                                 <CheckCircle className="h-4 w-4 text-green-500" />
-                              // @ts-ignore
                               ) : execution.status === 'failed' ? (
                                 <XCircle className="h-4 w-4 text-red-500" />
                               ) : (

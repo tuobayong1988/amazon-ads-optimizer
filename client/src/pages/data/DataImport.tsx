@@ -348,7 +348,6 @@ export default function DataImport() {
                 {importJobs && importJobs.length > 0 ? (
                   <div className="space-y-4">
                     {importJobs.map((job: unknown) => (
-                      // @ts-ignore
                       <div 
                         // @ts-ignore
                         key={job.id} 
@@ -359,15 +358,12 @@ export default function DataImport() {
                           {/* @ts-ignore */}
                           {/* @ts-ignore */}
                           {getStatusIcon(job.importStatus || 'pending')}
-                          // @ts-ignore
                           <div>
                             {/* @ts-ignore */}
                             {/* @ts-ignore */}
                             <p className="font-medium">{job.fileName}</p>
                             <p className="text-sm text-muted-foreground">
-                              // @ts-ignore
                               {format(safeParseDate((job as any).createdAt), "yyyy-MM-dd HH:mm", { locale: zhCN })}
-                              // @ts-ignore
                               {(job as any).reportType && ` · ${(job as any).reportType}`}
                             </p>
                           {/* @ts-ignore */}
@@ -380,7 +376,6 @@ export default function DataImport() {
                             {/* @ts-ignore */}
                             {/* @ts-ignore */}
                             {getStatusLabel(job.importStatus || 'pending')}
-                          // @ts-ignore
                           </span>
                           {/* @ts-ignore */}
                           {job.processedRows !== null && job.totalRows !== null && (
@@ -389,7 +384,6 @@ export default function DataImport() {
                               {job.processedRows} / {job.totalRows} 行
                             </p>
                           )}
-                          // @ts-ignore
                           {(job as any).errorMessage && (
                             <p className="text-sm text-destructive mt-1">
                               {/* @ts-ignore */}

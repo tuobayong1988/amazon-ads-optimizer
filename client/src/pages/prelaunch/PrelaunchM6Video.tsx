@@ -65,7 +65,6 @@ export default function PrelaunchM6Video() {
             <select className="h-8 rounded-md border border-input bg-transparent px-2 text-xs"
               value={projectId || ''} onChange={(e) => setProjectId(Number(e.target.value))}>
               <option value="">选择项目</option>
-              // @ts-ignore
               {projects.map((p: unknown) => <option key={(p as any).id} value={(p as any).id}>{(p as any).projectName}</option>)}
             </select>
             <Button variant="outline" size="sm" onClick={() => scriptsQuery.refetch()} disabled={scriptsQuery.isFetching}>
@@ -101,9 +100,7 @@ export default function PrelaunchM6Video() {
               </Card>
             ) : (
               <div className="space-y-4">
-                // @ts-ignore
                 {scriptsData.map((script: unknown) => (
-                  // @ts-ignore
                   <Card key={script.id} className="hover:border-red-500/20 transition-colors">
                     {/* @ts-ignore */}
                     <CardHeader className="pb-2">
@@ -131,12 +128,10 @@ export default function PrelaunchM6Video() {
                           {/* @ts-ignore */}
                           <p className="text-xs font-medium mb-2">分镜表 ({(script.storyboardFrames as unknown[])?.length || 0} 帧)</p>
                           <div className="grid grid-cols-4 gap-2">
-                            // @ts-ignore
                             {(((script as any).storyboardFrames as unknown[]) || []).slice(0, 8).map((frame: unknown, i: number) => (
                               <div key={i} className="aspect-video bg-muted/20 rounded border border-border/30 flex items-center justify-center">
                                 {/* @ts-ignore */}
                                 {frame.imageUrl ? (
-                                  // @ts-ignore
                                   <img src={frame.imageUrl} alt={`Frame ${i + 1}`} className="w-full h-full object-cover rounded" />
                                 ) : (
                                   <span className="text-xs text-muted-foreground">F{i + 1}</span>
@@ -151,7 +146,6 @@ export default function PrelaunchM6Video() {
                 ))}
               </div>
             )}
-          // @ts-ignore
           </TabsContent>
 
           <TabsContent value="banners" className="space-y-4">
@@ -164,12 +158,9 @@ export default function PrelaunchM6Video() {
                   <p className="text-xs mt-1">运行M6引擎后将自动生成Banner创意</p>
                 </CardContent>
               </Card>
-            // @ts-ignore
             ) : (
-              // @ts-ignore
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {bannersData.map((banner: unknown) => (
-                  // @ts-ignore
                   <Card key={banner.id} className="overflow-hidden hover:border-red-500/30 transition-colors">
                     {/* @ts-ignore */}
                     {banner.imageUrl ? (

@@ -154,9 +154,7 @@ export default function IntelligentBudgetAllocation() {
                 <SelectValue placeholder="选择绩效组" />
               </SelectTrigger>
               <SelectContent>
-                // @ts-ignore
                 {performanceGroups?.map((group: unknown) => (
-                  // @ts-ignore
                   <SelectItem key={group.id} value={group.id.toString()}>
                     {/* @ts-ignore */}
                     {group.name}
@@ -272,7 +270,6 @@ export default function IntelligentBudgetAllocation() {
                 <AlertDescription>
                   <ul className="list-disc list-inside mt-2">
                     {suggestionsData.warnings.map((warning: unknown, index: unknown) => (
-                      // @ts-ignore
                       <li key={index}>{warning}</li>
                     ))}
                   </ul>
@@ -320,7 +317,6 @@ export default function IntelligentBudgetAllocation() {
                   {/* @ts-ignore */}
                   <CardContent>
                     <div className="space-y-4">
-                      // @ts-ignore
                       {suggestionsData?.suggestions.map((suggestion: unknown) => (
                         <div
                           // @ts-ignore
@@ -361,9 +357,7 @@ export default function IntelligentBudgetAllocation() {
                                   <h4 className="font-medium">{suggestion.campaignName}</h4>
                                   {/* @ts-ignore */}
                                   {getRiskBadge(suggestion.riskLevel)}
-                                  // @ts-ignore
                                   <Badge variant="outline" className="text-xs">
-                                    // @ts-ignore
                                     置信度 {(suggestion as any).confidence}%
                                   </Badge>
                                 {/* @ts-ignore */}
@@ -372,26 +366,20 @@ export default function IntelligentBudgetAllocation() {
                                 <div className="flex items-center gap-4 mt-2 text-sm">
                                   {/* @ts-ignore */}
                                   <span className="text-muted-foreground">
-                                    // @ts-ignore
                                     当前预算: <span className="text-foreground font-medium">${(suggestion as any).currentBudget.toFixed(2)}</span>
                                   </span>
                                   <ChevronRight className="h-4 w-4 text-muted-foreground" />
                                   {/* @ts-ignore */}
                                   <span className="text-muted-foreground">
-                                    // @ts-ignore
                                     建议预算: <span className={`font-medium ${(suggestion as any).adjustmentAmount > 0 ? 'text-green-500' : (suggestion as any).adjustmentAmount < 0 ? 'text-red-500' : 'text-foreground'}`}>
-                                      // @ts-ignore
                                       ${(suggestion as any).suggestedBudget.toFixed(2)}
-                                    // @ts-ignore
                                     </span>
                                   {/* @ts-ignore */}
                                   </span>
                                   <span className="flex items-center gap-1">
                                     {/* @ts-ignore */}
                                     {getAdjustmentIcon(suggestion.adjustmentAmount)}
-                                    // @ts-ignore
                                     <span className={(suggestion as any).adjustmentAmount > 0 ? 'text-green-500' : (suggestion as any).adjustmentAmount < 0 ? 'text-red-500' : 'text-muted-foreground'}>
-                                      // @ts-ignore
                                       {(suggestion as any).adjustmentPercent > 0 ? '+' : ''}{(suggestion as any).adjustmentPercent.toFixed(1)}%
                                     </span>
                                   {/* @ts-ignore */}
@@ -483,7 +471,6 @@ export default function IntelligentBudgetAllocation() {
                   performanceGroupId={selectedGroupId}
                   suggestionsData={suggestionsData}
                   campaignPerformance={campaignPerformance}
-                // @ts-ignore
                 />
               </TabsContent>
               
@@ -494,9 +481,7 @@ export default function IntelligentBudgetAllocation() {
                     <CardTitle>广告活动表现分析</CardTitle>
                     {/* @ts-ignore */}
                     <CardDescription>
-                      // @ts-ignore
                       各广告活动的多时间窗口表现数据对比
-                    // @ts-ignore
                     </CardDescription>
                   {/* @ts-ignore */}
                   </CardHeader>
@@ -529,7 +514,6 @@ export default function IntelligentBudgetAllocation() {
                                 ? 'down' 
                                 : 'stable';
                             return (
-                              // @ts-ignore
                               <tr key={campaign.campaignId} className="border-b hover:bg-muted/50">
                                 {/* @ts-ignore */}
                                 <td className="py-3 px-2 font-medium">{campaign.campaignName}</td>
@@ -556,7 +540,6 @@ export default function IntelligentBudgetAllocation() {
                                 <td className="text-right py-3 px-2">{campaign.dailyAvgConversions.toFixed(1)}</td>
                                 <td className="text-right py-3 px-2">
                                   {trend === 'up' && <TrendingUp className="h-4 w-4 text-green-500 inline" />}
-                                  // @ts-ignore
                                   {trend === 'down' && <TrendingDown className="h-4 w-4 text-red-500 inline" />}
                                   {trend === 'stable' && <Minus className="h-4 w-4 text-muted-foreground inline" />}
                                 </td>
@@ -564,7 +547,6 @@ export default function IntelligentBudgetAllocation() {
                             );
                           // @ts-ignore
                           })}
-                        // @ts-ignore
                         </tbody>
                       </table>
                     </div>
@@ -580,15 +562,12 @@ export default function IntelligentBudgetAllocation() {
                   <CardHeader>
                     <CardTitle>多维度评分明细</CardTitle>
                     <CardDescription>
-                      // @ts-ignore
                       各广告活动在五个维度的评分详情
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-6">
-                      // @ts-ignore
                       {suggestionsData?.suggestions.map((suggestion: unknown) => (
-                        // @ts-ignore
                         <div key={suggestion.campaignId} className="p-4 border rounded-lg">
                           <div className="flex items-center justify-between mb-4">
                             {/* @ts-ignore */}
@@ -596,9 +575,7 @@ export default function IntelligentBudgetAllocation() {
                             <h4 className="font-medium">{suggestion.campaignName}</h4>
                             {/* @ts-ignore */}
                             <div className={`text-xl font-bold ${getScoreColor(suggestion.scores.compositeScore)}`}>
-                              // @ts-ignore
                               综合: {(suggestion as any).scores.compositeScore.toFixed(0)}
-                            // @ts-ignore
                             </div>
                           </div>
                           <div className="grid grid-cols-5 gap-4">
@@ -834,7 +811,6 @@ export default function IntelligentBudgetAllocation() {
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setShowConfigDialog(false)}>
-                // @ts-ignore
                 关闭
               </Button>
             </DialogFooter>
@@ -946,9 +922,7 @@ export default function IntelligentBudgetAllocation() {
                   </div>
                 {/* @ts-ignore */}
                 </div>
-              // @ts-ignore
               )}
-            // @ts-ignore
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setShowSimulationDialog(false)}>
@@ -1095,7 +1069,6 @@ function ScenarioSimulation({
                 : 'hover:border-muted-foreground/30'
             // @ts-ignore
             }`}
-            // @ts-ignore
             onClick={() => setScenarioType(key as unknown)}
           >
             <CardContent className="pt-6">
@@ -1104,7 +1077,6 @@ function ScenarioSimulation({
                 <h3 className="font-semibold">{scenario.name}</h3>
                 <Badge variant={key === 'conservative' ? 'secondary' : key === 'aggressive' ? 'destructive' : 'default'}>
                   {scenario.multiplier > 1 ? '+' : ''}{((scenario.multiplier - 1) * 100).toFixed(0)}%
-                // @ts-ignore
                 </Badge>
               </div>
               <p className="text-sm text-muted-foreground">{scenario.description}</p>
@@ -1139,7 +1111,6 @@ function ScenarioSimulation({
                 min={50}
                 max={200}
                 step={5}
-                // @ts-ignore
                 className="flex-1"
               />
               {/* @ts-ignore */}
@@ -1177,14 +1148,11 @@ function ScenarioSimulation({
               </defs>
               
               {/* Y轴网格线 */}
-              // @ts-ignore
               {[0, 0.25, 0.5, 0.75, 1].map((ratio: unknown, i: unknown) => (
-                // @ts-ignore
                 <g key={i}>
                   <line 
                     // @ts-ignore
                     x1="60" y1={220 - ratio * 200} 
-                    // @ts-ignore
                     x2="780" y2={220 - ratio * 200} 
                     stroke="hsl(var(--border))" 
                     strokeDasharray="4,4" 
@@ -1195,7 +1163,6 @@ function ScenarioSimulation({
                     textAnchor="end" 
                     className="fill-muted-foreground text-xs"
                   >
-                    // @ts-ignore
                     ${(maxSales * (ratio as any) / 1000).toFixed(0)}k
                   </text>
                 </g>
@@ -1258,7 +1225,6 @@ function ScenarioSimulation({
                       <line x1={x} y1={y} x2={x} y2="220" stroke="hsl(var(--primary))" strokeDasharray="4,4" />
                     {/* @ts-ignore */}
                     </g>
-                  // @ts-ignore
                   );
                 // @ts-ignore
                 }
@@ -1267,7 +1233,6 @@ function ScenarioSimulation({
               })()}
               
               {/* X轴标签 */}
-              // @ts-ignore
               {curveData.filter((_: unknown, i: unknown) => (i as any) % 2 === 0).map((d: unknown, i: unknown) => {
                 // @ts-ignore
                 const x = 60 + ((i * 2) / (curveData.length - 1)) * 720;
@@ -1352,7 +1317,6 @@ function ScenarioSimulation({
                 </thead>
                 <tbody>
                   {scenarioData.campaigns.map((campaign: unknown) => (
-                    // @ts-ignore
                     <tr key={campaign.campaignId} className="border-b hover:bg-muted/50">
                       {/* @ts-ignore */}
                       <td className="py-3 px-2 font-medium">{campaign.campaignName}</td>
@@ -1366,7 +1330,6 @@ function ScenarioSimulation({
                         // @ts-ignore
                         campaign.budgetChange < 0 ? 'text-red-500' : ''
                       }`}>
-                        // @ts-ignore
                         {(campaign as any).budgetChange > 0 ? '+' : ''}{(campaign as any).budgetChange.toFixed(1)}%
                       </td>
                       {/* @ts-ignore */}

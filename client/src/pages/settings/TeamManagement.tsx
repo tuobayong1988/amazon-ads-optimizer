@@ -407,7 +407,6 @@ export default function TeamManagement() {
                 // @ts-ignore
                 const existingPerm = permissions.find(p => p.accountId === account.id);
                 return (
-                  // @ts-ignore
                   <div key={account.id} className="flex items-center justify-between p-4 border rounded-lg">
                     <div className="flex items-center gap-3">
                       <Checkbox
@@ -438,7 +437,6 @@ export default function TeamManagement() {
                         value={existingPerm.permissionLevel}
                         onValueChange={(value: "full" | "edit" | "view") => {
                           setPermissions(permissions.map(p => 
-                            // @ts-ignore
                             p.accountId === account.id ? { ...p, permissionLevel: value } : p
                           ));
                         }}
@@ -537,14 +535,12 @@ function MemberTable({
       {/* @ts-ignore */}
       <TableBody>
         {members.map((member: unknown) => (
-          // @ts-ignore
           <TableRow key={member.id}>
             <TableCell>
               <div className="flex items-center gap-3">
                 <div className="h-10 w-10 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-white font-medium">
                   {/* @ts-ignore */}
                   {(member.name || member.email)[0].toUpperCase()}
-                // @ts-ignore
                 </div>
                 <div>
                   {/* @ts-ignore */}
@@ -566,15 +562,12 @@ function MemberTable({
             <TableCell>
               {/* @ts-ignore */}
               {safeToLocaleDateString(member.createdAt, "zh-CN")}
-            // @ts-ignore
             </TableCell>
             <TableCell className="text-right">
               {/* @ts-ignore */}
               {/* @ts-ignore */}
               {(member as Record<string, unknown>).isOwner || member.role === 'owner' ? (
-                // @ts-ignore
                 <span className="text-xs text-muted-foreground">账户所有者</span>
-              // @ts-ignore
               ) : (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -592,12 +585,10 @@ function MemberTable({
                     {/* @ts-ignore */}
                     <DropdownMenuItem onClick={() => onUpdateRole(member.id, member.role === "admin" ? "editor" : "admin")}>
                       <Shield className="mr-2 h-4 w-4" />
-                      // @ts-ignore
                       {(member as any).role === "admin" ? "降为编辑" : "升为管理员"}
                     </DropdownMenuItem>
                     {/* @ts-ignore */}
                     {member.status === "pending" && (
-                      // @ts-ignore
                       <DropdownMenuItem onClick={() => onResendInvite(member.id)}>
                         <RefreshCw className="mr-2 h-4 w-4" />
                         重新发送邀请

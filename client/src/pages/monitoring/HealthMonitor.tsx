@@ -120,7 +120,6 @@ export default function HealthMonitor() {
               </SelectTrigger>
               <SelectContent>
                 {accountsQuery.data?.map((account: unknown) => (
-                  // @ts-ignore
                   <SelectItem key={account.id} value={account.id.toString()}>
                     {/* @ts-ignore */}
                     {account.accountName}
@@ -269,7 +268,6 @@ export default function HealthMonitor() {
               <CardHeader>
                 <CardTitle className="text-white">广告活动健康状态</CardTitle>
                 <CardDescription>
-                  // @ts-ignore
                   基于多维度指标综合评估每个广告活动的健康程度
                 </CardDescription>
               </CardHeader>
@@ -277,19 +275,15 @@ export default function HealthMonitor() {
                 {/* @ts-ignore */}
                 {healthQuery.isLoading ? (
                   <div className="text-center py-8 text-gray-400">加载中...</div>
-                // @ts-ignore
                 ) : healthQuery.data?.campaigns?.length === 0 ? (
                   <div className="text-center py-8 text-gray-400">暂无广告活动数据</div>
                 ) : (
                   <div className="space-y-4">
                     {/* @ts-ignore */}
-                    // @ts-ignore
                     {healthQuery.data?.campaigns?.map((campaign: unknown) => (
-                      // @ts-ignore
                       <div
                         // @ts-ignore
                         key={campaign.campaignId}
-                        // @ts-ignore
                         className="p-4 bg-gray-800/50 rounded-lg border border-gray-700"
                       >
                         <div className="flex items-center justify-between mb-3">
@@ -297,7 +291,6 @@ export default function HealthMonitor() {
                           <div className="flex items-center gap-3">
                             {/* @ts-ignore */}
                             <Badge className={getStatusColor(campaign.status)}>
-                              // @ts-ignore
                               {(campaign as any).status === 'healthy' ? '健康' : 
                                // @ts-ignore
                                campaign.status === 'warning' ? '警告' : '严重'}
@@ -317,7 +310,6 @@ export default function HealthMonitor() {
                             <span className={`text-2xl font-bold ${getScoreColor(campaign.overallScore)}`}>
                               {/* @ts-ignore */}
                               {campaign.overallScore}
-                            // @ts-ignore
                             </span>
                             {/* @ts-ignore */}
                             <span className="text-gray-400 text-sm">/ 100</span>
@@ -328,7 +320,6 @@ export default function HealthMonitor() {
                           <Progress 
                             // @ts-ignore
                             value={campaign.overallScore} 
-                            // @ts-ignore
                             className="h-2"
                           />
                         </div>
@@ -355,7 +346,6 @@ export default function HealthMonitor() {
                               <span className={getScoreColor(campaign.scoreBreakdown?.traffic || 0)}>
                                 {/* @ts-ignore */}
                                 {campaign.scoreBreakdown?.traffic || 0}
-                              // @ts-ignore
                               </span>
                             </div>
                           </div>
@@ -389,7 +379,6 @@ export default function HealthMonitor() {
                         {campaign.alerts?.length > 0 && (
                           <div className="mt-3 pt-3 border-t border-gray-700">
                             <div className="flex flex-wrap gap-2">
-                              // @ts-ignore
                               {(campaign as any).alerts.slice(0, 3).map((alert: unknown, idx: number) => (
                                 <Badge 
                                   key={idx}
@@ -404,27 +393,22 @@ export default function HealthMonitor() {
                                 >
                                   {/* @ts-ignore */}
                                   {getSeverityIcon(alert.severity)}
-                                  // @ts-ignore
                                   <span className="ml-1">{(alert as any).message}</span>
                                 </Badge>
                               ))}
-                              // @ts-ignore
                               {(campaign as any).alerts.length > 3 && (
                                 <Badge variant="outline" className="text-gray-400">
-                                  // @ts-ignore
                                   +{(campaign as any).alerts.length - 3} 更多
                                 </Badge>
                               )}
                             </div>
                           {/* @ts-ignore */}
                           </div>
-                        // @ts-ignore
                         )}
                       </div>
                     ))}
                   </div>
                 )}
-              // @ts-ignore
               </CardContent>
             </Card>
           {/* @ts-ignore */}
@@ -439,7 +423,6 @@ export default function HealthMonitor() {
                 <CardTitle className="text-white">预警列表</CardTitle>
                 {/* @ts-ignore */}
                 <CardDescription>
-                  // @ts-ignore
                   所有需要关注的异常指标和问题
                 </CardDescription>
               </CardHeader>
@@ -473,9 +456,7 @@ export default function HealthMonitor() {
                             {/* @ts-ignore */}
                             <p className="text-white font-medium">{alert.message}</p>
                             <p className="text-gray-400 text-sm mt-1">
-                              // @ts-ignore
                               {(alert as any).metric}: {(alert as any).currentValue?.toFixed(2)} 
-                              // @ts-ignore
                               {(alert as any).threshold && ` (阈值: ${(alert as any).threshold})`}
                             </p>
                           </div>
@@ -486,7 +467,6 @@ export default function HealthMonitor() {
                             alert.severity === 'warning' ? 'bg-yellow-500/20 text-yellow-400' :
                             'bg-blue-500/20 text-blue-400'
                           }>
-                            // @ts-ignore
                             {(alert as any).severity === 'critical' ? '严重' :
                              // @ts-ignore
                              alert.severity === 'warning' ? '警告' : '提示'}
@@ -518,7 +498,6 @@ export default function HealthMonitor() {
                     <p className="text-sm text-gray-400">分析记录</p>
                     <p className="text-2xl font-bold text-white">
                       {correctionsQuery.data?.totalAnalyzed || 0}
-                    // @ts-ignore
                     </p>
                   {/* @ts-ignore */}
                   </div>
@@ -543,26 +522,22 @@ export default function HealthMonitor() {
                     <p className="text-sm text-gray-400">归因延迟</p>
                     <p className="text-2xl font-bold text-blue-400">
                       {correctionsQuery.data?.summary?.attributionDelay || 0}
-                    // @ts-ignore
                     </p>
                   </div>
                 </div>
 
                 {correctionsQuery.isLoading ? (
                   <div className="text-center py-8 text-gray-400">加载中...</div>
-                // @ts-ignore
                 ) : correctionsQuery.data?.corrections?.length === 0 ? (
                   <div className="text-center py-8">
                     <CheckCircle className="h-12 w-12 text-green-400 mx-auto mb-3" />
                     <p className="text-gray-400">太棒了！目前没有需要纠错的出价调整</p>
                   </div>
-                // @ts-ignore
                 ) : (
                   <div className="space-y-3">
                     {correctionsQuery.data?.corrections?.map((correction: unknown, idx: number) => (
                       <div
                         key={idx}
-                        // @ts-ignore
                         className="p-4 bg-gray-800/50 rounded-lg border border-gray-700"
                       >
                         <div className="flex items-center justify-between mb-2">
@@ -574,7 +549,6 @@ export default function HealthMonitor() {
                               correction.priority === 'high' ? 'bg-orange-500/20 text-orange-400' :
                               'bg-yellow-500/20 text-yellow-400'
                             }>
-                              // @ts-ignore
                               {(correction as any).priority === 'urgent' ? '紧急' :
                                // @ts-ignore
                                correction.priority === 'high' ? '高' : '中'}
@@ -585,7 +559,6 @@ export default function HealthMonitor() {
                               {correction.targetName}
                             </span>
                             <Badge variant="outline" className="text-xs">
-                              // @ts-ignore
                               {(correction as any).errorType === 'premature_decrease' ? '过早降价' :
                                // @ts-ignore
                                correction.errorType === 'premature_increase' ? '过早加价' :
@@ -629,11 +602,9 @@ export default function HealthMonitor() {
                           </div>
                           <Button size="sm" variant="outline">
                             应用纠错
-                          // @ts-ignore
                           </Button>
                         </div>
                       </div>
-                    // @ts-ignore
                     ))}
                   </div>
                 )}
@@ -653,23 +624,19 @@ export default function HealthMonitor() {
                     <CardContent><Skeleton className="h-24 w-full bg-gray-700" /></CardContent>
                   </Card>
                 ))}
-              // @ts-ignore
               </div>
-            // @ts-ignore
             ) : resourcesQuery.data?.resources ? (
               <div className="space-y-4">
                 {/* @ts-ignore */}
                 {/* 告警 */}
                 {/* @ts-ignore */}
                 {(resourcesQuery.data.resources.alerts?.length > 0) && (
-                  // @ts-ignore
                   <Card className="bg-red-900/20 border-red-800">
                     <CardContent className="pt-4">
                       <div className="flex items-center gap-2 mb-2">
                         <AlertTriangle className="h-5 w-5 text-red-400" />
                         <span className="text-red-400 font-semibold">系统告警</span>
                       </div>
-                      // @ts-ignore
                       {(resourcesQuery as any).data.resources.alerts.map((alert: string, i: number) => (
                         <p key={i} className="text-red-300 text-sm">{alert}</p>
                       ))}
@@ -696,7 +663,6 @@ export default function HealthMonitor() {
                         {/* @ts-ignore */}
                         {/* @ts-ignore */}
                         {resourcesQuery.data.resources.cpu.avgUsagePercent}%
-                      // @ts-ignore
                       </div>
                       <Progress 
                         // @ts-ignore
@@ -708,7 +674,6 @@ export default function HealthMonitor() {
                         {resourcesQuery.data.resources.cpu.cores} 核心 | {resourcesQuery.data.resources.cpu.model}
                       </p>
                       <p className="text-xs text-gray-400">
-                        // @ts-ignore
                         负载: {(resourcesQuery as any).data.resources.system.loadAvg1m} (1m) / {(resourcesQuery as any).data.resources.system.loadAvg5m} (5m) / {(resourcesQuery as any).data.resources.system.loadAvg15m} (15m)
                       </p>
                     </CardContent>
@@ -731,7 +696,6 @@ export default function HealthMonitor() {
                         {/* @ts-ignore */}
                         {/* @ts-ignore */}
                         {resourcesQuery.data.resources.memory.system.usagePercent}%
-                      // @ts-ignore
                       </div>
                       {/* @ts-ignore */}
                       <Progress 
@@ -741,11 +705,9 @@ export default function HealthMonitor() {
                       // @ts-ignore
                       />
                       <p className="text-xs text-gray-400">
-                        // @ts-ignore
                         已用: {(resourcesQuery as any).data.resources.memory.system.usedMB}MB / 总计: {(resourcesQuery as any).data.resources.memory.system.totalMB}MB
                       </p>
                       <p className="text-xs text-gray-400">
-                        // @ts-ignore
                         可用: {(resourcesQuery as any).data.resources.memory.system.freeMB}MB
                       </p>
                     </CardContent>
@@ -765,12 +727,10 @@ export default function HealthMonitor() {
                       <div className="text-3xl font-bold text-white mb-2">
                         {/* @ts-ignore */}
                         {resourcesQuery.data.resources.memory.process.heapUsagePercent}%
-                      // @ts-ignore
                       </div>
                       <Progress 
                         // @ts-ignore
                         value={resourcesQuery.data.resources.memory.process.heapUsagePercent} 
-                        // @ts-ignore
                         className="h-2 mb-2" 
                       />
                       <div className="grid grid-cols-2 gap-2 text-xs text-gray-400">
@@ -786,7 +746,6 @@ export default function HealthMonitor() {
                       {/* @ts-ignore */}
                       {resourcesQuery.data.resources.memory.nodeMaxOldSpaceMB && (
                         <p className="text-xs text-gray-500 mt-1">
-                          // @ts-ignore
                           V8堆上限: {(resourcesQuery as any).data.resources.memory.nodeMaxOldSpaceMB}MB
                           // @ts-ignore
                           （已用 {(resourcesQuery as any).data.resources.memory.process.heapUsedMB}MB / {(resourcesQuery as any).data.resources.memory.nodeMaxOldSpaceMB}MB）
@@ -808,7 +767,6 @@ export default function HealthMonitor() {
                         {/* @ts-ignore */}
                         <span className={`inline-block w-2 h-2 rounded-full ${resourcesQuery.data.resources.database.poolExists ? 'bg-green-400' : 'bg-red-400'}`} />
                         <span className="text-sm text-white">
-                          // @ts-ignore
                           {(resourcesQuery as any).data.resources.database.poolExists ? '连接池正常' : '连接池异常'}
                         </span>
                       </div>
@@ -829,7 +787,6 @@ export default function HealthMonitor() {
                       {/* @ts-ignore */}
                       {resourcesQuery.data.resources.database.leakedConnections > 0 && (
                         <p className="text-xs text-red-400 mt-1">
-                          // @ts-ignore
                           疑似泄漏: {(resourcesQuery as any).data.resources.database.leakedConnections} 个连接
                         </p>
                       )}

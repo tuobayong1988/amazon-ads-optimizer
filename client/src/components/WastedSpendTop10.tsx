@@ -107,7 +107,6 @@ export function WastedSpendTop10({
                       <div className="text-xs text-muted-foreground truncate">
                         {/* @ts-ignore */}
                         {keyword.campaignName}
-                      // @ts-ignore
                       </div>
                       <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
                         <TooltipProvider>
@@ -128,18 +127,14 @@ export function WastedSpendTop10({
                               <Eye className="w-3 h-3" />
                               {/* @ts-ignore */}
                               {keyword.impressions.toLocaleString()}
-                            // @ts-ignore
                             </TooltipTrigger>
                             <TooltipContent>曝光数</TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
                         <span className="flex items-center gap-1">
-                          // @ts-ignore
                           CTR: {(keyword as any).ctr.toFixed(2)}%
-                        // @ts-ignore
                         </span>
                         <span className="flex items-center gap-1">
-                          // @ts-ignore
                           CPC: ${(keyword as any).cpc.toFixed(2)}
                         </span>
                       </div>
@@ -148,7 +143,6 @@ export function WastedSpendTop10({
                   </div>
                   <div className="flex flex-col items-end gap-2">
                     <div className="text-lg font-bold text-red-500">
-                      // @ts-ignore
                       ${Number((keyword as any).spend || 0).toFixed(2)}
                     </div>
                     <Button

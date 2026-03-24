@@ -315,7 +315,6 @@ describe('OperationConfirmDialog 交互测试', () => {
         render(
           <OperationConfirmDialog
             {...defaultProps}
-            // @ts-ignore
             operationType={type}
           />
         );

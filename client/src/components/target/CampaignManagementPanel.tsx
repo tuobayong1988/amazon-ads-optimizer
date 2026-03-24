@@ -69,7 +69,6 @@ export default function CampaignManagementPanel({
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       result = result.filter((c: unknown) => 
-        // @ts-ignore
         (c.campaignName || '').toLowerCase().includes(term)
       );
     }
@@ -98,7 +97,6 @@ export default function CampaignManagementPanel({
         // @ts-ignore
         return aVal > bVal ? 1 : -1;
       }
-      // @ts-ignore
       return aVal < bVal ? 1 : -1;
     });
 
@@ -190,30 +188,22 @@ export default function CampaignManagementPanel({
             </TableHeader>
             <TableBody>
               {filteredCampaigns.length === 0 ? (
-                // @ts-ignore
                 <TableRow>
                   <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                    // @ts-ignore
                     {searchTerm ? '没有匹配的广告活动' : '暂无广告活动'}
                   </TableCell>
                 </TableRow>
-              // @ts-ignore
               ) : (
                 filteredCampaigns.map((campaign: unknown) => (
-                  // @ts-ignore
                   <TableRow key={campaign.id || campaign.campaignId}>
                     <TableCell className="font-medium max-w-[200px] truncate">
                       {/* @ts-ignore */}
                       {campaign.campaignName || `Campaign ${campaign.campaignId}`}
-                    // @ts-ignore
                     </TableCell>
                     <TableCell className="text-right">
-                      // @ts-ignore
                       ${((campaign as any).spend || 0).toFixed(2)}
-                    // @ts-ignore
                     </TableCell>
                     <TableCell className="text-right">
-                      // @ts-ignore
                       ${((campaign as any).sales || 0).toFixed(2)}
                     </TableCell>
                     <TableCell className="text-right">

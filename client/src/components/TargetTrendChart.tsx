@@ -125,23 +125,19 @@ export function TargetTrendChart({
               // @ts-ignore
               key={d}
               variant={days === d ? "default" : "outline"}
-              // @ts-ignore
               size="sm"
               // @ts-ignore
               onClick={() => setDays(d)}
             >
-              // @ts-ignore
               {String(d)}天
             </Button>
           ))}
         </div>
 
         {isLoading ? (
-          // @ts-ignore
           <div className="space-y-4">
             <div className="grid grid-cols-5 gap-4">
               {[1, 2, 3, 4, 5].map((i: unknown) => (
-                // @ts-ignore
                 <Skeleton key={i} className="h-24" />
               ))}
             </div>
@@ -205,7 +201,6 @@ export function TargetTrendChart({
                     {formatCurrency(data.summary.totalSales)}
                   </div>
                   <div className="text-xs text-muted-foreground mt-1">
-                    // @ts-ignore
                     订单: {String(data.summary.totalOrders)}
                   </div>
                 </CardContent>
@@ -220,7 +215,6 @@ export function TargetTrendChart({
                     {formatPercent(data.summary.avgAcos)}
                   </div>
                   <div className="text-xs text-muted-foreground mt-1">
-                    // @ts-ignore
                     ROAS: {data.summary.avgRoas.toFixed(2)}
                   </div>
                 </CardContent>
@@ -274,7 +268,6 @@ export function TargetTrendChart({
                             border: "1px solid hsl(var(--border))",
                             borderRadius: "8px",
                           }}
-                          // @ts-ignore
                           formatter={((value: number, name: string) => {
                             if (name === "点击") return [formatNumber(value), name];
                             if (name === "花费") return [formatCurrency(value), name];
@@ -336,7 +329,6 @@ export function TargetTrendChart({
                             border: "1px solid hsl(var(--border))",
                             borderRadius: "8px",
                           }}
-                          // @ts-ignore
                           formatter={((value: number, name: string) => {
                             if (name === "销售额") return [formatCurrency(value), name];
                             if (name === "订单") return [formatNumber(value), name];
@@ -379,7 +371,6 @@ export function TargetTrendChart({
                         <XAxis
                           dataKey="date"
                           tickFormatter={formatDate}
-                          // @ts-ignore
                           className="text-xs"
                         />
                         <YAxis yAxisId="left" className="text-xs" />
@@ -390,7 +381,6 @@ export function TargetTrendChart({
                             border: "1px solid hsl(var(--border))",
                             borderRadius: "8px",
                           }}
-                          // @ts-ignore
                           formatter={((value: number, name: string) => {
                             if (name === "ACoS") return [formatPercent(value), name];
                             if (name === "ROAS") return [value.toFixed(2), name];
@@ -443,7 +433,6 @@ export function TargetTrendChart({
                             border: "1px solid hsl(var(--border))",
                             borderRadius: "8px",
                           }}
-                          // @ts-ignore
                           formatter={((value: number, name: string) => [formatPercent(value), name]) as unknown}
                           labelFormatter={(label) => `日期: ${label}`}
                         />
@@ -496,7 +485,6 @@ export function TargetTrendChart({
                             border: "1px solid hsl(var(--border))",
                             borderRadius: "8px",
                           }}
-                          // @ts-ignore
                           formatter={((value: number) => [formatCurrency(value), "CPC"]) as unknown}
                           labelFormatter={(label) => `日期: ${label}`}
                         />

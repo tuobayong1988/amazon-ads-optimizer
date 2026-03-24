@@ -222,7 +222,6 @@ const [activeTab, setActiveTab] = useState("recommendations");
             <Select
               value={accountId?.toString() || ""}
               onValueChange={(v) => setSelectedAccountId(parseInt(v))}
-            // @ts-ignore
             >
               {/* @ts-ignore */}
               <SelectTrigger className="w-[180px]">
@@ -230,7 +229,6 @@ const [activeTab, setActiveTab] = useState("recommendations");
               </SelectTrigger>
               <SelectContent>
                 {accounts?.map((account: unknown) => (
-                  // @ts-ignore
                   <SelectItem key={account.id} value={account.id.toString()}>
                     {/* @ts-ignore */}
                     {account.accountName}
@@ -373,9 +371,7 @@ const [activeTab, setActiveTab] = useState("recommendations");
           {/* @ts-ignore */}
           {/* 优化建议Tab */}
           <TabsContent value="recommendations" className="space-y-4">
-            // @ts-ignore
             {recommendations?.filter((r: unknown) => (r as any).status === 'pending').map((rec: unknown) => (
-              // @ts-ignore
               <Card key={rec.id} className="hover:border-primary/50 transition-colors">
                 <CardContent className="py-4">
                   {/* @ts-ignore */}
@@ -385,7 +381,6 @@ const [activeTab, setActiveTab] = useState("recommendations");
                       <div className={`p-2 rounded-full ${getConfidenceColor(rec.confidence)}`}>
                         {/* @ts-ignore */}
                         {getTypeIcon(rec.type)}
-                      // @ts-ignore
                       </div>
                       <div>
                         {/* @ts-ignore */}
@@ -415,7 +410,6 @@ const [activeTab, setActiveTab] = useState("recommendations");
                         <p className="text-sm text-muted-foreground">建议值</p>
                         {/* @ts-ignore */}
                         <p className={`font-medium ${rec.suggestedValue > rec.currentValue ? 'text-green-400' : 'text-red-400'}`}>
-                          // @ts-ignore
                           ${(rec as any).suggestedValue?.toFixed(2)}
                         </p>
                       </div>
@@ -425,7 +419,6 @@ const [activeTab, setActiveTab] = useState("recommendations");
                         <p className={`font-medium ${getConfidenceColor(rec.confidence).split(' ')[0]}`}>
                           {/* @ts-ignore */}
                           {(rec.confidence * 100).toFixed(0)}%
-                        // @ts-ignore
                         </p>
                       </div>
                       <Button
@@ -441,7 +434,6 @@ const [activeTab, setActiveTab] = useState("recommendations");
                 {/* @ts-ignore */}
                 </CardContent>
               </Card>
-            // @ts-ignore
             )) || (
               <p className="text-center text-muted-foreground py-8">暂无待执行的优化建议</p>
             )}
@@ -450,9 +442,7 @@ const [activeTab, setActiveTab] = useState("recommendations");
           {/* 执行历史Tab */}
           <TabsContent value="history" className="space-y-4">
             {/* @ts-ignore */}
-            // @ts-ignore
             {((summaryQuery.data as unknown)?.recentExecutions || []).map((history: unknown) => (
-              // @ts-ignore
               <Card key={history.id}>
                 <CardContent className="py-4">
                   {/* @ts-ignore */}

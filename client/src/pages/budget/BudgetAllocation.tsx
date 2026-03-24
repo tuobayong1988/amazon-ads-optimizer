@@ -327,7 +327,6 @@ const [prioritizeHighRoas, setPrioritizeHighRoas] = useState(true);
               <SelectContent>
                 <SelectItem value="all">全部账号</SelectItem>
                 {accounts?.map((account: unknown) => (
-                  // @ts-ignore
                   <SelectItem key={account.id} value={account.id.toString()}>
                     {/* @ts-ignore */}
                     {account.storeName || account.accountName}
@@ -467,7 +466,6 @@ const [prioritizeHighRoas, setPrioritizeHighRoas] = useState(true);
                           : "点击生成按钮获取分配建议"}
                       </CardDescription>
                     </div>
-                    // @ts-ignore
                     {allocationResult as any && (
                       <div className="flex gap-2">
                         <Button
@@ -534,7 +532,6 @@ const [prioritizeHighRoas, setPrioritizeHighRoas] = useState(true);
                             </div>
                             <p className="text-2xl font-bold mt-1">
                               {summaryStats.predictedRoas.toFixed(2)}
-                            // @ts-ignore
                             </p>
                           </div>
                         {/* @ts-ignore */}
@@ -542,16 +539,12 @@ const [prioritizeHighRoas, setPrioritizeHighRoas] = useState(true);
                       )}
 
                       {/* 分配明细列表 */}
-                      // @ts-ignore
                       <ScrollArea className="h-[400px]">
                         <div className="space-y-3">
-                          // @ts-ignore
                           {(allocationResult as any).recommendations.map((rec: unknown, index: number) => (
-                            // @ts-ignore
                             <div
                               // @ts-ignore
                               key={index}
-                              // @ts-ignore
                               className="p-4 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
                             >
                               <div className="flex items-start justify-between">
@@ -560,9 +553,7 @@ const [prioritizeHighRoas, setPrioritizeHighRoas] = useState(true);
                                     {/* @ts-ignore */}
                                     <h4 className="font-medium">{rec.campaignName}</h4>
                                     <Badge variant="outline" className="text-xs">
-                                      // @ts-ignore
                                       评分: {(rec as any).priorityScore.toFixed(0)}
-                                    // @ts-ignore
                                     </Badge>
                                   </div>
                                   <p className="text-sm text-muted-foreground mt-1">
@@ -586,12 +577,10 @@ const [prioritizeHighRoas, setPrioritizeHighRoas] = useState(true);
                                   <div className="flex items-center gap-2">
                                     {/* @ts-ignore */}
                                     <span className="text-muted-foreground">
-                                      // @ts-ignore
                                       ${(rec as any).currentBudget.toFixed(2)}
                                     </span>
                                     <span>→</span>
                                     <span className="font-bold">
-                                      // @ts-ignore
                                       ${(rec as any).recommendedBudget.toFixed(2)}
                                     </span>
                                   </div>
@@ -607,16 +596,13 @@ const [prioritizeHighRoas, setPrioritizeHighRoas] = useState(true);
                                     {/* @ts-ignore */}
                                     {rec.budgetChange > 0 ? (
                                       <ArrowUpRight className="h-4 w-4" />
-                                    // @ts-ignore
                                     ) : rec.budgetChange < 0 ? (
                                       <ArrowDownRight className="h-4 w-4" />
                                     ) : (
                                       <Minus className="h-4 w-4" />
                                     )}
                                     <span>
-                                      // @ts-ignore
                                       {(rec as any).budgetChange > 0 ? "+" : ""}
-                                      // @ts-ignore
                                       {(rec as any).changePercent.toFixed(1)}%
                                     </span>
                                   </div>
@@ -650,7 +636,6 @@ const [prioritizeHighRoas, setPrioritizeHighRoas] = useState(true);
                 <h2 className="text-lg font-semibold">预算目标</h2>
                 <p className="text-sm text-muted-foreground">
                   设置销售目标和预算约束，指导智能分配
-                // @ts-ignore
                 </p>
               {/* @ts-ignore */}
               </div>
@@ -662,16 +647,13 @@ const [prioritizeHighRoas, setPrioritizeHighRoas] = useState(true);
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              // @ts-ignore
               {budgetGoals?.map((goal: unknown) => (
-                // @ts-ignore
                 <Card key={goal.id}>
                   {/* @ts-ignore */}
                   <CardHeader className="pb-2">
                     <div className="flex items-center justify-between">
                       {/* @ts-ignore */}
                       <Badge variant={goal.status === "active" ? "default" : "secondary"}>
-                        // @ts-ignore
                         {(goal as any).status === "active" ? "进行中" : (goal as any).status}
                       </Badge>
                       <Button
@@ -719,10 +701,8 @@ const [prioritizeHighRoas, setPrioritizeHighRoas] = useState(true);
                     </div>
                   </CardContent>
                 </Card>
-              // @ts-ignore
               ))}
               
-              // @ts-ignore
               {(!budgetGoals || budgetGoals.length === 0) && (
                 <div className="col-span-full flex flex-col items-center justify-center py-12 text-muted-foreground">
                   {/* @ts-ignore */}
@@ -732,7 +712,6 @@ const [prioritizeHighRoas, setPrioritizeHighRoas] = useState(true);
                 {/* @ts-ignore */}
                 </div>
               )}
-            // @ts-ignore
             </div>
           </TabsContent>
 
@@ -745,7 +724,6 @@ const [prioritizeHighRoas, setPrioritizeHighRoas] = useState(true);
               <div>
                 <h2 className="text-lg font-semibold">分配历史</h2>
                 <p className="text-sm text-muted-foreground">
-                  // @ts-ignore
                   查看和管理历史分配方案
                 </p>
               </div>
@@ -759,7 +737,6 @@ const [prioritizeHighRoas, setPrioritizeHighRoas] = useState(true);
 
             <div className="space-y-4">
               {allocationHistory?.map((allocation: unknown) => (
-                // @ts-ignore
                 <Card key={allocation.id}>
                   <CardContent className="pt-6">
                     <div className="flex items-start justify-between">
@@ -805,28 +782,23 @@ const [prioritizeHighRoas, setPrioritizeHighRoas] = useState(true);
                         {/* @ts-ignore */}
                         </div>
                         <p className="text-xs text-muted-foreground mt-2">
-                          // @ts-ignore
                           创建于 {safeToLocaleString((allocation as any).createdAt)}
                         </p>
                       </div>
                       <div className="flex gap-2">
                         {/* @ts-ignore */}
                         {allocation.status !== "applied" && (
-                          // @ts-ignore
                           <Button
                             size="sm"
                             // @ts-ignore
                             onClick={() => handleApply(allocation.id)}
-                            // @ts-ignore
                             disabled={isApplying}
                           >
                             {isApplying ? (
                               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                             ) : (
-                              // @ts-ignore
                               <Play className="mr-2 h-4 w-4" />
                             )}
-                            // @ts-ignore
                             应用
                           </Button>
                         )}
@@ -838,7 +810,6 @@ const [prioritizeHighRoas, setPrioritizeHighRoas] = useState(true);
                 </Card>
               ))}
 
-              // @ts-ignore
               {(!allocationHistory || allocationHistory.length === 0) && (
                 <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
                   {/* @ts-ignore */}
@@ -884,12 +855,10 @@ const [prioritizeHighRoas, setPrioritizeHighRoas] = useState(true);
                         <div className="text-right">
                           <div className="flex items-center gap-2">
                             <span className="text-muted-foreground">
-                              // @ts-ignore
                               ${Number((record as any).previousBudget).toFixed(2)}
                             </span>
                             <span>→</span>
                             <span className="font-bold">
-                              // @ts-ignore
                               ${Number((record as any).newBudget).toFixed(2)}
                             </span>
                           </div>
@@ -904,9 +873,7 @@ const [prioritizeHighRoas, setPrioritizeHighRoas] = useState(true);
                                 : "text-muted-foreground"
                             }`}
                           >
-                            // @ts-ignore
                             {Number((record as any).changeAmount) > 0 ? "+" : ""}
-                            // @ts-ignore
                             {Number((record as any).changePercent).toFixed(1)}%
                           </div>
                           <Badge variant="outline" className="mt-1 text-xs">

@@ -27,7 +27,6 @@ export function Sparkline({
       return { path: "", areaPath: "", minY: 0, maxY: 0 };
     }
 
-    // @ts-ignore
     const values = data.map((d: unknown) => d.value);
     const min = Math.min(...values);
     const max = Math.max(...values);

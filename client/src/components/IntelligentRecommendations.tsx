@@ -123,7 +123,6 @@ export function IntelligentRecommendations({ accountId }: Props) {
         </span>
         {scanResult.totalPotentialSavings > 0 && (
           <span className="text-orange-400">
-            // @ts-ignore
             ≈${scanResult.totalPotentialSavings.toFixed(0)}/周
           </span>
         )}
@@ -131,7 +130,6 @@ export function IntelligentRecommendations({ accountId }: Props) {
 
       {/* @ts-ignore */}
       {/* 推荐列表 */}
-      // @ts-ignore
       {scanResult.recommendations.map((rec: unknown) => (
         <div
           // @ts-ignore
@@ -167,36 +165,28 @@ export function IntelligentRecommendations({ accountId }: Props) {
                   .map((action: unknown, i: number) => (
                     <span key={i} className="inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded bg-green-500/10 text-green-400 border border-green-500/20">
                       <CheckCircle2 className="w-2.5 h-2.5" />
-                      // @ts-ignore
                       {(action as any).description}: {(action as any).count}项
                     </span>
-                  // @ts-ignore
                   ))}
-                // @ts-ignore
                 {(rec as any).autoOptimizationActions
                   // @ts-ignore
                   .filter((a: unknown) => a.status === 'skipped')
                   .map((action: unknown, i: number) => (
                     <span key={`s-${i}`} className="inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
                       {/* @ts-ignore */}
-                      // @ts-ignore
                       {action.description}: 无需调整
-                    // @ts-ignore
                     </span>
                   ))}
               </div>
               {/* @ts-ignore */}
               {/* @ts-ignore */}
               {rec.autoOptimizationSummary && (
-                // @ts-ignore
                 <p className="text-[10px] text-muted-foreground">{rec.autoOptimizationSummary}</p>
               )}
             </div>
           )}
 
-          // @ts-ignore
           {/* 已纳管但无执行动作 */}
-          // @ts-ignore
           {(rec as any).type === 'managed_deteriorating' && (!(rec as any).autoOptimizationActions || (rec as any).autoOptimizationActions.filter((a: unknown) => (a as any).status === 'executed').length === 0) && (
             <p className="text-[10px] text-muted-foreground">
               {/* @ts-ignore */}
@@ -205,21 +195,16 @@ export function IntelligentRecommendations({ accountId }: Props) {
           )}
 
           {/* 未纳管：一键创建按钮 */}
-          // @ts-ignore
           {(rec as any).type === 'unmanaged_deteriorating' && (rec as any).action?.prefillData && (
             <div className="space-y-1.5">
               {/* @ts-ignore */}
               {rec.suggestedStrategy && (
                 <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
                   <Target className="w-3 h-3 text-blue-400" />
-                  // @ts-ignore
                   推荐策略: <span className="text-foreground">{(rec as any).suggestedStrategy.name}</span>
-                  // @ts-ignore
                   · ACoS目标 {(rec as any).suggestedStrategy.targetAcos}%
-                // @ts-ignore
                 </div>
               )}
-              // @ts-ignore
               <div className="flex items-center gap-2">
                 {/* @ts-ignore */}
                 <Button
@@ -229,14 +214,10 @@ export function IntelligentRecommendations({ accountId }: Props) {
                   // @ts-ignore
                   onClick={() => handleQuickCreate(rec.action.prefillData)}
                   disabled={creatingGoal}
-                // @ts-ignore
                 >
                   {creatingGoal ? (
-                    // @ts-ignore
                     <><Loader2 className="w-3 h-3 mr-1 animate-spin" />创建中...</>
-                  // @ts-ignore
                   ) : (
-                    // @ts-ignore
                     <><Zap className="w-3 h-3 mr-1" />一键创建优化目标并立即优化</>
                   )}
                 </Button>
@@ -249,7 +230,6 @@ export function IntelligentRecommendations({ accountId }: Props) {
           )}
 
           {/* 展开/收起详细广告列表 */}
-          // @ts-ignore
           {(rec as any).campaigns?.length > 0 && (
             <div>
               <button
@@ -257,15 +237,12 @@ export function IntelligentRecommendations({ accountId }: Props) {
                 // @ts-ignore
                 onClick={() => setExpanded(expanded === rec.id ? null : rec.id)}
               >
-                // @ts-ignore
                 {expanded === (rec as any).id ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                // @ts-ignore
                 {expanded === (rec as any).id ? '收起' : `查看${(rec as any).campaigns.length}个广告活动详情`}
               </button>
               {/* @ts-ignore */}
               {expanded === rec.id && (
                 <div className="mt-1 space-y-1 max-h-[120px] overflow-y-auto">
-                  // @ts-ignore
                   {(rec as any).campaigns.map((c: unknown, i: number) => (
                     <div key={i} className="flex items-center justify-between text-[10px] py-0.5 px-1.5 rounded bg-muted/30">
                       {/* @ts-ignore */}

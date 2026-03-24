@@ -303,7 +303,6 @@ export default function CampaignDetail() {
           <div className="flex items-center gap-4">
             <Button variant="ghost" size="sm" onClick={() => setLocation("/campaigns")}>
               <ArrowLeft className="h-4 w-4 mr-2" />
-              // @ts-ignore
               返回列表
             </Button>
             <div>
@@ -404,7 +403,6 @@ export default function CampaignDetail() {
                     <div className="flex items-center justify-between mb-4">
                       <h4 className="font-semibold flex items-center gap-2">
                         <Target className="h-4 w-4" />
-                        // @ts-ignore
                         优化建议 ({(aiAnalysisResult as any).suggestions.length}条)
                       </h4>
                       <div className="flex gap-2">
@@ -446,21 +444,16 @@ export default function CampaignDetail() {
                         </h5>
                         <div className="grid grid-cols-3 gap-4">
                           {/* @ts-ignore */}
-                          // @ts-ignore
                           {aiAnalysisResult.predictions.map((pred: unknown) => (
-                            // @ts-ignore
                             <div key={pred.period} className="p-3 bg-background rounded border">
                               <div className="text-sm font-medium mb-2">
-                                // @ts-ignore
                                 {(pred as any).period === "7_days" ? "7天后" : (pred as any).period === "14_days" ? "14天后" : "30天后"}
-                              // @ts-ignore
                               </div>
                               <div className="space-y-1 text-xs">
                                 <div className="flex justify-between">
                                   <span className="text-muted-foreground">预估花费</span>
                                   {/* @ts-ignore */}
                                   <span className={pred.spendChangePercent < 0 ? "text-green-500" : "text-red-500"}>
-                                    // @ts-ignore
                                     ${(pred as any).predictedSpend.toFixed(2)} ({(pred as any).spendChangePercent > 0 ? "+" : ""}{(pred as any).spendChangePercent.toFixed(1)}%)
                                   </span>
                                 </div>
@@ -470,7 +463,6 @@ export default function CampaignDetail() {
                                   {/* @ts-ignore */}
                                   {/* @ts-ignore */}
                                   <span className={pred.salesChangePercent > 0 ? "text-green-500" : "text-red-500"}>
-                                    // @ts-ignore
                                     ${(pred as any).predictedSales.toFixed(2)} ({(pred as any).salesChangePercent > 0 ? "+" : ""}{(pred as any).salesChangePercent.toFixed(1)}%)
                                   </span>
                                 {/* @ts-ignore */}
@@ -479,7 +471,6 @@ export default function CampaignDetail() {
                                   <span className="text-muted-foreground">预估ACoS</span>
                                   {/* @ts-ignore */}
                                   <span className={pred.acosChangePercent < 0 ? "text-green-500" : "text-red-500"}>
-                                    // @ts-ignore
                                     {(pred as any).predictedAcos.toFixed(1)}% ({(pred as any).acosChangePercent > 0 ? "+" : ""}{(pred as any).acosChangePercent.toFixed(1)}%)
                                   </span>
                                 </div>
@@ -488,7 +479,6 @@ export default function CampaignDetail() {
                                   {/* @ts-ignore */}
                                   {/* @ts-ignore */}
                                   <span className={pred.roasChangePercent > 0 ? "text-green-500" : "text-red-500"}>
-                                    // @ts-ignore
                                     {(pred as any).predictedRoas.toFixed(2)} ({(pred as any).roasChangePercent > 0 ? "+" : ""}{(pred as any).roasChangePercent.toFixed(1)}%)
                                   </span>
                                 </div>
@@ -502,13 +492,11 @@ export default function CampaignDetail() {
                           ))}
                         </div>
                       </div>
-                    // @ts-ignore
                     )}
                     
                     {/* 建议列表 */}
                     <div className="space-y-2 max-h-[400px] overflow-y-auto">
                       {/* @ts-ignore */}
-                      // @ts-ignore
                       {aiAnalysisResult.suggestions.map((suggestion: unknown, index: number) => (
                         <div 
                           // @ts-ignore
@@ -517,15 +505,12 @@ export default function CampaignDetail() {
                             selectedSuggestions.has(index) ? "bg-primary/10 border-primary" : "bg-muted/30 hover:bg-muted/50"
                           // @ts-ignore
                           }`}
-                          // @ts-ignore
                           onClick={() => toggleSuggestion(index)}
-                        // @ts-ignore
                         >
                           <div className="flex items-start gap-3">
                             {/* @ts-ignore */}
                             <Checkbox 
                               checked={selectedSuggestions.has(index)}
-                              // @ts-ignore
                               onCheckedChange={() => toggleSuggestion(index)}
                               onClick={(e) => e.stopPropagation()}
                             />
@@ -533,15 +518,12 @@ export default function CampaignDetail() {
                               <div className="flex items-center gap-2 mb-1">
                                 {/* @ts-ignore */}
                                 <Badge variant={suggestion.priority === "high" ? "destructive" : suggestion.priority === "medium" ? "default" : "secondary"} className="text-xs">
-                                  // @ts-ignore
                                   {(suggestion as any).priority === "high" ? "高优先级" : (suggestion as any).priority === "medium" ? "中优先级" : "低优先级"}
                                 </Badge>
                                 <Badge variant="outline" className="text-xs">
-                                  // @ts-ignore
                                   {(suggestion as any).type === "bid_adjustment" ? "出价调整" : (suggestion as any).type === "status_change" ? "状态变更" : "否定词"}
                                 </Badge>
                                 <span className="text-xs text-muted-foreground">
-                                  // @ts-ignore
                                   {(suggestion as any).targetType === "keyword" ? "关键词" : (suggestion as any).targetType === "product_target" ? "商品定向" : "搜索词"}
                                 </span>
                               </div>
@@ -564,7 +546,6 @@ export default function CampaignDetail() {
                           </div>
                         {/* @ts-ignore */}
                         </div>
-                      // @ts-ignore
                       ))}
                     </div>
                   </div>
@@ -758,7 +739,6 @@ export default function CampaignDetail() {
             {campaign.campaignType === "sb" && (
               <TabsTrigger value="bidadjustments">出价调整</TabsTrigger>
             )}
-            // @ts-ignore
             {/* 所有广告类型都有: Budget rules */}
             <TabsTrigger value="budgetrules">预算规则</TabsTrigger>
             {/* 所有广告类型都有: Campaign settings */}
@@ -808,9 +788,7 @@ export default function CampaignDetail() {
                           (campaign as any).campaignGoal
                         }</p>
                       </div>
-                    // @ts-ignore
                     )}
-                    // @ts-ignore
                     {(campaign as any).adFormat && (
                       <div>
                         <p className="text-sm text-muted-foreground">广告格式</p>
@@ -1192,10 +1170,8 @@ export default function CampaignDetail() {
               </Card>
             {/* @ts-ignore */}
             </TabsContent>
-          // @ts-ignore
           )}
 
-          // @ts-ignore
           <TabsContent value="adgroups" className="mt-4">
             <Card>
               <CardHeader>
@@ -1252,14 +1228,12 @@ export default function CampaignDetail() {
                             const agCpc = agClicks > 0 ? (agSpend / agClicks) : 0;
                             // @ts-ignore
                             return (
-                              // @ts-ignore
                               <TableRow key={adGroup.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setLocation(`/ad-groups/${adGroup.id}`)}>
                                 {/* @ts-ignore */}
                                 <TableCell className="font-medium max-w-[200px] truncate" title={adGroup.adGroupName}>{adGroup.adGroupName}</TableCell>
                                 <TableCell>
                                   {/* @ts-ignore */}
                                   <Badge variant={adGroup.adGroupStatus === "enabled" || adGroup.status === "enabled" ? "default" : "secondary"}>
-                                    // @ts-ignore
                                     {(adGroup as any).adGroupStatus === "enabled" || (adGroup as any).status === "enabled" ? "启用" : "暂停"}
                                   </Badge>
                                 {/* @ts-ignore */}
@@ -1284,9 +1258,7 @@ export default function CampaignDetail() {
                                 </TableCell>
                                 <TableCell className="text-right">
                                   <span className={agRoas < 2 ? "text-red-500" : agRoas < 3 ? "text-yellow-500" : "text-green-500"}>
-                                    // @ts-ignore
                                     {agSpend > 0 ? agRoas.toFixed(2) : "N/A"}
-                                  // @ts-ignore
                                   </span>
                                 {/* @ts-ignore */}
                                 </TableCell>
@@ -1299,9 +1271,7 @@ export default function CampaignDetail() {
                     </div>
 
                     {/* SB品牌广告素材信息 */}
-                    // @ts-ignore
                     {campaign.campaignType === "sb" && adGroups.some((ag: unknown) => (ag as any).headline || (ag as any).videoAssetId || (ag as any).brandLogoAssetId || (ag as any).customImageAssetId || (ag as any).videoUrl || (ag as any).brandLogoUrl || (ag as any).customImageUrl) && (
-                      // @ts-ignore
                       <Card className="border-blue-200 bg-blue-50/30">
                         <CardHeader className="pb-3">
                           <CardTitle className="text-base">品牌广告素材信息</CardTitle>
@@ -1312,9 +1282,7 @@ export default function CampaignDetail() {
                         {/* @ts-ignore */}
                         <CardContent>
                           <div className="space-y-4">
-                            // @ts-ignore
                             {adGroups.filter((ag: unknown) => (ag as any).headline || (ag as any).videoAssetId || (ag as any).brandLogoAssetId || (ag as any).customImageAssetId || (ag as any).videoUrl || (ag as any).brandLogoUrl || (ag as any).customImageUrl).map((adGroup: unknown) => (
-                              // @ts-ignore
                               <div key={adGroup.id} className="border rounded-lg p-4 bg-white">
                                 {/* @ts-ignore */}
                                 <h4 className="font-medium text-sm mb-3">{adGroup.adGroupName}</h4>
@@ -1330,7 +1298,6 @@ export default function CampaignDetail() {
                                     </div>
                                   )}
                                   {/* 创意类型 */}
-                                  // @ts-ignore
                                   {(adGroup as any).creativeType && (
                                     <div>
                                       <p className="text-xs text-muted-foreground mb-1">创意类型</p>
@@ -1340,7 +1307,6 @@ export default function CampaignDetail() {
                                     </div>
                                   )}
                                   {/* 落地页 */}
-                                  // @ts-ignore
                                   {(adGroup as any).landingPageUrl && (
                                     <div>
                                       <p className="text-xs text-muted-foreground mb-1">落地页</p>
@@ -1348,15 +1314,12 @@ export default function CampaignDetail() {
                                       <a href={adGroup.landingPageUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline truncate block max-w-[250px]" title={adGroup.landingPageUrl}>{adGroup.landingPageUrl}</a>
                                     </div>
                                   )}
-                                  // @ts-ignore
                                   {/* 品牌Logo */}
-                                  // @ts-ignore
                                   {((adGroup as any).brandLogoUrl || (adGroup as any).brandLogoAssetId) && (
                                     <div>
                                       <p className="text-xs text-muted-foreground mb-1">品牌Logo</p>
                                       {/* @ts-ignore */}
                                       {adGroup.brandLogoUrl ? (
-                                        // @ts-ignore
                                         <a href={adGroup.brandLogoUrl} target="_blank" rel="noopener noreferrer" title="点击查看原图">
                                           {/* @ts-ignore */}
                                           <img src={adGroup.brandLogoUrl} alt="Brand Logo" className="h-14 w-auto rounded border hover:shadow-md hover:border-blue-300 transition-all cursor-pointer" />
@@ -1371,13 +1334,11 @@ export default function CampaignDetail() {
                                     </div>
                                   )}
                                   {/* 自定义图片 */}
-                                  // @ts-ignore
                                   {((adGroup as any).customImageUrl || (adGroup as any).customImageAssetId) && (
                                     <div>
                                       <p className="text-xs text-muted-foreground mb-1">自定义图片</p>
                                       {/* @ts-ignore */}
                                       {adGroup.customImageUrl ? (
-                                        // @ts-ignore
                                         <a href={adGroup.customImageUrl} target="_blank" rel="noopener noreferrer" title="点击查看原图">
                                           {/* @ts-ignore */}
                                           <img src={adGroup.customImageUrl} alt="Custom Image" className="h-24 w-auto rounded border hover:shadow-md hover:border-blue-300 transition-all cursor-pointer" />
@@ -1392,7 +1353,6 @@ export default function CampaignDetail() {
                                     </div>
                                   )}
                                   {/* 视频素材 */}
-                                  // @ts-ignore
                                   {((adGroup as any).videoUrl || (adGroup as any).videoAssetId) && (
                                     <div className="col-span-full">
                                       <p className="text-xs text-muted-foreground mb-1">视频素材</p>
@@ -1415,7 +1375,6 @@ export default function CampaignDetail() {
                                           <div className="flex items-center gap-2">
                                             {/* @ts-ignore */}
                                             <a href={adGroup.videoUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">在新窗口打开视频</a>
-                                            // @ts-ignore
                                             {(adGroup as any).videoAssetId && <span className="text-xs text-muted-foreground">| Asset ID: {(adGroup as any).videoAssetId}</span>}
                                           </div>
                                         </div>
@@ -1493,11 +1452,9 @@ export default function CampaignDetail() {
                       <p className="text-sm text-muted-foreground mb-1">广告活动状态</p>
                       {/* @ts-ignore */}
                       <p className="text-lg font-medium">
-                        // @ts-ignore
                         {campaign.campaignStatus === "enabled" ? "投放中" : 
                          campaign.campaignStatus === "paused" ? "已暂停" : 
                          campaign.campaignStatus === "archived" ? "已归档" : campaign.campaignStatus}
-                      // @ts-ignore
                       </p>
                     {/* @ts-ignore */}
                     </div>
@@ -1573,10 +1530,8 @@ export default function CampaignDetail() {
                       </TableHeader>
                       <TableBody>
                         {changeHistory.records.map((record: unknown) => (
-                          // @ts-ignore
                           <TableRow key={record.id}>
                             <TableCell className="text-xs whitespace-nowrap">
-                              // @ts-ignore
                               {(record as any).timestamp ? new Date((record as any).timestamp).toLocaleString('zh-CN') : '-'}
                             </TableCell>
                             <TableCell>
@@ -1590,9 +1545,7 @@ export default function CampaignDetail() {
                             <TableCell className="max-w-[200px] truncate" title={record.target}>
                               {/* @ts-ignore */}
                               {record.target}
-                              // @ts-ignore
                               {(record as any).matchType && (
-                                // @ts-ignore
                                 <span className="text-xs text-muted-foreground ml-1">({record.matchType})</span>
                               )}
                             </TableCell>
@@ -1603,16 +1556,13 @@ export default function CampaignDetail() {
                             <TableCell className="text-sm">
                               {/* @ts-ignore */}
                               {record.changePercent && (
-                                // @ts-ignore
                                 <span className={parseFloat(record.changePercent) > 0 ? 'text-green-500' : 'text-red-500'}>
-                                  // @ts-ignore
                                   {parseFloat((record as any).changePercent) > 0 ? '+' : ''}{(record as any).changePercent}
                                 </span>
                               )}
                             </TableCell>
                             <TableCell>
                               <Badge variant="outline" className="text-xs">
-                                // @ts-ignore
                                 {(record as any).source === 'auto_optimal' ? '自动优化' :
                                  // @ts-ignore
                                  record.source === 'auto_dayparting' ? '分时优化' :
@@ -1633,7 +1583,6 @@ export default function CampaignDetail() {
                             <TableCell>
                               {/* @ts-ignore */}
                               <Badge variant={record.status === 'applied' ? 'default' : record.status === 'failed' ? 'destructive' : 'secondary'}>
-                                // @ts-ignore
                                 {(record as any).status === 'applied' ? '已应用' :
                                  // @ts-ignore
                                  record.status === 'pending' ? '待执行' :

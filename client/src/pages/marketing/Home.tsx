@@ -316,21 +316,16 @@ function MarketingPage() {
             {/* 核心指标展示 */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
               {performanceMetrics.map((metric: unknown, i: unknown) => (
-                // @ts-ignore
                 <div key={i} className="bg-card/50 backdrop-blur-sm border border-border/50 rounded-lg p-4">
                   {/* @ts-ignore */}
                   <div className="flex items-center gap-2 mb-1">
                     {/* @ts-ignore */}
                     {/* @ts-ignore */}
                     {metric.trend === "up" ? (
-                      // @ts-ignore
                       <ArrowUpRight className={`w-4 h-4 ${metric.color}`} />
-                    // @ts-ignore
                     ) : (
-                      // @ts-ignore
                       <ArrowDownRight className={`w-4 h-4 ${metric.color}`} />
                     )}
-                    // @ts-ignore
                     <span className={`text-2xl font-bold ${(metric as any).color}`}>{(metric as any).value}</span>
                   </div>
                   {/* @ts-ignore */}
@@ -383,9 +378,7 @@ function MarketingPage() {
             {/* @ts-ignore */}
             </div>
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              // @ts-ignore
               {mlEngines.map((feature: unknown, i: unknown) => (
-                // @ts-ignore
                 <Card key={i} className="bg-card/50 border-blue-500/20 hover:border-blue-500/50 transition-colors group">
                   <CardHeader>
                     {/* @ts-ignore */}
@@ -403,9 +396,7 @@ function MarketingPage() {
                     {/* @ts-ignore */}
                     <p className="text-sm text-muted-foreground mb-4">{feature.description}</p>
                     <ul className="space-y-2">
-                      // @ts-ignore
                       {(feature as any).benefits.map((benefit: unknown, j: unknown) => (
-                        // @ts-ignore
                         <li key={j} className="flex items-center gap-2 text-sm">
                           <CheckCircle2 className="w-4 h-4 text-blue-500 flex-shrink-0" />
                           {/* @ts-ignore */}
@@ -451,7 +442,6 @@ function MarketingPage() {
             {/* @ts-ignore */}
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
               {gtoEngines.map((feature: unknown, i: unknown) => (
-                // @ts-ignore
                 <Card key={i} className="bg-card/50 border-amber-500/20 hover:border-amber-500/50 transition-colors group">
                   <CardHeader>
                     <div className="w-12 h-12 rounded-lg bg-amber-500/10 flex items-center justify-center mb-4 group-hover:bg-amber-500/20 transition-colors">
@@ -467,16 +457,13 @@ function MarketingPage() {
                     {/* @ts-ignore */}
                     <p className="text-sm text-muted-foreground mb-4">{feature.description}</p>
                     <ul className="space-y-2">
-                      // @ts-ignore
                       {(feature as any).benefits.map((benefit: unknown, j: unknown) => (
-                        // @ts-ignore
                         <li key={j} className="flex items-center gap-2 text-sm">
                           <CheckCircle2 className="w-4 h-4 text-amber-500 flex-shrink-0" />
                           {/* @ts-ignore */}
                           <span>{benefit}</span>
                         </li>
                       ))}
-                    // @ts-ignore
                     </ul>
                   </CardContent>
                 {/* @ts-ignore */}
@@ -497,7 +484,6 @@ function MarketingPage() {
             <h2 className="text-3xl lg:text-4xl font-bold mb-4">智能优化五步流程</h2>
             {/* @ts-ignore */}
             <p className="text-muted-foreground max-w-2xl mx-auto">
-              // @ts-ignore
               从数据采集到AI决策，经博弈论修正后自动执行，形成完整的优化闭环
             </p>
           {/* @ts-ignore */}
@@ -506,7 +492,6 @@ function MarketingPage() {
           {/* @ts-ignore */}
           <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-6">
             {algorithmSteps.map((step: unknown, i: unknown) => (
-              // @ts-ignore
               <div key={i} className="relative">
                 {/* 连接线 */}
                 {/* @ts-ignore */}
@@ -530,9 +515,7 @@ function MarketingPage() {
                   {/* @ts-ignore */}
                   <p className="text-sm text-muted-foreground mb-4">{step.description}</p>
                   <div className="flex flex-wrap justify-center gap-2">
-                    // @ts-ignore
                     {(step as any).details.map((detail: unknown, j: unknown) => (
-                      // @ts-ignore
                       <Badge key={j} variant="secondary" className="text-xs">
                         {/* @ts-ignore */}
                         {detail}
@@ -560,7 +543,6 @@ function MarketingPage() {
           <div className="max-w-4xl mx-auto">
             <div className="grid gap-4">
               {[
-                // @ts-ignore
                 {
                   // @ts-ignore
                   aspect: "出价决策算法",
@@ -595,7 +577,6 @@ function MarketingPage() {
                   ours: "三层降级 + GTO安全边界(0.6~1.4) + 预算熔断，永不失控"
                 }
               ].map((item: unknown, i: unknown) => (
-                // @ts-ignore
                 <div key={i} className="grid md:grid-cols-3 gap-4 p-4 rounded-lg bg-card border border-border/50">
                   {/* @ts-ignore */}
                   <div className="font-medium text-primary">{item.aspect}</div>
@@ -627,9 +608,7 @@ function MarketingPage() {
             <Badge variant="outline" className="mb-4">全面支持</Badge>
             <h2 className="text-3xl lg:text-4xl font-bold mb-4">支持所有Amazon广告类型</h2>
             <p className="text-muted-foreground max-w-2xl mx-auto">
-              // @ts-ignore
               无论您使用哪种广告形式，我们都能提供智能优化支持
-            // @ts-ignore
             </p>
           </div>
           
@@ -654,7 +633,6 @@ function MarketingPage() {
                 features: ["受众定向优化", "再营销策略", "跨渠道追踪"]
               }
             ].map((ad: unknown, i: unknown) => (
-              // @ts-ignore
               <Card key={i} className="text-center">
                 <CardHeader>
                   <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
@@ -669,9 +647,7 @@ function MarketingPage() {
                 </CardHeader>
                 <CardContent>
                   <ul className="space-y-2 text-left">
-                    // @ts-ignore
                     {(ad as any).features.map((feature: unknown, j: unknown) => (
-                      // @ts-ignore
                       <li key={j} className="flex items-center gap-2 text-sm">
                         {/* @ts-ignore */}
                         <CheckCircle2 className="w-4 h-4 text-green-500" />
@@ -679,7 +655,6 @@ function MarketingPage() {
                         <span>{feature}</span>
                       </li>
                     ))}
-                  // @ts-ignore
                   </ul>
                 </CardContent>
               {/* @ts-ignore */}
@@ -701,21 +676,17 @@ function MarketingPage() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
             {getAllPosts().slice(0, 6).map((post: unknown) => (
-              // @ts-ignore
               <Link key={post.id} href={`/blog/${post.slug}`}>
                 <Card className="overflow-hidden hover:shadow-lg transition-all duration-300 group cursor-pointer h-full">
                   <div className="relative aspect-video overflow-hidden">
                     <img
                       // @ts-ignore
                       src={post.coverImage}
-                      // @ts-ignore
                       alt={post.title}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                     />
                     <Badge className="absolute top-3 left-3 bg-primary/90">
-                      // @ts-ignore
                       {(post as any).category === 'algorithm' ? '算法解析' : (post as any).category === 'case-study' ? '客户案例' : '教程'}
-                    // @ts-ignore
                     </Badge>
                   </div>
                   <CardContent className="p-5">
@@ -1005,7 +976,6 @@ function DashboardContent() {
   
   // 获取账户列表及绩效数据
   const { data: accountsWithPerformance, refetch: refetchAccounts, isLoading: isAccountsLoading } = trpc.adAccount.listWithPerformance.useQuery(
-    // @ts-ignore
     { timeRange: timeRange as unknown, days, startDate, endDate },
     { enabled: !!user }
   );
@@ -1013,7 +983,6 @@ function DashboardContent() {
   // 获取图表趋势数据
   // @ts-ignore
   const { data: trendData } = trpc.adAccount.getDailyTrend.useQuery(
-    // @ts-ignore
     { days, timeRange: timeRange as unknown, startDate, endDate },
     { enabled: !!user }
   );
@@ -1024,7 +993,6 @@ function DashboardContent() {
   const { data: correctionDashboard } = trpc.autoCorrection.getDashboard.useQuery(
     undefined,
     { enabled: !!user, refetchInterval: 60000, staleTime: 60 * 1000 }
-  // @ts-ignore
   );
   
   // v233: 获取算法效果统计
@@ -1261,7 +1229,6 @@ function DashboardContent() {
                   const isFullWidth = sizeType === 'full';
                   
                   return (
-                  // @ts-ignore
                   <Draggable key={cardId} draggableId={cardId} index={index}>
                     {(provided, snapshot) => (
                       <div
@@ -1285,9 +1252,7 @@ function DashboardContent() {
                               value={`$${summary.totalSpend.toFixed(0)}`}
                               icon={<DollarSign className="w-4 h-4 text-blue-500" />}
                               change={summary.spendChange}
-                              // @ts-ignore
                               sparklineData={(trendData || []).map((d: unknown) => ({ value: d.spend }))}
-                              // @ts-ignore
                               isRealtime={true}
                               realtimeDelay="<5分钟"
                               gradientFrom="blue-500"
@@ -1298,10 +1263,8 @@ function DashboardContent() {
                             <EnhancedMetricCard
                               title="总销售额"
                               value={`$${summary.totalSales.toFixed(0)}`}
-                              // @ts-ignore
                               icon={<ShoppingCart className="w-4 h-4 text-green-500" />}
                               change={summary.salesChange}
-                              // @ts-ignore
                               sparklineData={(trendData || []).map((d: unknown) => ({ value: d.sales }))}
                               isRealtime={true}
                               realtimeDelay="<5分钟"
@@ -1316,14 +1279,10 @@ function DashboardContent() {
                               title="平均ACoS"
                               // @ts-ignore
                               value={`${summary.avgAcos.toFixed(1)}%`}
-                              // @ts-ignore
                               icon={<Percent className="w-4 h-4 text-orange-500" />}
                               change={summary.acosChange}
-                              // @ts-ignore
                               isInverse={true}
-                              // @ts-ignore
                               sparklineData={(trendData || []).map((d: unknown) => ({ value: d.acos }))}
-                              // @ts-ignore
                               gradientFrom="orange-500"
                               gradientTo="orange-600"
                               // @ts-ignore
@@ -1336,7 +1295,6 @@ function DashboardContent() {
                               value={summary.avgRoas.toFixed(2)}
                               icon={<Target className="w-4 h-4 text-purple-500" />}
                               change={summary.roasChange}
-                              // @ts-ignore
                               gradientFrom="purple-500"
                               gradientTo="purple-600"
                               // @ts-ignore
@@ -1345,9 +1303,7 @@ function DashboardContent() {
                             />
                             <TacosMetricCard
                               adSpend={summary.totalSpend}
-                              // @ts-ignore
                               totalSales={summary.totalSales * 1.5}
-                              // @ts-ignore
                               change={summary.acosChange * 0.7}
                               isRealtime={true}
                               isLoading={isAccountsLoading}
@@ -1358,7 +1314,6 @@ function DashboardContent() {
                               // @ts-ignore
                               value={summary.totalOrders.toString()}
                               icon={<BarChart3 className="w-4 h-4 text-cyan-500" />}
-                              // @ts-ignore
                               change={summary.salesChange}
                               gradientFrom="cyan-500"
                               gradientTo="cyan-600"
@@ -1427,11 +1382,9 @@ function DashboardContent() {
                                     {/* @ts-ignore */}
                                     {healthMetrics.metrics.rollbackRate.trend === 'improving' ? (
                                       <><TrendingDown className="w-3 h-3 text-green-500" /> 改善中</>
-                                    // @ts-ignore
                                     ) : healthMetrics.metrics.rollbackRate.trend === 'worsening' ? (
                                       <><TrendingUp className="w-3 h-3 text-red-500" /> 恶化中</>
                                     ) : '稳定'}
-                                    // @ts-ignore
                                     <span className="ml-1">(前期: {(healthMetrics as any).metrics.rollbackRate.previousRate.toFixed(1)}%)</span>
                                   </div>
                                 {/* @ts-ignore */}
@@ -1467,7 +1420,6 @@ function DashboardContent() {
                                     {healthMetrics.metrics.algorithmActivation.advancedRate.toFixed(1)}%
                                   </div>
                                   <div className="text-xs text-muted-foreground mt-1">
-                                    // @ts-ignore
                                     {Object.entries((healthMetrics as any).metrics.algorithmActivation.algorithmRates || {}).map(([name, rate]) => `${getAlgorithmNameCN(name)}: ${(rate as number).toFixed(0)}%`).join(', ') || '无数据'}
                                   </div>
                                 </div>
@@ -1505,18 +1457,15 @@ function DashboardContent() {
                                     <span className="ml-1">(变化: {acosTrend.changePoints > 0 ? '+' : ''}{acosTrend.changePoints.toFixed(1)}pp)</span>
                                   </div>
                                 </div>
-                                  // @ts-ignore
                                   );
                                 // @ts-ignore
                                 })()}
                                 {/* 熔断状态 */}
-                                // @ts-ignore
                                 {(() => {
                                   // @ts-ignore
                                   const cbr = healthMetrics.metrics.circuitBreakerRate;
                                   const cbrStatus = cbr.rate < 5 ? 'healthy' : cbr.rate < 20 ? 'warning' : 'critical';
                                   return (
-                                // @ts-ignore
                                 <div className={`p-4 rounded-lg border ${
                                   // @ts-ignore
                                   cbrStatus === 'healthy'
@@ -1541,7 +1490,6 @@ function DashboardContent() {
                                     cbrStatus === 'warning' ? 'text-yellow-400' : 'text-red-400'
                                   }`}>
                                     {cbr.rate.toFixed(1)}%
-                                  // @ts-ignore
                                   </div>
                                   {/* @ts-ignore */}
                                   <div className="text-xs text-muted-foreground mt-1">
@@ -1562,7 +1510,6 @@ function DashboardContent() {
                                       最近部署纠错报告
                                     </span>
                                     <Badge variant="outline" className="text-xs">
-                                      // @ts-ignore
                                       v{(deployCorrectionReport as any).report.latestDeploy.version}
                                     </Badge>
                                   </div>
@@ -1629,7 +1576,6 @@ function DashboardContent() {
                                   <div 
                                     // @ts-ignore
                                     key={account.id}
-                                    // @ts-ignore
                                     className={`p-3 rounded-lg border ${getStatusColor(account.status)} flex items-center gap-4`}
                                   >
                                     {/* @ts-ignore */}
@@ -1645,11 +1591,9 @@ function DashboardContent() {
                                         <Badge variant="outline" className="text-xs shrink-0">{account.marketplace}</Badge>
                                         {/* @ts-ignore */}
                                         {account.status === 'critical' && <Badge variant="destructive" className="text-xs shrink-0 animate-pulse">紧急优化中</Badge>}
-                                        // @ts-ignore
                                         {(account as any).status === 'warning' && <Badge variant="outline" className="text-xs shrink-0 border-yellow-500/50 text-yellow-400">自动监控</Badge>}
                                       </div>
                                       <div className="text-xs text-muted-foreground mt-0.5">
-                                        // @ts-ignore
                                         花费 ${(account as any).spend.toFixed(0)} · 销售 ${(account as any).sales.toFixed(0)} · {(account as any).orders}单
                                       </div>
                                     </div>
@@ -1666,9 +1610,7 @@ function DashboardContent() {
                                         <div 
                                           // @ts-ignore
                                           className={`h-full rounded-full transition-all ${getAcosBgColor(account.acos)}`}
-                                          // @ts-ignore
                                           style={{ width: `${Math.min(account.acos / 100 * 100, 100)}%` }}
-                                        // @ts-ignore
                                         />
                                       {/* @ts-ignore */}
                                       </div>
@@ -1678,7 +1620,6 @@ function DashboardContent() {
                                     </div>
                                   {/* @ts-ignore */}
                                   </div>
-                                // @ts-ignore
                                 ))}
                                 {accountsData.length === 0 && (
                                   <div className="flex flex-col items-center justify-center py-8">
@@ -1752,12 +1693,10 @@ function DashboardContent() {
                                   </div>
                                 </div>
                               )}
-                              // @ts-ignore
                               {(correctionDashboard as any)?.lastScan && (
                                 <div className="pt-2 border-t border-border/50">
                                   <div className="text-xs text-muted-foreground">最近扫描</div>
                                   <div className="text-xs mt-1">
-                                    // @ts-ignore
                                     发现 <span className="text-yellow-500 font-semibold">{(correctionDashboard as any).lastScan.totalIssuesFound}</span> 个问题，
                                     // @ts-ignore
                                     已纠正 <span className="text-green-500 font-semibold">{(correctionDashboard as any).lastScan.totalCorrected}</span> 个
@@ -1800,9 +1739,7 @@ function DashboardContent() {
                               {algorithmSummary.algorithms.length > 0 && (
                                 <div className="pt-2 border-t border-border/50 space-y-2">
                                   <div className="text-xs text-muted-foreground">各算法表现</div>
-                                  // @ts-ignore
-                                  {(algorithmSummary as any).map((alg: unknown) => (
-                                    // @ts-ignore
+                                  {algorithmSummary.algorithms.map((alg: any) => (
                                     <div key={alg.algorithm} className="flex items-center gap-2">
                                       {/* @ts-ignore */}
                                       <span className="text-xs w-24 truncate" title={getAlgorithmNameCN(alg.algorithm)}>{getAlgorithmNameCN(alg.algorithm)}</span>
@@ -1810,7 +1747,6 @@ function DashboardContent() {
                                         <div 
                                           // @ts-ignore
                                           className={`h-full rounded-full ${alg.positiveRate >= 60 ? 'bg-green-500' : alg.positiveRate >= 40 ? 'bg-yellow-500' : 'bg-red-500'}`}
-                                          // @ts-ignore
                                           style={{ width: `${alg.positiveRate}%` }}
                                         />
                                       </div>

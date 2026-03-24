@@ -194,7 +194,6 @@ export default function InviteCodeManagement() {
                 <DialogTitle className="text-white">批量生成邀请码</DialogTitle>
                 <DialogDescription className="text-gray-400">
                   一次性生成多个邀请码
-                // @ts-ignore
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
@@ -213,7 +212,6 @@ export default function InviteCodeManagement() {
                   <Label className="text-gray-300">邀请类型</Label>
                   <Select
                     value={createForm.inviteType}
-                    // @ts-ignore
                     onValueChange={(v) => setCreateForm({ ...createForm, inviteType: v as unknown })}
                   >
                     <SelectTrigger className="bg-gray-700/50 border-gray-600 text-white">
@@ -254,7 +252,6 @@ export default function InviteCodeManagement() {
                   <Label className="text-gray-300">邀请类型</Label>
                   <Select
                     value={createForm.inviteType}
-                    // @ts-ignore
                     onValueChange={(v) => setCreateForm({ ...createForm, inviteType: v as unknown })}
                   >
                     <SelectTrigger className="bg-gray-700/50 border-gray-600 text-white">
@@ -399,15 +396,12 @@ export default function InviteCodeManagement() {
               <p>还没有邀请码</p>
               <p className="text-sm mt-1">点击上方按钮生成邀请码</p>
             </div>
-          // @ts-ignore
           ) : (
-            // @ts-ignore
             <div className="space-y-3">
               {inviteCodes.map((code: unknown) => (
                 <div
                   // @ts-ignore
                   key={code.id}
-                  // @ts-ignore
                   className="flex items-center justify-between p-4 bg-gray-700/30 rounded-lg hover:bg-gray-700/50 transition-colors"
                 >
                   <div className="flex items-center gap-4">
@@ -415,13 +409,11 @@ export default function InviteCodeManagement() {
                       {/* @ts-ignore */}
                       {/* @ts-ignore */}
                       {code.code}
-                    // @ts-ignore
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
                         {/* @ts-ignore */}
                         <Badge variant={code.inviteType === "external_user" ? "default" : "secondary"}>
-                          // @ts-ignore
                           {(code as any).inviteType === "external_user" ? "外部用户" : "团队成员"}
                         </Badge>
                         {/* @ts-ignore */}
@@ -438,9 +430,7 @@ export default function InviteCodeManagement() {
                             // @ts-ignore
                             code.status === "used_up" ? "bg-orange-500/20 text-orange-400" : ""
                           }
-                        // @ts-ignore
                         >
-                          // @ts-ignore
                           {(code as any).status === "active" ? "有效" : 
                            // @ts-ignore
                            code.status === "disabled" ? "已禁用" : 
@@ -450,13 +440,9 @@ export default function InviteCodeManagement() {
                       {/* @ts-ignore */}
                       </div>
                       <div className="text-sm text-gray-400 mt-1">
-                        // @ts-ignore
                         已使用 {(code as any).usedCount}/{(code as any).maxUses || "∞"} 次
-                        // @ts-ignore
                         {(code as any).expiresAt && ` · 过期时间: ${safeToLocaleDateString((code as any).expiresAt)}`}
-                        // @ts-ignore
                         {(code as any).note && ` · ${(code as any).note}`}
-                      // @ts-ignore
                       </div>
                     </div>
                   </div>
@@ -486,7 +472,6 @@ export default function InviteCodeManagement() {
                             <XCircle className="h-4 w-4 mr-2" />
                             禁用
                           </DropdownMenuItem>
-                        // @ts-ignore
                         ) : code.status === "disabled" ? (
                           <DropdownMenuItem
                             // @ts-ignore

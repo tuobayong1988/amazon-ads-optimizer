@@ -233,7 +233,6 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null
       };
     }
 
-    // @ts-ignore
     const totalSpend = performanceData.reduce((sum: number, p: Record<string, unknown>) => sum + (p.metrics?.spend || 0), 0);
     // @ts-ignore
     const totalSales = performanceData.reduce((sum: number, p: Record<string, unknown>) => sum + (p.metrics?.sales || 0), 0);
@@ -293,7 +292,6 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null
                     setSelectedAccountId(Number(value));
                     setSelectedCampaignId(null);
                   }}
-                // @ts-ignore
                 >
                   {/* @ts-ignore */}
                   <SelectTrigger>
@@ -301,7 +299,6 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null
                   </SelectTrigger>
                   <SelectContent>
                     {accounts?.map((account: unknown) => (
-                      // @ts-ignore
                       <SelectItem key={account.id} value={account.id.toString()}>
                         {/* @ts-ignore */}
                         {account.storeName || account.accountName}
@@ -315,18 +312,14 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null
                 <Select
                   // @ts-ignore
                   value={selectedCampaignId || ""}
-                  // @ts-ignore
                   onValueChange={(value) => setSelectedCampaignId(value)}
-                  // @ts-ignore
                   disabled={!selectedAccountId}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="选择广告活动" />
                   </SelectTrigger>
                   <SelectContent>
-                    // @ts-ignore
                     {(campaigns as any).map((campaign: unknown) => (
-                      // @ts-ignore
                       <SelectItem key={campaign.campaignId} value={campaign.campaignId}>
                         {/* @ts-ignore */}
                         {campaign.campaignName}
@@ -526,7 +519,6 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null
                     const currentAdjustment = currentSettings?.[placement.placementType as keyof typeof currentSettings] || 0;
                     
                     return (
-                      // @ts-ignore
                       <TableRow key={placement.placementType}>
                         <TableCell>
                           <div className="flex items-center gap-2">
@@ -560,7 +552,6 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null
                         <TableCell className="text-right">
                           <span className={metrics?.acos > 30 ? "text-red-600" : "text-green-600"}>
                             {metrics?.acos?.toFixed(1) || 0}%
-                          // @ts-ignore
                           </span>
                         </TableCell>
                         {/* @ts-ignore */}
@@ -590,7 +581,6 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null
                                 {/* @ts-ignore */}
                                 <p>效率评分: {(placement.rawScore || 0).toFixed(1)}/100</p>
                                 <p className="text-xs text-muted-foreground">
-                                  // @ts-ignore
                                   置信度: {(((placement as any).confidence || 0) * 100).toFixed(0)}%
                                 </p>
                               </TooltipContent>
@@ -634,9 +624,7 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null
         )}
 
         {/* 未选择广告活动提示 */}
-        // @ts-ignore
         {!selectedCampaignId && (
-          // @ts-ignore
           <Card>
             {/* @ts-ignore */}
             <CardContent className="py-12 text-center">
@@ -644,7 +632,6 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null
               <Target className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
               <h3 className="text-lg font-medium mb-2">请选择广告活动</h3>
               <p className="text-muted-foreground">
-                // @ts-ignore
                 选择一个广告活动以查看和优化其位置倾斜设置
               </p>
             </CardContent>
@@ -657,7 +644,6 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <BarChart3 className="h-5 w-5" />
-                // @ts-ignore
                 位置倾斜优化建议
               </DialogTitle>
               <DialogDescription>
@@ -666,7 +652,6 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null
             </DialogHeader>
             
             <div className="space-y-4">
-              // @ts-ignore
               {pendingSuggestions.map((suggestion: unknown, index: unknown) => {
                 // @ts-ignore
                 const placementInfo = PLACEMENT_LABELS[suggestion.placementType];
@@ -678,7 +663,6 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null
                 const isDecrease = suggestion.adjustmentDelta < 0;
                 
                 return (
-                  // @ts-ignore
                   <Card key={index}>
                     <CardContent className="pt-4">
                       <div className="flex items-start justify-between">
@@ -691,7 +675,6 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null
                             {isIncrease && <ArrowUpRight className="h-3 w-3 mr-1" />}
                             {isDecrease && <ArrowDownRight className="h-3 w-3 mr-1" />}
                             {!isIncrease && !isDecrease && <Minus className="h-3 w-3 mr-1" />}
-                            // @ts-ignore
                             {formatPercent((suggestion as any).adjustmentDelta)}
                           </Badge>
                         </div>
@@ -705,7 +688,6 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null
                             <span className="font-medium">{formatPercent(suggestion.suggestedAdjustment)}</span>
                           </div>
                           <div className={`text-xs ${confidenceInfo.color}`}>
-                            // @ts-ignore
                             置信度: {confidenceInfo.level} ({((suggestion as any).confidence * 100).toFixed(0)}%)
                           </div>
                         </div>
@@ -721,7 +703,6 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null
                       </div>
                     </CardContent>
                   </Card>
-                // @ts-ignore
                 );
               // @ts-ignore
               })}
@@ -761,9 +742,7 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null
               <AlertDescription>
                 <ul className="list-disc list-inside text-sm mt-2 space-y-1">
                   {pendingSuggestions.map((s: unknown, i: unknown) => (
-                    // @ts-ignore
                     <li key={i}>
-                      // @ts-ignore
                       {PLACEMENT_LABELS[(s as any).placementType]?.name}: {formatPercent((s as any).currentAdjustment)} → {formatPercent((s as any).suggestedAdjustment)}
                     </li>
                   ))}

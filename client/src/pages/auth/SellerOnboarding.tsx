@@ -131,7 +131,6 @@ export default function SellerOnboarding() {
               <Progress value={progress} className="h-2" />
               {/* @ts-ignore */}
               <div className="flex justify-between mt-6">
-                // @ts-ignore
                 {onboardingSteps.map((step: unknown) => {
                   // @ts-ignore
                   const StepIcon = step.icon;
@@ -140,7 +139,6 @@ export default function SellerOnboarding() {
                   // @ts-ignore
                   const isCurrent = step.id === currentStep;
                   return (
-                    // @ts-ignore
                     <div key={step.id} className="flex flex-col items-center gap-2 flex-1">
                       <div className={`w-10 h-10 rounded-full flex items-center justify-center
                         // @ts-ignore
@@ -240,7 +238,6 @@ export default function SellerOnboarding() {
             <CardContent>
               <div className="space-y-3">
                 {accounts.map((account: unknown) => (
-                  // @ts-ignore
                   <div key={account.id} className="flex items-center justify-between p-3 rounded-lg border bg-card">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold"
@@ -258,7 +255,6 @@ export default function SellerOnboarding() {
                     </div>
                     {/* @ts-ignore */}
                     <Badge variant={account.lastSyncTime ? "default" : "secondary"}>
-                      // @ts-ignore
                       {(account as any).lastSyncTime ? "已同步" : "待同步"}
                     </Badge>
                   </div>
@@ -267,7 +263,6 @@ export default function SellerOnboarding() {
             </CardContent>
           {/* @ts-ignore */}
           </Card>
-        // @ts-ignore
         )}
 
         {/* 功能亮点 */}
@@ -276,7 +271,6 @@ export default function SellerOnboarding() {
             // @ts-ignore
             const FeatureIcon = feature.icon;
             return (
-              // @ts-ignore
               <Card key={index} className="bg-gradient-to-br from-muted/50 to-muted/30">
                 <CardContent className="pt-6">
                   <div className="flex flex-col items-center text-center space-y-2">

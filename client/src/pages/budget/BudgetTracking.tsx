@@ -218,10 +218,8 @@ const [statusFilter, setStatusFilter] = useState<TrackingStatus | "all">("all");
                     <div className="flex items-center gap-3">
                       {/* @ts-ignore */}
                       {getStatusBadge(tracking.status || "tracking")}
-                      // @ts-ignore
                       <span className="font-medium">追踪 #{(tracking as any).id}</span>
                       <span className="text-sm text-muted-foreground">
-                        // @ts-ignore
                         周期: {(tracking as any).trackingPeriod || "14_days"}
                       </span>
                     </div>
@@ -241,7 +239,6 @@ const [statusFilter, setStatusFilter] = useState<TrackingStatus | "all">("all");
                       )}
                       <Button size="sm" variant="ghost">
                         查看详情
-                        // @ts-ignore
                         <ChevronRight className="h-4 w-4 ml-1" />
                       </Button>
                     </div>
@@ -271,7 +268,6 @@ const [statusFilter, setStatusFilter] = useState<TrackingStatus | "all">("all");
                       <div className="flex items-center justify-center gap-1">
                         {/* @ts-ignore */}
                         {getChangeIcon(tracking.spendChange)}
-                        // @ts-ignore
                         <span className="font-medium">{formatPercent((tracking as any).spendChange)}</span>
                       </div>
                     {/* @ts-ignore */}
@@ -282,7 +278,6 @@ const [statusFilter, setStatusFilter] = useState<TrackingStatus | "all">("all");
                       <div className="flex items-center justify-center gap-1">
                         {/* @ts-ignore */}
                         {getChangeIcon(tracking.salesChange)}
-                        // @ts-ignore
                         <span className="font-medium">{formatPercent((tracking as any).salesChange)}</span>
                       {/* @ts-ignore */}
                       </div>
@@ -292,7 +287,6 @@ const [statusFilter, setStatusFilter] = useState<TrackingStatus | "all">("all");
                       <div className="flex items-center justify-center gap-1">
                         {/* @ts-ignore */}
                         {getChangeIcon(tracking.roasChange)}
-                        // @ts-ignore
                         <span className="font-medium">{formatPercent((tracking as any).roasChange)}</span>
                       </div>
                     </div>
@@ -301,7 +295,6 @@ const [statusFilter, setStatusFilter] = useState<TrackingStatus | "all">("all");
                       <div className="flex items-center justify-center gap-1">
                         {/* @ts-ignore */}
                         {getChangeIcon(tracking.acosChange)}
-                        // @ts-ignore
                         <span className="font-medium">{formatPercent((tracking as any).acosChange)}</span>
                       </div>
                     </div>
@@ -320,14 +313,12 @@ const [statusFilter, setStatusFilter] = useState<TrackingStatus | "all">("all");
                     <div className="flex items-center gap-1">
                       <Calendar className="h-4 w-4" />
                       <span>
-                        // @ts-ignore
                         开始: {(tracking as any).startDate ? safeToLocaleDateString((tracking as any).startDate) : "N/A"}
                       </span>
                     </div>
                     <div className="flex items-center gap-1">
                       <Clock className="h-4 w-4" />
                       <span>
-                        // @ts-ignore
                         结束: {(tracking as any).endDate ? safeToLocaleDateString((tracking as any).endDate) : "N/A"}
                       </span>
                     </div>

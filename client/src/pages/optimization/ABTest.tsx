@@ -97,7 +97,6 @@ const [createDialogOpen, setCreateDialogOpen] = useState(false);
       } else {
         toast.warning(data.message);
       }
-    // @ts-ignore
     },
     onError: (error: unknown) => {
       // @ts-ignore
@@ -222,7 +221,6 @@ const [createDialogOpen, setCreateDialogOpen] = useState(false);
               </SelectTrigger>
               <SelectContent>
                 {accounts?.map((account: unknown) => (
-                  // @ts-ignore
                   <SelectItem key={account.id} value={account.id.toString()}>
                     {/* @ts-ignore */}
                     {account.accountName}
@@ -320,7 +318,6 @@ const [createDialogOpen, setCreateDialogOpen] = useState(false);
                     <Select
                       value={newTest.testType}
                       onValueChange={(value) => 
-                        // @ts-ignore
                         setNewTest({ ...newTest, testType: value as unknown })
                       }
                     >
@@ -340,7 +337,6 @@ const [createDialogOpen, setCreateDialogOpen] = useState(false);
                     <Select
                       value={newTest.targetMetric}
                       onValueChange={(value) => 
-                        // @ts-ignore
                         setNewTest({ ...newTest, targetMetric: value as unknown })
                       }
                     >
@@ -470,16 +466,13 @@ const [createDialogOpen, setCreateDialogOpen] = useState(false);
                     {/* @ts-ignore */}
                     <h3 className="text-sm font-semibold mb-1">开始您的第一个A/B实验</h3>
                     <p className="text-xs text-muted-foreground text-center max-w-xs mb-3">
-                      // @ts-ignore
                       通过A/B测试对比不同的竞价策略、关键词组合或广告创意，找到最优方案。
                     </p>
                     {/* @ts-ignore */}
                     <p className="text-xs text-muted-foreground">点击上方"快速创建"或"自定义创建"开始</p>
                   </div>
                 )}
-                // @ts-ignore
                 {tests?.map((test: unknown) => (
-                  // @ts-ignore
                   <div
                     // @ts-ignore
                     key={test.id}
@@ -487,27 +480,22 @@ const [createDialogOpen, setCreateDialogOpen] = useState(false);
                       // @ts-ignore
                       selectedTestId === test.id ? 'bg-accent border-primary' : 'hover:bg-accent/50'
                     }`}
-                    // @ts-ignore
                     onClick={() => setSelectedTestId(test.id)}
-                  // @ts-ignore
                   >
                     <div className="flex items-center justify-between">
                       {/* @ts-ignore */}
                       <span className="font-medium text-sm">{test.testName}</span>
                       {/* @ts-ignore */}
                       {getStatusBadge(test.status)}
-                    // @ts-ignore
                     </div>
                     <div className="flex items-center gap-2 mt-1">
                       <span className="text-xs text-muted-foreground">
-                        // @ts-ignore
                         {(test as any).testType === 'budget_allocation' ? '预算分配' : 
                          // @ts-ignore
                          test.testType === 'bid_strategy' ? '出价策略' : '定向策略'}
                       </span>
                       <span className="text-xs text-muted-foreground">·</span>
                       <span className="text-xs text-muted-foreground">
-                        // @ts-ignore
                         目标: {(test as any).targetMetric?.toUpperCase()}
                       </span>
                     </div>
@@ -516,7 +504,6 @@ const [createDialogOpen, setCreateDialogOpen] = useState(false);
                       <p className="text-xs text-muted-foreground mt-1">
                         {/* @ts-ignore */}
                         {new Date(test.startDate).toLocaleDateString('zh-CN')}
-                        // @ts-ignore
                         {(test as any).endDate && ` → ${new Date((test as any).endDate).toLocaleDateString('zh-CN')}`}
                       </p>
                     )}
@@ -645,7 +632,6 @@ const [createDialogOpen, setCreateDialogOpen] = useState(false);
                           </div>
                           <p className="text-sm text-muted-foreground mt-1">
                             {analysisResults.recommendation}
-                          // @ts-ignore
                           </p>
                         {/* @ts-ignore */}
                         </div>
@@ -679,7 +665,6 @@ const [createDialogOpen, setCreateDialogOpen] = useState(false);
                                     <td className="p-2 text-right">{(m.treatmentValue || 0).toFixed(4)}</td>
                                     {/* @ts-ignore */}
                                     <td className={`p-2 text-right ${m.relativeDifference > 0 ? 'text-green-600' : m.relativeDifference < 0 ? 'text-red-600' : ''}`}>
-                                      // @ts-ignore
                                       {(m as any).relativeDifference > 0 ? '+' : ''}{((m as any).relativeDifference || 0).toFixed(2)}%
                                     </td>
                                     {/* @ts-ignore */}
@@ -781,7 +766,6 @@ const [createDialogOpen, setCreateDialogOpen] = useState(false);
                   <p className="text-xs text-muted-foreground mt-1">或创建新的A/B测试实验</p>
                 </div>
               )}
-            // @ts-ignore
             </CardContent>
           {/* @ts-ignore */}
           </Card>
@@ -814,7 +798,6 @@ const [createDialogOpen, setCreateDialogOpen] = useState(false);
                   </thead>
                   <tbody>
                     {overview.recentResults.map((r: unknown) => (
-                      // @ts-ignore
                       <tr key={r.testId} className="border-b hover:bg-accent/50 cursor-pointer" onClick={() => setSelectedTestId(r.testId)}>
                         {/* @ts-ignore */}
                         <td className="p-2 font-medium">{r.testName}</td>
@@ -831,7 +814,6 @@ const [createDialogOpen, setCreateDialogOpen] = useState(false);
                           )}
                         </td>
                         <td className="p-2 text-right text-muted-foreground">
-                          // @ts-ignore
                           {(r as any).completedAt ? new Date((r as any).completedAt).toLocaleDateString('zh-CN') : '-'}
                         </td>
                       </tr>

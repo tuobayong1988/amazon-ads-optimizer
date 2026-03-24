@@ -167,7 +167,6 @@ export default function ApiSecurityCenter() {
               <SelectContent>
                 <SelectItem value="all">全部账号</SelectItem>
                 {accounts?.map((acc: unknown) => (
-                  // @ts-ignore
                   <SelectItem key={acc.id} value={acc.id.toString()}>
                     {/* @ts-ignore */}
                     {acc.accountName}
@@ -276,10 +275,8 @@ export default function ApiSecurityCenter() {
                       暂无操作记录
                     </div>
                   ) : (
-                    // @ts-ignore
                     <div className="space-y-2">
                       {operationLogs?.logs.map((log: unknown) => (
-                        // @ts-ignore
                         <div key={log.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors">
                           <div className="flex items-center gap-4">
                             {/* @ts-ignore */}
@@ -289,7 +286,6 @@ export default function ApiSecurityCenter() {
                               <span className="text-sm text-muted-foreground">
                                 {/* @ts-ignore */}
                                 {log.targetType} {log.targetName && `- ${log.targetName}`}
-                              // @ts-ignore
                               </span>
                             </div>
                           {/* @ts-ignore */}
@@ -340,7 +336,6 @@ export default function ApiSecurityCenter() {
                     <SpendLimitForm 
                       accountId={selectedAccountId}
                       config={spendLimitConfig}
-                      // @ts-ignore
                       onSave={(data) => upsertSpendLimit.mutate(data)}
                       isLoading={upsertSpendLimit.isPending}
                     />
@@ -352,7 +347,6 @@ export default function ApiSecurityCenter() {
                 <CardHeader>
                   <CardTitle>花费告警历史</CardTitle>
                   <CardDescription>
-                    // @ts-ignore
                     最近的花费告警记录
                   </CardDescription>
                 </CardHeader>
@@ -362,13 +356,10 @@ export default function ApiSecurityCenter() {
                   <div className="space-y-2 max-h-[400px] overflow-y-auto">
                     {spendAlerts?.length === 0 ? (
                       <div className="text-center py-8 text-muted-foreground">
-                        // @ts-ignore
                         暂无告警记录
                       </div>
-                    // @ts-ignore
                     ) : (
                       spendAlerts?.map((alert: unknown) => (
-                        // @ts-ignore
                         <div key={alert.id} className="flex items-center justify-between p-3 border rounded-lg">
                           <div className="flex items-center gap-3">
                             {/* @ts-ignore */}
@@ -382,7 +373,6 @@ export default function ApiSecurityCenter() {
                               {/* @ts-ignore */}
                               <p className="font-medium">{alert.alertType}</p>
                               <p className="text-sm text-muted-foreground">
-                                // @ts-ignore
                                 ${parseFloat((alert as any).currentSpend).toFixed(2)} / ${parseFloat((alert as any).dailyLimit).toFixed(2)} ({parseFloat((alert as any).spendPercent).toFixed(1)}%)
                               </p>
                             </div>
@@ -418,16 +408,13 @@ export default function ApiSecurityCenter() {
                     disabled={initDefaultRules.isPending}
                   >
                     <Settings className="h-4 w-4 mr-2" />
-                    // @ts-ignore
                     初始化默认规则
                   </Button>
                   {/* @ts-ignore */}
                   <CreateRuleDialog 
                     // @ts-ignore
                     accountId={selectedAccountId}
-                    // @ts-ignore
                     onCreate={(data) => createRule.mutate(data)}
-                    // @ts-ignore
                     isLoading={createRule.isPending}
                   />
                 {/* @ts-ignore */}
@@ -436,16 +423,12 @@ export default function ApiSecurityCenter() {
               <CardContent>
                 <div className="space-y-2">
                   {anomalyRules?.length === 0 ? (
-                    // @ts-ignore
                     <div className="text-center py-8 text-muted-foreground">
-                      // @ts-ignore
                       暂无异常检测规则，点击上方按钮初始化默认规则
                     </div>
-                  // @ts-ignore
                   ) : (
                     // @ts-ignore
                     anomalyRules?.map((rule: unknown) => (
-                      // @ts-ignore
                       <div key={rule.id} className="flex items-center justify-between p-4 border rounded-lg">
                         <div className="flex items-center gap-4">
                           {/* @ts-ignore */}
@@ -457,7 +440,6 @@ export default function ApiSecurityCenter() {
                             {/* @ts-ignore */}
                             <p className="font-medium">{rule.ruleName}</p>
                             <p className="text-sm text-muted-foreground">
-                              // @ts-ignore
                               {(rule as any).ruleType} - {(rule as any).conditionType}: {(rule as any).conditionValue}
                             </p>
                           </div>
@@ -470,14 +452,11 @@ export default function ApiSecurityCenter() {
                           </Badge>
                           {/* @ts-ignore */}
                           <Badge variant={rule.isEnabled ? 'default' : 'secondary'}>
-                            // @ts-ignore
                             {(rule as any).isEnabled ? '启用' : '禁用'}
-                          // @ts-ignore
                           </Badge>
                         </div>
                       {/* @ts-ignore */}
                       </div>
-                    // @ts-ignore
                     ))
                   )}
                 </div>
@@ -505,12 +484,10 @@ export default function ApiSecurityCenter() {
                   {autoPauseRecords?.length === 0 ? (
                     <div className="text-center py-8 text-muted-foreground">
                       暂无自动暂停记录
-                    // @ts-ignore
                     </div>
                   ) : (
                     // @ts-ignore
                     autoPauseRecords?.map((record: unknown) => (
-                      // @ts-ignore
                       <div key={record.id} className="flex items-center justify-between p-4 border rounded-lg">
                         {/* @ts-ignore */}
                         <div className="flex items-center gap-4">
@@ -527,13 +504,9 @@ export default function ApiSecurityCenter() {
                             <p className="font-medium">
                               {/* @ts-ignore */}
                               {record.pauseReason === 'spend_limit_reached' && '花费限额达到'}
-                              // @ts-ignore
                               {(record as any).pauseReason === 'anomaly_detected' && '检测到异常操作'}
-                              // @ts-ignore
                               {(record as any).pauseReason === 'acos_threshold' && 'ACoS超过阈值'}
-                              // @ts-ignore
                               {(record as any).pauseReason === 'manual_trigger' && '手动触发'}
-                              // @ts-ignore
                               {(record as any).pauseReason === 'scheduled' && '定时暂停'}
                             </p>
                             <p className="text-sm text-muted-foreground">
@@ -546,20 +519,16 @@ export default function ApiSecurityCenter() {
                           <span className="text-sm text-muted-foreground">
                             {/* @ts-ignore */}
                             {safeToLocaleString(record.createdAt, 'zh-CN')}
-                          // @ts-ignore
                           </span>
                           {/* @ts-ignore */}
                           {!record.isResumed && (
-                            // @ts-ignore
                             <ResumeDialog 
                               // @ts-ignore
                               recordId={record.id}
-                              // @ts-ignore
                               onResume={(reason) => resumeEntities.mutate({ recordId: record.id, resumeReason: reason })}
                               isLoading={resumeEntities.isPending}
                             />
                           )}
-                          // @ts-ignore
                           {(record as any).isResumed && (
                             <Badge variant="outline">已恢复</Badge>
                           )}

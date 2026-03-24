@@ -163,7 +163,6 @@ export function MLBudgetOptimization({ accountId }: MLBudgetOptimizationProps) {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  // @ts-ignore
                   {(allocation.allocations || []).map((item: unknown) => {
                     // @ts-ignore
                     const change = item.allocatedBudget - item.currentBudget;
@@ -172,32 +171,26 @@ export function MLBudgetOptimization({ accountId }: MLBudgetOptimizationProps) {
 
                     // @ts-ignore
                     return (
-                      // @ts-ignore
                       <TableRow key={item.campaignId}>
                         {/* @ts-ignore */}
                         <TableCell className="font-medium">
                           {/* @ts-ignore */}
                           {item.campaignName}
-                        // @ts-ignore
                         </TableCell>
                         <TableCell className="text-right">
-                          // @ts-ignore
                           ${(item as any).currentBudget.toFixed(0)}
                         </TableCell>
                         <TableCell className="text-right font-bold text-primary">
-                          // @ts-ignore
                           ${(item as any).allocatedBudget.toFixed(0)}
                         </TableCell>
                         {/* @ts-ignore */}
                         <TableCell className="text-right">
                           <Badge variant={change > 0 ? 'default' : 'secondary'}>
                             {change > 0 ? '+' : ''}
-                            // @ts-ignore
                             {changePercent.toFixed(0)}%
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right">
-                          // @ts-ignore
                           ${(item as any).expectedSales.toFixed(0)}
                         </TableCell>
                         <TableCell className="text-right">

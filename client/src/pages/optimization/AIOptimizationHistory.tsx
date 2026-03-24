@@ -68,9 +68,7 @@ export default function AIOptimizationHistory() {
   
   // 获取执行详情
   const { data: executionDetail, isLoading: detailLoading } = trpc.campaign.getAIOptimizationDetail.useQuery(
-    // @ts-ignore
     { executionId: selectedExecution?.id },
-    // @ts-ignore
     { enabled: !!selectedExecution?.id }
   );
   
@@ -141,17 +139,14 @@ export default function AIOptimizationHistory() {
                 <p className="text-sm mt-2">在广告活动详情页使用"智能分析与优化"功能生成并执行优化建议</p>
               </div>
             ) : (
-              // @ts-ignore
               <div className="space-y-4">
                 {executions.map((execution: unknown) => (
-                  // @ts-ignore
                   <div key={execution.id} className="border rounded-lg overflow-hidden">
                     {/* 执行摘要行 */}
                     <div 
                       className="p-4 bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors"
                       // @ts-ignore
                       onClick={() => toggleExpand(execution.id)}
-                    // @ts-ignore
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-4">
@@ -159,12 +154,9 @@ export default function AIOptimizationHistory() {
                             {/* @ts-ignore */}
                             {expandedExecution === execution.id ? (
                               <ChevronUp className="h-4 w-4" />
-                            // @ts-ignore
                             ) : (
-                              // @ts-ignore
                               <ChevronDown className="h-4 w-4" />
                             )}
-                            // @ts-ignore
                             <span className="font-medium">{(execution as any).executionName || `执行 #${(execution as any).id}`}</span>
                           {/* @ts-ignore */}
                           </div>
@@ -174,13 +166,11 @@ export default function AIOptimizationHistory() {
                             {statusLabels[execution.status]?.label || execution.status}
                           </Badge>
                           <Badge variant="outline">
-                            // @ts-ignore
                             {(execution as any).executionType === "bid_adjustment" ? "出价调整" :
                              // @ts-ignore
                              execution.executionType === "status_change" ? "状态变更" :
                              // @ts-ignore
                              execution.executionType === "negative_keyword" ? "否定词" : "混合操作"}
-                          // @ts-ignore
                           </Badge>
                         </div>
                         <div className="flex items-center gap-4 text-sm text-muted-foreground">
@@ -198,7 +188,6 @@ export default function AIOptimizationHistory() {
                           </span>
                           {/* @ts-ignore */}
                           {execution.failedActions > 0 && (
-                            // @ts-ignore
                             <span className="flex items-center gap-1">
                               <XCircle className="h-4 w-4 text-red-500" />
                               {/* @ts-ignore */}
@@ -224,7 +213,6 @@ export default function AIOptimizationHistory() {
                           <div>
                             <h4 className="font-medium mb-3 flex items-center gap-2">
                               <BarChart3 className="h-4 w-4" />
-                              // @ts-ignore
                               执行前基准数据
                             </h4>
                             <div className="grid grid-cols-2 gap-3 text-sm">
@@ -256,7 +244,6 @@ export default function AIOptimizationHistory() {
                           <div className="flex items-end justify-end">
                             <Button onClick={() => handleViewDetail(execution)}>
                               查看详情与复盘
-                            // @ts-ignore
                             </Button>
                           </div>
                         </div>
@@ -277,10 +264,8 @@ export default function AIOptimizationHistory() {
                 <Sparkles className="h-5 w-5 text-primary" />
                 {/* @ts-ignore */}
                 {selectedExecution?.executionName || `执行 #${selectedExecution?.id}`}
-              // @ts-ignore
               </DialogTitle>
               <DialogDescription>
-                // @ts-ignore
                 {"执行时间: "}{selectedExecution && String(safeToLocaleString((selectedExecution as any).executedAt, "zh-CN"))}
               </DialogDescription>
             {/* @ts-ignore */}
@@ -307,9 +292,7 @@ export default function AIOptimizationHistory() {
                 {/* 执行操作 */}
                 <TabsContent value="actions" className="mt-4">
                   <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                    // @ts-ignore
                     {executionDetail.actions.map((action: unknown) => (
-                      // @ts-ignore
                       <div key={action.id} className="p-3 border rounded-lg">
                         {/* @ts-ignore */}
                         <div className="flex items-center justify-between">
@@ -317,17 +300,14 @@ export default function AIOptimizationHistory() {
                             {/* @ts-ignore */}
                             {action.status === "success" ? (
                               <CheckCircle2 className="h-4 w-4 text-green-500" />
-                            // @ts-ignore
                             ) : action.status === "failed" ? (
                               <XCircle className="h-4 w-4 text-red-500" />
                             ) : (
                               <AlertCircle className="h-4 w-4 text-yellow-500" />
                             )}
-                            // @ts-ignore
                             <span className="font-medium">{(action as any).targetText}</span>
                           </div>
                           <Badge variant="outline">
-                            // @ts-ignore
                             {(action as any).actionType === "bid_increase" ? "提高出价" :
                              // @ts-ignore
                              action.actionType === "bid_decrease" ? "降低出价" :
@@ -356,12 +336,9 @@ export default function AIOptimizationHistory() {
                             <span className="font-medium text-primary">{action.newValue}</span>
                           </div>
                         )}
-                        // @ts-ignore
                         {(action as any).errorMessage && (
-                          // @ts-ignore
                           <p className="text-sm text-red-500 mt-1">{action.errorMessage}</p>
                         )}
-                      // @ts-ignore
                       </div>
                     ))}
                   </div>
@@ -373,11 +350,9 @@ export default function AIOptimizationHistory() {
                   {/* @ts-ignore */}
                   <div className="grid grid-cols-3 gap-4">
                     {executionDetail.predictions.map((pred: unknown) => (
-                      // @ts-ignore
                       <Card key={pred.id}>
                         <CardHeader className="pb-2">
                           <CardTitle className="text-base">
-                            // @ts-ignore
                             {(pred as any).predictionPeriod === "7_days" ? "7天预测" :
                              // @ts-ignore
                              pred.predictionPeriod === "14_days" ? "14天预测" : "30天预测"}
@@ -389,10 +364,8 @@ export default function AIOptimizationHistory() {
                             <span className="text-muted-foreground">预测花费</span>
                             {/* @ts-ignore */}
                             <span className={parseFloat(pred.spendChangePercent || "0") < 0 ? "text-green-500" : "text-red-500"}>
-                              // @ts-ignore
                               ${parseFloat((pred as any).predictedSpend || "0").toFixed(2)}
                               <span className="text-xs ml-1">
-                                // @ts-ignore
                                 ({parseFloat((pred as any).spendChangePercent || "0") > 0 ? "+" : ""}{parseFloat((pred as any).spendChangePercent || "0").toFixed(1)}%)
                               </span>
                             </span>
@@ -401,10 +374,8 @@ export default function AIOptimizationHistory() {
                             <span className="text-muted-foreground">预测销售</span>
                             {/* @ts-ignore */}
                             <span className={parseFloat(pred.salesChangePercent || "0") > 0 ? "text-green-500" : "text-red-500"}>
-                              // @ts-ignore
                               ${parseFloat((pred as any).predictedSales || "0").toFixed(2)}
                               <span className="text-xs ml-1">
-                                // @ts-ignore
                                 ({parseFloat((pred as any).salesChangePercent || "0") > 0 ? "+" : ""}{parseFloat((pred as any).salesChangePercent || "0").toFixed(1)}%)
                               {/* @ts-ignore */}
                               </span>
@@ -420,7 +391,6 @@ export default function AIOptimizationHistory() {
                               {/* @ts-ignore */}
                               {parseFloat(pred.predictedAcos || "0").toFixed(1)}%
                               <span className="text-xs ml-1">
-                                // @ts-ignore
                                 ({parseFloat((pred as any).acosChangePercent || "0") > 0 ? "+" : ""}{parseFloat((pred as any).acosChangePercent || "0").toFixed(1)}%)
                               {/* @ts-ignore */}
                               </span>
@@ -433,7 +403,6 @@ export default function AIOptimizationHistory() {
                               {/* @ts-ignore */}
                               {parseFloat(pred.predictedRoas || "0").toFixed(2)}
                               <span className="text-xs ml-1">
-                                // @ts-ignore
                                 ({parseFloat((pred as any).roasChangePercent || "0") > 0 ? "+" : ""}{parseFloat((pred as any).roasChangePercent || "0").toFixed(1)}%)
                               </span>
                             {/* @ts-ignore */}
@@ -454,7 +423,6 @@ export default function AIOptimizationHistory() {
                         </CardContent>
                       </Card>
                     ))}
-                  // @ts-ignore
                   </div>
                 {/* @ts-ignore */}
                 </TabsContent>
@@ -468,26 +436,20 @@ export default function AIOptimizationHistory() {
                       <p className="text-sm mt-2">系统将在7天、14天、30天后自动对比实际数据与预测数据</p>
                     </div>
                   ) : (
-                    // @ts-ignore
                     <div className="space-y-4">
                       {executionDetail.reviews.map((review: unknown) => (
-                        // @ts-ignore
                         <Card key={review.id}>
                           <CardHeader className="pb-2">
                             <div className="flex items-center justify-between">
                               <CardTitle className="text-base flex items-center gap-2">
-                                // @ts-ignore
                                 {(review as any).reviewPeriod === "7_days" ? "7天复盘" :
                                  // @ts-ignore
                                  review.reviewPeriod === "14_days" ? "14天复盘" : "30天复盘"}
-                                // @ts-ignore
                                 <span className={reviewStatusLabels[(review as any).status]?.color || ""}>
-                                  // @ts-ignore
                                   ({reviewStatusLabels[(review as any).status]?.label || (review as any).status})
                                 </span>
                               </CardTitle>
                               <span className="text-sm text-muted-foreground">
-                                // @ts-ignore
                                 计划时间: {safeToLocaleDateString((review as any).scheduledAt, "zh-CN")}
                               </span>
                             </div>
@@ -504,7 +466,6 @@ export default function AIOptimizationHistory() {
                                     <div className="font-medium">${parseFloat(review.actualSpend || "0").toFixed(2)}</div>
                                     {/* @ts-ignore */}
                                     <div className={`text-xs ${parseFloat(review.actualSpendChange || "0") < 0 ? "text-green-500" : "text-red-500"}`}>
-                                      // @ts-ignore
                                       {parseFloat((review as any).actualSpendChange || "0") > 0 ? "+" : ""}{parseFloat((review as any).actualSpendChange || "0").toFixed(1)}%
                                     </div>
                                   </div>
@@ -514,7 +475,6 @@ export default function AIOptimizationHistory() {
                                     <div className="font-medium">${parseFloat(review.actualSales || "0").toFixed(2)}</div>
                                     {/* @ts-ignore */}
                                     <div className={`text-xs ${parseFloat(review.actualSalesChange || "0") > 0 ? "text-green-500" : "text-red-500"}`}>
-                                      // @ts-ignore
                                       {parseFloat((review as any).actualSalesChange || "0") > 0 ? "+" : ""}{parseFloat((review as any).actualSalesChange || "0").toFixed(1)}%
                                     </div>
                                   </div>
@@ -524,7 +484,6 @@ export default function AIOptimizationHistory() {
                                     <div className="font-medium">{parseFloat(review.actualAcos || "0").toFixed(1)}%</div>
                                     {/* @ts-ignore */}
                                     <div className={`text-xs ${parseFloat(review.actualAcosChange || "0") < 0 ? "text-green-500" : "text-red-500"}`}>
-                                      // @ts-ignore
                                       {parseFloat((review as any).actualAcosChange || "0") > 0 ? "+" : ""}{parseFloat((review as any).actualAcosChange || "0").toFixed(1)}%
                                     </div>
                                   </div>
@@ -534,7 +493,6 @@ export default function AIOptimizationHistory() {
                                     <div className="font-medium">{parseFloat(review.actualRoas || "0").toFixed(2)}</div>
                                     {/* @ts-ignore */}
                                     <div className={`text-xs ${parseFloat(review.actualRoasChange || "0") > 0 ? "text-green-500" : "text-red-500"}`}>
-                                      // @ts-ignore
                                       {parseFloat((review as any).actualRoasChange || "0") > 0 ? "+" : ""}{parseFloat((review as any).actualRoasChange || "0").toFixed(1)}%
                                     </div>
                                   </div>

@@ -83,7 +83,6 @@ export function Pagination({
               </SelectTrigger>
               <SelectContent>
                 {pageSizeOptions.map((size: unknown) => (
-                  // @ts-ignore
                   <SelectItem key={size} value={size.toString()}>
                     {/* @ts-ignore */}
                     {size}
@@ -147,10 +146,8 @@ export function Pagination({
               >
                 {/* @ts-ignore */}
                 {page}
-              // @ts-ignore
               </Button>
             ) : (
-              // @ts-ignore
               <span key={index} className="px-2 text-muted-foreground">
                 {/* @ts-ignore */}
                 {page}

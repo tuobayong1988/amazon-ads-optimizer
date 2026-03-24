@@ -1082,7 +1082,6 @@ export default function PerformanceGroupDetail() {
                           const colorClass = isGood ? 'text-green-500' : 'text-red-500';
                           return (
                             <div className={`text-xs ${colorClass} flex items-center gap-1 mt-1`}>
-                              // @ts-ignore
                               {isPositive ? <TrendingUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />}
                               {isPositive ? '+' : ''}{change.toFixed(1)}%
                             </div>
@@ -1383,7 +1382,6 @@ export default function PerformanceGroupDetail() {
                             fill="#8b5cf6" 
                             stroke="#8b5cf6"
                             fillOpacity={0.6}
-                            // @ts-ignore
                             name="花费 ($)"
                           // @ts-ignore
                           />
@@ -1411,26 +1409,20 @@ export default function PerformanceGroupDetail() {
                           <PieChart>
                             <Pie
                               data={[
-                                // @ts-ignore
                                 { name: '花费', value: performanceTrendData.reduce((sum: number, d: Record<string, unknown>) => sum + (d.spend || 0), 0), fill: '#8b5cf6' },
-                                // @ts-ignore
                                 { name: '销售额', value: performanceTrendData.reduce((sum: number, d: Record<string, unknown>) => sum + (d.sales || 0), 0), fill: '#10b981' },
                               ]}
                               cx="50%"
                               cy="50%"
                               labelLine={false}
-                              // @ts-ignore
                               label={({ name, percent }: unknown) => `${name}: ${((percent || 0) * 100).toFixed(1)}%`}
                               outerRadius={80}
                               dataKey="value"
                             >
                               {[
-                                // @ts-ignore
                                 { name: '花费', value: performanceTrendData.reduce((sum: number, d: Record<string, unknown>) => sum + (d.spend || 0), 0), fill: '#8b5cf6' },
-                                // @ts-ignore
                                 { name: '销售额', value: performanceTrendData.reduce((sum: number, d: Record<string, unknown>) => sum + (d.sales || 0), 0), fill: '#10b981' },
                               ].map((entry: unknown, index: unknown) => (
-                                // @ts-ignore
                                 <Cell key={`cell-${index}`} fill={entry.fill} />
                               ))}
                             </Pie>
@@ -1811,7 +1803,6 @@ export default function PerformanceGroupDetail() {
                         </tr>
                       </thead>
                       <tbody>
-                        // @ts-ignore
                         {filteredGroupCampaigns.map((campaign: unknown) => {
                           // @ts-ignore
                           const spend = Number(campaign.spend || 0);
@@ -1829,7 +1820,6 @@ export default function PerformanceGroupDetail() {
                           const cvr = clicks > 0 ? (orders / clicks) * 100 : 0;
                           const cpc = clicks > 0 ? spend / clicks : 0;
                           return (
-                            // @ts-ignore
                             <tr key={campaign.id} className={`border-b hover:bg-muted/30 transition-colors ${selectedManageCampaigns.includes(campaign.id) ? 'bg-primary/5' : ''}`}>
                               {/* @ts-ignore */}
                               <td className="p-3">
@@ -1837,7 +1827,6 @@ export default function PerformanceGroupDetail() {
                                 <Checkbox
                                   // @ts-ignore
                                   checked={selectedManageCampaigns.includes(campaign.id)}
-                                  // @ts-ignore
                                   onCheckedChange={() => toggleManageCampaignSelection(campaign.id)}
                                 />
                               </td>
@@ -1899,11 +1888,9 @@ export default function PerformanceGroupDetail() {
                           {/* @ts-ignore */}
                           <td className="p-3 text-right tabular-nums">{filteredGroupCampaigns.reduce((s: number, c: unknown) => s + Number(c.orders || 0), 0)}</td>
                           <td className="p-3 text-right tabular-nums">
-                            // @ts-ignore
                             {(() => { const ts = filteredGroupCampaigns.reduce((s: number, c: unknown) => s + Number((c as any).spend || 0), 0); const tr = filteredGroupCampaigns.reduce((s: number, c: unknown) => s + Number((c as any).sales || 0), 0); return tr > 0 ? ((ts/tr)*100).toFixed(1) + '%' : '-'; })()}
                           </td>
                           <td className="p-3 text-right tabular-nums">
-                            // @ts-ignore
                             {(() => { const ts = filteredGroupCampaigns.reduce((s: number, c: unknown) => s + Number((c as any).spend || 0), 0); const tr = filteredGroupCampaigns.reduce((s: number, c: unknown) => s + Number((c as any).sales || 0), 0); return ts > 0 ? (tr/ts).toFixed(2) + 'x' : '-'; })()}
                           </td>
                           <td className="p-3" colSpan={4}></td>
@@ -1929,16 +1916,11 @@ export default function PerformanceGroupDetail() {
           <TabsContent value="insights" className="space-y-4">
             {/* @ts-ignore */}
             {group?.accountId && (
-              // @ts-ignore
               <TargetInsightsPanel
                 groupId={groupId!}
-                // @ts-ignore
                 accountId={group.accountId}
-              // @ts-ignore
               />
-            // @ts-ignore
             )}
-          // @ts-ignore
           </TabsContent>
 
           {/* @ts-ignore */}
@@ -1949,11 +1931,8 @@ export default function PerformanceGroupDetail() {
               <TargetAlgorithmEffectPanel
                 accountId={group.accountId}
                 groupId={groupId!}
-              // @ts-ignore
               />
-            // @ts-ignore
             )}
-          // @ts-ignore
           </TabsContent>
 
           {/* @ts-ignore */}
@@ -1965,9 +1944,7 @@ export default function PerformanceGroupDetail() {
             <UnifiedHistoryTracker
               // @ts-ignore
               performanceGroupId={groupId!}
-              // @ts-ignore
               performanceGroupName={group.name}
-            // @ts-ignore
             />
           </TabsContent>
 
@@ -2172,7 +2149,6 @@ export default function PerformanceGroupDetail() {
                               <YAxis yAxisId="right" orientation="right" tick={{ fill: '#999', fontSize: 12 }} />
                               <Tooltip 
                                 contentStyle={{ backgroundColor: '#1a1a2e', border: '1px solid #333', borderRadius: 8 }}
-                                // @ts-ignore
                                 formatter={((value: number, name: string) => {
                                   if (name === '预测销售额' || name === '月花费') return [`$${value.toFixed(0)}`, name];
                                   if (name === '预测ACoS') return [`${value.toFixed(1)}%`, name];
@@ -2207,12 +2183,10 @@ export default function PerformanceGroupDetail() {
                             </thead>
                             <tbody>
                               {scenarios.map((s: unknown, i: unknown) => (
-                                // @ts-ignore
                                 <tr key={i} className={`border-b border-muted/50 ${s.multiplier === 1.0 ? 'bg-primary/10 font-medium' : 'hover:bg-muted/20'}`}>
                                   <td className="py-2 px-3">
                                     {/* @ts-ignore */}
                                     {s.label}
-                                    // @ts-ignore
                                     {(s as any).multiplier === 1.0 && <Badge variant="outline" className="ml-2 text-xs">当前</Badge>}
                                   </td>
                                   {/* @ts-ignore */}
@@ -2476,7 +2450,6 @@ export default function PerformanceGroupDetail() {
                   <Loader2 className="w-6 h-6 animate-spin" />
                 </div>
               ) : filteredAvailableCampaigns.length > 0 ? (
-                // @ts-ignore
                 <table className="w-full text-xs">
                   <thead className="sticky top-0 bg-background z-10">
                     <tr className="border-b bg-muted/50">

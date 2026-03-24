@@ -295,7 +295,6 @@ export function UnifiedHistoryTracker({ performanceGroupId, performanceGroupName
               <span className="text-xs text-muted-foreground">出价调整</span>
             </div>
             <p className="text-xl font-bold mt-1">
-              // @ts-ignore
               {eventStats?.byCategory?.find((c: unknown) => (c as any).category === 'bid_adjustment')?.count ?? 0}
             </p>
           </CardContent>
@@ -308,7 +307,6 @@ export function UnifiedHistoryTracker({ performanceGroupId, performanceGroupName
               <span className="text-xs text-muted-foreground">已回滚</span>
             </div>
             <p className="text-xl font-bold mt-1">
-              // @ts-ignore
               {eventStats?.byStatus?.find((s: unknown) => (s as any).status === 'rolled_back')?.count ?? 0}
             </p>
           </CardContent>
@@ -381,7 +379,6 @@ export function UnifiedHistoryTracker({ performanceGroupId, performanceGroupName
               <p className="text-sm mt-1">系统执行自动优化后，调整记录将显示在这里</p>
             </div>
           ) : (
-            // @ts-ignore
             <>
               <div className="rounded-md border overflow-x-auto">
                 <Table>
@@ -429,7 +426,6 @@ export function UnifiedHistoryTracker({ performanceGroupId, performanceGroupName
                       const adjType = ADJUSTMENT_TYPE_LABELS[record.adjustmentType] || { label: record.adjustmentType || '自动', color: "bg-gray-500/20 text-gray-400" };
                       
                       return (
-                        // @ts-ignore
                         <TableRow key={record.id}>
                           {/* @ts-ignore */}
                           <TableCell>
@@ -438,21 +434,17 @@ export function UnifiedHistoryTracker({ performanceGroupId, performanceGroupName
                               <Checkbox 
                                 // @ts-ignore
                                 checked={selectedIds.includes(record.id)}
-                                // @ts-ignore
                                 onCheckedChange={() => toggleSelect(record.id)}
                               />
                             )}
                           </TableCell>
                           <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                            // @ts-ignore
                             {(record as any).createdAt ? safeToLocaleString((record as any).createdAt, 'zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-'}
                           </TableCell>
                           <TableCell className="max-w-[160px] truncate font-medium text-sm">
                             {/* @ts-ignore */}
                             {record.keywordText || record.targetName || '-'}
-                            // @ts-ignore
                             {(record as any).matchType && (
-                              // @ts-ignore
                               <Badge variant="outline" className="ml-1 text-[10px] px-1">{record.matchType}</Badge>
                             )}
                           </TableCell>
@@ -472,7 +464,6 @@ export function UnifiedHistoryTracker({ performanceGroupId, performanceGroupName
                           </TableCell>
                           <TableCell className="text-right font-mono text-sm">
                             {currencySymbol}{prevBid.toFixed(2)}
-                          // @ts-ignore
                           </TableCell>
                           <TableCell className="text-right font-mono text-sm font-medium">
                             {currencySymbol}{newBid.toFixed(2)}
@@ -554,9 +545,7 @@ export function UnifiedHistoryTracker({ performanceGroupId, performanceGroupName
                 {/* @ts-ignore */}
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
-            // @ts-ignore
             ) : !adjustmentData?.events?.length ? (
-              // @ts-ignore
               <div className="text-center py-12 text-muted-foreground">
                 <BarChart3 className="h-10 w-10 mx-auto mb-3 opacity-50" />
                 <p>暂无追踪数据</p>
@@ -603,10 +592,8 @@ export function UnifiedHistoryTracker({ performanceGroupId, performanceGroupName
                         
                         // @ts-ignore
                         return (
-                          // @ts-ignore
                           <TableRow key={record.id}>
                             <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                              // @ts-ignore
                               {(record as any).createdAt ? safeToLocaleDateString((record as any).createdAt, 'zh-CN') : '-'}
                             </TableCell>
                             <TableCell className="max-w-[140px] truncate font-medium text-sm">
@@ -635,17 +622,14 @@ export function UnifiedHistoryTracker({ performanceGroupId, performanceGroupName
                             {/* @ts-ignore */}
                             <TableCell className="text-right text-sm">{record.actualConversions7D ?? '-'}</TableCell>
                             <TableCell className="text-right text-sm font-mono">
-                              // @ts-ignore
                               {(record as any).actualSpend7D ? `${currencySymbol}${parseFloat((record as any).actualSpend7D).toFixed(2)}` : '-'}
                             </TableCell>
                             <TableCell className="text-right text-sm font-mono">
-                              // @ts-ignore
                               {(record as any).actualRevenue7D ? `${currencySymbol}${parseFloat((record as any).actualRevenue7D).toFixed(2)}` : '-'}
                             </TableCell>
                           </TableRow>
                         );
                       })}
-                    // @ts-ignore
                     {adjustmentData.events.filter((r: unknown) => (r as any).actualProfit7D !== null || (r as any).actualProfit14D !== null || (r as any).actualProfit30D !== null).length === 0 && (
                       <TableRow>
                         <TableCell colSpan={12} className="text-center py-8 text-muted-foreground">
@@ -689,7 +673,6 @@ export function UnifiedHistoryTracker({ performanceGroupId, performanceGroupName
             <Button variant="outline" size="sm" onClick={() => refetchAllEvents()}>
               {/* @ts-ignore */}
               <RefreshCw className="h-3.5 w-3.5 mr-1" />
-              // @ts-ignore
               刷新
             </Button>
           {/* @ts-ignore */}
@@ -699,7 +682,6 @@ export function UnifiedHistoryTracker({ performanceGroupId, performanceGroupName
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
-          // @ts-ignore
           ) : !allEventsData?.events?.length ? (
             <div className="text-center py-12 text-muted-foreground">
               {/* @ts-ignore */}
@@ -729,7 +711,6 @@ export function UnifiedHistoryTracker({ performanceGroupId, performanceGroupName
                   {/* @ts-ignore */}
                   </TableHeader>
                   <TableBody>
-                    // @ts-ignore
                     {allEventsData.events.map((event: unknown) => {
                       // @ts-ignore
                       const catInfo = EVENT_CATEGORY_LABELS[event.eventCategory] || { label: event.eventCategory, color: "bg-gray-500/20 text-gray-400" };
@@ -761,10 +742,8 @@ export function UnifiedHistoryTracker({ performanceGroupId, performanceGroupName
                       }
                       
                       return (
-                        // @ts-ignore
                         <TableRow key={event.id}>
                           <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                            // @ts-ignore
                             {(event as any).createdAt ? safeToLocaleString((event as any).createdAt, 'zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-'}
                           </TableCell>
                           <TableCell>

@@ -168,13 +168,11 @@ export function SmartInsights({ campaignId, accountId, compact = false }: SmartI
 
     // @ts-ignore
     return (
-      // @ts-ignore
       <Alert variant={getVariant(topInsight.type)} className="mb-4">
         <div className="flex items-start justify-between">
           <div className="flex items-start gap-2">
             {/* @ts-ignore */}
             {getIcon(topInsight.type)}
-            // @ts-ignore
             <div className="flex-1">
               {/* @ts-ignore */}
               {/* @ts-ignore */}
@@ -185,11 +183,8 @@ export function SmartInsights({ campaignId, accountId, compact = false }: SmartI
               </AlertDescription>
               {/* @ts-ignore */}
               {topInsight.impact && (
-                // @ts-ignore
                 <Badge variant="outline" className="mt-2 text-xs">
-                  // @ts-ignore
                   预期影响: {(topInsight as any).impact.metric} {(topInsight as any).impact.value > 0 ? '+' : ''}
-                  // @ts-ignore
                   {(topInsight as any).impact.value}{(topInsight as any).impact.unit}
                 </Badge>
               )}
@@ -198,13 +193,11 @@ export function SmartInsights({ campaignId, accountId, compact = false }: SmartI
           <div className="flex items-center gap-2">
             {/* @ts-ignore */}
             {topInsight.action && (
-              // @ts-ignore
               <Button size="sm" variant="outline" onClick={topInsight.action.onClick}>
                 {/* @ts-ignore */}
                 {topInsight.action.label}
               </Button>
             )}
-            // @ts-ignore
             {(topInsight as any).dismissible && (
               <Button
                 size="sm"

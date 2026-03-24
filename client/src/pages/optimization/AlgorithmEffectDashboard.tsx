@@ -207,7 +207,6 @@ export default function AlgorithmEffectDashboard() {
       entry.algorithms.push(algo);
     }
     
-    // @ts-ignore
     return Array.from(tierMap.entries()).map(([tier, data]) => ({
       // @ts-ignore
       tier,
@@ -316,11 +315,8 @@ export default function AlgorithmEffectDashboard() {
   const effectComparisonData = useMemo(() => {
     if (!algorithmPerformance) return [];
     return [
-      // @ts-ignore
       { metric: 'ACoS (%)', before: (algorithmPerformance as Record<string, unknown>).avgAcosBefore || 0, after: (algorithmPerformance as Record<string, unknown>).avgAcosAfter || 0 },
-      // @ts-ignore
       { metric: 'ROAS', before: (algorithmPerformance as Record<string, unknown>).avgRoasBefore || 0, after: (algorithmPerformance as Record<string, unknown>).avgRoasAfter || 0 },
-      // @ts-ignore
       { metric: '每次点击成本 ($)', before: (algorithmPerformance as Record<string, unknown>).avgCpcBefore || 0, after: (algorithmPerformance as Record<string, unknown>).avgCpcAfter || 0 },
     // @ts-ignore
     ].filter(item => item.before > 0 || item.after > 0);
@@ -352,7 +348,6 @@ export default function AlgorithmEffectDashboard() {
               <SelectContent>
                 <SelectItem value="all">全部账户</SelectItem>
                 {accounts?.map((account: unknown) => (
-                  // @ts-ignore
                   <SelectItem key={account.id} value={account.id.toString()}>
                     {/* @ts-ignore */}
                     {account.accountName}
@@ -414,14 +409,10 @@ export default function AlgorithmEffectDashboard() {
                 {/* @ts-ignore */}
                 <div className="p-3 bg-green-500/20 rounded-full">
                   {stats.avgBidChangePercent > 0 ? (
-                    // @ts-ignore
                     <TrendingUp className="h-6 w-6 text-green-400" />
-                  // @ts-ignore
                   ) : (
-                    // @ts-ignore
                     <TrendingDown className="h-6 w-6 text-red-400" />
                   )}
-                // @ts-ignore
                 </div>
               </div>
             </CardContent>
@@ -456,7 +447,6 @@ export default function AlgorithmEffectDashboard() {
                         // @ts-ignore
                         const pct = totalAlgoCount > 0 ? Math.round(d.count / totalAlgoCount * 100) : 0;
                         return (
-                          // @ts-ignore
                           <div key={d.tier} className="flex items-center gap-2">
                             {/* @ts-ignore */}
                             <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: d.fill }} />
@@ -605,12 +595,10 @@ export default function AlgorithmEffectDashboard() {
                               cy="50%"
                               outerRadius={100}
                               innerRadius={50}
-                              // @ts-ignore
                               label={(props: unknown) => `${props.name || ''} ${((props.percent ?? 0) * 100).toFixed(0)}%`}
                               labelLine={{ stroke: '#9CA3AF' }}
                             >
                               {algorithmDistribution.map((entry: unknown, index: unknown) => (
-                                // @ts-ignore
                                 <Cell key={`cell-${index}`} fill={entry.fill} />
                               ))}
                             </Pie>
@@ -627,7 +615,6 @@ export default function AlgorithmEffectDashboard() {
                           // @ts-ignore
                           const pct = totalAlgoCount > 0 ? (d.count / totalAlgoCount * 100).toFixed(1) : '0';
                           return (
-                            // @ts-ignore
                             <div key={d.tier} className="flex items-center justify-between p-2 rounded bg-gray-700/30">
                               <div className="flex items-center gap-2">
                                 {/* @ts-ignore */}
@@ -644,7 +631,6 @@ export default function AlgorithmEffectDashboard() {
                               </div>
                             {/* @ts-ignore */}
                             </div>
-                          // @ts-ignore
                           );
                         })}
                       </div>
@@ -674,7 +660,6 @@ export default function AlgorithmEffectDashboard() {
                   {algorithmDetailStats.length > 0 ? (
                     <div className="space-y-3">
                       {algorithmDetailStats.map((stat: unknown) => (
-                        // @ts-ignore
                         <div key={stat.algorithm} className="p-3 rounded-lg bg-gray-700/30 border border-gray-700/50">
                           <div className="flex items-center justify-between mb-2">
                             <div className="flex items-center gap-2">
@@ -698,7 +683,6 @@ export default function AlgorithmEffectDashboard() {
                               <Progress
                                 // @ts-ignore
                                 value={stat.positiveRate}
-                                // @ts-ignore
                                 className="h-2 [&>[data-slot=progress-indicator]]:bg-green-400"
                               />
                             </div>
@@ -757,7 +741,6 @@ export default function AlgorithmEffectDashboard() {
                       // @ts-ignore
                       const isPositive = item.metric.includes('ACoS') || item.metric.includes('成本') ? change < 0 : change > 0;
                       return (
-                        // @ts-ignore
                         <div key={item.metric} className="bg-gray-700/50 rounded-lg p-4 text-center">
                           {/* @ts-ignore */}
                           <p className="text-sm text-gray-400">{item.metric}变化</p>
@@ -790,9 +773,7 @@ export default function AlgorithmEffectDashboard() {
               <CardHeader>
                 <CardTitle className="text-white">出价调整分布</CardTitle>
                 <CardDescription>
-                  // @ts-ignore
                   按调整类型和调整幅度统计出价调整分布
-                // @ts-ignore
                 </CardDescription>
               {/* @ts-ignore */}
               </CardHeader>
@@ -811,7 +792,6 @@ export default function AlgorithmEffectDashboard() {
                           <YAxis stroke="#9CA3AF" fontSize={12} />
                           <Tooltip
                             contentStyle={{ backgroundColor: "#1F2937", border: "1px solid #374151" }}
-                          // @ts-ignore
                           />
                           <Bar dataKey="count" fill="#8B5CF6" />
                         </BarChart>
@@ -858,7 +838,6 @@ export default function AlgorithmEffectDashboard() {
                         </div>
                         <div>
                           <p className="text-white font-medium">
-                            // @ts-ignore
                             {(item as any).adjustmentType === 'auto_optimal' ? '最优出价调整' :
                              // @ts-ignore
                              item.adjustmentType === 'auto_dayparting' ? '分时出价调整' :
@@ -868,7 +847,6 @@ export default function AlgorithmEffectDashboard() {
                              item.adjustmentType === 'manual' ? '手动调整' : item.adjustmentType}
                           </p>
                           <p className="text-sm text-gray-400">
-                            // @ts-ignore
                             平均变化: {(item as any).avgBidChange?.toFixed(1)}%
                           </p>
                         </div>
@@ -881,7 +859,6 @@ export default function AlgorithmEffectDashboard() {
                           {item.count} 次调整
                         </p>
                         <p className="text-sm text-gray-400">
-                          // @ts-ignore
                           成功率: {(item as any).successRate?.toFixed(1)}%
                         </p>
                       </div>
@@ -944,16 +921,13 @@ export default function AlgorithmEffectDashboard() {
                     size="sm"
                     // @ts-ignore
                     onClick={() => setCausalFilterSignificant(!causalFilterSignificant)}
-                    // @ts-ignore
                     className={causalFilterSignificant ? "bg-green-600 hover:bg-green-700" : "border-gray-600 text-gray-300"}
                   >
                     <CheckCircle className="h-4 w-4 mr-1" />
-                    // @ts-ignore
                     仅显著效果
                   </Button>
                   {/* @ts-ignore */}
                   <span className="text-xs text-gray-500 ml-auto">
-                    // @ts-ignore
                     共 {(() => {
                       let data = causalInsights?.results || [];
                       // @ts-ignore
@@ -1040,7 +1014,6 @@ export default function AlgorithmEffectDashboard() {
                           <td className="py-2 px-3 text-right text-sm">
                             {/* @ts-ignore */}
                             <span className={r.incrementalProfit > 0 ? 'text-green-400' : 'text-red-400'}>
-                              // @ts-ignore
                               ${(r as any).incrementalProfit?.toFixed(2)}
                             </span>
                           {/* @ts-ignore */}
@@ -1142,7 +1115,6 @@ export default function AlgorithmEffectDashboard() {
                           {/* @ts-ignore */}
                           <p className="text-white font-medium">模型 v{model.modelVersion}</p>
                           <p className="text-sm text-gray-400">
-                            // @ts-ignore
                             训练轮次: {(model as any).trainingEpisodes} | 步数: {(model as any).trainingSteps}
                           </p>
                         </div>
@@ -1151,7 +1123,6 @@ export default function AlgorithmEffectDashboard() {
                         {/* @ts-ignore */}
                         <p className="text-white">Loss: {model.avgLoss?.toFixed(6)}</p>
                         <p className="text-sm text-gray-400">
-                          // @ts-ignore
                           {(model as any).lastTrainedAt ? format(new Date((model as any).lastTrainedAt), 'yyyy-MM-dd HH:mm') : '未训练'}
                         </p>
                       </div>
@@ -1345,7 +1316,6 @@ export default function AlgorithmEffectDashboard() {
                 {/* 分池趋势图 */}
                 {/* @ts-ignore */}
                 {(budgetPoolInsights?.dailyTrend || []).length > 0 && (
-                  // @ts-ignore
                   <div className="mb-4">
                     {/* @ts-ignore */}
                     <h4 className="text-white font-medium mb-4">分池比例趋势</h4>
@@ -1419,7 +1389,6 @@ export default function AlgorithmEffectDashboard() {
                   {(bidHistory?.records || []).slice(0, 20).map((record: unknown, index: number) => (
                     <tr key={index} className="border-b border-gray-700/50 hover:bg-gray-700/30">
                       <td className="py-3 px-4 text-gray-300">
-                        // @ts-ignore
                         {(record as any).appliedAt ? format(new Date((record as any).appliedAt), "MM/dd HH:mm") : '-'}
                       </td>
                       {/* @ts-ignore */}
@@ -1436,7 +1405,6 @@ export default function AlgorithmEffectDashboard() {
                           record.adjustmentType === 'auto_placement' ? 'border-orange-500 text-orange-400' :
                           'border-gray-500 text-gray-400'
                         }>
-                          // @ts-ignore
                           {(record as any).adjustmentType === 'auto_optimal' ? '最优出价' :
                            // @ts-ignore
                            record.adjustmentType === 'auto_dayparting' ? '分时调整' :
@@ -1453,14 +1421,12 @@ export default function AlgorithmEffectDashboard() {
                       <td className="py-3 px-4 text-right">
                         {/* @ts-ignore */}
                         <span className={parseFloat(record.bidChangePercent || 0) > 0 ? 'text-green-400' : 'text-red-400'}>
-                          // @ts-ignore
                           {parseFloat((record as any).bidChangePercent || 0) > 0 ? '+' : ''}{parseFloat((record as any).bidChangePercent || 0).toFixed(1)}%
                         </span>
                       </td>
                       <td className="py-3 px-4 text-center">
                         {/* @ts-ignore */}
                         <Badge variant={record.status === 'applied' ? 'default' : record.status === 'rolled_back' ? 'destructive' : 'secondary'}>
-                          // @ts-ignore
                           {(record as any).status === 'applied' ? '已应用' :
                            // @ts-ignore
                            record.status === 'rolled_back' ? '已回滚' :

@@ -340,7 +340,6 @@ export function BidResponseCurve({
                         border: "1px solid hsl(var(--border))",
                         borderRadius: "8px",
                       }}
-                      // @ts-ignore
                       formatter={((value: number, name: string) => {
                         if (name === "销售额") return [formatCurrency(value), name];
                         if (name === "ROAS") return [value.toFixed(2), name];
@@ -437,7 +436,6 @@ export function BidResponseCurve({
                         border: "1px solid hsl(var(--border))",
                         borderRadius: "8px",
                       }}
-                      // @ts-ignore
                       formatter={((value: number, name: string) => [formatCurrency(value), name]) as unknown}
                       labelFormatter={(label) => `出价: $${label}`}
                     />
@@ -506,7 +504,6 @@ export function BidResponseCurve({
                         border: "1px solid hsl(var(--border))",
                         borderRadius: "8px",
                       }}
-                      // @ts-ignore
                       formatter={((value: number) => [formatCurrency(value), "利润"]) as unknown}
                       labelFormatter={(label) => `出价: $${label}`}
                     />

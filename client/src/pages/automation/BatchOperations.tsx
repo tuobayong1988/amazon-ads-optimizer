@@ -467,16 +467,12 @@ export default function BatchOperations() {
                     </TableHeader>
                     {/* @ts-ignore */}
                     <TableBody>
-                      // @ts-ignore
                       {batches.map((batch: unknown) => (
                         <TableRow 
                           // @ts-ignore
                           key={batch.id}
-                          // @ts-ignore
                           className={selectedBatch === batch.id ? 'bg-muted/50' : ''}
-                          // @ts-ignore
                           onClick={() => setSelectedBatch(batch.id)}
-                        // @ts-ignore
                         >
                           {/* @ts-ignore */}
                           <TableCell className="font-medium">{batch.name}</TableCell>
@@ -502,7 +498,6 @@ export default function BatchOperations() {
                           <TableCell className="text-sm text-muted-foreground">
                             {/* @ts-ignore */}
                             {formatDate(batch.createdAt)}
-                          // @ts-ignore
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-1">
@@ -543,16 +538,13 @@ export default function BatchOperations() {
                                       // @ts-ignore
                                       cancelMutation.mutate({ id: batch.id });
                                     }}
-                                  // @ts-ignore
                                   >
                                     {/* @ts-ignore */}
                                     <Trash2 className="h-4 w-4 text-red-600" />
                                   </Button>
                                 </>
                               )}
-                              // @ts-ignore
                               {(batch as any).batchStatus === 'approved' && (
-                                // @ts-ignore
                                 <Button 
                                   // @ts-ignore
                                   variant="ghost" 
@@ -596,7 +588,6 @@ export default function BatchOperations() {
                                   <Play className="h-4 w-4 text-blue-600" />
                                 </Button>
                               )}
-                              // @ts-ignore
                               {(batch as any).batchStatus === 'completed' && (
                                 <Button 
                                   variant="ghost" 
@@ -843,7 +834,6 @@ export default function BatchOperations() {
                     <Label>操作类型</Label>
                     <Select 
                       value={historyFilter.operationType || "all"}
-                      // @ts-ignore
                       onValueChange={(v) => setHistoryFilter(prev => ({ ...prev, operationType: v === "all" ? undefined : v as unknown }))}
                     >
                       <SelectTrigger>
@@ -862,7 +852,6 @@ export default function BatchOperations() {
                     <Label>状态</Label>
                     <Select 
                       value={historyFilter.status || "all"}
-                      // @ts-ignore
                       onValueChange={(v) => setHistoryFilter(prev => ({ ...prev, status: v === "all" ? undefined : v as unknown }))}
                     >
                       <SelectTrigger>
@@ -903,7 +892,6 @@ export default function BatchOperations() {
                     }}
                   >
                     清除筛选
-                  // @ts-ignore
                   </Button>
                 {/* @ts-ignore */}
                 </div>
@@ -922,14 +910,11 @@ export default function BatchOperations() {
               <CardContent>
                 {isHistoryLoading ? (
                   <div className="text-center py-8 text-muted-foreground">加载中...</div>
-                // @ts-ignore
                 ) : !historyData?.operations || historyData.operations.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground">
                     暂无历史记录
-                  // @ts-ignore
                   </div>
                 ) : (
-                  // @ts-ignore
                   <>
                     <Table>
                       {/* @ts-ignore */}
@@ -954,7 +939,6 @@ export default function BatchOperations() {
                           // @ts-ignore
                           const status = statusConfig[op.batchStatus as BatchStatus];
                           return (
-                            // @ts-ignore
                             <TableRow key={op.id}>
                               {/* @ts-ignore */}
                               <TableCell className="font-mono">#{op.id}</TableCell>
@@ -963,7 +947,6 @@ export default function BatchOperations() {
                               <TableCell>
                                 <div className="flex items-center gap-2">
                                   {opType?.icon}
-                                  // @ts-ignore
                                   <span>{opType?.label || (op as any).operationType}</span>
                                 </div>
                               </TableCell>
@@ -979,7 +962,6 @@ export default function BatchOperations() {
                                 {/* @ts-ignore */}
                                 <span className="text-green-600">{op.successItems || 0}</span>
                                 {' / '}
-                                // @ts-ignore
                                 <span className="text-red-600">{(op as any).failedItems || 0}</span>
                               </TableCell>
                               <TableCell className="text-muted-foreground">
@@ -1106,23 +1088,18 @@ export default function BatchOperations() {
                   </div>
                   {/* @ts-ignore */}
                   {historyDetail.executedAt && (
-                    // @ts-ignore
                     <div>
                       {/* @ts-ignore */}
                       <span className="text-muted-foreground">执行时间：</span>
                       <span className="ml-2">{safeToLocaleString(historyDetail.executedAt, 'zh-CN')}</span>
                     </div>
-                  // @ts-ignore
                   )}
-                  // @ts-ignore
                   {historyDetail.completedAt && (
                     <div>
                       <span className="text-muted-foreground">完成时间：</span>
                       <span className="ml-2">{safeToLocaleString(historyDetail.completedAt, 'zh-CN')}</span>
                     </div>
-                  // @ts-ignore
                   )}
-                // @ts-ignore
                 </div>
               </div>
 
@@ -1155,14 +1132,11 @@ export default function BatchOperations() {
                                 <TableHead>匹配类型</TableHead>
                               {/* @ts-ignore */}
                               </>
-                            // @ts-ignore
                             )}
-                          // @ts-ignore
                           </TableRow>
                         </TableHeader>
                         <TableBody>
                           {historyDetail.itemsByStatus.success.map((item: unknown) => (
-                            // @ts-ignore
                             <TableRow key={item.id}>
                               {/* @ts-ignore */}
                               <TableCell>{item.entityName || '-'}</TableCell>
@@ -1209,7 +1183,6 @@ export default function BatchOperations() {
                         </TableHeader>
                         <TableBody>
                           {historyDetail.itemsByStatus.failed.map((item: unknown) => (
-                            // @ts-ignore
                             <TableRow key={item.id}>
                               {/* @ts-ignore */}
                               <TableCell>{item.entityName || '-'}</TableCell>

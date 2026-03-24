@@ -64,7 +64,6 @@ export default function AutoCorrectionDashboard() {
       statusMap.set(s.api_sync_status, Number(s.count));
     }
   }
-  // @ts-ignore
   const totalEvents = Array.from(statusMap.values()).reduce((a: unknown, b: unknown) => a + b, 0);
   const syncedCount = statusMap.get('synced') || 0;
   const failedCount = statusMap.get('failed') || 0;
@@ -140,7 +139,6 @@ export default function AutoCorrectionDashboard() {
               纠错监控
             </h1>
             <p className="text-gray-400 text-sm mt-1">
-              // @ts-ignore
               实时监控自动纠错系统运行状态、同步成功率和历史趋势
             </p>
           </div>
@@ -158,7 +156,6 @@ export default function AutoCorrectionDashboard() {
             <Button
               size="sm"
               onClick={() => runScanMutation.mutate({})}
-              // @ts-ignore
               disabled={runScanMutation.isPending || dashboard?.scanStatus?.isScanning}
               className="bg-blue-600 hover:bg-blue-700"
             >
@@ -244,7 +241,6 @@ export default function AutoCorrectionDashboard() {
                 <Clock className="h-10 w-10 text-blue-400 opacity-50" />
               </div>
               <p className="text-xs text-gray-500 mt-2">
-                // @ts-ignore
                 {(dashboard as any).harvestRetryStats ? `搜索词收割待重试: ${((dashboard as any).harvestRetryStats as Record<string, unknown>).retryable || 0}` : '加载中...'}
               </p>
             </CardContent>
@@ -272,17 +268,14 @@ export default function AutoCorrectionDashboard() {
                     </CardHeader>
                     <CardContent className="space-y-3">
                       {[1, 2, 3, 4].map((j) => (
-                        // @ts-ignore
                         <div key={j} className="flex justify-between">
                           <Skeleton className="h-4 w-20 bg-gray-700" />
                           <Skeleton className="h-4 w-16 bg-gray-700" />
                         </div>
-                      // @ts-ignore
                       ))}
                     </CardContent>
                   </Card>
                 ))}
-              // @ts-ignore
               </div>
             ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -293,7 +286,6 @@ export default function AutoCorrectionDashboard() {
                   <CardTitle className="text-white text-lg flex items-center gap-2">
                     <Zap className="h-5 w-5 text-yellow-400" />
                     最近扫描结果
-                  // @ts-ignore
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -340,11 +332,9 @@ export default function AutoCorrectionDashboard() {
                         {/* @ts-ignore */}
                         </div>
                       </div>
-                      // @ts-ignore
                       {(dashboard as any).lastScan?.details && (
                         <div className="border-t border-gray-800 pt-3 mt-3 space-y-2">
                           <p className="text-xs text-gray-500 font-medium">分类详情</p>
-                          // @ts-ignore
                           {Object.entries(((dashboard as any).lastScan as any).details as any).map(([key, val]: [string, unknown]) => {
                             // @ts-ignore
                             if (val.found === 0) return null;
@@ -381,9 +371,7 @@ export default function AutoCorrectionDashboard() {
                       )}
                     </div>
                   ) : (
-                    // @ts-ignore
                     <p className="text-gray-500 text-sm">暂无扫描记录</p>
-                  // @ts-ignore
                   )}
                 </CardContent>
               </Card>
@@ -394,7 +382,6 @@ export default function AutoCorrectionDashboard() {
                 <CardHeader>
                   <CardTitle className="text-white text-lg flex items-center gap-2">
                     <Settings className="h-5 w-5 text-gray-400" />
-                    // @ts-ignore
                     系统状态与配置
                   </CardTitle>
                 </CardHeader>
@@ -407,9 +394,7 @@ export default function AutoCorrectionDashboard() {
                       {dashboard?.scanStatus?.isScanning ? (
                         <Badge variant="default" className="bg-blue-600">
                           <RefreshCw className="h-3 w-3 mr-1 animate-spin" />扫描中
-                        // @ts-ignore
                         </Badge>
-                      // @ts-ignore
                       ) : dashboard?.scanStatus?.lastScanTime ? (
                         <Badge variant="secondary" className="bg-green-500/20 text-green-400 border-green-500/30">
                           {/* @ts-ignore */}
@@ -417,7 +402,6 @@ export default function AutoCorrectionDashboard() {
                         </Badge>
                       ) : (
                         <Badge variant="secondary" className="bg-gray-500/20 text-gray-400 border-gray-500/30">
-                          // @ts-ignore
                           待初始化
                         </Badge>
                       )}
@@ -431,7 +415,6 @@ export default function AutoCorrectionDashboard() {
                           // @ts-ignore
                           ? formatDate(dashboard.scanStatus.lastScanTime)
                           : '尚未执行过扫描'}
-                      // @ts-ignore
                       </span>
                     </div>
                     <div className="flex justify-between text-sm">
@@ -486,12 +469,9 @@ export default function AutoCorrectionDashboard() {
                         </div>
                       {/* @ts-ignore */}
                       </>
-                    // @ts-ignore
                     )}
                     
-                    // @ts-ignore
                     {/* 搜索词收割重试统计 */}
-                    // @ts-ignore
                     {(dashboard as any)?.harvestRetryStats && (
                       <>
                         {/* @ts-ignore */}
@@ -517,7 +497,6 @@ export default function AutoCorrectionDashboard() {
             )}
             
             {/* 7天趋势 */}
-            // @ts-ignore
             {(dashboard as any)?.trendData && ((dashboard as any).trendData as unknown[]).length > 0 && (
               <Card className="bg-gray-900 border-gray-800">
                 <CardHeader>
@@ -540,7 +519,6 @@ export default function AutoCorrectionDashboard() {
                       {/* @ts-ignore */}
                       </thead>
                       <tbody>
-                        // @ts-ignore
                         {((dashboard as any).trendData as unknown[]).map((t: unknown, i: number) => {
                           // @ts-ignore
                           const total = Number(t.corrections);
@@ -570,7 +548,6 @@ export default function AutoCorrectionDashboard() {
                 </CardContent>
               </Card>
             )}
-          // @ts-ignore
           </TabsContent>
           
           {/* 操作类型标签 */}
@@ -652,13 +629,11 @@ export default function AutoCorrectionDashboard() {
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    // @ts-ignore
                     {((dashboard as any).negKeywordStats as unknown[]).map((s: unknown, i: number) => (
                       <div key={i} className="text-center p-3 bg-gray-800/50 rounded-lg">
                         {/* @ts-ignore */}
                         <p className="text-2xl font-bold text-white">{Number(s.count).toLocaleString()}</p>
                         <p className="text-xs text-gray-400 mt-1">
-                          // @ts-ignore
                           {(s as any).api_sync_status === 'synced' ? '已同步' :
                            // @ts-ignore
                            s.api_sync_status === 'not_applicable' ? '不适用' :
@@ -671,13 +646,11 @@ export default function AutoCorrectionDashboard() {
                         </p>
                       </div>
                     ))}
-                  // @ts-ignore
                   </div>
                 </CardContent>
               {/* @ts-ignore */}
               </Card>
             )}
-          // @ts-ignore
           </TabsContent>
           
           {/* 扫描历史标签 */}
@@ -712,7 +685,6 @@ export default function AutoCorrectionDashboard() {
                       </thead>
                       <tbody>
                         {history.map((scan: unknown, i: number) => (
-                          // @ts-ignore
                           <tr key={i} className="border-b border-gray-800/50 hover:bg-gray-800/30">
                             {/* @ts-ignore */}
                             {/* @ts-ignore */}
@@ -730,7 +702,6 @@ export default function AutoCorrectionDashboard() {
                             <td className="py-2 px-3 text-right">
                               {/* @ts-ignore */}
                               <Badge variant={scan.totalFailed === 0 ? "default" : "destructive"} className="text-xs">
-                                // @ts-ignore
                                 {(scan as any).totalFailed === 0 ? '全部成功' : `${(scan as any).totalFailed}失败`}
                               </Badge>
                             </td>
@@ -760,7 +731,6 @@ export default function AutoCorrectionDashboard() {
                 {/* @ts-ignore */}
                 {dashboard?.recentCorrections && (dashboard.recentCorrections as unknown[]).length > 0 ? (
                   <div className="space-y-3">
-                    // @ts-ignore
                     {((dashboard as any).recentCorrections as unknown[]).map((c: unknown, i: number) => {
                       let detail: unknown = {};
                       // @ts-ignore
@@ -786,21 +756,16 @@ export default function AutoCorrectionDashboard() {
                             <p className="text-sm text-gray-300 mt-1 truncate">
                               {/* @ts-ignore */}
                               {c.campaign_name || '未知活动'}
-                              // @ts-ignore
                               {(c as any).keyword_text && <span className="text-gray-500"> / {(c as any).keyword_text}</span>}
                             </p>
                             {/* @ts-ignore */}
                             {detail.correctedBy && (
                               <p className="text-xs text-gray-500 mt-1">
-                                // @ts-ignore
                                 纠正者: {(detail as any).correctedBy}
-                                // @ts-ignore
                                 {(detail as any).retryCount && ` (重试${(detail as any).retryCount}次)`}
                               </p>
                             )}
-                            // @ts-ignore
                             {(detail as any).reason && (
-                              // @ts-ignore
                               <p className="text-xs text-gray-500 mt-0.5 truncate">{detail.reason}</p>
                             )}
                           </div>

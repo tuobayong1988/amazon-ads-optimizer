@@ -47,11 +47,9 @@ export function MobileBottomNav() {
           
           // @ts-ignore
           return (
-            // @ts-ignore
             <button
               // @ts-ignore
               key={item.path}
-              // @ts-ignore
               onClick={() => setLocation(item.path)}
               className={`flex flex-col items-center justify-center flex-1 h-full gap-1 transition-colors ${
                 isActive 

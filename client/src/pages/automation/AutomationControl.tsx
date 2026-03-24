@@ -227,9 +227,7 @@ const [activeTab, setActiveTab] = useState("overview");
               </SelectTrigger>
               {/* @ts-ignore */}
               <SelectContent>
-                // @ts-ignore
                 {accounts?.map((account: unknown) => (
-                  // @ts-ignore
                   <SelectItem key={account.id} value={account.id.toString()}>
                     {/* @ts-ignore */}
                     {account.accountName}
@@ -350,7 +348,6 @@ const [activeTab, setActiveTab] = useState("overview");
                       <div
                         // @ts-ignore
                         key={type.key}
-                        // @ts-ignore
                         className={`p-4 rounded-lg border transition-colors ${
                           isEnabled ? 'border-primary bg-primary/5' : 'border-border'
                         }`}
@@ -365,7 +362,6 @@ const [activeTab, setActiveTab] = useState("overview");
                           </div>
                           <Switch
                             checked={isEnabled}
-                            // @ts-ignore
                             onCheckedChange={(checked) => handleToggleType(type.key, checked)}
                           />
                         </div>
@@ -381,24 +377,18 @@ const [activeTab, setActiveTab] = useState("overview");
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
                   <Shield className="w-5 h-5" />
-                  // @ts-ignore
                   执行模式
-                // @ts-ignore
                 </CardTitle>
                 <CardDescription>
-                  // @ts-ignore
                   选择自动化执行的控制级别
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  // @ts-ignore
                   {automationModes.map((mode: unknown) => (
-                    // @ts-ignore
                     <div
                       // @ts-ignore
                       key={mode.value}
-                      // @ts-ignore
                       onClick={() => handleModeChange(mode.value)}
                       className={`p-4 rounded-lg border cursor-pointer transition-colors ${
                         // @ts-ignore
@@ -586,7 +576,6 @@ const [activeTab, setActiveTab] = useState("overview");
               <CardContent>
                 {/* @ts-ignore */}
                 {executionHistory && executionHistory.length > 0 ? (
-                  // @ts-ignore
                   <Table>
                     {/* @ts-ignore */}
                     <TableHeader>
@@ -607,7 +596,6 @@ const [activeTab, setActiveTab] = useState("overview");
                     </TableHeader>
                     <TableBody>
                       {executionHistory.map((batch: unknown) => (
-                        // @ts-ignore
                         <TableRow key={batch.id}>
                           {/* @ts-ignore */}
                           <TableCell className="font-mono text-xs">{batch.id.slice(0, 12)}...</TableCell>

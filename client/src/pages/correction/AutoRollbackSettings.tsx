@@ -361,16 +361,12 @@ export default function AutoRollbackSettings() {
                   <div className="text-center py-8 text-muted-foreground">
                     暂无规则，点击"新建规则"创建
                   </div>
-                // @ts-ignore
                 ) : (
-                  // @ts-ignore
                   <div className="space-y-4">
-                    // @ts-ignore
                     {rules?.map((rule: unknown) => (
                       <div
                         // @ts-ignore
                         key={rule.id}
-                        // @ts-ignore
                         className="border rounded-lg p-4 hover:bg-muted/30 transition-colors"
                       >
                         <div className="flex items-start justify-between">
@@ -381,13 +377,10 @@ export default function AutoRollbackSettings() {
                               <h3 className="font-medium">{rule.name}</h3>
                               {/* @ts-ignore */}
                               <Badge variant={rule.enabled ? 'default' : 'secondary'}>
-                                // @ts-ignore
                                 {(rule as any).enabled ? '启用' : '禁用'}
-                              // @ts-ignore
                               </Badge>
                               {/* @ts-ignore */}
                               <Badge className={priorityColors[rule.actions.notificationPriority]}>
-                                // @ts-ignore
                                 {(rule as any).actions.notificationPriority === 'high' ? '高优先级' : 
                                  // @ts-ignore
                                  rule.actions.notificationPriority === 'medium' ? '中优先级' : '低优先级'}
@@ -457,14 +450,11 @@ export default function AutoRollbackSettings() {
                   <div className="flex items-center justify-center py-8">
                     <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
                   </div>
-                // @ts-ignore
                 ) : suggestions?.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground">
-                    // @ts-ignore
                     暂无回滚建议
                   </div>
                 ) : (
-                  // @ts-ignore
                   <div className="rounded-md border overflow-hidden">
                     <Table>
                       <TableHeader>
@@ -488,12 +478,10 @@ export default function AutoRollbackSettings() {
                       </TableHeader>
                       <TableBody>
                         {suggestions?.map((suggestion: unknown) => (
-                          // @ts-ignore
                           <TableRow key={suggestion.id}>
                             <TableCell className="font-medium max-w-[150px] truncate">
                               {/* @ts-ignore */}
                               {suggestion.keywordText || '-'}
-                            // @ts-ignore
                             </TableCell>
                             {/* @ts-ignore */}
                             <TableCell className="max-w-[150px] truncate">
@@ -501,17 +489,13 @@ export default function AutoRollbackSettings() {
                               {suggestion.campaignName || '-'}
                             </TableCell>
                             <TableCell className="text-right font-mono">
-                              // @ts-ignore
                               ${parseFloat((suggestion as any).previousBid || 0).toFixed(2)} → ${parseFloat((suggestion as any).newBid || 0).toFixed(2)}
-                            // @ts-ignore
                             </TableCell>
                             <TableCell className="text-right font-mono">
-                              // @ts-ignore
                               ${(suggestion as any).estimatedProfit?.toFixed(2)}
                             </TableCell>
                             {/* @ts-ignore */}
                             <TableCell className={`text-right font-mono ${suggestion.actualProfit < 0 ? 'text-red-600' : 'text-green-600'}`}>
-                              // @ts-ignore
                               ${(suggestion as any).actualProfit?.toFixed(2)}
                             </TableCell>
                             <TableCell className="text-right">
@@ -524,14 +508,12 @@ export default function AutoRollbackSettings() {
                             <TableCell>
                               {/* @ts-ignore */}
                               <Badge className={priorityColors[suggestion.priority]}>
-                                // @ts-ignore
                                 {(suggestion as any).priority === 'high' ? '高' : (suggestion as any).priority === 'medium' ? '中' : '低'}
                               </Badge>
                             </TableCell>
                             <TableCell>
                               {/* @ts-ignore */}
                               <Badge className={statusColors[suggestion.status]}>
-                                // @ts-ignore
                                 {(suggestion as any).status === 'pending' ? '待处理' :
                                  // @ts-ignore
                                  suggestion.status === 'approved' ? '已批准' :
@@ -556,7 +538,6 @@ export default function AutoRollbackSettings() {
                                     </Button>
                                   </>
                                 )}
-                                // @ts-ignore
                                 {(suggestion as any).status === 'approved' && (
                                   <Button
                                     variant="ghost"
@@ -684,7 +665,6 @@ export default function AutoRollbackSettings() {
                       ...ruleForm,
                       actions: { ...ruleForm.actions, notificationPriority: value as 'low' | 'medium' | 'high' }
                     })}
-                  // @ts-ignore
                   >
                     <SelectTrigger>
                       <SelectValue />
@@ -712,9 +692,7 @@ export default function AutoRollbackSettings() {
               disabled={createRuleMutation.isPending || updateRuleMutation.isPending}
             >
               {(createRuleMutation.isPending || updateRuleMutation.isPending) && (
-                // @ts-ignore
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              // @ts-ignore
               )}
               保存
             </Button>
@@ -750,7 +728,6 @@ export default function AutoRollbackSettings() {
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">出价变化</span>
                   <span className="font-mono">
-                    // @ts-ignore
                     ${parseFloat((selectedSuggestion as any).previousBid || 0).toFixed(2)} → ${parseFloat((selectedSuggestion as any).newBid || 0).toFixed(2)}
                   </span>
                 </div>
@@ -763,7 +740,6 @@ export default function AutoRollbackSettings() {
                   <span className="text-muted-foreground">实际利润</span>
                   {/* @ts-ignore */}
                   <span className={`font-mono ${selectedSuggestion.actualProfit < 0 ? 'text-red-600' : 'text-green-600'}`}>
-                    // @ts-ignore
                     ${(selectedSuggestion as any).actualProfit?.toFixed(2)}
                   </span>
                 </div>

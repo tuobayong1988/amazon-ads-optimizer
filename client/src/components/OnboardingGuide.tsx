@@ -97,7 +97,6 @@ export function OnboardingGuide({ onComplete }: { onComplete: () => void }) {
               <div
                 // @ts-ignore
                 key={idx}
-                // @ts-ignore
                 className={`h-1 flex-1 rounded-full transition-colors ${
                   // @ts-ignore
                   idx <= currentStep ? 'bg-primary' : 'bg-muted'
@@ -193,7 +192,6 @@ export function EmptyState({
   const [, setLocation] = useLocation();
 
   return (
-    // @ts-ignore
     <div className="flex flex-col items-center justify-center py-16 px-4">
       <div className="w-20 h-20 rounded-2xl bg-muted/30 flex items-center justify-center mb-6">
         {/* @ts-ignore */}

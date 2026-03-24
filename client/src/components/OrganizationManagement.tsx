@@ -203,7 +203,6 @@ export function OrganizationManagement() {
             <TableBody>
               {members && members.length > 0 ? (
                 members.map((member: unknown) => (
-                  // @ts-ignore
                   <TableRow key={member.id}>
                     <TableCell>
                       <div>
@@ -218,7 +217,6 @@ export function OrganizationManagement() {
                       {/* @ts-ignore */}
                       {/* @ts-ignore */}
                       <Badge variant={member.role === 'owner' ? 'default' : 'secondary'}>
-                        // @ts-ignore
                         {(member as any).role === 'owner' ? '所有者' :
                          // @ts-ignore
                          member.role === 'admin' ? '管理员' : '成员'}

@@ -286,7 +286,6 @@ export default function EmailReports() {
           </SelectTrigger>
           <SelectContent>
             {(reportTypes || Object.entries(reportTypeLabels).map(([id, info]) => ({ id, ...info }))).map((type: unknown) => (
-              // @ts-ignore
               <SelectItem key={type.id} value={type.id}>
                 {/* @ts-ignore */}
                 {type.name}
@@ -340,7 +339,6 @@ export default function EmailReports() {
             </SelectTrigger>
             <SelectContent>
               {dayOfWeekLabels.map((label: unknown, index: unknown) => (
-                // @ts-ignore
                 <SelectItem key={index} value={String(index)}>{label}</SelectItem>
               ))}
             </SelectContent>
@@ -360,7 +358,6 @@ export default function EmailReports() {
             </SelectTrigger>
             <SelectContent>
               {Array.from({ length: 28 }, (_, i) => i + 1).map((day: unknown) => (
-                // @ts-ignore
                 <SelectItem key={day} value={String(day)}>{day}号</SelectItem>
               ))}
             </SelectContent>
@@ -406,9 +403,7 @@ export default function EmailReports() {
         {/* @ts-ignore */}
         <div className="flex flex-wrap gap-2 mt-2">
           {form.recipients.map((email: any) => (
-            // @ts-ignore
             <Badge key={email} variant="secondary" className="gap-1">
-              // @ts-ignore
               {String(email)}
               <button
                 // @ts-ignore
@@ -416,9 +411,7 @@ export default function EmailReports() {
                 className="ml-1 hover:text-red-500"
                 // @ts-ignore
                 onClick={() => removeRecipient(email)}
-              // @ts-ignore
               >
-                // @ts-ignore
                 ×
               </button>
             </Badge>
@@ -431,7 +424,6 @@ export default function EmailReports() {
         <p className="text-sm text-muted-foreground mb-2">不选择则包含所有账号</p>
         <div className="space-y-2 max-h-40 overflow-y-auto border rounded-lg p-2">
           {accounts?.map((account: unknown) => (
-            // @ts-ignore
             <div key={account.id} className="flex items-center gap-2">
               <Checkbox
                 // @ts-ignore
@@ -582,9 +574,7 @@ export default function EmailReports() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  // @ts-ignore
                   {subscriptions?.map((subscription: unknown) => (
-                    // @ts-ignore
                     <TableRow key={subscription.id}>
                       <TableCell>
                         {/* @ts-ignore */}
@@ -593,9 +583,7 @@ export default function EmailReports() {
                           <div className="font-medium">{subscription.name}</div>
                           {/* @ts-ignore */}
                           {subscription.description && (
-                            // @ts-ignore
                             <div className="text-sm text-muted-foreground">{subscription.description}</div>
-                          // @ts-ignore
                           )}
                         </div>
                       </TableCell>
@@ -613,18 +601,14 @@ export default function EmailReports() {
                           <Clock className="h-4 w-4 text-muted-foreground" />
                           {/* @ts-ignore */}
                           {frequencyLabels[subscription.frequency as Frequency]}
-                          // @ts-ignore
                           {(subscription as any).frequency === "weekly" && (subscription as any).sendDayOfWeek !== null && (
                             <span className="text-muted-foreground">
-                              // @ts-ignore
                               ({dayOfWeekLabels[(subscription as any).sendDayOfWeek]})
                             {/* @ts-ignore */}
                             </span>
                           )}
-                          // @ts-ignore
                           {(subscription as any).frequency === "monthly" && (subscription as any).sendDayOfMonth && (
                             <span className="text-muted-foreground">
-                              // @ts-ignore
                               ({(subscription as any).sendDayOfMonth}号)
                             </span>
                           )}
@@ -634,22 +618,16 @@ export default function EmailReports() {
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-wrap gap-1">
-                          // @ts-ignore
                           {(((subscription as any).recipients as string[]) || []).slice(0, 2).map((email: unknown) => (
-                            // @ts-ignore
                             <Badge key={email} variant="secondary" className="text-xs">
                               {/* @ts-ignore */}
                               {email.split("@")[0]}
                             </Badge>
-                          // @ts-ignore
                           ))}
-                          // @ts-ignore
                           {(((subscription as any).recipients as string[]) || []).length > 2 && (
                             <Badge variant="secondary" className="text-xs">
-                              // @ts-ignore
                               +{(((subscription as any).recipients as string[]) || []).length - 2}
                             </Badge>
-                          // @ts-ignore
                           )}
                         </div>
                       </TableCell>
@@ -658,12 +636,10 @@ export default function EmailReports() {
                           <Switch
                             // @ts-ignore
                             checked={Boolean(subscription.isActive)}
-                            // @ts-ignore
                             onCheckedChange={() => toggleMutation.mutate({ id: subscription.id })}
                           />
                           {/* @ts-ignore */}
                           <span className={subscription.isActive ? "text-green-500" : "text-muted-foreground"}>
-                            // @ts-ignore
                             {(subscription as any).isActive ? "已启用" : "已暂停"}
                           </span>
                         </div>
@@ -676,7 +652,6 @@ export default function EmailReports() {
                             {safeToLocaleDateString(subscription.nextSendAt, "zh-CN")}
                             <br />
                             <span className="text-muted-foreground">
-                              // @ts-ignore
                               {safeToLocaleTimeString((subscription as any).nextSendAt, "zh-CN", { hour: "2-digit", minute: "2-digit" })}
                             </span>
                           </div>

@@ -216,7 +216,6 @@ function MarketCurveVisualization({
             d={`
               // @ts-ignore
               M ${(curveData[0].bid / maxBid) * 100} ${100 - ((curveData[0].profit - minProfit) / profitRange) * 100}
-              // @ts-ignore
               ${curveData.slice(1).map((p: unknown) => {
                 // @ts-ignore
                 const x = (p.bid / maxBid) * 100;
@@ -301,7 +300,6 @@ function DecisionTreeVisualization({
     );
   }
 
-  // @ts-ignore
   const isLeaf = treeData.isLeaf || (!treeData.left && !treeData.right);
   
   return (
@@ -317,11 +315,9 @@ function DecisionTreeVisualization({
             {/* @ts-ignore */}
             <div>
               <div className="text-sm font-medium">
-                // @ts-ignore
                 预测CR: {((treeData as any).predictedCR * 100).toFixed(2)}%
               </div>
               <div className="text-xs text-muted-foreground">
-                // @ts-ignore
                 样本数: {(treeData as any).samples || 0}
               </div>
             {/* @ts-ignore */}
@@ -337,7 +333,6 @@ function DecisionTreeVisualization({
               </div>
               <div className="text-xs text-muted-foreground">
                 分裂特征
-              // @ts-ignore
               </div>
             </div>
           </div>
@@ -352,13 +347,11 @@ function DecisionTreeVisualization({
             <div>
               <div className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
                 <ChevronRight className="h-3 w-3" /> 是
-              // @ts-ignore
               </div>
               {/* @ts-ignore */}
               <DecisionTreeVisualization treeData={treeData.left} depth={depth + 1} />
             </div>
           )}
-          // @ts-ignore
           {(treeData as any).right && (
             <div>
               <div className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
@@ -434,7 +427,6 @@ function KeywordPredictionTable({
                 className="cursor-pointer hover:bg-muted/50"
                 onClick={() => handleSort('predictedCV')}
               >
-                // @ts-ignore
                 预测CV {sortBy === 'predictedCV' && (sortOrder === 'desc' ? '↓' : '↑')}
               </TableHead>
               {/* @ts-ignore */}
@@ -444,7 +436,6 @@ function KeywordPredictionTable({
                 onClick={() => handleSort('confidence')}
               >
                 置信度 {sortBy === 'confidence' && (sortOrder === 'desc' ? '↓' : '↑')}
-              // @ts-ignore
               </TableHead>
               <TableHead>预测来源</TableHead>
               {/* @ts-ignore */}
@@ -453,12 +444,10 @@ function KeywordPredictionTable({
             </TableRow>
           </TableHeader>
           <TableBody>
-            // @ts-ignore
             {sortedPredictions.slice(0, 20).map((pred: unknown) => {
               // @ts-ignore
               const confidenceInfo = getConfidenceLevel(pred.confidence);
               return (
-                // @ts-ignore
                 <TableRow key={pred.keywordId}>
                   {/* @ts-ignore */}
                   <TableCell className="font-medium max-w-[200px] truncate">
@@ -483,7 +472,6 @@ function KeywordPredictionTable({
                   </TableCell>
                   <TableCell>
                     <Badge variant="secondary">
-                      // @ts-ignore
                       {(pred as any).predictionSource === 'decision_tree' ? '决策树' : 
                        // @ts-ignore
                        pred.predictionSource === 'bayesian' ? '贝叶斯' : '历史数据'}
@@ -492,7 +480,6 @@ function KeywordPredictionTable({
                   <TableCell>
                     {/* @ts-ignore */}
                     {pred.actualCR !== undefined ? (
-                      // @ts-ignore
                       <span className={pred.actualCR > pred.predictedCR ? 'text-green-500' : 'text-red-500'}>
                         {/* @ts-ignore */}
                         {(pred.actualCR * 100).toFixed(2)}%
@@ -639,9 +626,7 @@ function BidObjectProfitTable({
                 <input
                   type="checkbox"
                   checked={selectedIds.size === profitData.length && profitData.length > 0}
-                  // @ts-ignore
                   onChange={selectAll}
-                  // @ts-ignore
                   className="rounded"
                 />
               </TableHead>
@@ -659,7 +644,6 @@ function BidObjectProfitTable({
           {/* @ts-ignore */}
           </TableHeader>
           <TableBody>
-            // @ts-ignore
             {profitData.map((item: unknown) => {
               // @ts-ignore
               const confidenceInfo = getConfidenceLevel(item.confidence);
@@ -671,14 +655,12 @@ function BidObjectProfitTable({
                 : 0;
               
               return (
-                // @ts-ignore
                 <TableRow key={item.bidObjectId}>
                   <TableCell>
                     <input
                       type="checkbox"
                       // @ts-ignore
                       checked={selectedIds.has(item.bidObjectId)}
-                      // @ts-ignore
                       onChange={() => toggleSelect(item.bidObjectId)}
                       className="rounded"
                     />
@@ -689,7 +671,6 @@ function BidObjectProfitTable({
                   </TableCell>
                   <TableCell>
                     <Badge variant="outline">
-                      // @ts-ignore
                       {(item as any).bidObjectType === 'keyword' ? '关键词' : 'ASIN'}
                     </Badge>
                   </TableCell>
@@ -722,7 +703,6 @@ function BidObjectProfitTable({
                     </Badge>
                   </TableCell>
                 </TableRow>
-              // @ts-ignore
               );
             })}
           </TableBody>
@@ -809,7 +789,6 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null
       return;
     // @ts-ignore
     }
-    // @ts-ignore
     generateSuggestionsMutation.mutate({
       // @ts-ignore
       accountId: selectedAccountId,
@@ -854,7 +833,6 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null
       };
     }
 
-    // @ts-ignore
     const totalSpend = performanceData.reduce((sum: number, p: Record<string, unknown>) => sum + (p.metrics?.spend || 0), 0);
     // @ts-ignore
     const totalSales = performanceData.reduce((sum: number, p: Record<string, unknown>) => sum + (p.metrics?.sales || 0), 0);
@@ -923,9 +901,7 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null
               高级位置优化
             </h1>
             <p className="text-muted-foreground">
-              // @ts-ignore
               基于核心算法：市场曲线建模、决策树预测、利润最大化优化
-            // @ts-ignore
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -944,11 +920,9 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null
             <Button 
               onClick={handleAnalyze}
               disabled={!selectedAccountId || generateSuggestionsMutation.isPending}
-            // @ts-ignore
             >
               {/* @ts-ignore */}
               {generateSuggestionsMutation.isPending ? (
-                // @ts-ignore
                 <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
               ) : (
                 <Sparkles className="h-4 w-4 mr-2" />
@@ -977,7 +951,6 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null
                   </SelectTrigger>
                   <SelectContent>
                     {accounts?.map((account: unknown) => (
-                      // @ts-ignore
                       <SelectItem key={account.id} value={account.id.toString()}>
                         {/* @ts-ignore */}
                         {account.storeName || account.accountName}
@@ -998,9 +971,7 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">全部广告活动</SelectItem>
-                    // @ts-ignore
                     {(campaigns as any).map((campaign: unknown) => (
-                      // @ts-ignore
                       <SelectItem key={campaign.id} value={campaign.campaignId}>
                         {/* @ts-ignore */}
                         {campaign.campaignName}
@@ -1147,7 +1118,6 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null
                     <CardTitle className="flex items-center gap-2">
                       <Calculator className="h-5 w-5" />
                       利润最大化公式
-                    // @ts-ignore
                     </CardTitle>
                     <CardDescription>
                       广告利润 = 收入 - 广告支出
@@ -1331,7 +1301,6 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null
                     {/* @ts-ignore */}
                     <CardTitle className="flex items-center gap-2">
                       <TreeDeciduous className="h-5 w-5" />
-                      // @ts-ignore
                       决策树结构
                     </CardTitle>
                     {/* @ts-ignore */}
@@ -1394,7 +1363,6 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null
                       { name: "产品类别", importance: 0.12, color: "bg-orange-500" },
                       { name: "平均出价", importance: 0.08, color: "bg-pink-500" },
                     ].map((feature: unknown) => (
-                      // @ts-ignore
                       <div key={feature.name} className="space-y-1">
                         <div className="flex justify-between text-sm">
                           {/* @ts-ignore */}
@@ -1408,7 +1376,6 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null
                           <div 
                             // @ts-ignore
                             className={`h-full ${feature.color}`}
-                            // @ts-ignore
                             style={{ width: `${feature.importance * 100}%` }}
                           />
                         </div>

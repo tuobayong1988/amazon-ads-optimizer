@@ -214,9 +214,7 @@ const [activeTab, setActiveTab] = useState("overview");
                 <SelectValue placeholder="选择账号" />
               </SelectTrigger>
               <SelectContent>
-                // @ts-ignore
                 {accounts?.map((account: unknown) => (
-                  // @ts-ignore
                   <SelectItem key={account.id} value={account.id.toString()}>
                     {/* @ts-ignore */}
                     {account.accountName}
@@ -252,9 +250,7 @@ const [activeTab, setActiveTab] = useState("overview");
                   {/* @ts-ignore */}
                   {analysisResult.summary.criticalIssues.length > 0 ? (
                     <ul className="space-y-2">
-                      // @ts-ignore
                       {analysisResult.summary.criticalIssues.map((issue: unknown, idx: unknown) => (
-                        // @ts-ignore
                         <li key={idx} className="flex items-start gap-2 text-sm">
                           <XCircle className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
                           {/* @ts-ignore */}
@@ -278,7 +274,6 @@ const [activeTab, setActiveTab] = useState("overview");
                   {analysisResult.summary.recommendations.length > 0 ? (
                     <ul className="space-y-2">
                       {analysisResult.summary.recommendations.slice(0, 4).map((rec: unknown, idx: unknown) => (
-                        // @ts-ignore
                         <li key={idx} className="flex items-start gap-2 text-sm">
                           <ChevronRight className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" />
                           {/* @ts-ignore */}
@@ -424,16 +419,13 @@ const [activeTab, setActiveTab] = useState("overview");
                   {/* @ts-ignore */}
                   <CardTitle className="flex items-center gap-2">
                     <Calendar className="w-5 h-5" />
-                    // @ts-ignore
                     即将到来的大促活动
-                  // @ts-ignore
                   </CardTitle>
                 {/* @ts-ignore */}
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     {upcomingEvents.slice(0, 3).map((event: unknown, idx: unknown) => (
-                      // @ts-ignore
                       <div key={idx} className="p-4 rounded-lg border bg-card">
                         <div className="flex items-center justify-between mb-2">
                           {/* @ts-ignore */}
@@ -449,7 +441,6 @@ const [activeTab, setActiveTab] = useState("overview");
                           {safeToLocaleDateString(event.event.date, 'zh-CN')}
                         </p>
                         <p className="text-sm text-muted-foreground">
-                          // @ts-ignore
                           持续 {(event as any).event.duration} 天
                         </p>
                       </div>
@@ -471,7 +462,6 @@ const [activeTab, setActiveTab] = useState("overview");
               </CardHeader>
               <CardContent>
                 {budgetRisks && budgetRisks.length > 0 ? (
-                  // @ts-ignore
                   <Table>
                     {/* @ts-ignore */}
                     <TableHeader>
@@ -491,7 +481,6 @@ const [activeTab, setActiveTab] = useState("overview");
                     </TableHeader>
                     <TableBody>
                       {budgetRisks.map((risk: unknown) => (
-                        // @ts-ignore
                         <TableRow key={risk.campaignId}>
                           {/* @ts-ignore */}
                           <TableCell className="font-medium">{risk.campaignName}</TableCell>
@@ -564,7 +553,6 @@ const [activeTab, setActiveTab] = useState("overview");
                       <p className="font-medium text-blue-500">归因延迟说明</p>
                       {/* @ts-ignore */}
                       <p className="text-sm text-muted-foreground mt-1">
-                        // @ts-ignore
                         Amazon广告的转化归因窗口为7-14天。第1天数据约70%完成归因，第3天约90%，第7天接近100%。
                         // @ts-ignore
                         系统自动调整近期数据，帮助您做出更准确的决策。
@@ -596,9 +584,7 @@ const [activeTab, setActiveTab] = useState("overview");
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      // @ts-ignore
                       {(attributionData as any).map((day: unknown) => (
-                        // @ts-ignore
                         <TableRow key={day.date}>
                           {/* @ts-ignore */}
                           <TableCell className="font-medium">{day.date}</TableCell>
@@ -607,12 +593,9 @@ const [activeTab, setActiveTab] = useState("overview");
                           {/* @ts-ignore */}
                           <TableCell>${day.raw.sales.toFixed(2)}</TableCell>
                           <TableCell className="text-blue-500">
-                            // @ts-ignore
                             ${(day as any).adjusted.sales.toFixed(2)}
-                            // @ts-ignore
                             {(day as any).adjusted.isAdjusted && (
                               <span className="text-xs text-muted-foreground ml-1">
-                                // @ts-ignore
                                 (+{(((day as any).adjusted.adjustmentFactor - 1) * 100).toFixed(0)}%)
                               </span>
                             )}
@@ -741,7 +724,6 @@ const [activeTab, setActiveTab] = useState("overview");
               </CardHeader>
               <CardContent>
                 {bidEfficiency?.topOverbidding && bidEfficiency.topOverbidding.length > 0 ? (
-                  // @ts-ignore
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -758,9 +740,7 @@ const [activeTab, setActiveTab] = useState("overview");
                                 setSelectedKeywords([]);
                               // @ts-ignore
                               }
-                            // @ts-ignore
                             }}
-                          // @ts-ignore
                           />
                         </TableHead>
                         <TableHead>投放词</TableHead>
@@ -781,7 +761,6 @@ const [activeTab, setActiveTab] = useState("overview");
                     {/* @ts-ignore */}
                     <TableBody>
                       {bidEfficiency.topOverbidding.map((item: unknown) => (
-                        // @ts-ignore
                         <TableRow key={item.targetId}>
                           <TableCell>
                             {/* @ts-ignore */}
@@ -797,7 +776,6 @@ const [activeTab, setActiveTab] = useState("overview");
                                   setSelectedKeywords(selectedKeywords.filter(id => id !== item.targetId));
                                 }
                               }}
-                              // @ts-ignore
                               disabled={!item.isOverbidding}
                             />
                           </TableCell>
@@ -808,7 +786,6 @@ const [activeTab, setActiveTab] = useState("overview");
                           </TableCell>
                           <TableCell>
                             <Badge variant="outline">
-                              // @ts-ignore
                               {(item as any).targetType === 'keyword' ? '关键词' : '商品定向'}
                             </Badge>
                           </TableCell>
@@ -830,20 +807,16 @@ const [activeTab, setActiveTab] = useState("overview");
                             </div>
                           </TableCell>
                           <TableCell className="text-blue-500 font-medium">
-                            // @ts-ignore
                             ${(item as any).suggestedBid.toFixed(2)}
                           </TableCell>
                           <TableCell className="text-green-500">
-                            // @ts-ignore
                             ${(item as any).expectedSavings.toFixed(2)}
                           </TableCell>
                           <TableCell className="max-w-xs">
                             {/* @ts-ignore */}
                             {item.overbiddingReasons.length > 0 ? (
                               <ul className="text-xs text-muted-foreground">
-                                // @ts-ignore
                                 {(item as any).overbiddingReasons.slice(0, 2).map((reason: unknown, idx: unknown) => (
-                                  // @ts-ignore
                                   <li key={idx}>• {reason}</li>
                                 ))}
                               </ul>
@@ -861,7 +834,6 @@ const [activeTab, setActiveTab] = useState("overview");
                     <p>暂无竞价效率数据</p>
                     <p className="text-sm">请确保账号有足够的投放数据</p>
                   </div>
-                // @ts-ignore
                 )}
               </CardContent>
             </Card>
@@ -871,7 +843,6 @@ const [activeTab, setActiveTab] = useState("overview");
           <TabsContent value="seasonal" className="space-y-4">
             {/* 当日策略 */}
             {seasonalStrategy && (
-              // @ts-ignore
               <Card>
                 <CardHeader>
                   <CardTitle>今日季节性调整建议</CardTitle>
@@ -926,7 +897,6 @@ const [activeTab, setActiveTab] = useState("overview");
                 {upcomingEvents && upcomingEvents.length > 0 ? (
                   <div className="space-y-4">
                     {upcomingEvents.map((event: unknown, idx: unknown) => (
-                      // @ts-ignore
                       <div key={idx} className="p-4 rounded-lg border bg-card">
                         <div className="flex items-center justify-between mb-2">
                           <div className="flex items-center gap-3">
@@ -950,11 +920,9 @@ const [activeTab, setActiveTab] = useState("overview");
                           <div className="text-right">
                             {/* @ts-ignore */}
                             <Badge variant={event.daysUntil <= 7 ? "destructive" : event.daysUntil <= 14 ? "outline" : "secondary"}>
-                              // @ts-ignore
                               {(event as any).daysUntil === 0 ? '今天' : `${(event as any).daysUntil}天后`}
                             </Badge>
                             <p className="text-sm text-muted-foreground mt-1">
-                              // @ts-ignore
                               持续 {(event as any).event.duration} 天
                             </p>
                           </div>

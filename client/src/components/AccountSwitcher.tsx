@@ -463,7 +463,6 @@ export default function AccountSwitcher({ compact = false, showStatus = true }: 
             <div className="px-2 py-4 text-center text-sm text-muted-foreground">
               没有符合筛选条件的账号
             </div>
-          // @ts-ignore
           ) : (
             // @ts-ignore
             filteredAccounts.map((account: unknown, index: unknown) => {
@@ -477,9 +476,7 @@ export default function AccountSwitcher({ compact = false, showStatus = true }: 
                 <DropdownMenuItem
                   // @ts-ignore
                   key={account.id}
-                  // @ts-ignore
                   className={`flex items-center gap-3 py-2.5 cursor-pointer ${isSelected ? 'bg-accent' : ''}`}
-                  // @ts-ignore
                   onClick={() => handleSwitchAccount(account.id)}
                 >
                   <div
@@ -501,9 +498,7 @@ export default function AccountSwitcher({ compact = false, showStatus = true }: 
                       {/* @ts-ignore */}
                       {!!account.isDefault && (
                         <Badge variant="outline" className="text-[10px] px-1 py-0">默认</Badge>
-                      // @ts-ignore
                       )}
-                    // @ts-ignore
                     </div>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       {/* @ts-ignore */}
@@ -515,9 +510,7 @@ export default function AccountSwitcher({ compact = false, showStatus = true }: 
                     </div>
                   </div>
                   {isSelected && <Check className="h-4 w-4 text-primary shrink-0" />}
-                  // @ts-ignore
                   {(index as any) < 9 && (
-                    // @ts-ignore
                     <DropdownMenuShortcut>Alt+{index + 1}</DropdownMenuShortcut>
                   )}
                 </DropdownMenuItem>

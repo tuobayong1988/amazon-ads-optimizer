@@ -62,7 +62,6 @@ export default function PrelaunchM5Visual() {
               // @ts-ignore
               value={projectId || ''} onChange={(e) => setProjectId(Number(e.target.value))}>
               <option value="">选择项目</option>
-              // @ts-ignore
               {projects.map((p: unknown) => <option key={(p as any).id} value={(p as any).id}>{(p as any).projectName}</option>)}
             </select>
             <Button variant="outline" size="sm" onClick={() => briefsQuery.refetch()} disabled={briefsQuery.isFetching}>
@@ -88,12 +87,9 @@ export default function PrelaunchM5Visual() {
               </Button>
             </CardContent>
           </Card>
-        // @ts-ignore
         ) : (
-          // @ts-ignore
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {briefsData.map((brief: unknown) => (
-              // @ts-ignore
               <Card key={brief.id} className="hover:border-pink-500/30 transition-colors overflow-hidden">
                 {/* @ts-ignore */}
                 {brief.imageUrl ? (
@@ -109,7 +105,6 @@ export default function PrelaunchM5Visual() {
                     {/* @ts-ignore */}
                     </div>
                   </div>
-                // @ts-ignore
                 )}
                 <CardContent className="p-4">
                   {/* @ts-ignore */}

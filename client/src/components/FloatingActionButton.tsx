@@ -105,12 +105,10 @@ export function FloatingActionButton({
                 animationDelay: `${index * 50}ms`,
                 animation: "fadeInUp 0.2s ease-out forwards"
               }}
-            // @ts-ignore
             >
               <span className="bg-background/95 backdrop-blur-sm text-foreground text-xs px-2 py-1 rounded-md shadow-md whitespace-nowrap">
                 {/* @ts-ignore */}
                 {action.label}
-              // @ts-ignore
               </span>
               <Button
                 size="icon"
@@ -123,7 +121,6 @@ export function FloatingActionButton({
                   action.onClick();
                   setIsOpen(false);
                 }}
-                // @ts-ignore
                 disabled={action.disabled}
               >
                 {/* @ts-ignore */}

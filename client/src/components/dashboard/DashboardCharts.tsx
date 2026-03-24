@@ -64,7 +64,6 @@ export default function DashboardCharts({
                     borderRadius: '8px',
                     boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
                   }}
-                  // @ts-ignore
                   formatter={((value: number, name: string) => [
                     `$${value.toLocaleString()}`,
                     name === 'totalSales' ? '销售额' : '花费'
@@ -151,7 +150,6 @@ export default function DashboardCharts({
                       // @ts-ignore
                       boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
                     }}
-                    // @ts-ignore
                     formatter={((value: number) => [`${currencySymbol}${value}`, '']) as unknown}
                   />
                   <Area 
@@ -218,7 +216,6 @@ export default function DashboardCharts({
                       borderRadius: '8px',
                       boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
                     }}
-                    // @ts-ignore
                     formatter={((value: number) => [`${value}%`, 'ACoS']) as unknown}
                   />
                   <Line 
@@ -284,7 +281,6 @@ export default function DashboardCharts({
                     borderRadius: '8px',
                     boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
                   }}
-                  // @ts-ignore
                   formatter={((value: number) => [`${currencySymbol}${value}`, '']) as unknown}
                 />
                 <Bar dataKey="thisWeek" name="本周" fill="#3b82f6" radius={[4, 4, 0, 0]} />

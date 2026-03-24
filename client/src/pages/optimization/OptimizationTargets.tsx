@@ -374,29 +374,22 @@ function CreateOptimizationTargetDialog({
               </div>
               <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">
                 以下参数已自动填充，您可以根据需要进行调整
-              // @ts-ignore
               </div>
             </div>
           </div>
-        // @ts-ignore
         )}
 
-        // @ts-ignore
         {/* 步骤指示器 */}
         <div className="flex items-center justify-center gap-2 py-4">
-          // @ts-ignore
           {[1, 2, 3].map((s: unknown) => (
-            // @ts-ignore
             <div key={s} className="flex items-center">
               <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
                 s === step ? "bg-primary text-primary-foreground" : 
                 // @ts-ignore
                 s < step ? "bg-green-500 text-white" : "bg-muted text-muted-foreground"
               }`}>
-                // @ts-ignore
                 {Number(s) < step ? <CheckCircle2 className="w-4 h-4" /> : String(s)}
               </div>
-              // @ts-ignore
               {(s as any) < 3 && <div className={`w-12 h-0.5 ${(s as any) < step ? "bg-green-500" : "bg-muted"}`} />}
             </div>
           ))}
@@ -411,9 +404,7 @@ function CreateOptimizationTargetDialog({
                 <Input 
                   placeholder="例如：高转化关键词优化" 
                   value={name}
-                  // @ts-ignore
                   onChange={(e) => setName(e.target.value)}
-                // @ts-ignore
                 />
               </div>
               <div className="space-y-2">
@@ -425,7 +416,6 @@ function CreateOptimizationTargetDialog({
                   <SelectContent>
                     <SelectItem value="all">所有账号</SelectItem>
                     {accounts?.map((account: unknown) => (
-                      // @ts-ignore
                       <SelectItem key={account.id} value={account.id.toString()}>
                         {/* @ts-ignore */}
                         {account.accountName}
@@ -667,7 +657,6 @@ function CreateOptimizationTargetDialog({
                 ) : filteredCampaigns.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground">
                     没有符合条件的广告活动
-                  // @ts-ignore
                   </div>
                 ) : (
                   <div 
@@ -682,7 +671,6 @@ function CreateOptimizationTargetDialog({
                         position: 'relative',
                       }}
                     >
-                      // @ts-ignore
                       {campaignVirtualizer.getVirtualItems().map((virtualRow: unknown) => {
                         // @ts-ignore
                         const campaign = filteredCampaigns[virtualRow.index];
@@ -691,7 +679,6 @@ function CreateOptimizationTargetDialog({
                         return (
                           <div
                             key={campaign.id}
-                            // @ts-ignore
                             data-index={virtualRow.index}
                             ref={campaignVirtualizer.measureElement}
                             style={{
@@ -848,14 +835,12 @@ function CreateOptimizationTargetDialog({
               <Button onClick={handleCreate} disabled={createMutation.isPending}>
                 {createMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                 创建优化目标
-              // @ts-ignore
               </Button>
             )}
           </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  // @ts-ignore
   );
 }
 
@@ -877,14 +862,12 @@ function OptimizationTargetCard({
 
   // 获取执行摘要
   const { data: executionSummary, isLoading: summaryLoading } = trpc.performanceGroup.getExecutionSummary.useQuery(
-    // @ts-ignore
     { targetId: target.id },
     { enabled: isActive }
   );
 
   // 预览执行
   const { data: previewData, isLoading: previewLoading } = trpc.performanceGroup.previewExecution.useQuery(
-    // @ts-ignore
     { targetId: target.id },
     { enabled: showPreview }
   );
@@ -970,7 +953,6 @@ function OptimizationTargetCard({
 
   // @ts-ignore
   return (
-    // @ts-ignore
     <Card className="relative overflow-hidden">
       {/* @ts-ignore */}
       {/* 状态指示条 */}
@@ -1014,13 +996,9 @@ function OptimizationTargetCard({
             <p className="font-medium text-sm flex items-center gap-1">
               {/* @ts-ignore */}
               {target.targetType === "maximize_sales" && <TrendingUp className="w-4 h-4 text-green-500" />}
-              // @ts-ignore
               {(target as any).targetType === "target_acos" && <Percent className="w-4 h-4 text-blue-500" />}
-              // @ts-ignore
               {(target as any).targetType === "target_roas" && <BarChart3 className="w-4 h-4 text-purple-500" />}
-              // @ts-ignore
               {(target as any).targetType === "target_cpa" && <DollarSign className="w-4 h-4 text-orange-500" />}
-              // @ts-ignore
               {getTargetTypeLabel()}
               {getTargetValueDisplay() && (
                 <span className="text-primary ml-1">{getTargetValueDisplay()}</span>
@@ -1033,7 +1011,6 @@ function OptimizationTargetCard({
             {/* @ts-ignore */}
             <p className="font-medium text-sm">
               {/* @ts-ignore */}
-              // @ts-ignore
               {target.dailyBudget ? `$${target.dailyBudget}` : "未设置"}
             </p>
           {/* @ts-ignore */}
@@ -1044,7 +1021,6 @@ function OptimizationTargetCard({
         {/* @ts-ignore */}
         {/* @ts-ignore */}
         {target.goalProgress !== null && target.goalProgress !== undefined && target.goalProgress > 0 && (
-          // @ts-ignore
           <div className="pt-2 border-t space-y-1.5">
             {/* @ts-ignore */}
             <div className="flex items-center justify-between mb-1">
@@ -1054,7 +1030,6 @@ function OptimizationTargetCard({
                 {/* @ts-ignore */}
                 {/* @ts-ignore */}
                 {target.goalProgressDetail?.level && (
-                  // @ts-ignore
                   <span className={`text-[10px] px-1 py-0.5 rounded font-medium ${
                     // @ts-ignore
                     target.goalProgressDetail.level === 'excellent' ? 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400' :
@@ -1066,7 +1041,6 @@ function OptimizationTargetCard({
                     'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400'
                   // @ts-ignore
                   }`}>
-                    // @ts-ignore
                     {(target as any).goalProgressDetail.level === 'excellent' ? '优秀' :
                      // @ts-ignore
                      target.goalProgressDetail.level === 'good' ? '良好' :
@@ -1102,7 +1076,6 @@ function OptimizationTargetCard({
                   target.goalProgress >= 40 ? 'bg-gradient-to-r from-yellow-500 to-amber-400' :
                   'bg-gradient-to-r from-red-500 to-orange-400'
                 }`}
-                // @ts-ignore
                 style={{ width: `${Math.min(100, target.goalProgress)}%` }}
               />
             </div>
@@ -1110,12 +1083,9 @@ function OptimizationTargetCard({
             {/* @ts-ignore */}
             {/* @ts-ignore */}
             {target.goalProgressDetail?.dimensions && target.goalProgressDetail.dimensions.length > 0 && (
-              // @ts-ignore
               <div className={`grid gap-1 ${target.goalProgressDetail.dimensions.length >= 5 ? 'grid-cols-5' : 'grid-cols-4'}`}>
                 {/* @ts-ignore */}
-                // @ts-ignore
                 {target.goalProgressDetail.dimensions.map((dim: unknown) => (
-                  // @ts-ignore
                   <div key={dim.name} className="text-center" title={dim.detail}>
                     {/* @ts-ignore */}
                     <div className="text-[9px] text-muted-foreground">{dim.nameZh}</div>
@@ -1142,7 +1112,6 @@ function OptimizationTargetCard({
                           dim.score >= 40 ? 'bg-yellow-500' :
                           'bg-red-500'
                         }`}
-                        // @ts-ignore
                         style={{ width: `${Math.min(100, Math.max(0, dim.score))}%` }}
                       />
                     </div>
@@ -1235,7 +1204,6 @@ function OptimizationTargetCard({
             className="flex-1" 
             onClick={handleExecute}
             disabled={!isActive || isExecuting}
-          // @ts-ignore
           >
             {isExecuting ? (
               <Loader2 className="w-4 h-4 mr-1 animate-spin" />
@@ -1243,7 +1211,6 @@ function OptimizationTargetCard({
               <Play className="w-4 h-4 mr-1" />
             )}
             {isExecuting ? "执行中..." : "执行优化"}
-          // @ts-ignore
           </Button>
         {/* @ts-ignore */}
         </div>
@@ -1294,7 +1261,6 @@ export default function OptimizationTargets() {
     // 如果有选中的店铺和站点，精确匹配
     if (currentStore && currentMarketplace) {
       const account = accounts.find((a: unknown) => 
-        // @ts-ignore
         (a.storeName || a.accountName).trim() === currentStore && 
         // @ts-ignore
         a.marketplace === currentMarketplace
@@ -1305,7 +1271,6 @@ export default function OptimizationTargets() {
     // 如果只有店铺，匹配第一个站点
     if (currentStore) {
       const account = accounts.find((a: unknown) => 
-        // @ts-ignore
         (a.storeName || a.accountName).trim() === currentStore
       );
       if (account) return account.id;
@@ -1323,7 +1288,6 @@ export default function OptimizationTargets() {
 
   // v426: 使用轻量级statusCounts API替代全量加载
   const { data: campaignCounts } = trpc.campaign.statusCounts.useQuery(
-    // @ts-ignore
     { accountId: currentAccountId as unknown},
 
     { enabled: !!currentAccountId }

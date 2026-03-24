@@ -327,19 +327,15 @@ const [alertTypeFilter, setAlertTypeFilter] = useState<AlertType | "all">("all")
                         {/* @ts-ignore */}
                         <div className="text-right">
                           <p className="text-sm">
-                            // @ts-ignore
                             偏差: <span className="font-medium">{Number((alert as any).deviationPercent || 0).toFixed(1)}%</span>
                           {/* @ts-ignore */}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            // @ts-ignore
                             ${Number((alert as any).currentSpend || 0).toFixed(2)} / ${Number((alert as any).dailyBudget || 0).toFixed(2)}
-                          // @ts-ignore
                           </p>
                         </div>
                         {/* @ts-ignore */}
                         {getStatusBadge(alert.status || "active")}
-                        // @ts-ignore
                         {(alert as any).status === "active" && (
                           <Button
                             size="sm"

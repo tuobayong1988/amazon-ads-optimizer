@@ -141,11 +141,8 @@ export default function DataHealthDashboard() {
                   <div className="flex items-center gap-2 mb-2">
                     {/* @ts-ignore */}
                     {getHealthBadge(overall.status)}
-                    // @ts-ignore
                     <span className="text-sm text-muted-foreground">
-                      // @ts-ignore
                       最后检查: {new Date((overall as any).lastChecked).toLocaleString()}
-                    // @ts-ignore
                     </span>
                   </div>
                   {/* @ts-ignore */}
@@ -153,7 +150,6 @@ export default function DataHealthDashboard() {
                   {/* @ts-ignore */}
                   {overall.issues?.length > 0 && (
                     <div className="mt-3 space-y-1">
-                      // @ts-ignore
                       {((overall as any).issues as string[]).map((issue: string, i: number) => (
                         <div key={i} className="flex items-center gap-2 text-sm text-yellow-600">
                           <AlertTriangle className="h-3 w-3" />
@@ -189,7 +185,6 @@ export default function DataHealthDashboard() {
                     {(data.syncJobs as unknown)?.stats24h?.successRate ?? 0}%
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    // @ts-ignore
                     24h成功率 ({(data.syncJobs as any)?.stats24h?.succeeded ?? 0}/{(data.syncJobs as any)?.stats24h?.total ?? 0})
                   </p>
                   {/* @ts-ignore */}
@@ -225,7 +220,6 @@ export default function DataHealthDashboard() {
                 {/* @ts-ignore */}
                 {getStatusIcon((data?.rateLimiting as unknown)?.status)}
                 <span className="text-sm capitalize">
-                  // @ts-ignore
                   {(data?.rateLimiting as any)?.status === 'active' ? '运行中' : '未激活'}
                 </span>
               </div>
@@ -251,13 +245,11 @@ export default function DataHealthDashboard() {
                 {/* @ts-ignore */}
                 {getStatusIcon((data?.selfHealing as unknown)?.status)}
                 <span className="text-sm">
-                  // @ts-ignore
                   {(data?.selfHealing as any)?.status === 'running' ? '运行中' : '已停止'}
                 </span>
               {/* @ts-ignore */}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
-                // @ts-ignore
                 已执行 {(data?.selfHealing as any)?.totalExecutions ?? 0} 次自愈任务
               </p>
             </CardContent>
@@ -277,12 +269,10 @@ export default function DataHealthDashboard() {
                 {/* @ts-ignore */}
                 {getStatusIcon((data?.confirmationService as unknown)?.status)}
                 <span className="text-sm">
-                  // @ts-ignore
                   {(data?.confirmationService as any)?.status === 'active' ? '运行中' : '未激活'}
                 </span>
               </div>
               <p className="text-xs text-muted-foreground mt-1">
-                // @ts-ignore
                 待确认: {(data?.confirmationService as any)?.metrics?.pendingRequests ?? 0} 条
               </p>
             {/* @ts-ignore */}
@@ -315,20 +305,14 @@ export default function DataHealthDashboard() {
                 {/* @ts-ignore */}
                 {(data?.syncJobs as unknown)?.recent?.length > 0 ? (
                   <div className="space-y-2">
-                    // @ts-ignore
                     {((data?.syncJobs as any)?.recent as unknown[])?.map((job: unknown) => (
-                      // @ts-ignore
                       <div key={job.id} className="flex items-center justify-between p-3 rounded-lg border">
                         <div className="flex items-center gap-3">
                           {/* @ts-ignore */}
                           {job.status === 'completed' ? (
-                            // @ts-ignore
                             <CheckCircle className="h-5 w-5 text-green-500" />
-                          // @ts-ignore
                           ) : job.status === 'failed' ? (
-                            // @ts-ignore
                             <XCircle className="h-5 w-5 text-red-500" />
-                          // @ts-ignore
                           ) : (
                             <Activity className="h-5 w-5 text-blue-500 animate-pulse" />
                           )}
@@ -336,7 +320,6 @@ export default function DataHealthDashboard() {
                             {/* @ts-ignore */}
                             <div className="text-sm font-medium">账户 #{job.accountId}</div>
                             <div className="text-xs text-muted-foreground">
-                              // @ts-ignore
                               {(job as any).startedAt ? new Date((job as any).startedAt).toLocaleString() : '未开始'}
                             </div>
                           </div>
@@ -359,7 +342,6 @@ export default function DataHealthDashboard() {
                             // @ts-ignore
                             job.status === 'failed' ? 'destructive' : 'secondary'
                           }>
-                            // @ts-ignore
                             {(job as any).status === 'completed' ? '完成' :
                              // @ts-ignore
                              job.status === 'failed' ? '失败' :
@@ -372,12 +354,10 @@ export default function DataHealthDashboard() {
                     ))}
                   </div>
                 ) : (
-                  // @ts-ignore
                   <div className="text-center text-muted-foreground py-8">
                     暂无同步任务数据
                   </div>
                 )}
-              // @ts-ignore
               </CardContent>
             </Card>
           </TabsContent>
@@ -449,9 +429,7 @@ export default function DataHealthDashboard() {
                         <div className="flex items-center gap-1 mt-1">
                           {getStatusIcon(selfHealingQuery.data.status.running ? 'running' : 'stopped')}
                           <span className="font-medium">
-                            // @ts-ignore
                             {selfHealingQuery.data.status.running ? '运行中' : '已停止'}
-                          // @ts-ignore
                           </span>
                         </div>
                       {/* @ts-ignore */}
@@ -490,11 +468,9 @@ export default function DataHealthDashboard() {
                             <div className="flex items-center gap-2">
                               {/* @ts-ignore */}
                               {taskStatus.enabled ? (
-                                // @ts-ignore
                                 <CheckCircle className="h-4 w-4 text-green-500" />
                               ) : (
                                 <XCircle className="h-4 w-4 text-gray-400" />
-                              // @ts-ignore
                               )}
                               <span className="text-sm font-medium">{taskId}</span>
                             </div>
@@ -504,13 +480,10 @@ export default function DataHealthDashboard() {
                               {/* @ts-ignore */}
                               {taskStatus.consecutiveFailures > 0 && (
                                 <Badge variant="destructive" className="text-xs">
-                                  // @ts-ignore
                                   连续失败 {(taskStatus as any).consecutiveFailures}
                                 </Badge>
                               )}
-                              // @ts-ignore
                               <Badge variant={(taskStatus as any).enabled ? "default" : "secondary"}>
-                                // @ts-ignore
                                 {(taskStatus as any).enabled ? '启用' : '禁用'}
                               </Badge>
                             </div>
@@ -524,17 +497,14 @@ export default function DataHealthDashboard() {
                       <div className="space-y-2">
                         <h4 className="text-sm font-medium">最近执行记录</h4>
                         {(selfHealingQuery.data.recentHistory as unknown[]).slice(0, 5).map((record: unknown, i: number) => (
-                          // @ts-ignore
                           <div key={i} className="flex items-center justify-between p-2 rounded border text-sm">
                             <div className="flex items-center gap-2">
                               {/* @ts-ignore */}
                               {record.result?.success ? (
                                 <CheckCircle className="h-3 w-3 text-green-500" />
                               ) : (
-                                // @ts-ignore
                                 <XCircle className="h-3 w-3 text-red-500" />
                               )}
-                              // @ts-ignore
                               <span>{(record as any).taskId}</span>
                             </div>
                             <div className="flex items-center gap-3 text-muted-foreground">

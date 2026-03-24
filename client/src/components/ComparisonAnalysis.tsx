@@ -195,7 +195,6 @@ export function ComparisonAnalysis({ groups }: ComparisonAnalysisProps) {
             </div>
 
             {selectedGroups.length > 0 && (
-              // @ts-ignore
               <>
                 {/* 控制器 */}
                 <div className="flex items-center gap-4">
@@ -237,7 +236,6 @@ export function ComparisonAnalysis({ groups }: ComparisonAnalysisProps) {
                 {/* @ts-ignore */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {statistics.map((stat: unknown, index: unknown) => (
-                    // @ts-ignore
                     <Card key={stat?.groupId}>
                       {/* @ts-ignore */}
                       <CardHeader className="pb-2">
@@ -250,12 +248,10 @@ export function ComparisonAnalysis({ groups }: ComparisonAnalysisProps) {
                             variant={stat?.trend === 'up' ? 'default' : stat?.trend === 'down' ? 'destructive' : 'secondary'}
                             className="text-xs"
                           >
-                            // @ts-ignore
                             {(stat as any).trend === 'up' ? <TrendingUp className="w-3 h-3 mr-1" /> :
                              // @ts-ignore
                              stat?.trend === 'down' ? <TrendingDown className="w-3 h-3 mr-1" /> :
                              <Minus className="w-3 h-3 mr-1" />}
-                            // @ts-ignore
                             {Math.abs((stat as any)?.trendPercent || 0).toFixed(1)}%
                           </Badge>
                         </CardTitle>
@@ -304,7 +300,6 @@ export function ComparisonAnalysis({ groups }: ComparisonAnalysisProps) {
                             <YAxis
                               className="text-xs"
                               tick={{ fill: 'hsl(var(--muted-foreground))' }}
-                            // @ts-ignore
                             />
                             <Tooltip
                               contentStyle={{
@@ -323,11 +318,9 @@ export function ComparisonAnalysis({ groups }: ComparisonAnalysisProps) {
                                   key={groupId}
                                   type="monotone"
                                   dataKey={`${group?.name}_${metric}`}
-                                  // @ts-ignore
                                   stroke={COLORS[index % COLORS.length]}
                                   strokeWidth={2}
                                   name={group?.name}
-                                  // @ts-ignore
                                   dot={{ fill: COLORS[index % COLORS.length] }}
                                 />
                               );
@@ -341,7 +334,6 @@ export function ComparisonAnalysis({ groups }: ComparisonAnalysisProps) {
                               // @ts-ignore
                               className="text-xs"
                               tick={{ fill: 'hsl(var(--muted-foreground))' }}
-                            // @ts-ignore
                             />
                             <YAxis
                               className="text-xs"
@@ -362,12 +354,9 @@ export function ComparisonAnalysis({ groups }: ComparisonAnalysisProps) {
                                   // @ts-ignore
                                   key={groupId}
                                   dataKey={`${group?.name}_${metric}`}
-                                  // @ts-ignore
                                   fill={COLORS[index % COLORS.length]}
                                   name={group?.name}
-                                // @ts-ignore
                                 />
-                              // @ts-ignore
                               );
                             })}
                           </BarChart>
@@ -389,9 +378,7 @@ export function ComparisonAnalysis({ groups }: ComparisonAnalysisProps) {
                                   key={groupId}
                                   name={group?.name}
                                   dataKey={group?.name}
-                                  // @ts-ignore
                                   stroke={COLORS[index % COLORS.length]}
-                                  // @ts-ignore
                                   fill={COLORS[index % COLORS.length]}
                                   fillOpacity={0.5}
                                 />

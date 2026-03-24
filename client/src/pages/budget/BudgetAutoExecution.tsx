@@ -160,7 +160,6 @@ const [createDialogOpen, setCreateDialogOpen] = useState(false);
               </SelectTrigger>
               <SelectContent>
                 {accounts?.map((account: unknown) => (
-                  // @ts-ignore
                   <SelectItem key={account.id} value={account.id.toString()}>
                     {/* @ts-ignore */}
                     {account.accountName}
@@ -229,7 +228,6 @@ const [createDialogOpen, setCreateDialogOpen] = useState(false);
                         {/* @ts-ignore */}
                         <SelectContent>
                           {dayOfWeekLabels.map((label: unknown, index: unknown) => (
-                            // @ts-ignore
                             <SelectItem key={index} value={index.toString()}>{label}</SelectItem>
                           ))}
                         </SelectContent>
@@ -330,7 +328,6 @@ const [createDialogOpen, setCreateDialogOpen] = useState(false);
               </Card>
             )}
             {configs?.map((config: unknown) => (
-              // @ts-ignore
               <Card key={config.id}>
                 <CardHeader>
                   {/* @ts-ignore */}
@@ -354,13 +351,11 @@ const [createDialogOpen, setCreateDialogOpen] = useState(false);
                         // @ts-ignore
                         checked={config.isEnabled === 1}
                         onCheckedChange={(checked) => 
-                          // @ts-ignore
                           updateConfigMutation.mutate({ configId: config.id, isEnabled: checked })
                         }
                       />
                       {/* @ts-ignore */}
                       <Badge variant={config.isEnabled === 1 ? 'default' : 'secondary'}>
-                        // @ts-ignore
                         {(config as any).isEnabled === 1 ? '已启用' : '已禁用'}
                       </Badge>
                     </div>
@@ -389,7 +384,6 @@ const [createDialogOpen, setCreateDialogOpen] = useState(false);
                     <div>
                       <p className="text-muted-foreground">下次执行</p>
                       <p className="font-medium">
-                        // @ts-ignore
                         {(config as any).nextExecutionAt ? safeToLocaleString((config as any).nextExecutionAt) : '-'}
                       </p>
                     {/* @ts-ignore */}
@@ -446,7 +440,6 @@ const [createDialogOpen, setCreateDialogOpen] = useState(false);
                   <TableBody>
                     {/* @ts-ignore */}
                     {history?.length === 0 && (
-                      // @ts-ignore
                       <TableRow>
                         <TableCell colSpan={6} className="text-center text-muted-foreground">
                           暂无执行记录
@@ -454,10 +447,8 @@ const [createDialogOpen, setCreateDialogOpen] = useState(false);
                       </TableRow>
                     )}
                     {history?.map((execution: unknown) => (
-                      // @ts-ignore
                       <TableRow key={execution.id}>
                         <TableCell>
-                          // @ts-ignore
                           {(execution as any).executionStartAt ? safeToLocaleString((execution as any).executionStartAt) : '-'}
                         </TableCell>
                         {/* @ts-ignore */}
@@ -467,7 +458,6 @@ const [createDialogOpen, setCreateDialogOpen] = useState(false);
                         {/* @ts-ignore */}
                         <TableCell>{execution.campaignsAdjusted}</TableCell>
                         <TableCell>
-                          // @ts-ignore
                           ${parseFloat((execution as any).totalBudgetBefore || '0').toFixed(2)} → 
                           // @ts-ignore
                           ${parseFloat((execution as any).totalBudgetAfter || '0').toFixed(2)}
@@ -505,7 +495,6 @@ const [createDialogOpen, setCreateDialogOpen] = useState(false);
                                     approve: false 
                                   })}
                                 >
-                                  // @ts-ignore
                                   拒绝
                                 </Button>
                               </>
@@ -514,7 +503,6 @@ const [createDialogOpen, setCreateDialogOpen] = useState(false);
                         </TableCell>
                       </TableRow>
                     ))}
-                  // @ts-ignore
                   </TableBody>
                 </Table>
               </CardContent>
@@ -572,7 +560,6 @@ const [createDialogOpen, setCreateDialogOpen] = useState(false);
                       </TableHeader>
                       <TableBody>
                         {executionDetails.details.map((detail: unknown) => (
-                          // @ts-ignore
                           <TableRow key={detail.id}>
                             {/* @ts-ignore */}
                             <TableCell className="font-medium">{detail.campaignName}</TableCell>
@@ -583,9 +570,7 @@ const [createDialogOpen, setCreateDialogOpen] = useState(false);
                             <TableCell>
                               {/* @ts-ignore */}
                               <span className={parseFloat(detail.adjustmentPercent || '0') > 0 ? 'text-green-600' : 'text-red-600'}>
-                                // @ts-ignore
                                 {parseFloat((detail as any).adjustmentPercent || '0') > 0 ? '+' : ''}
-                                // @ts-ignore
                                 {parseFloat((detail as any).adjustmentPercent || '0').toFixed(1)}%
                               </span>
                             </TableCell>
@@ -596,7 +581,6 @@ const [createDialogOpen, setCreateDialogOpen] = useState(false);
                                 // @ts-ignore
                                 detail.status === 'error' ? 'destructive' : 'secondary'
                               }>
-                                // @ts-ignore
                                 {(detail as any).status === 'applied' ? '已应用' :
                                  // @ts-ignore
                                  detail.status === 'error' ? '错误' : '已跳过'}

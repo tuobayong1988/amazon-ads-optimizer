@@ -316,7 +316,6 @@ export default function NotificationSettings() {
                   </div>
                 ) : notificationHistory && notificationHistory.length > 0 ? (
                   <div className="space-y-4">
-                    // @ts-ignore
                     {notificationHistory.map((notification: unknown) => (
                       <div
                         // @ts-ignore
@@ -325,7 +324,6 @@ export default function NotificationSettings() {
                           // @ts-ignore
                           notification.status === 'read' ? 'bg-muted/30' : 'bg-background'
                         }`}
-                      // @ts-ignore
                       >
                         {/* @ts-ignore */}
                         {/* @ts-ignore */}
@@ -336,9 +334,7 @@ export default function NotificationSettings() {
                             <span className="font-medium">{notification.title}</span>
                             {/* @ts-ignore */}
                             {getSeverityBadge(notification.severity || 'info')}
-                            // @ts-ignore
                             {(notification as any).status !== 'read' && (
-                              // @ts-ignore
                               <Badge variant="outline" className="text-xs">未读</Badge>
                             )}
                           </div>

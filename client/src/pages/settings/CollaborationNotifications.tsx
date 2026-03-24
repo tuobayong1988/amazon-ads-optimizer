@@ -223,7 +223,6 @@ export default function CollaborationNotifications() {
                   </div>
                 ) : notificationsData?.notifications && notificationsData.notifications.length > 0 ? (
                   <div className="divide-y">
-                    // @ts-ignore
                     {notificationsData.notifications.map((notification: unknown) => (
                       <div
                         // @ts-ignore
@@ -239,7 +238,6 @@ export default function CollaborationNotifications() {
                             {/* @ts-ignore */}
                             {/* @ts-ignore */}
                             {getActionIcon(notification.actionType)}
-                          // @ts-ignore
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
@@ -247,10 +245,8 @@ export default function CollaborationNotifications() {
                               <span className="font-medium">{notification.title}</span>
                               {/* @ts-ignore */}
                               {getPriorityBadge(notification.priority)}
-                              // @ts-ignore
                               {(notification as any).status === "sent" && (
                                 <Badge variant="outline" className="text-xs">未读</Badge>
-                              // @ts-ignore
                               )}
                             </div>
                             {/* @ts-ignore */}
@@ -263,12 +259,10 @@ export default function CollaborationNotifications() {
                               </span>
                               {/* @ts-ignore */}
                               {notification.accountName && (
-                                // @ts-ignore
                                 <span className="flex items-center gap-1">
                                   <Database className="w-3 h-3" />
                                   {/* @ts-ignore */}
                                   {notification.accountName}
-                                // @ts-ignore
                                 </span>
                               )}
                               <span className="flex items-center gap-1">

@@ -149,11 +149,8 @@ export default function InviteRegister() {
                   </div>
                 )}
               </div>
-              // @ts-ignore
               {(inviteValid as any) && (inviteInfo as any) && (
-                // @ts-ignore
                 <p className="text-xs text-green-400">
-                  // @ts-ignore
                   邀请码有效 - {(inviteInfo as any).inviteType === 'external_user' ? '外部用户邀请' : '团队成员邀请'}
                 </p>
               )}

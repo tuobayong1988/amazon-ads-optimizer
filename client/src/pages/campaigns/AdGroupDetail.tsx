@@ -635,7 +635,6 @@ export default function AdGroupDetail() {
                         </TableHeader>
                         {/* @ts-ignore */}
                         <TableBody>
-                          // @ts-ignore
                           {filteredKeywords.map((keyword: unknown) => {
                             // @ts-ignore
                             const kwSpend = parseFloat(keyword.spend || "0");
@@ -656,7 +655,6 @@ export default function AdGroupDetail() {
                             const kwCvr = kwClicks > 0 ? (kwOrders / kwClicks * 100) : 0;
                             
                             return (
-                              // @ts-ignore
                               <TableRow key={keyword.id}>
                                 {/* @ts-ignore */}
                                 <TableCell className="font-medium">{keyword.keywordText}</TableCell>
@@ -669,9 +667,7 @@ export default function AdGroupDetail() {
                                 <TableCell className="text-right">
                                   {/* @ts-ignore */}
                                   {keyword.suggestedBid ? (
-                                    // @ts-ignore
                                     <span className={parseFloat(keyword.suggestedBid) > parseFloat(keyword.bid || "0") ? "text-yellow-400" : "text-green-400"}>
-                                      // @ts-ignore
                                       ${parseFloat((keyword as any).suggestedBid).toFixed(2)}
                                     </span>
                                   ) : (
@@ -739,7 +735,6 @@ export default function AdGroupDetail() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          // @ts-ignore
                           {filteredTargets.map((target: unknown) => {
                             // @ts-ignore
                             const tSpend = parseFloat(target.spend || "0");
@@ -757,7 +752,6 @@ export default function AdGroupDetail() {
                             const tCvr = tClicks > 0 ? (tOrders / tClicks * 100) : 0;
                             
                             return (
-                              // @ts-ignore
                               <TableRow key={target.id}>
                                 <TableCell className="font-medium">
                                   {/* @ts-ignore */}
@@ -765,7 +759,6 @@ export default function AdGroupDetail() {
                                 </TableCell>
                                 <TableCell>
                                   <Badge variant="outline">
-                                    // @ts-ignore
                                     {(target as any).targetType === "asin" ? "ASIN" : (target as any).targetType === "category" ? "类目" : (target as any).targetType}
                                   </Badge>
                                 </TableCell>
@@ -776,9 +769,7 @@ export default function AdGroupDetail() {
                                 <TableCell className="text-right">
                                   {/* @ts-ignore */}
                                   {target.suggestedBid ? (
-                                    // @ts-ignore
                                     <span className={parseFloat(target.suggestedBid) > parseFloat(target.bid || "0") ? "text-yellow-400" : "text-green-400"}>
-                                      // @ts-ignore
                                       ${parseFloat((target as any).suggestedBid).toFixed(2)}
                                     </span>
                                   ) : (
@@ -838,14 +829,12 @@ export default function AdGroupDetail() {
                     : isSB 
                       ? "品牌广告的否定关键词和否定商品定向"
                       : "展示型广告的否定商品定向"}
-                // @ts-ignore
                 </CardDescription>
               </CardHeader>
               {/* @ts-ignore */}
               <CardContent>
                 {/* @ts-ignore */}
                 {adGroupNegatives && adGroupNegatives.length > 0 ? (
-                  // @ts-ignore
                   <div className="overflow-x-auto">
                     {/* @ts-ignore */}
                     <Table>
@@ -861,13 +850,11 @@ export default function AdGroupDetail() {
                       </TableHeader>
                       <TableBody>
                         {adGroupNegatives.map((neg: unknown) => (
-                          // @ts-ignore
                           <TableRow key={neg.id}>
                             {/* @ts-ignore */}
                             <TableCell className="font-medium">{neg.negativeText}</TableCell>
                             <TableCell>
                               <Badge variant="outline">
-                                // @ts-ignore
                                 {(neg as any).negativeType === "keyword" ? "关键词" : "商品"}
                               </Badge>
                             </TableCell>
@@ -875,14 +862,12 @@ export default function AdGroupDetail() {
                             <TableCell>{getMatchTypeBadge(neg.negativeMatchType)}</TableCell>
                             <TableCell>
                               <Badge variant="secondary">
-                                // @ts-ignore
                                 {(neg as any).negativeLevel === "ad_group" ? "广告组" : "广告活动"}
                               </Badge>
                             </TableCell>
                             {/* @ts-ignore */}
                             <TableCell>{getStatusBadge(neg.negativeStatus || "active")}</TableCell>
                             <TableCell className="text-sm text-muted-foreground">
-                              // @ts-ignore
                               {(neg as any).negativeSource === "manual" ? "手动" : 
                                // @ts-ignore
                                neg.negativeSource === "auto_optimization" ? "自动优化" :
@@ -897,9 +882,7 @@ export default function AdGroupDetail() {
                     </Table>
                   {/* @ts-ignore */}
                   </div>
-                // @ts-ignore
                 ) : (
-                  // @ts-ignore
                   <div className="text-center py-12 text-muted-foreground">
                     {/* @ts-ignore */}
                     <Ban className="h-12 w-12 mx-auto mb-4 opacity-50" />
@@ -959,7 +942,6 @@ export default function AdGroupDetail() {
                             const stCtr = stImpressions > 0 ? (stClicks / stImpressions * 100) : 0;
                             
                             return (
-                              // @ts-ignore
                               <TableRow key={st.id}>
                                 {/* @ts-ignore */}
                                 <TableCell className="font-medium">{st.searchTerm}</TableCell>
@@ -969,7 +951,6 @@ export default function AdGroupDetail() {
                                 </TableCell>
                                 <TableCell>
                                   <Badge variant="outline">
-                                    // @ts-ignore
                                     {(st as any).searchTermTargetType === "keyword" ? "关键词" : "商品定位"}
                                   </Badge>
                                 </TableCell>
@@ -1049,17 +1030,14 @@ export default function AdGroupDetail() {
                       </Badge>
                     </div>
                   )}
-                  // @ts-ignore
                   {adGroup.tactic && (
                     <div>
                       {/* @ts-ignore */}
                       <p className="text-sm text-muted-foreground">策略 (Tactic)</p>
                       <p className="font-medium mt-1">{adGroup.tactic}</p>
                     </div>
-                  // @ts-ignore
                   )}
                   {adGroup.creativeType && (
-                    // @ts-ignore
                     <div>
                       {/* @ts-ignore */}
                       <p className="text-sm text-muted-foreground">创意类型</p>
@@ -1087,7 +1065,6 @@ export default function AdGroupDetail() {
               <CardContent>
                 {/* @ts-ignore */}
                 {historyLoading ? (
-                  // @ts-ignore
                   <div className="flex items-center justify-center py-12">
                     {/* @ts-ignore */}
                     <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -1098,9 +1075,7 @@ export default function AdGroupDetail() {
                 ) : changeHistory && changeHistory.records && changeHistory.records.length > 0 ? (
                   <div className="space-y-4">
                     <div className="text-sm text-muted-foreground">
-                      // @ts-ignore
                       共 {changeHistory.total} 条变更记录
-                    // @ts-ignore
                     </div>
                     {/* @ts-ignore */}
                     <Table>
@@ -1120,10 +1095,8 @@ export default function AdGroupDetail() {
                       </TableHeader>
                       <TableBody>
                         {changeHistory.records.map((record: unknown) => (
-                          // @ts-ignore
                           <TableRow key={record.id}>
                             <TableCell className="text-xs whitespace-nowrap">
-                              // @ts-ignore
                               {(record as any).timestamp ? new Date((record as any).timestamp).toLocaleString('zh-CN') : '-'}
                             </TableCell>
                             <TableCell>
@@ -1134,9 +1107,7 @@ export default function AdGroupDetail() {
                             <TableCell className="max-w-[200px] truncate" title={record.target}>
                               {/* @ts-ignore */}
                               {record.target}
-                              // @ts-ignore
                               {(record as any).matchType && (
-                                // @ts-ignore
                                 <span className="text-xs text-muted-foreground ml-1">({record.matchType})</span>
                               )}
                             </TableCell>
@@ -1147,16 +1118,13 @@ export default function AdGroupDetail() {
                             <TableCell className="text-sm">
                               {/* @ts-ignore */}
                               {record.changePercent && (
-                                // @ts-ignore
                                 <span className={parseFloat(record.changePercent) > 0 ? 'text-green-500' : 'text-red-500'}>
-                                  // @ts-ignore
                                   {parseFloat((record as any).changePercent) > 0 ? '+' : ''}{(record as any).changePercent}
                                 </span>
                               )}
                             </TableCell>
                             <TableCell>
                               <Badge variant="outline" className="text-xs">
-                                // @ts-ignore
                                 {(record as any).source === 'auto_optimal' ? '自动优化' :
                                  // @ts-ignore
                                  record.source === 'auto_dayparting' ? '分时优化' :
@@ -1173,7 +1141,6 @@ export default function AdGroupDetail() {
                             <TableCell>
                               {/* @ts-ignore */}
                               <Badge variant={record.status === 'applied' ? 'default' : record.status === 'failed' ? 'destructive' : 'secondary'}>
-                                // @ts-ignore
                                 {(record as any).status === 'applied' ? '已应用' :
                                  // @ts-ignore
                                  record.status === 'pending' ? '待执行' :

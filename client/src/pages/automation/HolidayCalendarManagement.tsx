@@ -382,7 +382,6 @@ export default function HolidayCalendarManagement() {
             <CardHeader className="pb-2">
               <CardTitle className="text-lg text-white flex items-center gap-2">
                 <AlertCircle className="h-5 w-5 text-orange-400" />
-                // @ts-ignore
                 即将到来的节假日
               </CardTitle>
             </CardHeader>
@@ -393,7 +392,6 @@ export default function HolidayCalendarManagement() {
                   // @ts-ignore
                   const daysUntil = getDaysUntil(holiday.startDate);
                   return (
-                    // @ts-ignore
                     <div
                       // @ts-ignore
                       key={holiday.id}
@@ -406,7 +404,6 @@ export default function HolidayCalendarManagement() {
                         {daysUntil}天后
                       </Badge>
                       <span className="text-gray-400 text-sm">
-                        // @ts-ignore
                         竞价×{(holiday as any).bidMultiplier} 预算×{(holiday as any).budgetMultiplier}
                       </span>
                     </div>
@@ -584,13 +581,11 @@ function HolidayTable({
             {/* @ts-ignore */}
             <tbody>
               {holidays.map((holiday: unknown) => (
-                // @ts-ignore
                 <tr key={holiday.id} className="border-b border-gray-700/50 hover:bg-gray-700/30">
                   <td className="py-3 px-4">
                     <Switch
                       // @ts-ignore
                       checked={holiday.isActive === 1}
-                      // @ts-ignore
                       onCheckedChange={() => onToggle(holiday.id, holiday.isActive)}
                     />
                   </td>
@@ -612,11 +607,9 @@ function HolidayTable({
                     {getPriorityBadge(holiday.priority)}
                   </td>
                   <td className="py-3 px-4 text-center text-blue-400">
-                    // @ts-ignore
                     ×{(holiday as any).bidMultiplier}
                   </td>
                   <td className="py-3 px-4 text-center text-green-400">
-                    // @ts-ignore
                     ×{(holiday as any).budgetMultiplier}
                   </td>
                   <td className="py-3 px-4 text-center text-gray-300">

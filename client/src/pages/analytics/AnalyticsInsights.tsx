@@ -175,9 +175,7 @@ const [activeTab, setActiveTab] = useState("overview");
               </SelectTrigger>
               {/* @ts-ignore */}
               <SelectContent>
-                // @ts-ignore
                 {accounts?.map((account: unknown) => (
-                  // @ts-ignore
                   <SelectItem key={account.id} value={account.id.toString()}>
                     {/* @ts-ignore */}
                     {account.accountName}
@@ -214,7 +212,6 @@ const [activeTab, setActiveTab] = useState("overview");
               {insightsSummary.critical.length > 0 && (
                 <div className="mt-3 space-y-1">
                   {insightsSummary.critical.map((item: unknown, idx: unknown) => (
-                    // @ts-ignore
                     <p key={idx} className="text-sm text-red-300">{item}</p>
                   ))}
                 </div>
@@ -237,7 +234,6 @@ const [activeTab, setActiveTab] = useState("overview");
               {insightsSummary.warnings.length > 0 && (
                 <div className="mt-3 space-y-1">
                   {insightsSummary.warnings.map((item: unknown, idx: unknown) => (
-                    // @ts-ignore
                     <p key={idx} className="text-sm text-yellow-300">{item}</p>
                   ))}
                 </div>
@@ -260,7 +256,6 @@ const [activeTab, setActiveTab] = useState("overview");
               {insightsSummary.suggestions.length > 0 && (
                 <div className="mt-3 space-y-1">
                   {insightsSummary.suggestions.map((item: unknown, idx: unknown) => (
-                    // @ts-ignore
                     <p key={idx} className="text-sm text-blue-300">{item}</p>
                   ))}
                 </div>
@@ -303,27 +298,23 @@ const [activeTab, setActiveTab] = useState("overview");
                   <CardTitle className="flex items-center gap-2">
                     <AlertTriangle className="h-5 w-5 text-orange-400" />
                     预算耗尽风险
-                  // @ts-ignore
                   </CardTitle>
                 </CardHeader>
                 {/* @ts-ignore */}
                 <CardContent>
                   <div className="space-y-3">
                     {specialScenarioQuery.data?.budgetDepletion?.slice(0, 5).map((item: unknown, idx: number) => (
-                      // @ts-ignore
                       <div key={idx} className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
                         {/* @ts-ignore */}
                         <div>
                           {/* @ts-ignore */}
                           <p className="font-medium">{item.campaignName}</p>
                           <p className="text-sm text-muted-foreground">
-                            // @ts-ignore
                             预计 {(item as any).hoursUntilDepletion?.toFixed(0) || '?'} 小时后耗尽
                           </p>
                         </div>
                         {/* @ts-ignore */}
                         <Badge variant={item.riskLevel === 'critical' ? 'destructive' : item.riskLevel === 'high' ? 'secondary' : 'outline'}>
-                          // @ts-ignore
                           {(item as any).riskLevel === 'critical' ? '严重' : (item as any).riskLevel === 'high' ? '高风险' : '低风险'}
                         </Badge>
                       </div>
@@ -383,13 +374,11 @@ const [activeTab, setActiveTab] = useState("overview");
                 <CardTitle>归因窗口数据调整</CardTitle>
                 {/* @ts-ignore */}
                 <CardDescription>
-                  // @ts-ignore
                   近7天数据根据归因延迟进行调整，显示更准确的预期表现
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  // @ts-ignore
                   {(attributionQuery as any).map((day: unknown, idx: number) => (
                     <div key={idx} className="p-4 rounded-lg border bg-card/50">
                       <div className="flex items-center justify-between mb-3">
@@ -402,9 +391,7 @@ const [activeTab, setActiveTab] = useState("overview");
                         {/* @ts-ignore */}
                         {/* @ts-ignore */}
                         <Badge variant={day.adjusted?.confidence === 'high' ? 'default' : day.adjusted?.confidence === 'medium' ? 'secondary' : 'outline'}>
-                          // @ts-ignore
                           {(day as any).adjusted?.confidence === 'high' ? '高置信度' : (day as any).adjusted?.confidence === 'medium' ? '中置信度' : '低置信度'}
-                        // @ts-ignore
                         </Badge>
                       </div>
                       <div className="grid grid-cols-4 gap-4 text-sm">
@@ -431,9 +418,7 @@ const [activeTab, setActiveTab] = useState("overview");
                       </div>
                     </div>
                   )) || (
-                    // @ts-ignore
                     <p className="text-center text-muted-foreground py-8">暂无归因数据</p>
-                  // @ts-ignore
                   )}
                 </div>
               </CardContent>
@@ -448,12 +433,10 @@ const [activeTab, setActiveTab] = useState("overview");
                 <CardTitle>过度竞价关键词</CardTitle>
                 <CardDescription>
                   这些关键词的出价相对于实际CPC过高，建议降低出价
-                // @ts-ignore
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  // @ts-ignore
                   {biddingEfficiencyQuery.data?.topOverbidding?.map((kw: unknown, idx: number) => (
                     <div key={idx} className="p-4 rounded-lg border bg-card/50">
                       <div className="flex items-center justify-between mb-2">
@@ -502,9 +485,7 @@ const [activeTab, setActiveTab] = useState("overview");
                 <CardTitle>出价纠错建议</CardTitle>
                 {/* @ts-ignore */}
                 <CardDescription>
-                  // @ts-ignore
                   基于归因窗口后的实际转化数据，识别需要调整的出价
-                // @ts-ignore
                 </CardDescription>
               {/* @ts-ignore */}
               </CardHeader>
@@ -539,14 +520,11 @@ const [activeTab, setActiveTab] = useState("overview");
                         <ArrowUpRight className={`h-4 w-4 ${item.direction === 'increase' ? 'text-green-400' : 'text-red-400'}`} />
                         {/* @ts-ignore */}
                         <span className={`text-sm font-medium ${item.direction === 'increase' ? 'text-green-400' : 'text-red-400'}`}>
-                          // @ts-ignore
                           ${(item as any).suggestedBid?.toFixed(2)}
-                        // @ts-ignore
                         </span>
                       </div>
                     {/* @ts-ignore */}
                     </div>
-                  // @ts-ignore
                   )) || (
                     <p className="text-center text-muted-foreground py-8">暂无纠错建议</p>
                   )}
@@ -563,9 +541,7 @@ const [activeTab, setActiveTab] = useState("overview");
               <CardHeader>
                 <CardTitle>季节性调整计划</CardTitle>
                 <CardDescription>
-                  // @ts-ignore
                   基于历史数据和大促日历的智能调整建议
-                // @ts-ignore
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -577,18 +553,15 @@ const [activeTab, setActiveTab] = useState("overview");
                           {/* @ts-ignore */}
                           {item.type === 'holiday' ? (
                             <Gift className="h-5 w-5 text-red-400" />
-                          // @ts-ignore
                           ) : item.type === 'summer' ? (
                             <Sun className="h-5 w-5 text-yellow-400" />
                           ) : (
                             <Snowflake className="h-5 w-5 text-blue-400" />
                           )}
-                          // @ts-ignore
                           <span className="font-medium">{(item as any).name}</span>
                         </div>
                         {/* @ts-ignore */}
                         <Badge variant={item.status === 'active' ? 'default' : item.status === 'upcoming' ? 'secondary' : 'outline'}>
-                          // @ts-ignore
                           {(item as any).status === 'active' ? '进行中' : (item as any).status === 'upcoming' ? '即将开始' : '已结束'}
                         </Badge>
                       </div>
@@ -607,7 +580,6 @@ const [activeTab, setActiveTab] = useState("overview");
                           <p className="text-muted-foreground">建议调整</p>
                           {/* @ts-ignore */}
                           <p className={`font-medium ${item.adjustment > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                            // @ts-ignore
                             {(item as any).adjustment > 0 ? '+' : ''}{(item as any).adjustment}%
                           </p>
                         </div>

@@ -198,12 +198,10 @@ function PerformanceGroupCard({ group }: { group: unknown }) {
       // @ts-ignore
       return Math.min(100, Math.round((actualSpend / group.targetValue) * 100));
     }
-    // @ts-ignore
     return 0;
   }, [group]);
 
   return (
-    // @ts-ignore
     <Card className="group hover:border-primary/50 transition-all duration-200 bg-card/50 backdrop-blur">
       {/* @ts-ignore */}
       <CardContent className="p-5">
@@ -217,7 +215,6 @@ function PerformanceGroupCard({ group }: { group: unknown }) {
               {/* @ts-ignore */}
               {/* @ts-ignore */}
               {getGoalIcon(group.optimizationGoal)}
-              // @ts-ignore
               <span className="text-sm text-muted-foreground">
                 {/* @ts-ignore */}
                 {/* @ts-ignore */}
@@ -227,7 +224,6 @@ function PerformanceGroupCard({ group }: { group: unknown }) {
           </div>
           {/* @ts-ignore */}
           <Badge variant="outline" className={getStatusColor(group.status)}>
-            // @ts-ignore
             {(group as any).status === 'active' ? '运行中' : '已暂停'}
           </Badge>
         </div>
@@ -428,7 +424,6 @@ const [isRefreshing, setIsRefreshing] = useState(false);
   // ✅ Fetch KPIs - 与日期选择器联动
   // @ts-ignore
   const { data: kpis, isLoading: kpisLoading, refetch: refetchKpis } = trpc.analytics.getKPIs.useQuery(
-    // @ts-ignore
     { 
       // @ts-ignore
       accountId: accountId!,
@@ -663,7 +658,6 @@ const [isRefreshing, setIsRefreshing] = useState(false);
           <div>
             <h1 className="text-3xl font-bold tracking-tight">监控仪表盘</h1>
             <p className="text-muted-foreground mt-1">
-              // @ts-ignore
               账号: {(accounts.find((a: unknown) => (a as any).id === accountId) as any)?.accountName || '未选择'}
             </p>
           </div>
@@ -705,7 +699,6 @@ const [isRefreshing, setIsRefreshing] = useState(false);
 
         {/* 归因调整开关 */}
         {adjustedKpis && (
-          // @ts-ignore
           <div className="flex items-center justify-between p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
             <div className="flex items-center gap-2">
               <Clock className="w-4 h-4 text-blue-500" />
@@ -714,7 +707,6 @@ const [isRefreshing, setIsRefreshing] = useState(false);
                 <span className="text-muted-foreground ml-2">
                   近7天数据已根据归因窗口调整，平均调整系数 {adjustedKpis.avgAdjustmentFactor.toFixed(2)}x
                   {adjustedKpis.lowConfidenceDays > 0 && (
-                    // @ts-ignore
                     <span className="text-yellow-500 ml-2">
                       ({adjustedKpis.lowConfidenceDays}天低置信度)
                     </span>
@@ -733,7 +725,6 @@ const [isRefreshing, setIsRefreshing] = useState(false);
           </div>
         )}
 
-        // @ts-ignore
         {/* KPI Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           <KPICard
@@ -748,29 +739,23 @@ const [isRefreshing, setIsRefreshing] = useState(false);
           />
           <KPICard
             title={showAdjustedData && adjustedKpis ? "ROAS*" : "ROAS"}
-            // @ts-ignore
             value={(showAdjustedData && adjustedKpis ? adjustedKpis.roas : kpis?.roas)?.toFixed(2) || "0"}
             icon={<Target className="w-5 h-5" />}
-            // @ts-ignore
             trend={8.3}
-            // @ts-ignore
             trendLabel="vs 上周"
             // @ts-ignore
             color="green"
           />
           <KPICard
             title={showAdjustedData && adjustedKpis ? "销售额*" : "销售额"}
-            // @ts-ignore
             value={`${currencySymbol}${((showAdjustedData && adjustedKpis ? adjustedKpis.totalSales : kpis?.totalSales) || 0).toLocaleString()}`}
             icon={<DollarSign className="w-5 h-5" />}
-            // @ts-ignore
             trend={15.2}
             trendLabel="vs 上周"
             color="purple"
           />
           <KPICard
             title={showAdjustedData && adjustedKpis ? "ACoS*" : "ACoS"}
-            // @ts-ignore
             value={`${((showAdjustedData && adjustedKpis ? adjustedKpis.acos : kpis?.acos) || 0).toFixed(1)}%`}
             icon={<Percent className="w-5 h-5" />}
             trend={-3.2}
@@ -784,7 +769,6 @@ const [isRefreshing, setIsRefreshing] = useState(false);
             value={`${currencySymbol}${((showAdjustedData && adjustedKpis ? adjustedKpis.revenuePerDay : kpis?.revenuePerDay) || 0).toFixed(0)}`}
             icon={<TrendingUp className="w-5 h-5" />}
             trend={10.8}
-            // @ts-ignore
             trendLabel="vs 上周"
             color="cyan"
           // @ts-ignore
@@ -794,7 +778,6 @@ const [isRefreshing, setIsRefreshing] = useState(false);
         {/* ✅ 归因期数据成熟度提示 */}
         {/* @ts-ignore */}
         {kpis?.dataMaturity && kpis.dataMaturity.overall === 'pending' && (
-          // @ts-ignore
           <div className="flex items-center gap-2 p-3 rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800">
             {/* @ts-ignore */}
             <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />
@@ -804,7 +787,6 @@ const [isRefreshing, setIsRefreshing] = useState(false);
               {/* @ts-ignore */}
               <span className="text-amber-600 dark:text-amber-400">{kpis.dataMaturity.message}</span>
               <span className="text-muted-foreground ml-2">
-                // @ts-ignore
                 (SP: {(kpis as any).dataMaturity.sp === 'finalized' ? '✅已稳定' : '⏳归因中'} | 
                  // @ts-ignore
                  SB: {(kpis as any).dataMaturity.sb === 'finalized' ? '✅已稳定' : '⏳归因中'} | 
@@ -815,11 +797,8 @@ const [isRefreshing, setIsRefreshing] = useState(false);
           </div>
         )}
 
-        // @ts-ignore
         {/* v260: 系统健康核心指标 */}
-        // @ts-ignore
         {(healthMetrics as any)?.success && (healthMetrics as any).metrics && (
-          // @ts-ignore
           <Card>
             {/* @ts-ignore */}
             <CardHeader className="pb-2">
@@ -835,7 +814,6 @@ const [isRefreshing, setIsRefreshing] = useState(false);
                   <CardDescription>核心优化指标实时状态 (7天窗口)</CardDescription>
                 </div>
                 <Badge variant="outline" className="text-xs">
-                  // @ts-ignore
                   v260
                 </Badge>
               {/* @ts-ignore */}
@@ -885,15 +863,12 @@ const [isRefreshing, setIsRefreshing] = useState(false);
                       // @ts-ignore
                       healthMetrics.metrics.rollbackRate.trend === 'worsening' ? 'text-red-500' : ''
                     }`}>
-                      // @ts-ignore
                       {(healthMetrics as any).metrics.rollbackRate.trend === 'improving' ? <TrendingDown className="w-3 h-3" /> :
                        // @ts-ignore
                        healthMetrics.metrics.rollbackRate.trend === 'worsening' ? <TrendingUp className="w-3 h-3" /> : null}
-                      // @ts-ignore
                       {(healthMetrics as any).metrics.rollbackRate.trend === 'improving' ? '改善中' :
                        // @ts-ignore
                        healthMetrics.metrics.rollbackRate.trend === 'worsening' ? '恶化中' : '稳定'}
-                      // @ts-ignore
                       (前期: {(healthMetrics as any).metrics.rollbackRate.previousRate.toFixed(1)}%)
                     {/* @ts-ignore */}
                     </span>
@@ -949,9 +924,7 @@ const [isRefreshing, setIsRefreshing] = useState(false);
                         .map(([alg, rate]) => (
                           <Badge key={alg} variant="secondary" className="text-[10px] px-1.5 py-0">
                             {alg}: {(rate as number).toFixed(0)}%
-                          // @ts-ignore
                           </Badge>
-                        // @ts-ignore
                         ))}
                     </div>
                   </div>
@@ -1007,7 +980,6 @@ const [isRefreshing, setIsRefreshing] = useState(false);
                     {healthMetrics.metrics.acosTrend.deathSpiralDetected ? (
                       <span className="text-red-500 font-medium flex items-center gap-1">
                         <AlertTriangle className="w-3 h-3" />
-                        // @ts-ignore
                         死亡螺旋风险!
                       </span>
                     ) : (
@@ -1020,9 +992,7 @@ const [isRefreshing, setIsRefreshing] = useState(false);
                           // @ts-ignore
                           healthMetrics.metrics.acosTrend.changePoints > 0 ? 'text-red-500' : ''
                         }`}>
-                          // @ts-ignore
                           {(healthMetrics as any).metrics.acosTrend.changePoints > 0 ? '+' : ''}
-                          // @ts-ignore
                           {(healthMetrics as any).metrics.acosTrend.changePoints.toFixed(1)}pp
                         </span>
                       </div>
@@ -1098,9 +1068,7 @@ const [isRefreshing, setIsRefreshing] = useState(false);
                       {/* @ts-ignore */}
                       <p className="font-semibold">{healthMetrics.metrics.bidIncreaseAnalysis.avgIncreasePercent.toFixed(1)}%</p>
                     </div>
-                    // @ts-ignore
                     {(healthMetrics as any).metrics.bidIncreaseAnalysis.byScenario.slice(0, 2).map((s: unknown) => (
-                      // @ts-ignore
                       <div key={s.scenario}>
                         {/* @ts-ignore */}
                         <p className="text-muted-foreground text-xs truncate" title={s.scenario}>{s.scenario}</p>
@@ -1116,7 +1084,6 @@ const [isRefreshing, setIsRefreshing] = useState(false);
         )}
 
         {/* v261: 部署后纠错报告 */}
-        // @ts-ignore
         {(deployCorrectionReport as any)?.success && (deployCorrectionReport as any).report?.latestDeploy && (
           <Card>
             <CardContent className="pt-6">
@@ -1127,7 +1094,6 @@ const [isRefreshing, setIsRefreshing] = useState(false);
                 </div>
                 {/* @ts-ignore */}
                 <Badge variant={deployCorrectionReport.report.latestDeploy.status === 'success' ? 'default' : 'destructive'}>
-                  // @ts-ignore
                   v{(deployCorrectionReport as any).report.latestDeploy.version}
                 </Badge>
               </div>
@@ -1161,9 +1127,7 @@ const [isRefreshing, setIsRefreshing] = useState(false);
                           // @ts-ignore
                           ? 'text-green-500' : 'text-yellow-500'
                       }`}>
-                        // @ts-ignore
                         {(deployCorrectionReport as any).report.latestVerification.verificationResult?.passed ? '✓ 通过' : '⚠ 待确认'}
-                      // @ts-ignore
                       </p>
                       {/* @ts-ignore */}
                       {deployCorrectionReport.report.latestVerification.verificationResult?.issuesFound > 0 && (
@@ -1177,25 +1141,19 @@ const [isRefreshing, setIsRefreshing] = useState(false);
                   ) : (
                     <p className="text-lg font-bold text-muted-foreground">待验证</p>
                   )}
-                // @ts-ignore
                 </div>
               </div>
               {/* @ts-ignore */}
               {deployCorrectionReport.report.latestDeploy.deployedAt && (
-                // @ts-ignore
                 <p className="text-xs text-muted-foreground mt-3">
-                  // @ts-ignore
                   部署时间: {new Date((deployCorrectionReport as any).report.latestDeploy.deployedAt).toLocaleString('zh-CN')}
                 </p>
-              // @ts-ignore
               )}
-            // @ts-ignore
             </CardContent>
           </Card>
         )}
 
         {/* 区域数据对比 - 移动到头部 */}
-        // @ts-ignore
         {regionComparison && (regionComparison as any).length > 0 && (
           <Card>
             <CardHeader className="pb-2">
@@ -1287,7 +1245,6 @@ const [isRefreshing, setIsRefreshing] = useState(false);
             <CardContent>
               <div className="grid md:grid-cols-3 gap-4">
                 {/* @ts-ignore */}
-                // @ts-ignore
                 {regionComparison.map((region: unknown) => (
                   <div 
                     // @ts-ignore
@@ -1365,9 +1322,7 @@ const [isRefreshing, setIsRefreshing] = useState(false);
                 <DashboardCharts
                   // @ts-ignore
                   trendData={trendData}
-                  // @ts-ignore
                   weeklyComparison={weeklyComparison}
-                  // @ts-ignore
                   regionComparison={regionComparison}
                   currencySymbol={currencySymbol}
                 />
@@ -1423,7 +1378,6 @@ const [isRefreshing, setIsRefreshing] = useState(false);
             {performanceGroups && performanceGroups.length > 0 ? (
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {performanceGroups.slice(0, 6).map((group: unknown) => (
-                  // @ts-ignore
                   <PerformanceGroupCard key={group.id} group={group} />
                 ))}
               </div>

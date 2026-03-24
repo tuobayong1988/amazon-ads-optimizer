@@ -177,7 +177,6 @@ const [activeTab, setActiveTab] = useState("overview");
               </SelectTrigger>
               <SelectContent>
                 {accounts?.map((account: unknown) => (
-                  // @ts-ignore
                   <SelectItem key={account.id} value={account.id.toString()}>
                     {/* @ts-ignore */}
                     {account.accountName}
@@ -275,7 +274,6 @@ const [activeTab, setActiveTab] = useState("overview");
               <CardContent>
                 {/* @ts-ignore */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  // @ts-ignore
                   {optimizationTypes.map((type: unknown) => {
                     // @ts-ignore
                     const stats = summary?.byType?.[type.key as keyof typeof summary.byType];
@@ -283,7 +281,6 @@ const [activeTab, setActiveTab] = useState("overview");
                     const Icon = type.icon;
                     // @ts-ignore
                     return (
-                      // @ts-ignore
                       <div key={type.key} className="p-4 rounded-lg border bg-card">
                         <div className="flex items-center gap-2 mb-2">
                           {/* @ts-ignore */}
@@ -342,7 +339,6 @@ const [activeTab, setActiveTab] = useState("overview");
                     {/* @ts-ignore */}
                     <TableBody>
                       {summary.recentDecisions.map((decision: unknown) => (
-                        // @ts-ignore
                         <TableRow key={decision.id}>
                           <TableCell>
                             {/* @ts-ignore */}
@@ -360,7 +356,6 @@ const [activeTab, setActiveTab] = useState("overview");
                             {/* @ts-ignore */}
                             {/* @ts-ignore */}
                             <span className={decision.expectedImpact.changePercent < 0 ? 'text-green-500' : 'text-red-500'}>
-                              // @ts-ignore
                               {(decision as any).expectedImpact.changePercent > 0 ? '+' : ''}{(decision as any).expectedImpact.changePercent.toFixed(1)}%
                             </span>
                           </TableCell>
@@ -372,7 +367,6 @@ const [activeTab, setActiveTab] = useState("overview");
                           <TableCell>
                             {/* @ts-ignore */}
                             <Badge variant={decision.status === 'pending' ? 'secondary' : 'default'}>
-                              // @ts-ignore
                               {(decision as any).status === 'pending' ? '待执行' : (decision as any).status}
                             </Badge>
                           </TableCell>
@@ -469,7 +463,6 @@ const [activeTab, setActiveTab] = useState("overview");
                   <h4 className="font-medium mb-3">全局执行模式</h4>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     {executionModes.map((mode: unknown) => (
-                      // @ts-ignore
                       <div
                         // @ts-ignore
                         key={mode.value}
@@ -499,7 +492,6 @@ const [activeTab, setActiveTab] = useState("overview");
                       // @ts-ignore
                       const Icon = type.icon;
                       return (
-                        // @ts-ignore
                         <div key={type.key} className="flex items-center justify-between p-3 rounded-lg border">
                           <div className="flex items-center gap-3">
                             {/* @ts-ignore */}

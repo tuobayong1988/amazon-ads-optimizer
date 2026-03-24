@@ -290,12 +290,10 @@ export default function AlgorithmOptimization() {
               </Card>
             ) : (
               <div className="space-y-4">
-                // @ts-ignore
                 {suggestions?.map((suggestion: unknown) => {
                   // @ts-ignore
                   const CategoryIcon = categoryIcons[suggestion.category] || Lightbulb;
                   return (
-                    // @ts-ignore
                     <Card key={suggestion.id} className={`border-l-4 ${priorityColors[suggestion.priority]}`}>
                       {/* @ts-ignore */}
                       <CardContent className="pt-4">
@@ -315,7 +313,6 @@ export default function AlgorithmOptimization() {
                               {/* @ts-ignore */}
                               <Badge className={priorityColors[suggestion.priority]}>
                                 {/* @ts-ignore */}
-                                // @ts-ignore
                                 {suggestion.priority === 'critical' ? '紧急' :
                                  // @ts-ignore
                                  suggestion.priority === 'high' ? '高' :
@@ -328,9 +325,7 @@ export default function AlgorithmOptimization() {
                                   <TooltipTrigger>
                                     {/* @ts-ignore */}
                                     <Badge variant="outline" className="text-xs">
-                                      // @ts-ignore
                                       置信度 {(suggestion as any).confidence}%
-                                    // @ts-ignore
                                     </Badge>
                                   </TooltipTrigger>
                                   <TooltipContent>
@@ -353,7 +348,6 @@ export default function AlgorithmOptimization() {
                                   <p className="font-medium">{suggestion.currentValue}</p>
                                 </div>
                               )}
-                              // @ts-ignore
                               {(suggestion as any).suggestedValue && (
                                 <div className="bg-muted/50 rounded-lg p-2">
                                   <p className="text-xs text-muted-foreground">建议值</p>
@@ -369,7 +363,6 @@ export default function AlgorithmOptimization() {
                             </div>
                             <p className="text-xs text-muted-foreground mt-3">
                               <Info className="w-3 h-3 inline mr-1" />
-                              // @ts-ignore
                               影响: {(suggestion as any).impact}
                             </p>
                           </div>
@@ -379,7 +372,6 @@ export default function AlgorithmOptimization() {
                   );
                 })}
               </div>
-            // @ts-ignore
             )}
           </TabsContent>
 
@@ -409,7 +401,6 @@ export default function AlgorithmOptimization() {
                   ) : (
                     <div className="space-y-4">
                       {byType?.map((item: unknown) => (
-                        // @ts-ignore
                         <div key={item.value} className="space-y-2">
                           <div className="flex items-center justify-between">
                             {/* @ts-ignore */}
@@ -425,7 +416,6 @@ export default function AlgorithmOptimization() {
                               {/* @ts-ignore */}
                               {/* @ts-ignore */}
                               {item.accuracy.toFixed(1)}%
-                            // @ts-ignore
                             </span>
                           {/* @ts-ignore */}
                           </div>
@@ -433,9 +423,7 @@ export default function AlgorithmOptimization() {
                           <p className="text-xs text-muted-foreground">{item.recommendation}</p>
                         {/* @ts-ignore */}
                         </div>
-                      // @ts-ignore
                       ))}
-                    // @ts-ignore
                     </div>
                   )}
                 </CardContent>
@@ -460,7 +448,6 @@ export default function AlgorithmOptimization() {
                   ) : (
                     <div className="space-y-4">
                       {byRange?.map((item: unknown) => (
-                        // @ts-ignore
                         <div key={item.value} className="space-y-2">
                           <div className="flex items-center justify-between">
                             {/* @ts-ignore */}
@@ -603,7 +590,6 @@ export default function AlgorithmOptimization() {
                       <p>当前参数配置合理，暂无调优建议</p>
                     </div>
                   ) : (
-                    // @ts-ignore
                     <div className="space-y-4">
                       {parameterTuning?.map((item: unknown, index: number) => (
                         <div key={index} className="bg-muted/30 rounded-lg p-3">
@@ -649,9 +635,7 @@ export default function AlgorithmOptimization() {
               调整出价优化算法的核心参数
             </DialogDescription>
           </DialogHeader>
-          // @ts-ignore
           {(parameterForm as any) && (
-            // @ts-ignore
             <div className="space-y-4 max-h-[60vh] overflow-y-auto">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -660,7 +644,6 @@ export default function AlgorithmOptimization() {
                     type="number"
                     // @ts-ignore
                     value={parameterForm.maxBidIncreasePercent}
-                    // @ts-ignore
                     onChange={(e) => setParameterForm({ ...(parameterForm as any), maxBidIncreasePercent: Number(e.target.value) })}
                   />
                 </div>
@@ -671,7 +654,6 @@ export default function AlgorithmOptimization() {
                     // @ts-ignore
                     value={parameterForm.maxBidDecreasePercent}
                     onChange={(e) => setParameterForm({ ...(parameterForm as any), maxBidDecreasePercent: Number(e.target.value) })}
-                  // @ts-ignore
                   />
                 </div>
               </div>

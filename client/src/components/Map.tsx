@@ -132,7 +132,6 @@ export function MapView({
       console.error("Map container not found");
       return;
     }
-    // @ts-ignore
     map.current = new window.google.maps.Map(mapContainer.current, {
       zoom: initialZoom,
       center: initialCenter,

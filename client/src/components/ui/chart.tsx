@@ -175,7 +175,6 @@ function ChartTooltipContent({
   // @ts-ignore
   }
 
-  // @ts-ignore
   const nestLabel = payload.length === 1 && indicator !== "dot";
 
   // @ts-ignore
@@ -231,7 +230,6 @@ function ChartTooltipContent({
                             }
                           )}
                           style={
-                            // @ts-ignore
                             {
                               "--color-bg": indicatorColor,
                               // @ts-ignore
@@ -252,14 +250,12 @@ function ChartTooltipContent({
                         <span className="text-muted-foreground">
                           {/* @ts-ignore */}
                           {itemConfig?.label || item.name}
-                        // @ts-ignore
                         </span>
                       {/* @ts-ignore */}
                       </div>
                       {/* @ts-ignore */}
                       {/* @ts-ignore */}
                       {item.value && (
-                        // @ts-ignore
                         <span className="text-foreground font-mono font-medium tabular-nums">
                           {/* @ts-ignore */}
                           {/* @ts-ignore */}

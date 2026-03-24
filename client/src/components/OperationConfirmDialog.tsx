@@ -236,7 +236,6 @@ export default function OperationConfirmDialog({
               </h4>
               <div className="border rounded-lg divide-y max-h-[300px] overflow-y-auto">
                 {changes.slice(0, 20).map((change: unknown, index: unknown) => (
-                  // @ts-ignore
                   <div key={change.id || index} className="p-3 hover:bg-muted/50">
                     <div className="flex items-center justify-between">
                       {/* @ts-ignore */}
@@ -257,7 +256,6 @@ export default function OperationConfirmDialog({
                         {/* @ts-ignore */}
                         {/* @ts-ignore */}
                         {getChangeIcon(change.oldValue, change.newValue)}
-                        // @ts-ignore
                         <span className="text-sm font-medium">
                           {/* @ts-ignore */}
                           {formatValue(change.newValue, change.unit)}
@@ -268,7 +266,6 @@ export default function OperationConfirmDialog({
                             // @ts-ignore
                             change.changePercent > 0 ? "text-green-500" : "text-red-500"
                           }>
-                            // @ts-ignore
                             {(change as any).changePercent > 0 ? "+" : ""}{(change as any).changePercent.toFixed(1)}%
                           </Badge>
                         )}

@@ -43,7 +43,6 @@ export default function PrelaunchM1Keywords() {
 
   // 获取关键词列表
   const keywordsQuery = trpc.prelaunch.getKeywords.useQuery(
-    // @ts-ignore
     {
       projectId: projectId!,
       // @ts-ignore
@@ -125,7 +124,6 @@ export default function PrelaunchM1Keywords() {
             >
               <option value="">选择项目</option>
               {projects.map((p: unknown) => (
-                // @ts-ignore
                 <option key={p.id} value={p.id}>{p.projectName}</option>
               ))}
             </select>
@@ -227,7 +225,6 @@ export default function PrelaunchM1Keywords() {
                 <Button
                   // @ts-ignore
                   key={layer.key}
-                  // @ts-ignore
                   variant={relevanceFilter === layer.key ? "default" : "outline"}
                   size="sm"
                   // @ts-ignore
@@ -244,7 +241,6 @@ export default function PrelaunchM1Keywords() {
                 <select
                   className="h-7 rounded border border-input bg-transparent px-2 text-xs"
                   value={sortBy}
-                  // @ts-ignore
                   onChange={(e) => setSortBy(e.target.value as unknown)}
                 >
                   <option value="kviScore">KVI评分</option>
@@ -296,7 +292,6 @@ export default function PrelaunchM1Keywords() {
                       </thead>
                       <tbody>
                         {keywordsData.map((kw: unknown) => (
-                          // @ts-ignore
                           <tr key={kw.id} className="border-b border-border/30 hover:bg-muted/20 transition-colors">
                             {/* @ts-ignore */}
                             {/* @ts-ignore */}
@@ -313,7 +308,6 @@ export default function PrelaunchM1Keywords() {
                                 kw.relevanceLayer === 'long_tail' ? 'border-amber-500/50 text-amber-400' :
                                 'border-gray-500/50 text-gray-400'
                               }`}>
-                                // @ts-ignore
                                 {(kw as any).relevanceLayer === 'core' ? '核心' :
                                  // @ts-ignore
                                  kw.relevanceLayer === 'extended' ? '扩展' :
@@ -330,14 +324,12 @@ export default function PrelaunchM1Keywords() {
                             <td className="px-3 py-2.5 text-center">
                               {/* @ts-ignore */}
                               {kw.scenarioCode ? (
-                                // @ts-ignore
                                 <Badge variant="secondary" className="text-xs">{kw.scenarioCode}</Badge>
                               ) : '-'}
                             </td>
                             <td className="px-3 py-2.5 text-center">
                               {/* @ts-ignore */}
                               {kw.intentTag ? (
-                                // @ts-ignore
                                 <Badge variant="secondary" className="text-xs">{kw.intentTag}</Badge>
                               ) : '-'}
                             </td>
@@ -352,11 +344,9 @@ export default function PrelaunchM1Keywords() {
 
             {/* 分页 */}
             {totalKeywords > 30 && (
-              // @ts-ignore
               <div className="flex items-center justify-between">
                 <p className="text-xs text-muted-foreground">
                   共 {totalKeywords} 条，第 {page} / {Math.ceil(totalKeywords / 30)} 页
-                // @ts-ignore
                 </p>
                 {/* @ts-ignore */}
                 <div className="flex items-center gap-1">
@@ -385,7 +375,6 @@ export default function PrelaunchM1Keywords() {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {clustersData.map((cluster: unknown) => (
-                  // @ts-ignore
                   <Card key={cluster.clusterId || cluster.id} className="hover:border-blue-500/30 transition-colors">
                     <CardHeader className="pb-2">
                       <div className="flex items-center justify-between">
@@ -397,7 +386,6 @@ export default function PrelaunchM1Keywords() {
                     </CardHeader>
                     <CardContent>
                       <div className="flex flex-wrap gap-1">
-                        // @ts-ignore
                         {((cluster as any).topKeywords || []).slice(0, 5).map((kw: string, i: number) => (
                           <Badge key={i} variant="outline" className="text-xs">{kw}</Badge>
                         ))}
@@ -405,10 +393,8 @@ export default function PrelaunchM1Keywords() {
                     {/* @ts-ignore */}
                     </CardContent>
                   </Card>
-                // @ts-ignore
                 ))}
               </div>
-            // @ts-ignore
             )}
           </TabsContent>
 
@@ -447,7 +433,6 @@ export default function PrelaunchM1Keywords() {
                             {/* @ts-ignore */}
                             <td className="px-3 py-2.5">{triple.object}</td>
                             <td className="px-3 py-2.5 text-right tabular-nums">
-                              // @ts-ignore
                               {(triple as any).confidence ? `${(Number((triple as any).confidence) * 100).toFixed(0)}%` : '-'}
                             </td>
                           </tr>

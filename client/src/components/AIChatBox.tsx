@@ -210,13 +210,10 @@ export function AIChatBox({
               {suggestedPrompts && suggestedPrompts.length > 0 && (
                 <div className="flex max-w-2xl flex-wrap justify-center gap-2">
                   {suggestedPrompts.map((prompt: unknown, index: unknown) => (
-                    // @ts-ignore
                     <button
                       // @ts-ignore
                       key={index}
-                      // @ts-ignore
                       onClick={() => onSendMessage(prompt)}
-                      // @ts-ignore
                       disabled={isLoading}
                       className="rounded-lg border border-border bg-card px-4 py-2 text-sm transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
                     >
@@ -239,7 +236,6 @@ export function AIChatBox({
                   isLastMessage && !isLoading && minHeightForLastMessage > 0;
 
                 return (
-                  // @ts-ignore
                   <div
                     // @ts-ignore
                     key={index}
@@ -250,7 +246,6 @@ export function AIChatBox({
                         ? "justify-end items-start"
                         : "justify-start items-start"
                     )}
-                    // @ts-ignore
                     style={
                       shouldApplyMinHeight
                         ? { minHeight: `${minHeightForLastMessage}px` }

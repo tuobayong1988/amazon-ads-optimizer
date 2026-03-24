@@ -301,9 +301,7 @@ const [activeTab, setActiveTab] = useState("tiered");
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">全部账号</SelectItem>
-              // @ts-ignore
               {accounts?.map((account: unknown) => (
-                // @ts-ignore
                 <SelectItem key={account.id} value={account.id.toString()}>
                   {/* @ts-ignore */}
                   {account.accountName}
@@ -462,7 +460,6 @@ const [activeTab, setActiveTab] = useState("tiered");
                   <div>
                     <p className="text-sm text-muted-foreground">总同步记录</p>
                     <p className="text-2xl font-bold">
-                      // @ts-ignore
                       {jobsData?.jobs.reduce((sum: number, j: Record<string, unknown>) => (sum as any) + (j.recordsSynced || 0), 0).toLocaleString() || 0}
                     </p>
                   </div>
@@ -509,7 +506,6 @@ const [activeTab, setActiveTab] = useState("tiered");
                   <p>暂无同步任务</p>
                   <p className="text-sm mt-2">点击"开始同步"创建新的同步任务</p>
                 </div>
-              // @ts-ignore
               ) : (
                 <div className="space-y-3">
                   {jobsData?.jobs.map((job: unknown) => (
@@ -524,7 +520,6 @@ const [activeTab, setActiveTab] = useState("tiered");
                         <div className="flex items-center gap-3">
                           {/* @ts-ignore */}
                           {getStatusIcon(job.status)}
-                          // @ts-ignore
                           <div>
                             {/* @ts-ignore */}
                             {/* @ts-ignore */}
@@ -537,19 +532,16 @@ const [activeTab, setActiveTab] = useState("tiered");
                         <div className="flex items-center gap-2">
                           {/* @ts-ignore */}
                           {getStatusBadge(job.status)}
-                          // @ts-ignore
                           {(job as any).status === "pending" && (
                             <Button
                               size="sm"
                               variant="ghost"
                               // @ts-ignore
                               onClick={() => cancelJobMutation.mutate({ jobId: job.id })}
-                              // @ts-ignore
                               disabled={cancelJobMutation.isPending}
                             >
                               取消
                             </Button>
-                          // @ts-ignore
                           )}
                         </div>
                       </div>
@@ -571,14 +563,12 @@ const [activeTab, setActiveTab] = useState("tiered");
                           {/* @ts-ignore */}
                           <p className="text-xs text-muted-foreground">创建时间</p>
                           <p className="font-medium text-xs">
-                            // @ts-ignore
                             {(job as any).createdAt ? safeToLocaleString((job as any).createdAt) : "N/A"}
                           </p>
                         </div>
                         <div className="text-center p-2 bg-muted/50 rounded">
                           <p className="text-xs text-muted-foreground">完成时间</p>
                           <p className="font-medium text-xs">
-                            // @ts-ignore
                             {(job as any).completedAt ? safeToLocaleString((job as any).completedAt) : "进行中"}
                           </p>
                         </div>
@@ -831,10 +821,8 @@ const [activeTab, setActiveTab] = useState("tiered");
             </CardHeader>
             <CardContent>
               {schedulesLoading ? (
-                // @ts-ignore
                 <div className="text-center py-8 text-muted-foreground">加载中...</div>
               ) : !schedules || (schedules as unknown[]).length === 0 ? (
-                // @ts-ignore
                 <div className="text-center py-8 text-muted-foreground">
                   {/* @ts-ignore */}
                   <Calendar className="h-12 w-12 mx-auto mb-4 opacity-50" />
@@ -846,7 +834,6 @@ const [activeTab, setActiveTab] = useState("tiered");
               ) : (
                 <div className="space-y-4">
                   {(schedules as unknown[]).map((schedule: unknown) => (
-                    // @ts-ignore
                     <div key={schedule.id} className="border rounded-lg p-4">
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-3">
@@ -862,11 +849,8 @@ const [activeTab, setActiveTab] = useState("tiered");
                             <p className="text-sm text-muted-foreground">
                               {/* @ts-ignore */}
                               {schedule.frequency === 'hourly' && '每小时执行'}
-                              // @ts-ignore
                               {(schedule as any).frequency === 'daily' && `每天 ${(schedule as any).hour?.toString().padStart(2, '0')}:00 执行`}
-                              // @ts-ignore
                               {(schedule as any).frequency === 'weekly' && `每周${['日', '一', '二', '三', '四', '五', '六'][(schedule as any).dayOfWeek || 0]} ${(schedule as any).hour?.toString().padStart(2, '0')}:00 执行`}
-                              // @ts-ignore
                               {(schedule as any).frequency === 'monthly' && `每月${(schedule as any).dayOfMonth}日 ${(schedule as any).hour?.toString().padStart(2, '0')}:00 执行`}
                             </p>
                           </div>
@@ -875,7 +859,6 @@ const [activeTab, setActiveTab] = useState("tiered");
                         <div className="flex items-center gap-2">
                           {/* @ts-ignore */}
                           <Badge className={schedule.isEnabled ? 'bg-green-500' : 'bg-gray-500'}>
-                            // @ts-ignore
                             {(schedule as any).isEnabled ? '已启用' : '已禁用'}
                           </Badge>
                           <Button
@@ -907,7 +890,6 @@ const [activeTab, setActiveTab] = useState("tiered");
                             // @ts-ignore
                             onClick={() => updateScheduleMutation.mutate({ id: schedule.id, isEnabled: !schedule.isEnabled })}
                           >
-                            // @ts-ignore
                             {(schedule as any).isEnabled ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
                           </Button>
                           <Button
@@ -924,21 +906,18 @@ const [activeTab, setActiveTab] = useState("tiered");
                         <div>
                           <p className="text-muted-foreground">上次执行</p>
                           <p className="font-medium">
-                            // @ts-ignore
                             {(schedule as any).lastRunAt ? safeToLocaleString((schedule as any).lastRunAt) : '从未执行'}
                           </p>
                         </div>
                         <div>
                           <p className="text-muted-foreground">下次执行</p>
                           <p className="font-medium">
-                            // @ts-ignore
                             {(schedule as any).nextRunAt ? safeToLocaleString((schedule as any).nextRunAt) : 'N/A'}
                           </p>
                         </div>
                         <div>
                           <p className="text-muted-foreground">创建时间</p>
                           <p className="font-medium">
-                            // @ts-ignore
                             {(schedule as any).createdAt ? safeToLocaleString((schedule as any).createdAt) : 'N/A'}
                           </p>
                         </div>
@@ -1019,7 +998,6 @@ const [activeTab, setActiveTab] = useState("tiered");
                 <History className="h-12 w-12 mx-auto mb-4 opacity-50" />
                 <p>暂无执行记录</p>
               </div>
-            // @ts-ignore
             ) : (
               <div className="overflow-x-auto">
                 {/* @ts-ignore */}
@@ -1043,20 +1021,16 @@ const [activeTab, setActiveTab] = useState("tiered");
                         <td className="p-2">
                           {/* @ts-ignore */}
                           <Badge className={record.status === 'success' ? 'bg-green-500' : record.status === 'retrying' ? 'bg-yellow-500' : 'bg-red-500'}>
-                            // @ts-ignore
                             {(record as any).status === 'success' ? '成功' : (record as any).status === 'retrying' ? '重试中' : '失败'}
                           </Badge>
                         </td>
                         <td className="p-2 text-sm">
-                          // @ts-ignore
                           {(record as any).startedAt ? safeToLocaleString((record as any).startedAt) : 'N/A'}
                         </td>
                         <td className="p-2 text-sm">
-                          // @ts-ignore
                           {(record as any).completedAt ? safeToLocaleString((record as any).completedAt) : '-'}
                         </td>
                         <td className="p-2 text-right text-sm">
-                          // @ts-ignore
                           {(record as any).duration ? `${(record as any).duration}s` : '-'}
                         </td>
                         <td className="p-2 text-right text-sm">

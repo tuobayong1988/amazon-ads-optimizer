@@ -306,7 +306,6 @@ export default function AccountsSummary() {
                           // @ts-ignore
                           cy="50%"
                           labelLine={false}
-                          // @ts-ignore
                           label={({ name, percent }: unknown) => `${name} ${((percent || 0) * 100).toFixed(0)}%`}
                           outerRadius={100}
                           fill="#8884d8"
@@ -314,7 +313,6 @@ export default function AccountsSummary() {
                           dataKey="value"
                         >
                           {marketplaceChartData.map((entry: unknown, index: unknown) => (
-                            // @ts-ignore
                             <Cell key={`cell-${index}`} fill={entry.color} />
                           ))}
                         </Pie>
@@ -431,14 +429,12 @@ export default function AccountsSummary() {
                           return formatNumber(value);
                         }) as unknown}
                         contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333' }}
-                      // @ts-ignore
                       />
                       <Bar
                         dataKey={selectedMetric}
                         radius={[4, 4, 0, 0]}
                       >
                         {accountChartData.map((entry: unknown, index: unknown) => (
-                          // @ts-ignore
                           <Cell key={`cell-${index}`} fill={entry.color} />
                         ))}
                       </Bar>
@@ -456,7 +452,6 @@ export default function AccountsSummary() {
             <div className="grid gap-4 md:grid-cols-2">
               {/* 市场统计卡片 */}
               {marketplaceChartData.map((market: unknown, index: unknown) => (
-                // @ts-ignore
                 <Card key={market.name}>
                   <CardHeader className="pb-2">
                     <div className="flex items-center justify-between">
@@ -515,7 +510,6 @@ export default function AccountsSummary() {
                     {/* @ts-ignore */}
                     <TableBody>
                       {summary?.accountsData?.map((account: unknown) => (
-                        // @ts-ignore
                         <TableRow key={account.id}>
                           <TableCell>
                             {/* @ts-ignore */}
@@ -547,12 +541,10 @@ export default function AccountsSummary() {
                           <TableCell className="text-right font-medium">
                             {/* @ts-ignore */}
                             {formatCurrency(account.sales)}
-                          // @ts-ignore
                           </TableCell>
                           <TableCell className="text-right">
                             {/* @ts-ignore */}
                             {formatCurrency(account.spend)}
-                          // @ts-ignore
                           </TableCell>
                           <TableCell className="text-right">
                             {/* @ts-ignore */}
@@ -593,7 +585,6 @@ export default function AccountsSummary() {
                                   : ''
                               }
                             >
-                              // @ts-ignore
                               {(account as any).connectionStatus === 'connected' ? '已连接' :
                                // @ts-ignore
                                account.connectionStatus === 'error' ? '错误' : '待配置'}

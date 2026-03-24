@@ -78,7 +78,6 @@ export default function PrelaunchM4XCopy() {
             <select className="h-8 rounded-md border border-input bg-transparent px-2 text-xs"
               value={projectId || ''} onChange={(e) => setProjectId(Number(e.target.value))}>
               <option value="">选择项目</option>
-              // @ts-ignore
               {projects.map((p: unknown) => <option key={(p as any).id} value={(p as any).id}>{(p as any).projectName}</option>)}
             </select>
             <Button variant="outline" size="sm" onClick={() => copiesQuery.refetch()} disabled={copiesQuery.isFetching}>
@@ -117,13 +116,11 @@ export default function PrelaunchM4XCopy() {
               {/* @ts-ignore */}
               </Card>
             ) : (
-              // @ts-ignore
               <div className="space-y-4">
                 {copiesData.map((copy: unknown) => {
                   // @ts-ignore
                   const typeInfo = copyTypeLabels[copy.copyType] || { label: copy.copyType, color: 'bg-gray-500/20 text-gray-400' };
                   return (
-                    // @ts-ignore
                     <Card key={copy.id} className="hover:border-amber-500/20 transition-colors">
                       {/* @ts-ignore */}
                       <CardHeader className="pb-2">
@@ -138,7 +135,6 @@ export default function PrelaunchM4XCopy() {
                           {/* @ts-ignore */}
                           {/* @ts-ignore */}
                           {copy.fitnessScore && (
-                            // @ts-ignore
                             <span className="text-xs text-muted-foreground">适应度: {Number(copy.fitnessScore).toFixed(2)}</span>
                           )}
                         </div>
@@ -163,7 +159,6 @@ export default function PrelaunchM4XCopy() {
 
           <TabsContent value="qna" className="space-y-4">
             {qnaData.length === 0 ? (
-              // @ts-ignore
               <Card>
                 {/* @ts-ignore */}
                 <CardContent className="py-12 text-center text-muted-foreground">

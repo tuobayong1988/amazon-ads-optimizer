@@ -413,7 +413,6 @@ export default function AmazonApiSettings() {
 
   // Fetch credentials status
   const { data: credentialsStatus, refetch: refetchStatus } = trpc.amazonApi.getCredentialsStatus.useQuery(
-    // @ts-ignore
     { accountId: selectedAccountId! },
     { enabled: !!selectedAccountId }
   );
@@ -1124,9 +1123,7 @@ export default function AmazonApiSettings() {
         // 轮询失败，继续尝试
         await new Promise(resolve => setTimeout(resolve, 2000));
       }
-    // @ts-ignore
     }
-    // @ts-ignore
     return { success: false, error: '同步超时' };
   };
 
@@ -1144,7 +1141,6 @@ export default function AmazonApiSettings() {
     
     // 更新站点状态为同步中
     const updatedStatuses = siteStatuses.map(s => 
-      // @ts-ignore
       s.id === site.id ? { ...s, status: 'syncing' as const, progress: 10 } : s
     );
     updateProgress(updatedStatuses);
@@ -1165,7 +1161,6 @@ export default function AmazonApiSettings() {
       
       // 更新进度为30%
       const progressStatuses = siteStatuses.map(s => 
-        // @ts-ignore
         s.id === site.id ? { ...s, status: 'syncing' as const, progress: 30 } : s
       );
       updateProgress(progressStatuses);
@@ -1174,7 +1169,6 @@ export default function AmazonApiSettings() {
       const pollResult = await pollSyncJobStatus(result.jobId, 2700, (currentStep, stepProgress, currentStepIndex, totalSteps) => {
         // v407: 实时更新站点卡片中的同步步骤和真实进度
         const stepStatuses = siteStatuses.map(s => 
-          // @ts-ignore
           s.id === site.id ? { 
             ...s, 
             status: 'syncing' as const, 
@@ -1191,7 +1185,6 @@ export default function AmazonApiSettings() {
       if (pollResult.success && pollResult.results) {
         // 更新站点状态为成功
         const successStatuses = siteStatuses.map(s => 
-          // @ts-ignore
           s.id === site.id ? { 
             ...s, 
             status: 'success' as const, 
@@ -1211,7 +1204,6 @@ export default function AmazonApiSettings() {
       
       // 更新站点状态为失败
       const failedStatuses = siteStatuses.map(s => 
-        // @ts-ignore
         s.id === site.id ? { 
           // @ts-ignore
           ...s, 
@@ -1384,7 +1376,6 @@ export default function AmazonApiSettings() {
     // @ts-ignore
     }
     
-    // @ts-ignore
     return results;
   };
 
@@ -1396,7 +1387,6 @@ export default function AmazonApiSettings() {
 
     // 获取该店铺下所有站点
     const storeSites = accounts?.filter(a => 
-      // @ts-ignore
       (a.storeName === selectedAccount.storeName) && 
       // @ts-ignore
       a.marketplace && a.marketplace !== ''
@@ -1471,7 +1461,6 @@ export default function AmazonApiSettings() {
         return async () => {
           // 更新当前站点状态为同步中
           currentSiteStatuses = currentSiteStatuses.map(s => 
-            // @ts-ignore
             s.id === site.id ? { ...s, status: 'syncing' as const, progress: 10 } : s
           );
           setSyncProgress(prev => ({
@@ -1494,7 +1483,6 @@ export default function AmazonApiSettings() {
             
             // 更新进度为30%
             currentSiteStatuses = currentSiteStatuses.map(s => 
-              // @ts-ignore
               s.id === site.id && s.status === 'syncing' ? { ...s, progress: 30 } : s
             );
             setSyncProgress(prev => ({
@@ -1509,7 +1497,6 @@ export default function AmazonApiSettings() {
               (currentStep, stepProgress, currentStepIndex, totalSteps) => {
                 // v407: 更新站点的当前步骤、进度、步骤索引和总步骤数
                 currentSiteStatuses = currentSiteStatuses.map(s => 
-                  // @ts-ignore
                   s.id === site.id && s.status === 'syncing' ? { 
                     ...s, 
                     currentStep,
@@ -1549,7 +1536,6 @@ export default function AmazonApiSettings() {
             
             // 更新站点状态为成功，清除步骤信息
             currentSiteStatuses = currentSiteStatuses.map(s => 
-              // @ts-ignore
               s.id === site.id ? { 
                 ...s, 
                 status: 'success' as const, 
@@ -1591,7 +1577,6 @@ export default function AmazonApiSettings() {
             };
             
             currentSiteStatuses = currentSiteStatuses.map(s => 
-              // @ts-ignore
               s.id === site.id ? failedSiteStatus : s
             );
             failedSites.push(failedSiteStatus);
@@ -1766,7 +1751,6 @@ export default function AmazonApiSettings() {
                 <DropdownMenuItem onClick={() => exportAccountsMutation.mutate({ format: 'csv' })}>
                   <FileSpreadsheet className="h-4 w-4 mr-2" />
                   导出为CSV
-                // @ts-ignore
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -1831,9 +1815,7 @@ export default function AmazonApiSettings() {
                         className={`w-8 h-8 rounded-full border-2 transition-all ${
                           formData.storeColor === color ? 'border-white scale-110' : 'border-transparent'
                         }`}
-                        // @ts-ignore
                         style={{ backgroundColor: color }}
-                        // @ts-ignore
                         onClick={() => setFormData({ ...formData, storeColor: color })}
                       />
                     ))}
@@ -2060,21 +2042,17 @@ export default function AmazonApiSettings() {
                                     <RefreshCw className="h-4 w-4 mr-2" />
                                     数据同步
                                   </DropdownMenuItem>
-                                // @ts-ignore
                                 )}
-                                // @ts-ignore
                                 {!primaryAccount.isDefault && (
                                   <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleSetDefault(primaryAccount.id); }}>
                                     <Star className="h-4 w-4 mr-2" />
                                     设为默认
                                   </DropdownMenuItem>
-                                // @ts-ignore
                                 )}
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem 
                                   className="text-red-500"
                                   onClick={(e) => { e.stopPropagation(); handleDeleteAccount(primaryAccount.id); }}
-                                // @ts-ignore
                                 >
                                   <Trash2 className="h-4 w-4 mr-2" />
                                   删除店铺
@@ -2097,7 +2075,6 @@ export default function AmazonApiSettings() {
                                       : 'hover:bg-muted/50 border-muted-foreground/30'
                                   // @ts-ignore
                                   }`}
-                                  // @ts-ignore
                                   onClick={() => {
                                     setSelectedAccountId(emptyStore.id);
                                     setActiveTab('api-config');
@@ -2130,7 +2107,6 @@ export default function AmazonApiSettings() {
                                         ? 'bg-primary/10 border border-primary/30' 
                                         : 'hover:bg-muted/50 border border-transparent'
                                     }`}
-                                    // @ts-ignore
                                     onClick={() => setSelectedAccountId(account.id)}
                                   >
                                     <div className="flex items-center gap-2">
@@ -2139,7 +2115,6 @@ export default function AmazonApiSettings() {
                                         <div className="text-sm font-medium flex items-center gap-1">
                                           {/* @ts-ignore */}
                                           {marketplace?.name || account.marketplace}
-                                          // @ts-ignore
                                           {!!(account as any).isDefault && (
                                             <Star className="h-3 w-3 text-yellow-500 fill-yellow-500" />
                                           )}
@@ -2176,7 +2151,6 @@ export default function AmazonApiSettings() {
 
                                           {/* @ts-ignore */}
                                           {!account.isDefault && (
-                                            // @ts-ignore
                                             <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleSetDefault(account.id); }}>
                                               <Star className="h-4 w-4 mr-2" />
                                               设为默认
@@ -2836,7 +2810,6 @@ export default function AmazonApiSettings() {
                           )}
                         </div>
                       )}
-                    // @ts-ignore
                     </div>
 
                     <Alert variant="default" className="bg-amber-50 border-amber-200">
@@ -2858,7 +2831,6 @@ export default function AmazonApiSettings() {
                     <CardTitle className="flex items-center gap-2 text-purple-400">
                       <Shield className="h-5 w-5" />
                       紫鸟浏览器专用授权（中国大陆卖家）
-                    // @ts-ignore
                     </CardTitle>
                     <CardDescription>
                       如果您使用紫鸟浏览器管理亚马逊店铺，请使用此方式完成授权
@@ -2948,7 +2920,6 @@ export default function AmazonApiSettings() {
                                   ? 'bg-purple-600/30 border-purple-400' 
                                   : 'bg-purple-900/20 border-purple-500/20 hover:border-purple-400/50'
                               }`}
-                              // @ts-ignore
                               onClick={() => setCredentials({ ...credentials, region: item.region })}
                             >
                               <div className="flex items-center justify-between mb-2">
@@ -2975,7 +2946,6 @@ export default function AmazonApiSettings() {
                                         {/* @ts-ignore */}
                                         <strong>{item.name}</strong>授权链接已复制！<br/>
                                         <span className="text-sm">授权后将获得以下站点数据访问权限：<br/>
-                                        // @ts-ignore
                                         {(item as any).sites.map((s: unknown) => `${(s as any).flag} ${(s as any).name}`).join('、')}</span>
                                       </div>
                                     );
@@ -2988,9 +2958,7 @@ export default function AmazonApiSettings() {
                               {/* @ts-ignore */}
                               <div className="text-xs text-purple-400 mb-2">{item.desc}</div>
                               <div className="flex flex-wrap gap-1">
-                                // @ts-ignore
                                 {(item as any).sites.map((site: unknown) => (
-                                  // @ts-ignore
                                   <span key={site.code} className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-900/40 rounded text-xs text-purple-300">
                                     {/* @ts-ignore */}
                                     {site.flag} {site.name}
@@ -3023,7 +2991,6 @@ export default function AmazonApiSettings() {
                     <div className="space-y-3">
                       <Label className="text-purple-400 font-medium">粘贴授权完成后的URL</Label>
                       <p className="text-sm text-purple-300">
-                        // @ts-ignore
                         授权完成后，浏览器地址栏会显示类似 <code className="bg-purple-900/50 px-1 rounded">https://www.ppcopt.com/api/auth/callback?code=ANxxxxxx&scope=...</code> 的URL，
                         请复制完整的URL粘贴到下方：
                       </p>
@@ -3363,7 +3330,6 @@ export default function AmazonApiSettings() {
                             <div className="flex items-center gap-2 text-sm">
                               {authStep !== 'complete' && authStep !== 'error' && <Loader2 className="h-4 w-4 animate-spin text-purple-400" />}
                               {authStep === 'complete' && <CheckCircle2 className="h-4 w-4 text-green-400" />}
-                              // @ts-ignore
                               {authStep === 'error' && <XCircle className="h-4 w-4 text-red-400" />}
                               <span className={
                                 // @ts-ignore
@@ -3456,7 +3422,6 @@ export default function AmazonApiSettings() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Database className="h-5 w-5" />
-                    // @ts-ignore
                     店铺数据同步 - {(selectedAccount as any).storeName}
                   </CardTitle>
                   <CardDescription>
@@ -3467,7 +3432,6 @@ export default function AmazonApiSettings() {
                   {/* 显示该店铺下的所有站点 */}
                   {(() => {
                     const storeSites = accounts?.filter(a => 
-                      // @ts-ignore
                       (a.storeName === selectedAccount.storeName) && 
                       // @ts-ignore
                       a.marketplace && a.marketplace !== ''
@@ -3479,7 +3443,6 @@ export default function AmazonApiSettings() {
                           // @ts-ignore
                           const mp = MARKETPLACES.find(m => m.id === site.marketplace);
                           return (
-                            // @ts-ignore
                             <Badge key={site.id} variant="outline" className="flex items-center gap-1">
                               <span>{mp?.flag || '🌐'}</span>
                               {/* @ts-ignore */}
@@ -3507,12 +3470,9 @@ export default function AmazonApiSettings() {
                         id="incremental-sync"
                         checked={useIncrementalSync}
                         onCheckedChange={setUseIncrementalSync}
-                      // @ts-ignore
                       />
                       <Label htmlFor="incremental-sync" className="text-sm cursor-pointer">
-                        // @ts-ignore
                         增量同步
-                      // @ts-ignore
                       </Label>
                       {/* @ts-ignore */}
                       <span className="text-xs text-muted-foreground">
@@ -3531,10 +3491,8 @@ export default function AmazonApiSettings() {
                       >
                         {/* @ts-ignore */}
                         <RefreshCw className="h-4 w-4 mr-1" />
-                        // @ts-ignore
                         定时同步
                         {Array.isArray(scheduleConfig) && scheduleConfig.length > 0 && scheduleConfig[0]?.isEnabled && (
-                          // @ts-ignore
                           <Badge variant="secondary" className="ml-1 h-5 px-1 bg-green-500/20 text-green-500">已开启</Badge>
                         )}
                       </Button>
@@ -3545,10 +3503,8 @@ export default function AmazonApiSettings() {
                         size="sm"
                         // @ts-ignore
                         onClick={() => setShowSyncQueue(!showSyncQueue)}
-                      // @ts-ignore
                       >
                         <Database className="h-4 w-4 mr-1" />
-                        // @ts-ignore
                         队列
                       </Button>
                       <Button
@@ -3558,21 +3514,16 @@ export default function AmazonApiSettings() {
                         className={pendingConflictsCount && pendingConflictsCount > 0 ? 'text-yellow-500' : ''}
                       >
                         <AlertCircle className="h-4 w-4 mr-1" />
-                        // @ts-ignore
                         冲突
                         {pendingConflictsCount && pendingConflictsCount > 0 && (
-                          // @ts-ignore
                           <Badge variant="destructive" className="ml-1 h-5 px-1">{pendingConflictsCount}</Badge>
-                        // @ts-ignore
                         )}
-                      // @ts-ignore
                       </Button>
                       <Button
                         variant="ghost"
                         // @ts-ignore
                         size="sm"
                         onClick={() => setShowSyncHistory(!showSyncHistory)}
-                      // @ts-ignore
                       >
                         {/* @ts-ignore */}
                         <Eye className="h-4 w-4 mr-1" />
@@ -3591,27 +3542,22 @@ export default function AmazonApiSettings() {
                       disabled={isSyncing || !selectedAccountId}
                     >
                       {isSyncing ? (
-                        // @ts-ignore
                         <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                       ) : (
                         <RefreshCw className="h-4 w-4 mr-2" />
                       )}
                       {isSyncing ? "同步中..." : (useIncrementalSync ? "增量同步" : "全量同步")}
-                    // @ts-ignore
                     </Button>
 
                     <Button 
                       variant="outline" 
                       onClick={() => runOptimizationMutation.mutate({ accountId: selectedAccountId!, performanceGroupId: 0 })}
-                      // @ts-ignore
                       disabled={runOptimizationMutation.isPending || !credentialsStatus?.hasCredentials}
                     >
                       {runOptimizationMutation.isPending ? (
-                        // @ts-ignore
                         <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                       ) : (
                         <Play className="h-4 w-4 mr-2" />
-                      // @ts-ignore
                       )}
                       运行自动优化
                     </Button>
@@ -3619,7 +3565,6 @@ export default function AmazonApiSettings() {
 
                   {/* 同步进度指示器 */}
                   {syncProgress.step !== 'idle' && (
-                    // @ts-ignore
                     <div className="mt-4 p-4 bg-muted/50 rounded-lg border">
                       {/* 整体进度 */}
                       <div className="flex items-center justify-between mb-2">
@@ -3677,21 +3622,18 @@ export default function AmazonApiSettings() {
                                             // @ts-ignore
                                             ? `正在同步: ${site.currentStep}${site.currentStepIndex && site.totalSteps ? ` (第${site.currentStepIndex}/${site.totalSteps}步)` : ''}` 
                                             : '正在同步...'}
-                                          // @ts-ignore
                                           {(site as any).stepProgress ? ` ${(site as any).stepProgress}%` : ''}
                                         </div>
                                         {/* v407: 动态步骤进度条 - 根据后端返回的totalSteps动态生成 */}
                                         {/* @ts-ignore */}
                                         {site.currentStepIndex !== undefined && site.totalSteps && site.totalSteps > 0 && (
                                           <div className="flex gap-0.5">
-                                            // @ts-ignore
                                             {Array.from({length: Math.min((site as any).totalSteps, 31)}).map((_: unknown, idx: unknown) => {
                                               // @ts-ignore
                                               const isComplete = idx < (site.currentStepIndex || 0);
                                               // @ts-ignore
                                               const isCurrent = idx === (site.currentStepIndex || 0);
                                               return (
-                                                // @ts-ignore
                                                 <div key={idx} className={`h-1 flex-1 rounded-full ${
                                                   isComplete ? 'bg-green-500' : isCurrent ? 'bg-primary animate-pulse' : 'bg-muted'
                                                 }`} />
@@ -3701,27 +3643,20 @@ export default function AmazonApiSettings() {
                                         )}
                                       </div>
                                     )}
-                                    // @ts-ignore
                                     {(site as any).status === 'success' && (site as any).results && (
                                       <div className="text-xs text-green-600">
-                                        // @ts-ignore
                                         广告:{(site as any).results.sp + (site as any).results.sb + (site as any).results.sd} 
-                                        // @ts-ignore
                                         广告组:{(site as any).results.adGroups} 
-                                        // @ts-ignore
                                         关键词:{(site as any).results.keywords}
                                       </div>
                                     )}
-                                    // @ts-ignore
                                     {(site as any).status === 'failed' && (
                                       <div className="text-xs text-red-500">
                                         {/* @ts-ignore */}
                                         {site.error || '同步失败'}
-                                        // @ts-ignore
                                         {(site as any).retryCount > 0 && ` (已重试 ${(site as any).retryCount} 次)`}
                                       </div>
                                     )}
-                                    // @ts-ignore
                                     {(site as any).status === 'pending' && (
                                       <div className="text-xs text-muted-foreground">等待同步</div>
                                     )}
@@ -3740,21 +3675,17 @@ export default function AmazonApiSettings() {
                                     </div>
                                   )}
                                   {/* 状态图标 */}
-                                  // @ts-ignore
                                   {(site as any).status === 'pending' && (
                                     <div className="w-6 h-6 rounded-full bg-muted flex items-center justify-center">
                                       <div className="w-2 h-2 rounded-full bg-muted-foreground" />
                                     </div>
                                   )}
-                                  // @ts-ignore
                                   {(site as any).status === 'syncing' && (
                                     <Loader2 className="h-5 w-5 text-primary animate-spin" />
                                   )}
-                                  // @ts-ignore
                                   {(site as any).status === 'success' && (
                                     <CheckCircle2 className="h-5 w-5 text-green-500" />
                                   )}
-                                  // @ts-ignore
                                   {(site as any).status === 'failed' && (
                                     <div className="flex items-center gap-1">
                                       <XCircle className="h-5 w-5 text-red-500" />
@@ -3901,9 +3832,7 @@ export default function AmazonApiSettings() {
                                   <div className="font-medium">{syncProgress.results.adGroups}</div>
                                   {/* @ts-ignore */}
                                   <div className={syncProgress.results.adGroups - syncProgress.previousResults.adGroups > 0 ? 'text-green-500' : syncProgress.results.adGroups - syncProgress.previousResults.adGroups < 0 ? 'text-red-500' : 'text-muted-foreground'}>
-                                    // @ts-ignore
                                     {syncProgress.results.adGroups - syncProgress.previousResults.adGroups > 0 ? '+' : ''}{syncProgress.results.adGroups - syncProgress.previousResults.adGroups}
-                                  // @ts-ignore
                                   </div>
                                 </div>
                                 <div className="text-center">
@@ -3925,9 +3854,7 @@ export default function AmazonApiSettings() {
                                 </div>
                               </div>
                             </div>
-                          // @ts-ignore
                           )}
-                        // @ts-ignore
                         </div>
                       )}
                       
@@ -4052,7 +3979,6 @@ export default function AmazonApiSettings() {
                     <div className="space-y-2">
                       {syncHistory && syncHistory.jobs && syncHistory.jobs.length > 0 ? (
                         syncHistory.jobs.map((job: unknown) => (
-                          // @ts-ignore
                           <div key={job.id} className="flex items-center justify-between p-3 bg-muted/20 rounded-lg border">
                             <div className="flex items-center gap-3">
                               <div className={`w-2 h-2 rounded-full ${
@@ -4066,7 +3992,6 @@ export default function AmazonApiSettings() {
                               }`} />
                               <div>
                                 <div className="text-sm font-medium">
-                                  // @ts-ignore
                                   {(job as any).syncType === 'full' ? '全量同步' : '增量同步'}
                                 </div>
                                 <div className="text-xs text-muted-foreground">
@@ -4078,16 +4003,12 @@ export default function AmazonApiSettings() {
                             <div className="flex items-center gap-4">
                               <div className="text-right">
                                 <div className="text-sm">
-                                  // @ts-ignore
                                   同步: {(job as any).recordsSynced || 0} | 跳过: {(job as any).recordsSkipped || 0}
                                 </div>
                                 {/* @ts-ignore */}
                                 <div className="text-xs text-muted-foreground">
-                                  // @ts-ignore
                                   {(job as any).durationMs ? `耗时: ${((job as any).durationMs / 1000).toFixed(1)}秒` : ''}
-                                  // @ts-ignore
                                   {(job as any).retryCount && (job as any).retryCount > 0 ? ` | 重试: ${(job as any).retryCount}次` : ''}
-                                // @ts-ignore
                                 </div>
                               </div>
                               <Button
@@ -4106,7 +4027,6 @@ export default function AmazonApiSettings() {
                               </Button>
                               {/* @ts-ignore */}
                               <Badge variant={job.status === 'completed' ? 'default' : job.status === 'failed' ? 'destructive' : 'secondary'}>
-                                // @ts-ignore
                                 {(job as any).status === 'completed' ? '完成' :
                                  // @ts-ignore
                                  job.status === 'failed' ? '失败' :
@@ -4121,7 +4041,6 @@ export default function AmazonApiSettings() {
                           暂无同步记录
                         </div>
                       )}
-                    // @ts-ignore
                     </div>
                   </CardContent>
                 </Card>
@@ -4248,19 +4167,16 @@ export default function AmazonApiSettings() {
                   <CardContent className="space-y-4">
                     {syncConflicts && syncConflicts.length > 0 ? (
                       syncConflicts.map((conflict: unknown) => (
-                        // @ts-ignore
                         <div key={conflict.id} className="p-4 bg-yellow-500/5 rounded-lg border border-yellow-500/20">
                           <div className="flex items-start justify-between mb-3">
                             <div>
                               {/* @ts-ignore */}
                               <div className="font-medium">{conflict.entityName}</div>
                               <div className="text-xs text-muted-foreground">
-                                // @ts-ignore
                                 类型: {(conflict as any).entityType} | ID: {(conflict as any).entityId}
                               </div>
                             </div>
                             <Badge variant="outline" className="text-yellow-500 border-yellow-500">
-                              // @ts-ignore
                               {(conflict as any).conflictType === 'data_mismatch' ? '数据不一致' : (conflict as any).conflictType}
                             </Badge>
                           </div>
@@ -4268,9 +4184,7 @@ export default function AmazonApiSettings() {
                             <div className="p-2 bg-muted/50 rounded text-xs">
                               <div className="font-medium mb-1">本地数据</div>
                               <div className="text-muted-foreground">
-                                // @ts-ignore
                                 {(conflict as any).conflictFields?.map((field: string) => (
-                                  // @ts-ignore
                                   <div key={field}>{field}: {JSON.stringify(conflict.localData?.[field])}</div>
                                 ))}
                               </div>
@@ -4278,9 +4192,7 @@ export default function AmazonApiSettings() {
                             <div className="p-2 bg-muted/50 rounded text-xs">
                               <div className="font-medium mb-1">远程数据</div>
                               <div className="text-muted-foreground">
-                                // @ts-ignore
                                 {(conflict as any).conflictFields?.map((field: string) => (
-                                  // @ts-ignore
                                   <div key={field}>{field}: {JSON.stringify(conflict.remoteData?.[field])}</div>
                                 ))}
                               </div>
@@ -4343,18 +4255,14 @@ export default function AmazonApiSettings() {
                     <div className="flex items-center justify-between">
                       <CardTitle className="flex items-center gap-2">
                         <RefreshCw className="h-5 w-5" />
-                        // @ts-ignore
                         定时同步设置
-                      // @ts-ignore
                       </CardTitle>
                       {/* @ts-ignore */}
                       <Button variant="ghost" size="sm" onClick={() => setShowScheduleSettings(false)}>
-                        // @ts-ignore
                         关闭
                       </Button>
                     </div>
                     <CardDescription>
-                      // @ts-ignore
                       设置自动同步频率，系统将按设定的时间间隔自动同步数据
                     </CardDescription>
                   {/* @ts-ignore */}
@@ -4387,13 +4295,10 @@ export default function AmazonApiSettings() {
                               });
                             }
                           }}
-                        // @ts-ignore
                         />
                         {/* @ts-ignore */}
                         <Label htmlFor="schedule-enabled" className="text-sm font-medium cursor-pointer">
-                          // @ts-ignore
                           启用定时同步
-                        // @ts-ignore
                         </Label>
                       {/* @ts-ignore */}
                       </div>
@@ -4528,7 +4433,6 @@ export default function AmazonApiSettings() {
                     <div className="space-y-2">
                       {syncQueue && syncQueue.length > 0 ? (
                         syncQueue.map((task: unknown) => (
-                          // @ts-ignore
                           <div key={task.id} className="flex items-center justify-between p-3 bg-muted/20 rounded-lg border">
                             <div className="flex items-center gap-3">
                               <div className={`w-2 h-2 rounded-full ${
@@ -4548,11 +4452,8 @@ export default function AmazonApiSettings() {
                                 {/* @ts-ignore */}
                                 <div className="text-sm font-medium">{task.accountName || `账号 #${task.accountId}`}</div>
                                 <div className="text-xs text-muted-foreground">
-                                  // @ts-ignore
                                   {(task as any).syncType === 'full' ? '全量同步' : (task as any).syncType}
-                                  // @ts-ignore
                                   {(task as any).progress > 0 && (task as any).status === 'running' && (
-                                    // @ts-ignore
                                     <span className="ml-2">进度: {task.progress}%</span>
                                   )}
                                 </div>
@@ -4579,7 +4480,6 @@ export default function AmazonApiSettings() {
                                 task.status === 'running' ? 'secondary' :
                                 'outline'
                               }>
-                                // @ts-ignore
                                 {(task as any).status === 'pending' ? '等待中' :
                                  // @ts-ignore
                                  task.status === 'running' ? '运行中' :
@@ -4658,7 +4558,6 @@ export default function AmazonApiSettings() {
                   <h3 className="font-semibold">第四步：获取Refresh Token</h3>
                   <p className="text-muted-foreground">
                     完成OAuth授权流程后，您将获得Refresh Token。这个令牌用于获取访问令牌，请妥善保管。
-                  // @ts-ignore
                   </p>
                 </div>
 
@@ -4735,9 +4634,7 @@ export default function AmazonApiSettings() {
                         className={`w-8 h-8 rounded-full border-2 transition-all ${
                           editingAccount.storeColor === color ? 'border-white scale-110' : 'border-transparent'
                         }`}
-                        // @ts-ignore
                         style={{ backgroundColor: color }}
-                        // @ts-ignore
                         onClick={() => setEditingAccount({ ...editingAccount, storeColor: color })}
                       />
                     ))}
@@ -4853,7 +4750,6 @@ export default function AmazonApiSettings() {
                   <p className="text-sm font-medium">预览结果 ({importPreview.length} 个账号)</p>
                   <div className="max-h-48 overflow-y-auto space-y-2">
                     {importPreview.map((account: unknown, index: unknown) => (
-                      // @ts-ignore
                       <div key={index} className="flex items-center justify-between text-sm p-2 bg-muted/50 rounded">
                         <div className="flex items-center gap-2">
                           {/* @ts-ignore */}

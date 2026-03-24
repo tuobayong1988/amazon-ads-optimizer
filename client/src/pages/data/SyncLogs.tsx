@@ -253,7 +253,6 @@ const [page, setPage] = useState(1);
                 </SelectTrigger>
                 <SelectContent>
                   {accounts?.map((account: unknown) => (
-                    // @ts-ignore
                     <SelectItem key={account.id} value={account.id.toString()}>
                       {/* @ts-ignore */}
                       {account.accountName} ({account.marketplace})
@@ -445,12 +444,10 @@ const [page, setPage] = useState(1);
               {/* @ts-ignore */}
               </div>
             ) : logsLoading ? (
-              // @ts-ignore
               <div className="text-center py-12">
                 <Loader2 className="w-8 h-8 mx-auto mb-3 animate-spin text-primary" />
                 <p className="text-muted-foreground">加载中...</p>
               </div>
-            // @ts-ignore
             ) : filteredLogs.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">
                 <FileText className="w-12 h-12 mx-auto mb-3 opacity-30" />
@@ -472,7 +469,6 @@ const [page, setPage] = useState(1);
                         <div className="flex items-center gap-2 mb-1">
                           {/* @ts-ignore */}
                           {getLevelBadge(log.level)}
-                          // @ts-ignore
                           {(log as any).logType && (
                             <Badge variant="outline" className="text-xs">
                               {/* @ts-ignore */}
@@ -480,7 +476,6 @@ const [page, setPage] = useState(1);
                             </Badge>
                           )}
                           <span className="text-xs text-muted-foreground">
-                            // @ts-ignore
                             {format(safeParseDate((log as any).createdAt), 'yyyy-MM-dd HH:mm:ss')}
                           </span>
                         </div>

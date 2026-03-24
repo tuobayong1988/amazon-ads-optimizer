@@ -107,7 +107,6 @@ export default function TargetOverviewPanel({
               {/* @ts-ignore */}
               </div>
             )}
-            // @ts-ignore
             {(group as any)?.targetRoas && (
               <div className="flex justify-between items-center py-2 border-b">
                 <span className="text-muted-foreground">目标ROAS</span>
@@ -115,19 +114,14 @@ export default function TargetOverviewPanel({
                 {/* @ts-ignore */}
                 <span className="font-medium">{group.targetRoas}x</span>
               </div>
-            // @ts-ignore
             )}
-            // @ts-ignore
             {(group as any)?.dailyBudget && (
-              // @ts-ignore
               <div className="flex justify-between items-center py-2 border-b">
                 <span className="text-muted-foreground">日预算</span>
                 {/* @ts-ignore */}
                 <span className="font-medium">${group.dailyBudget}</span>
               </div>
-            // @ts-ignore
             )}
-            // @ts-ignore
             {(group as any)?.maxBid && (
               <div className="flex justify-between items-center py-2 border-b">
                 <span className="text-muted-foreground">最高出价</span>
@@ -139,7 +133,6 @@ export default function TargetOverviewPanel({
               <span className="text-muted-foreground">状态</span>
               {/* @ts-ignore */}
               <Badge variant={group?.status === 'active' ? 'default' : 'secondary'}>
-                // @ts-ignore
                 {(group as any).status === 'active' ? '运行中' : '已暂停'}
               </Badge>
             </div>
@@ -169,7 +162,6 @@ export default function TargetOverviewPanel({
                   {/* @ts-ignore */}
                   <Badge className={getProgressBadge(overallScore).className}>
                     {getProgressBadge(overallScore).label}
-                  // @ts-ignore
                   </Badge>
                   <span className="text-xs text-muted-foreground">100</span>
                 {/* @ts-ignore */}
@@ -182,7 +174,6 @@ export default function TargetOverviewPanel({
             {/* @ts-ignore */}
             {goalProgress?.dimensions && (
               <div className="space-y-2 mt-4">
-                // @ts-ignore
                 {(goalProgress as any).dimensions.map((dim: unknown, idx: number) => (
                   <div key={idx} className="flex items-center gap-2 text-sm">
                     {/* @ts-ignore */}

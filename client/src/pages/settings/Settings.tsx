@@ -101,9 +101,7 @@ const { resetOnboarding, savedProgress } = useOnboarding();
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    // @ts-ignore
                     {accounts.map((account: unknown) => (
-                      // @ts-ignore
                       <SelectItem key={account.id} value={account.id.toString()}>
                         {/* @ts-ignore */}
                         {account.accountName} ({account.marketplace})
@@ -146,7 +144,6 @@ const { resetOnboarding, savedProgress } = useOnboarding();
           <TabsContent value="account">
             <AccountSettingsForm 
               account={selectedAccount} 
-              // @ts-ignore
               onSave={(data) => updateAccount.mutate({ id: accountId!, ...data })}
               isLoading={updateAccount.isPending}
             />
@@ -157,7 +154,6 @@ const { resetOnboarding, savedProgress } = useOnboarding();
           <TabsContent value="optimization">
             <OptimizationSettingsForm 
               account={selectedAccount}
-              // @ts-ignore
               onSave={(data) => updateAccount.mutate({ id: accountId!, ...data })}
               isLoading={updateAccount.isPending}
             />
@@ -167,7 +163,6 @@ const { resetOnboarding, savedProgress } = useOnboarding();
           <TabsContent value="intraday">
             <IntradayBiddingSettings 
               account={selectedAccount}
-              // @ts-ignore
               onSave={(data) => updateAccount.mutate({ id: accountId!, ...data })}
               isLoading={updateAccount.isPending}
             />
@@ -371,7 +366,6 @@ function AccountSettingsForm({
   );
 }
 
-// @ts-ignore
 function OptimizationSettingsForm({ 
   // @ts-ignore
   account, 

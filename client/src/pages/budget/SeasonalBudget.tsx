@@ -293,7 +293,6 @@ const [activeTab, setActiveTab] = useState("recommendations");
               ) : (
                 <div className="space-y-4">
                   {recommendationsData?.recommendations.map((rec: unknown) => (
-                    // @ts-ignore
                     <div
                       // @ts-ignore
                       key={rec.id}
@@ -304,21 +303,17 @@ const [activeTab, setActiveTab] = useState("recommendations");
                         <div className="flex items-center gap-3">
                           {/* @ts-ignore */}
                           {getRecommendationTypeIcon(rec.recommendationType)}
-                          // @ts-ignore
                           <div>
                             {/* @ts-ignore */}
                             <p className="font-medium">{getRecommendationTypeName(rec.recommendationType)}</p>
                             <p className="text-sm text-muted-foreground">
-                              // @ts-ignore
                               置信度: {Number((rec as any).confidenceScore || 0).toFixed(0)}%
-                            // @ts-ignore
                             </p>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
                           {/* @ts-ignore */}
                           {getStatusBadge(rec.status)}
-                          // @ts-ignore
                           {(rec as any).status === "pending" && (
                             <>
                               <Button
@@ -372,14 +367,12 @@ const [activeTab, setActiveTab] = useState("recommendations");
                         <div className="flex items-center gap-1">
                           <Calendar className="h-3 w-3" />
                           <span>
-                            // @ts-ignore
                             生效: {(rec as any).effectiveStartDate ? safeToLocaleDateString((rec as any).effectiveStartDate) : "N/A"}
                           </span>
                         </div>
                         <div className="flex items-center gap-1">
                           <Clock className="h-3 w-3" />
                           <span>
-                            // @ts-ignore
                             结束: {(rec as any).effectiveEndDate ? safeToLocaleDateString((rec as any).effectiveEndDate) : "N/A"}
                           </span>
                         </div>
@@ -435,16 +428,13 @@ const [activeTab, setActiveTab] = useState("recommendations");
                         <div className="text-center p-3 bg-muted/50 rounded-lg">
                           <p className="text-xs text-muted-foreground mb-1">开始日期</p>
                           <p className="font-medium">
-                            // @ts-ignore
                             {(event as any).startDate ? safeToLocaleDateString((event as any).startDate) : "N/A"}
-                          // @ts-ignore
                           </p>
                         {/* @ts-ignore */}
                         </div>
                         <div className="text-center p-3 bg-muted/50 rounded-lg">
                           <p className="text-xs text-muted-foreground mb-1">结束日期</p>
                           <p className="font-medium">
-                            // @ts-ignore
                             {(event as any).endDate ? safeToLocaleDateString((event as any).endDate) : "N/A"}
                           </p>
                         </div>
@@ -460,9 +450,7 @@ const [activeTab, setActiveTab] = useState("recommendations");
                       {/* @ts-ignore */}
                       {event.warmupStartDate && (
                         <div className="text-sm text-muted-foreground">
-                          // @ts-ignore
                           预热期: {safeToLocaleDateString((event as any).warmupStartDate)} - {safeToLocaleDateString((event as any).warmupEndDate || (event as any).startDate)}
-                          // @ts-ignore
                           （建议预算倍数: {Number((event as any).warmupBudgetMultiplier || 1).toFixed(1)}x）
                         </div>
                       )}
@@ -487,7 +475,6 @@ const [activeTab, setActiveTab] = useState("recommendations");
               {trendsLoading ? (
                 <div className="text-center py-8 text-muted-foreground">加载中...</div>
               ) : !historicalTrends || historicalTrends.length === 0 ? (
-                // @ts-ignore
                 <div className="text-center py-8 text-muted-foreground">
                   <LineChart className="h-12 w-12 mx-auto mb-4 opacity-50" />
                   <p>暂无历史趋势数据</p>
@@ -495,7 +482,6 @@ const [activeTab, setActiveTab] = useState("recommendations");
                 </div>
               ) : (
                 <div className="space-y-4">
-                  // @ts-ignore
                   {historicalTrends.map((trend: unknown, index: number) => (
                     <div
                       key={index}
@@ -509,17 +495,13 @@ const [activeTab, setActiveTab] = useState("recommendations");
                           {/* @ts-ignore */}
                           {Number(trend.seasonalIndex || 1) > 1.1 && (
                             <Badge className="bg-green-500">旺季</Badge>
-                          // @ts-ignore
                           )}
-                          // @ts-ignore
                           {Number((trend as any).seasonalIndex || 1) < 0.9 && (
                             <Badge className="bg-blue-500">淡季</Badge>
                           )}
                         </div>
                         <span className="text-sm text-muted-foreground">
-                          // @ts-ignore
                           季节性指数: {Number((trend as any).seasonalIndex || 1).toFixed(2)}
-                        // @ts-ignore
                         </span>
                       </div>
 
@@ -598,7 +580,6 @@ const [activeTab, setActiveTab] = useState("recommendations");
               <CardContent>
                 <div className="space-y-4">
                   {eventComparisonData.yearOverYearComparison.map((yoy: unknown, index: number) => (
-                    // @ts-ignore
                     <div key={index} className="border rounded-lg p-4">
                       {/* @ts-ignore */}
                       <div className="flex items-center justify-between mb-3">
@@ -621,16 +602,13 @@ const [activeTab, setActiveTab] = useState("recommendations");
                           <p className="text-xs text-muted-foreground mb-1">花费变化</p>
                           {/* @ts-ignore */}
                           <p className={`font-medium ${yoy.spendChange >= 0 ? 'text-red-500' : 'text-green-500'}`}>
-                            // @ts-ignore
                             {(yoy as any).spendChange >= 0 ? '+' : ''}{(yoy as any).spendChange.toFixed(1)}%
-                          // @ts-ignore
                           </p>
                         </div>
                         <div className="text-center p-3 bg-muted/50 rounded-lg">
                           <p className="text-xs text-muted-foreground mb-1">销售额变化</p>
                           {/* @ts-ignore */}
                           <p className={`font-medium ${yoy.salesChange >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                            // @ts-ignore
                             {(yoy as any).salesChange >= 0 ? '+' : ''}{(yoy as any).salesChange.toFixed(1)}%
                           </p>
                         </div>
@@ -638,7 +616,6 @@ const [activeTab, setActiveTab] = useState("recommendations");
                           <p className="text-xs text-muted-foreground mb-1">ROAS变化</p>
                           {/* @ts-ignore */}
                           <p className={`font-medium ${yoy.roasChange >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                            // @ts-ignore
                             {(yoy as any).roasChange >= 0 ? '+' : ''}{(yoy as any).roasChange.toFixed(1)}%
                           </p>
                         </div>
@@ -646,7 +623,6 @@ const [activeTab, setActiveTab] = useState("recommendations");
                           <p className="text-xs text-muted-foreground mb-1">ACoS变化</p>
                           {/* @ts-ignore */}
                           <p className={`font-medium ${yoy.acosChange <= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                            // @ts-ignore
                             {(yoy as any).acosChange >= 0 ? '+' : ''}{(yoy as any).acosChange.toFixed(1)}%
                           </p>
                         </div>
@@ -656,7 +632,6 @@ const [activeTab, setActiveTab] = useState("recommendations");
                           <p className="text-xs text-purple-400 mb-1">ROI变化</p>
                           {/* @ts-ignore */}
                           <p className={`font-semibold ${(yoy.roiChange || 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                            // @ts-ignore
                             {((yoy as any).roiChange || 0) >= 0 ? '+' : ''}{((yoy as any).roiChange || 0).toFixed(1)}%
                           </p>
                         </div>
@@ -664,7 +639,6 @@ const [activeTab, setActiveTab] = useState("recommendations");
                           <p className="text-xs text-emerald-400 mb-1">利润变化</p>
                           {/* @ts-ignore */}
                           <p className={`font-semibold ${(yoy.profitChange || 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                            // @ts-ignore
                             {((yoy as any).profitChange || 0) >= 0 ? '+' : ''}{((yoy as any).profitChange || 0).toFixed(1)}%
                           </p>
                         </div>
@@ -672,7 +646,6 @@ const [activeTab, setActiveTab] = useState("recommendations");
                           <p className="text-xs text-muted-foreground mb-1">订单变化</p>
                           {/* @ts-ignore */}
                           <p className={`font-medium ${yoy.ordersChange >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                            // @ts-ignore
                             {(yoy as any).ordersChange >= 0 ? '+' : ''}{(yoy as any).ordersChange.toFixed(1)}%
                           </p>
                         {/* @ts-ignore */}
@@ -682,7 +655,6 @@ const [activeTab, setActiveTab] = useState("recommendations");
                     {/* @ts-ignore */}
                     </div>
                   ))}
-                // @ts-ignore
                 </div>
               {/* @ts-ignore */}
               </CardContent>
@@ -690,7 +662,6 @@ const [activeTab, setActiveTab] = useState("recommendations");
           )}
 
           {/* 历史大促效果明细 */}
-          // @ts-ignore
           <Card>
             <CardHeader>
               <CardTitle>历史大促效果明细</CardTitle>
@@ -745,7 +716,6 @@ const [activeTab, setActiveTab] = useState("recommendations");
                           <td className="p-3 text-right">
                             {/* @ts-ignore */}
                             <span className={(item.profit || 0) >= 0 ? 'text-green-500' : 'text-red-500'}>
-                              // @ts-ignore
                               ${((item as any).profit || 0).toFixed(2)}
                             </span>
                           </td>
@@ -764,7 +734,6 @@ const [activeTab, setActiveTab] = useState("recommendations");
                             <span className={item.avgRoas >= 3 ? 'text-green-500' : item.avgRoas >= 2 ? 'text-yellow-500' : 'text-red-500'}>
                               {/* @ts-ignore */}
                               {item.avgRoas.toFixed(2)}
-                            // @ts-ignore
                             </span>
                           {/* @ts-ignore */}
                           </td>
@@ -814,7 +783,6 @@ const [activeTab, setActiveTab] = useState("recommendations");
                           <span className="text-muted-foreground">平均利润</span>
                           {/* @ts-ignore */}
                           <span className={(stats.avgProfit || 0) >= 0 ? 'text-green-500' : 'text-red-500'}>
-                            // @ts-ignore
                             ${((stats as any).avgProfit || 0).toFixed(2)}
                           </span>
                         </div>

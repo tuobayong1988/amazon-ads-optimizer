@@ -135,9 +135,7 @@ export function MobileActiveFilters({
         >
           {/* @ts-ignore */}
           <span className="text-xs">
-            // @ts-ignore
             {(filter as any).label}: {(filter as any).value}
-          // @ts-ignore
           </span>
           <button
             // @ts-ignore

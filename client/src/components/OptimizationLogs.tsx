@@ -261,7 +261,6 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
     const query = searchQuery.toLowerCase();
     // @ts-ignore
     return logsData.logs.filter((log: unknown) => 
-      // @ts-ignore
       log.performanceGroupName?.toLowerCase().includes(query) ||
       // @ts-ignore
       log.campaignName?.toLowerCase().includes(query) ||
@@ -488,7 +487,6 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
               <span className="text-[11px] text-indigo-400">v259 双向出价</span>
             {/* @ts-ignore */}
             </div>
-          // @ts-ignore
           )}
         </div>
         {gi.details && (
@@ -595,7 +593,6 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
           )}
 
           {/* 花费金额 */}
-          // @ts-ignore
           {ctx.spendAmount && ctx.spendAmount > 0 && !ctx.aovValue && (
             <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-500/10 border border-slate-500/20">
               <DollarSign className="w-3 h-3 text-slate-400" />
@@ -659,7 +656,6 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
     const SyncIcon = config.icon;
     
     return (
-      // @ts-ignore
       <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs ${config.bgColor} ${config.color}`}>
         <SyncIcon className="w-3 h-3" />
         <span>{config.label}</span>
@@ -678,7 +674,6 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
       const hoursAgo24 = Date.now() - 24 * 3600000;
       syncStatus = logTime < hoursAgo24 ? 'not_applicable' : 'pending';
     }
-    // @ts-ignore
     const isApiAction = ['bid_adjustment', 'placement_adjustment', 'optimization_settings'].includes(log.logCategory) ||
       ['bid_increase', 'bid_decrease', 'bid_set', 'bid_auto_adjust', 'placement_adjust', 'target_pause', 'target_enable',
        // @ts-ignore
@@ -690,7 +685,6 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
     
     const steps = [
       { label: '优化决策', status: 'done', icon: Target },
-      // @ts-ignore
       { label: '本地更新', status: log.status === 'success' || log.status === 'failed' ? 'done' : 'pending', icon: Settings },
       { label: 'Amazon API', status: syncStatus === 'synced' ? 'done' : syncStatus === 'partial' ? 'done' : syncStatus === 'failed' ? 'failed' : syncStatus === 'syncing' || syncStatus === 'retry' ? 'pending' : 'pending', icon: Cloud },
       { label: 'Amazon执行', status: syncStatus === 'synced' ? 'done' : syncStatus === 'partial' ? 'done' : syncStatus === 'failed' ? 'failed' : 'pending', icon: ExternalLink },
@@ -721,7 +715,6 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
           }
           
           return (
-            // @ts-ignore
             <div key={idx} className="flex items-center gap-1">
               <div className={`flex items-center gap-1 ${stepColor}`}>
                 {/* @ts-ignore */}
@@ -752,20 +745,14 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
       <div className={`flex items-center gap-1 ${compact ? 'text-xs' : 'text-sm'}`}>
         {/* @ts-ignore */}
         {log.previousValue && (
-          // @ts-ignore
           <span className="text-red-400 line-through font-mono">{log.previousValue}</span>
         )}
-        // @ts-ignore
         {(log as any).previousValue && (log as any).newValue && (
           <ArrowRight className={`${compact ? 'w-3 h-3' : 'w-3.5 h-3.5'} text-muted-foreground`} />
-        // @ts-ignore
         )}
-        // @ts-ignore
         {(log as any).newValue && (
-          // @ts-ignore
           <span className="text-green-400 font-medium font-mono">{log.newValue}</span>
         )}
-        // @ts-ignore
         {changePercent && (
           <span className={`${compact ? 'text-[10px]' : 'text-xs'} px-1 py-0.5 rounded ${
             parseFloat(changePercent) > 0 
@@ -774,7 +761,6 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
               : 'bg-red-500/10 text-red-400'
           }`}>
             {parseFloat(changePercent) > 0 ? '+' : ''}{changePercent}%
-          // @ts-ignore
           </span>
         )}
       </div>
@@ -812,7 +798,6 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
     const actionDetail = parseActionDetail(log.actionDetail);
 
     return (
-      // @ts-ignore
       <div key={log.id} className="border rounded-lg mb-2 overflow-hidden">
         {/* 日志头部 */}
         <div 
@@ -825,7 +810,6 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
             {/* @ts-ignore */}
             <div className="flex items-center gap-2 flex-wrap">
               {isExpanded ? (
-                // @ts-ignore
                 <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
               ) : (
                 <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
@@ -845,11 +829,9 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
               <div className="pl-6">
                 {renderTargetTag(log, true)}
               </div>
-            // @ts-ignore
             )}
             
             {/* 出价变更 - 移动端 */}
-            // @ts-ignore
             {((log as any).previousValue || (log as any).newValue) && (
               <div className="pl-6 flex items-center gap-1.5">
                 {renderBidChange(log, true)}
@@ -859,7 +841,6 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
             )}
             
             {/* 调整原因 - 移动端 */}
-            // @ts-ignore
             {(log as any).changeReason && (
               <div className="text-[11px] text-muted-foreground pl-6 line-clamp-1">
                 {/* @ts-ignore */}
@@ -877,10 +858,8 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
               <div className="text-[11px] text-muted-foreground pl-6 truncate">
                 {/* @ts-ignore */}
                 {log.campaignName}
-              // @ts-ignore
               </div>
             )}
-          // @ts-ignore
           </div>
           
           {/* PC端布局 */}
@@ -891,7 +870,6 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
               {isExpanded ? (
                 <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
               ) : (
-                // @ts-ignore
                 <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
               )}
               <CategoryIcon className={`w-4 h-4 ${categoryConfig.color} shrink-0`} />
@@ -988,7 +966,6 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
                     )}
                     
                     {/* v337: 修正层标记 — GTO/Cascade Fusion/因果推断 */}
-                    // @ts-ignore
                     {actionDetail.correctionLayers && (
                       <div className="space-y-1.5 pt-1">
                         {/* @ts-ignore */}
@@ -1030,7 +1007,6 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
                     
                     {/* v337: Meta-Learning决策详情 */}
                     {actionDetail.metaLearningDetail && (
-                      // @ts-ignore
                       <div className="space-y-1.5 pt-1">
                         <p className="text-xs font-medium text-muted-foreground">Meta-Learning算法选择:</p>
                         <div className="bg-muted/30 rounded p-2 space-y-1">
@@ -1058,7 +1034,6 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
                                   <span className="text-muted-foreground">得分={alg.score.toFixed(3)}</span>
                                   {/* @ts-ignore */}
                                   <Badge variant={alg.eligible ? 'default' : 'destructive'} className="text-[10px] px-1 py-0">
-                                    // @ts-ignore
                                     {(alg as any).eligible ? '可用' : '不可用'}
                                   </Badge>
                                 </div>
@@ -1077,7 +1052,6 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
                 </div>
                 <Separator />
               </>
-            // @ts-ignore
             )}
             
             {/* 执行链路 */}
@@ -1135,10 +1109,8 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
               <div className="bg-background rounded-lg p-3 space-y-2">
                 <div className="flex items-center gap-2">
                   {renderApiSyncBadge(log)}
-                  // @ts-ignore
                   {(log as any).apiSyncedAt && (
                     <span className="text-xs text-muted-foreground">
-                      // @ts-ignore
                       同步时间: {formatDateTime((log as any).apiSyncedAt)}
                     </span>
                   )}
@@ -1159,11 +1131,9 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
                             <span className="text-green-400">✅ 已成功同步到Amazon</span>
                           )}
                           {syncDetail.status === 'failed' && (
-                            // @ts-ignore
                             <div>
                               <span className="text-red-400">❌ 同步失败</span>
                               {syncDetail.error && (
-                                // @ts-ignore
                                 <p className="text-red-400 text-xs mt-1">原因: {syncDetail.error}</p>
                               )}
                             </div>
@@ -1197,7 +1167,6 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
                   }
                 })()}
                 
-                // @ts-ignore
                 {!(log as any).apiSyncStatus && (
                   <p className="text-xs text-muted-foreground">
                     此日志记录于API同步状态追踪功能上线前，无法确认是否已同步到Amazon
@@ -1223,7 +1192,6 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
                 )}
                 
                 {/* 出价变更 */}
-                // @ts-ignore
                 {((log as any).previousValue || (log as any).newValue) && (
                   <div className="flex items-center gap-2 text-sm">
                     <span className="text-muted-foreground shrink-0">出价变更:</span>
@@ -1232,7 +1200,6 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
                 )}
                 
                 {/* 变更原因 */}
-                // @ts-ignore
                 {(log as any).changeReason && (
                   <div className="text-sm">
                     <span className="text-muted-foreground">调整原因: </span>
@@ -1319,11 +1286,9 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
                       </span>
                     </div>
                   </div>
-                // @ts-ignore
                 )}
                 
                 {/* 关键词/广告活动/广告组状态变更信息 */}
-                // @ts-ignore
                 {actionDetail && (actionDetail.action === 'pause' || actionDetail.action === 'enable') && (
                   <div className="text-sm space-y-2">
                     {/* 实体类型和名称 */}
@@ -1394,7 +1359,6 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
                 )}
                 
                 {/* 错误信息 */}
-                // @ts-ignore
                 {(log as any).errorMessage && (
                   <div className="text-sm text-red-400 bg-red-500/10 rounded p-2 mt-2">
                     <span className="font-medium">错误: </span>

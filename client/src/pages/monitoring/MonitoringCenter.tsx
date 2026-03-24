@@ -62,17 +62,14 @@ export default function MonitoringCenter() {
   
   // v187: 使用真实API数据替代模拟数据
   const { data: accountsWithPerformance } = trpc.adAccount.listWithPerformance.useQuery(
-    // @ts-ignore
     { timeRange: timeRange === 'today' ? 'today' : timeRange === '7days' ? 'last7days' : 'last30days' as unknown, days: timeRange === 'today' ? 1 : timeRange === '7days' ? 7 : 30 },
     { enabled: !!user }
   );
   
   // @ts-ignore
   const { data: trendData } = trpc.adAccount.getDailyTrend.useQuery(
-    // @ts-ignore
     { days: timeRange === 'today' ? 1 : timeRange === '7days' ? 7 : 30, timeRange: timeRange === 'today' ? 'today' : timeRange === '7days' ? 'last7days' : 'last30days' as unknown},
     { enabled: !!user }
-  // @ts-ignore
   );
   
   // @ts-ignore
@@ -158,11 +155,9 @@ export default function MonitoringCenter() {
             <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
               <Activity className="h-6 w-6 text-blue-400" />
               监控仪表盘
-            // @ts-ignore
             </h1>
             <p className="text-muted-foreground text-sm mt-1">
               多账户广告数据概览
-            // @ts-ignore
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -311,12 +306,10 @@ export default function MonitoringCenter() {
           <CardContent>
             {/* @ts-ignore */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              // @ts-ignore
               {(accountsData as any).map((account: unknown) => (
                 <Card 
                   // @ts-ignore
                   key={account.id} 
-                  // @ts-ignore
                   className={`${getStatusBg(account.status)} cursor-pointer hover:scale-[1.02] transition-transform`}
                 >
                   {/* @ts-ignore */}
@@ -451,7 +444,6 @@ export default function MonitoringCenter() {
                         border: '1px solid #374151',
                         borderRadius: '8px'
                       }}
-                      // @ts-ignore
                       formatter={((value: number) => [`${value}%`, 'ACoS']) as unknown}
                     />
                     <Area 
@@ -500,9 +492,7 @@ export default function MonitoringCenter() {
                 </thead>
                 <tbody>
                   {/* @ts-ignore */}
-                  // @ts-ignore
                   {accountsData.map((account: unknown) => (
-                    // @ts-ignore
                     <tr key={account.id} className="border-b border-gray-800 hover:bg-gray-800/50">
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-2">
@@ -522,7 +512,6 @@ export default function MonitoringCenter() {
                           <span>${account.spend.toFixed(0)}</span>
                           {/* @ts-ignore */}
                           <span className={`ml-2 text-xs ${account.change.spend >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                            // @ts-ignore
                             {(account as any).change.spend >= 0 ? '+' : ''}{(account as any).change.spend}%
                           </span>
                         </div>
@@ -533,7 +522,6 @@ export default function MonitoringCenter() {
                           <span>${account.sales.toFixed(0)}</span>
                           {/* @ts-ignore */}
                           <span className={`ml-2 text-xs ${account.change.sales >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                            // @ts-ignore
                             {(account as any).change.sales >= 0 ? '+' : ''}{(account as any).change.sales}%
                           </span>
                         </div>
@@ -544,7 +532,6 @@ export default function MonitoringCenter() {
                           <span>{account.acos.toFixed(1)}%</span>
                           {/* @ts-ignore */}
                           <span className={`ml-2 text-xs ${account.change.acos <= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                            // @ts-ignore
                             {(account as any).change.acos >= 0 ? '+' : ''}{(account as any).change.acos}%
                           </span>
                         </div>
@@ -557,10 +544,8 @@ export default function MonitoringCenter() {
                         <Badge 
                           // @ts-ignore
                           variant={account.status === 'healthy' ? 'default' : account.status === 'warning' ? 'secondary' : 'destructive'}
-                          // @ts-ignore
                           className={account.status === 'healthy' ? 'bg-green-500/20 text-green-400' : account.status === 'warning' ? 'bg-amber-500/20 text-amber-400' : ''}
                         >
-                          // @ts-ignore
                           {(account as any).status === 'healthy' ? '健康' : (account as any).status === 'warning' ? '警告' : '严重'}
                         </Badge>
                       </td>

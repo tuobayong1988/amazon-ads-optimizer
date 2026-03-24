@@ -163,7 +163,6 @@ function MetricComparisonChart({ metrics }: { metrics: MetricAnalysis[] }) {
       </BarChart>
     {/* @ts-ignore */}
     </ResponsiveContainer>
-  // @ts-ignore
   );
 // @ts-ignore
 }
@@ -201,7 +200,6 @@ function ImprovementChart({ metrics }: { metrics: MetricAnalysis[] }) {
           fill={color}
           rx={4}
           ry={4}
-          // @ts-ignore
           opacity={payload.isSignificant ? 1 : 0.6}
         />
         {payload.isSignificant && (
@@ -253,9 +251,7 @@ function ImprovementChart({ metrics }: { metrics: MetricAnalysis[] }) {
         <YAxis 
           // @ts-ignore
           tick={{ fill: COLORS.text, fontSize: 12 }} 
-          // @ts-ignore
           tickFormatter={(value) => `${value}%`}
-        // @ts-ignore
         />
         {/* @ts-ignore */}
         <Tooltip content={<CustomTooltip />} />
@@ -292,7 +288,6 @@ function ConfidenceIntervalChart({ metrics }: { metrics: MetricAnalysis[] }) {
   // @ts-ignore
   return (
     <div className="space-y-4">
-      // @ts-ignore
       {chartData.map((item: unknown, index: unknown) => {
         // @ts-ignore
         const range = item.上限 - item.下限;
@@ -323,16 +318,13 @@ function ConfidenceIntervalChart({ metrics }: { metrics: MetricAnalysis[] }) {
           : COLORS.neutral;
 
         return (
-          // @ts-ignore
           <div key={item.name} className="space-y-2">
             <div className="flex items-center justify-between">
               {/* @ts-ignore */}
               <span className="text-sm font-medium">{item.name}</span>
               <div className="flex items-center gap-2">
                 <span className={`text-sm ${isPositive ? 'text-green-500' : isNegative ? 'text-red-500' : ''}`}>
-                  // @ts-ignore
                   {(item as any).差异 > 0 ? '+' : ''}{(item as any).差异.toFixed(2)}%
-                // @ts-ignore
                 </span>
                 {/* @ts-ignore */}
                 {item.isSignificant ? (
@@ -426,7 +418,6 @@ function TrendComparisonChart({
           dataKey="date" 
           // @ts-ignore
           tick={{ fill: COLORS.text, fontSize: 12 }}
-          // @ts-ignore
           tickFormatter={(value) => {
             const date = safeParseDate(value);
             return `${date.getMonth() + 1}/${date.getDate()}`;
@@ -438,7 +429,6 @@ function TrendComparisonChart({
         <Legend 
           wrapperStyle={{ paddingTop: 10 }}
           formatter={(value) => <span style={{ color: COLORS.text }}>{value}</span>}
-        // @ts-ignore
         />
         <Line 
           type="monotone" 
@@ -657,7 +647,6 @@ export default function ABTestCharts({ analysisResults, testName }: ABTestCharts
                 <div className="flex items-center justify-between">
                   <p className="text-sm text-muted-foreground">
                     测试期间每日指标变化趋势对比
-                  // @ts-ignore
                   </p>
                   {/* @ts-ignore */}
                   <Select value={selectedMetric} onValueChange={setSelectedMetric}>
@@ -670,12 +659,10 @@ export default function ABTestCharts({ analysisResults, testName }: ABTestCharts
                     {/* @ts-ignore */}
                     <SelectContent>
                       {analysisResults.metrics.map((m: unknown) => (
-                        // @ts-ignore
                         <SelectItem key={m.metricName} value={m.metricName}>
                           {/* @ts-ignore */}
                           {getMetricLabel(m.metricName)}
                         </SelectItem>
-                      // @ts-ignore
                       ))}
                     </SelectContent>
                   </Select>
@@ -714,7 +701,6 @@ export default function ABTestCharts({ analysisResults, testName }: ABTestCharts
               </thead>
               <tbody>
                 {analysisResults.metrics.map((metric: unknown) => (
-                  // @ts-ignore
                   <tr key={metric.metricName} className="border-b hover:bg-accent/50">
                     {/* @ts-ignore */}
                     <td className="py-3 px-4 font-medium">{getMetricLabel(metric.metricName)}</td>
@@ -724,11 +710,9 @@ export default function ABTestCharts({ analysisResults, testName }: ABTestCharts
                     <td className="text-right py-3 px-4">{formatNumber(metric.treatmentValue, metric.metricName)}</td>
                     {/* @ts-ignore */}
                     <td className={`text-right py-3 px-4 ${metric.relativeDifference > 0 ? 'text-green-500' : metric.relativeDifference < 0 ? 'text-red-500' : ''}`}>
-                      // @ts-ignore
                       {(metric as any).relativeDifference > 0 ? '+' : ''}{(metric as any).relativeDifference.toFixed(2)}%
                     </td>
                     <td className="text-right py-3 px-4 text-muted-foreground">
-                      // @ts-ignore
                       [{(metric as any).confidenceInterval.lower.toFixed(2)}%, {(metric as any).confidenceInterval.upper.toFixed(2)}%]
                     </td>
                     {/* @ts-ignore */}
