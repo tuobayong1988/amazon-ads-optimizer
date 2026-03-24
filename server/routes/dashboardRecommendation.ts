@@ -130,7 +130,7 @@ export const dashboardRecommendationRouter = router({
       limit: z.number().default(500),
     }))
     .query(async ({ input }: unknown) => {
-      const db_ = getDb();
+      const db_ = await getDb();
       const { accountId, queryType, startDate, endDate, limit } = input;
       try {
         if (queryType === 'daily_overview') {
