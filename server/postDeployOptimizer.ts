@@ -77,6 +77,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 506,
+    description: 'v506: [SB关键词adGroupId缺失修复] — (1)P0-amazonApiHelper的syncBidAdjustmentsToAmazon: keywords表的adGroupId列在v418迁移中已重命名为internal_ad_group_id(int)，但代码仍引用不存在的keywords.adGroupId导致所有SB关键词出价同步失败。修复为通过LEFT JOIN ad_groups表获取Amazon adGroupId (2)P0-这是同步失败数从4275增加到5433的根本原因: 纠错器每次重试SB关键词都因缺少adGroupId而失败，产生新的失败记录',
+    affectedModules: ['sync', 'bid'],
+    correctionActions: ['rerun_optimization'],
+  },
+  {
     version: 505,
     description: 'v505: [同步失败根因修复] — (1)P0-syncPerformance连接池耗尽: 批量写入并发从100降至8，避免超出连接池上限(limit=20)导致级联失败 (2)P0-syncPerformance的NULL处理: decimal字段null改为"0.00"修复NOT NULL约束违反 (3)P0-systemDefenseService的ensureSystemConfigTable: 使用sql模板标签替代{sql,params}对象格式，修复"e.getSQL is not a function"错误 (4)P0-systemDefenseService的optimization_events查询: SQL列名从camelCase改为snake_case匹配实际表结构 (5)P0-syncCampaignStatusToAmazon参数格式: 从纯ID数组改为对象数组匹配函数签名',
     affectedModules: ['sync', 'bid'],

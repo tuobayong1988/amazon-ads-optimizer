@@ -146,16 +146,19 @@ export async function syncBidAdjustmentsToAmazon(
     const { campaigns: campaignsSchema, adGroups: adGroupsSchema } = await import('../../drizzle/schema');
     const kwLocalIds = keywordAdjustments.map(a => a.keywordId);
     
-    // v502: 一次性查询所有keyword的Amazon ID、keywordStatus、campaignId、adGroupId
+    // v506: 通过LEFT JOIN ad_groups获取Amazon adGroupId
+    // keywords表的adGroupId列在v418迁移中已重命名为internal_ad_group_id(int)
+    // 需要通过JOIN ad_groups表获取Amazon adGroupId(varchar)
     const kwResults = await dbInstance
       .select({
         id: keywords.id,
         keywordId: keywords.keywordId,
         keywordStatus: keywords.keywordStatus,
         campaignId: keywords.campaignId,  // Amazon campaign ID (varchar)
-        adGroupId: keywords.adGroupId,    // Amazon adGroup ID (varchar)
+        adGroupId: adGroupsSchema.adGroupId,  // v506: 从ad_groups表获取Amazon adGroup ID
       })
       .from(keywords)
+      .leftJoin(adGroupsSchema, eq(keywords.internalAdGroupId, adGroupsSchema.id))
       .where(inArray(keywords.id, kwLocalIds));
     
     // v502: 批量查询所有相关campaign的类型

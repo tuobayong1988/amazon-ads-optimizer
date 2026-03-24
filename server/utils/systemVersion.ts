@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 505;  // v505: 修复同步失败根因 - 连接池耗尽、SQL列名错误、API参数格式
+export const SYSTEM_VERSION = 506;  // v506: 修复SB关键词adGroupId缺失 - 通过JOIN ad_groups表获取Amazon adGroupId
