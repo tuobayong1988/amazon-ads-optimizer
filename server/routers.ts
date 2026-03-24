@@ -79,6 +79,7 @@ import { dashboardRecommendationRouter } from './routes/dashboardRecommendation'
 import { systemConfigRouter } from './routes/systemConfig'; // v272 P0-1
 import { dataHealthRouter } from './routes/dataHealth'; // v359 P3-2
 import { guardrailConfigRouter } from './routes/guardrailConfig'; // v359 P3-3
+import { stopLossRouter } from './routes/stopLoss'; // v503 自动止血服务
 
 // 预发布引擎路由 v328 (仅admin可见)
 import { prelaunchRouter } from './prelaunch/router';
@@ -246,6 +247,9 @@ export const appRouter = router({
   dataHealth: dataHealthRouter,
   // v359: 安全护栏动态配置
   guardrailConfig: guardrailConfigRouter,
+
+  // v503: 自动止血服务
+  stopLoss: stopLossRouter,
 
   // v328: 亚马逊智能预发布引擎 v4.0 (仅admin可访问)
   prelaunch: prelaunchRouter,

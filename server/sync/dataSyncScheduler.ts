@@ -1402,7 +1402,8 @@ type OptimizationTaskType =
   | 'nextgen_maintenance'
   | 'nextgen_model_training'
   | 'nextgen_budget_optimization'
-  | 'ab_test_metrics';  // v267 P2-2: A/B测试每日指标收集
+  | 'ab_test_metrics'  // v267 P2-2: A/B测试每日指标收集
+  | 'auto_stop_loss';  // v503: 自动止血扫描
 
 interface OptimizationScheduleConfig {
   type: OptimizationTaskType;
@@ -1508,6 +1509,14 @@ const OPTIMIZATION_SCHEDULE: Record<OptimizationTaskType, OptimizationScheduleCo
     cronHours: [23], // 晚上23:00
     specificModules: [],
   },
+  // v503: 自动止血扫描
+  auto_stop_loss: {
+    type: 'auto_stop_loss',
+    description: 'v503: 自动止血扫描 - 高ACoS Campaign暂停、搜索词自动否定、重新激活防护、数据悬崖修复',
+    intervalMs: 4 * 60 * 60 * 1000, // 每4小时执行一次
+    cronHours: [], // 纯间隔驱动
+    specificModules: [], // 独立执行，不走优化目标引擎
+  },
 };
 
 let optimizationIntervals: Record<OptimizationTaskType, NodeJS.Timeout | null> = {
@@ -1526,6 +1535,7 @@ let optimizationIntervals: Record<OptimizationTaskType, NodeJS.Timeout | null> =
   nextgen_model_training: null,
   nextgen_budget_optimization: null,
   ab_test_metrics: null,  // v267 P2-2
+  auto_stop_loss: null,  // v503
 };
 
 // v122: 执行锁 - 防止同一任务重复执行
@@ -1933,8 +1943,49 @@ export async function startOptimizationScheduler(): Promise<void> {
         log.warn(`[DataCleanup] v350: 自动数据清理失败: ${(err as Error).message}`);
       }
     }
-  }, 60 * 60 * 1000));
-  log.info(`[OptimizationScheduler] v350: 自动数据清理已启动，执行时间: 每日凌昨4:00 (EST)`);
+  }, 60 * 60 * 1000));  log.info(`[OptimizationScheduler] v350: 自动数据清理已启动，执行时间: 每日凌昨晨4:00 (EST)`);
+
+  // v503: 启动自动止血扫描 - 每4小时执行一次，启动后5分钟执行首次扫描
+  try {
+    const { executeFullStopLossScan } = await import('../automation/autoStopLossService');
+    const { getAdAccounts } = await import('../db/accounts');
+    
+    // 首次扫描延迟5分钟
+    setTimeout(async () => {
+      try {
+        const accounts = await getAdAccounts();
+        for (const account of (accounts as Array<{ id: number }>)) {
+          try {
+            await executeFullStopLossScan(account.id);
+          } catch (accountErr: unknown) {
+            log.warn(`[AutoStopLoss] 账户${account.id}止血扫描失败: ${(accountErr as Error).message}`);
+          }
+        }
+      } catch (err: unknown) {
+        log.warn(`[AutoStopLoss] 首次止血扫描失败: ${(err as Error).message}`);
+      }
+    }, 5 * 60 * 1000);
+    
+    // 定时扫描 - 每4小时
+    optimizationIntervals.auto_stop_loss = setInterval(async () => {
+      try {
+        const accounts = await getAdAccounts();
+        for (const account of (accounts as Array<{ id: number }>)) {
+          try {
+            await executeFullStopLossScan(account.id);
+          } catch (accountErr: unknown) {
+            log.warn(`[AutoStopLoss] 账户${account.id}止血扫描失败: ${(accountErr as Error).message}`);
+          }
+        }
+      } catch (err: unknown) {
+        log.warn(`[AutoStopLoss] 定时止血扫描失败: ${(err as Error).message}`);
+      }
+    }, OPTIMIZATION_SCHEDULE.auto_stop_loss.intervalMs);
+    
+    log.info(`[OptimizationScheduler] v503: 自动止血扫描已启动，间隔: ${OPTIMIZATION_SCHEDULE.auto_stop_loss.intervalMs / 3600000}小时，首次执行: 5分钟后`);
+  } catch (stopLossErr: unknown) {
+    log.warn(`[OptimizationScheduler] v503: 自动止血服务启动失败: ${(stopLossErr as Error).message}`);
+  }
 }
 
 /**
