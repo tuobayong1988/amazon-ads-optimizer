@@ -486,6 +486,7 @@ export async function markTasksProcessing(
 
 /**
  * 标记optimization_tasks为synced状态
+ * v509: 同时回写关联的 optimization_events.api_sync_status
  */
 export async function markTaskSynced(
   conn: unknown,
@@ -495,10 +496,27 @@ export async function markTaskSynced(
     `UPDATE optimization_tasks SET status = 'synced', completed_at = NOW() WHERE id = ?`,
     [taskId]
   );
+  // v509: 通过 event_id 外键自动回写 optimization_events
+  try {
+    await (conn as Record<string, Function>).execute(
+      `UPDATE optimization_events oe
+       INNER JOIN optimization_tasks ot ON ot.event_id = oe.id
+       SET oe.api_sync_status = 'synced', oe.api_synced_at = NOW()
+       WHERE ot.id = ? AND ot.event_id IS NOT NULL`,
+      [taskId]
+    );
+  } catch (e: unknown) {
+    // event_id列可能不存在（迁移前），静默忽略
+    const msg = (e as Error).message;
+    if (!msg.includes('Unknown column') && !msg.includes("doesn't exist")) {
+      log.warn(`[v509] markTaskSynced event回写失败: ${msg}`);
+    }
+  }
 }
 
 /**
  * 标记optimization_tasks为failed状态
+ * v509: 同时回写关联的 optimization_events.api_sync_status
  */
 export async function markTaskFailed(
   conn: unknown,
@@ -509,10 +527,26 @@ export async function markTaskFailed(
     `UPDATE optimization_tasks SET status = 'failed', error_message = ?, completed_at = NOW() WHERE id = ?`,
     [errorMessage.substring(0, 1000), taskId]
   );
+  // v509: 通过 event_id 外键自动回写 optimization_events
+  try {
+    await (conn as Record<string, Function>).execute(
+      `UPDATE optimization_events oe
+       INNER JOIN optimization_tasks ot ON ot.event_id = oe.id
+       SET oe.api_sync_status = 'failed', oe.error_message = CONCAT(COALESCE(oe.error_message, ''), ' | ', ?)
+       WHERE ot.id = ? AND ot.event_id IS NOT NULL`,
+      [errorMessage.substring(0, 500), taskId]
+    );
+  } catch (e: unknown) {
+    const msg = (e as Error).message;
+    if (!msg.includes('Unknown column') && !msg.includes("doesn't exist")) {
+      log.warn(`[v509] markTaskFailed event回写失败: ${msg}`);
+    }
+  }
 }
 
 /**
  * 批量标记optimization_tasks为failed状态
+ * v509: 同时回写关联的 optimization_events.api_sync_status
  */
 export async function markTasksFailed(
   conn: unknown,
@@ -524,10 +558,26 @@ export async function markTasksFailed(
     `UPDATE optimization_tasks SET status = 'failed', error_message = ?, completed_at = NOW() WHERE id IN (${taskIds.join(',')})`,
     [errorMessage.substring(0, 1000)]
   );
+  // v509: 通过 event_id 外键批量回写 optimization_events
+  try {
+    await (conn as Record<string, Function>).execute(
+      `UPDATE optimization_events oe
+       INNER JOIN optimization_tasks ot ON ot.event_id = oe.id
+       SET oe.api_sync_status = 'failed', oe.error_message = CONCAT(COALESCE(oe.error_message, ''), ' | ', ?)
+       WHERE ot.id IN (${taskIds.join(',')}) AND ot.event_id IS NOT NULL`,
+      [errorMessage.substring(0, 500)]
+    );
+  } catch (e: unknown) {
+    const msg = (e as Error).message;
+    if (!msg.includes('Unknown column') && !msg.includes("doesn't exist")) {
+      log.warn(`[v509] markTasksFailed event回写失败: ${msg}`);
+    }
+  }
 }
 
 /**
  * 标记optimization_tasks为retry或permanently_failed状态
+ * v509: 使用统一错误码映射表判断是否可重试，同时回写 optimization_events
  */
 export async function markTaskForRetry(
   conn: unknown,
@@ -537,15 +587,38 @@ export async function markTaskForRetry(
 ): Promise<void> {
   const newRetryCount = (currentRetryCount || 0) + 1;
   
-  // v444: 不可恢复错误检测
-  const UNRECOVERABLE_PATTERNS = ['entityNotFoundError', 'malformedValueError', 'ENTITY_NOT_FOUND'];
-  const isUnrecoverable = UNRECOVERABLE_PATTERNS.some(p => errorMessage.includes(p));
+  // v509: 使用统一错误码映射表替代硬编码字符串匹配
+  let isUnrecoverable = false;
+  try {
+    const { classifyError } = await import('../services/amazonApiErrorMapper');
+    const mapping = classifyError(errorMessage);
+    isUnrecoverable = mapping.strategy !== 'retry' && mapping.strategy !== 'throttle_retry';
+  } catch {
+    // 回退到原始的硬编码模式
+    const UNRECOVERABLE_PATTERNS = ['entityNotFoundError', 'malformedValueError', 'ENTITY_NOT_FOUND'];
+    isUnrecoverable = UNRECOVERABLE_PATTERNS.some(p => errorMessage.includes(p));
+  }
   
   if (isUnrecoverable) {
     await (conn as Record<string, Function>).execute(
       `UPDATE optimization_tasks SET status = 'permanently_failed', error_message = ?, retry_count = ?, completed_at = NOW() WHERE id = ?`,
-      [`[v444-unrecoverable] ${errorMessage}`.substring(0, 1000), newRetryCount, taskId]
+      [`[v509-unrecoverable] ${errorMessage}`.substring(0, 1000), newRetryCount, taskId]
     );
+    // v509: 回写 optimization_events
+    try {
+      await (conn as Record<string, Function>).execute(
+        `UPDATE optimization_events oe
+         INNER JOIN optimization_tasks ot ON ot.event_id = oe.id
+         SET oe.api_sync_status = 'permanently_failed', oe.error_message = CONCAT(COALESCE(oe.error_message, ''), ' | ', ?)
+         WHERE ot.id = ? AND ot.event_id IS NOT NULL`,
+        [`[v509-unrecoverable] ${errorMessage}`.substring(0, 500), taskId]
+      );
+    } catch (e: unknown) {
+      const msg = (e as Error).message;
+      if (!msg.includes('Unknown column') && !msg.includes("doesn't exist")) {
+        log.warn(`[v509] markTaskForRetry permanently_failed event回写失败: ${msg}`);
+      }
+    }
     return;
   }
   
@@ -556,6 +629,21 @@ export async function markTaskForRetry(
       `UPDATE optimization_tasks SET status = 'permanently_failed', error_message = ?, retry_count = ?, completed_at = NOW() WHERE id = ?`,
       [`超过最大重试次数(${MAX_RETRIES}): ${errorMessage}`.substring(0, 1000), newRetryCount, taskId]
     );
+    // v509: 回写 optimization_events
+    try {
+      await (conn as Record<string, Function>).execute(
+        `UPDATE optimization_events oe
+         INNER JOIN optimization_tasks ot ON ot.event_id = oe.id
+         SET oe.api_sync_status = 'permanently_failed', oe.error_message = CONCAT(COALESCE(oe.error_message, ''), ' | 超过最大重试次数')
+         WHERE ot.id = ? AND ot.event_id IS NOT NULL`,
+        [taskId]
+      );
+    } catch (e: unknown) {
+      const msg = (e as Error).message;
+      if (!msg.includes('Unknown column') && !msg.includes("doesn't exist")) {
+        log.warn(`[v509] markTaskForRetry max_retries event回写失败: ${msg}`);
+      }
+    }
   } else {
     const retryDelayMinutes = [1, 5, 15, 30, 60][newRetryCount - 1] || 60;
     await (conn as Record<string, Function>).execute(
@@ -885,6 +973,7 @@ export async function getPendingTasks(
 
 /**
  * 批量插入optimization_tasks
+ * v509: 新增 event_id 列，建立与 optimization_events 的外键关联
  */
 export async function insertTasks(
   conn: unknown,
@@ -894,7 +983,7 @@ export async function insertTasks(
   const INSERT_BATCH = 500;
   for (let i = 0; i < tasks.length; i += INSERT_BATCH) {
     const batch = tasks.slice(i, i + INSERT_BATCH);
-    const placeholders = batch.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())').join(', ');
+    const placeholders = batch.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())').join(', ');
     const values: unknown[] = [];
     
     for (const t of (batch as Record<string, unknown>[])) {
@@ -905,6 +994,7 @@ export async function insertTasks(
         t.action, t.oldValue || null, t.newValue || null,
         t.changeReason || null, t.algorithmUsed || null, t.confidenceScore || null,
         t.campaignId || null, t.campaignName || null, t.adGroupId || null,
+        t.eventId || null,  // v509: optimization_events.id 外键
         'pending'
       );
     }
@@ -914,7 +1004,7 @@ export async function insertTasks(
        (batch_id, optimization_target_id, account_id, task_type, priority,
         target_entity_type, target_entity_id, amazon_entity_id, target_entity_name,
         action, old_value, new_value, change_reason, algorithm_used, confidence_score,
-        campaign_id, campaign_name, ad_group_id, status, created_at)
+        campaign_id, campaign_name, ad_group_id, event_id, status, created_at)
        VALUES ${placeholders}`,
       values
     );

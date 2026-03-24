@@ -479,6 +479,36 @@ async function startSchedulerTasks(defaultIntervalMs: number): Promise<void> {
     }
   }, COORDINATOR_CLEANUP_INTERVAL_MS));
   log.info('[DataSyncScheduler] v488: SyncCoordinator过期状态清理已启动，间隔: 10分钟');
+
+  // v509: 优化事件一致性检查器 - 每2小时扫描 pending 超过24小时的记录
+  monitoringIntervals.push(setInterval(async () => {
+    try {
+      const { runConsistencyCheck } = await import('../services/optimizationConsistencyChecker');
+      log.info('[DataSyncScheduler] v509: 开始优化事件一致性检查...');
+      const checkResult = await runConsistencyCheck();
+      const totalFixed = checkResult.fixedByEventId + checkResult.fixedByKeywordMatch + checkResult.markedSuperseded + checkResult.markedPermanentlyFailed;
+      if (totalFixed > 0) {
+        log.warn(`[DataSyncScheduler] v509: 一致性检查完成 - 修复=${totalFixed} (event_id=${checkResult.fixedByEventId}, keyword=${checkResult.fixedByKeywordMatch}, superseded=${checkResult.markedSuperseded}, perm_failed=${checkResult.markedPermanentlyFailed}), 剩余pending=${checkResult.scannedEvents}`);
+      } else {
+        log.debug(`[DataSyncScheduler] v509: 一致性检查完成 - 无需修复, pending=${checkResult.scannedEvents}`);
+      }
+    } catch (err: unknown) {
+      log.warn(`[DataSyncScheduler] v509: 优化事件一致性检查失败: ${(err as Error).message}`);
+    }
+  }, 2 * 60 * 60 * 1000));
+  log.info('[DataSyncScheduler] v509: 优化事件一致性检查器已启动，间隔: 2小时');
+
+  // v509: 部署后延迟3分钟执行一次一致性检查
+  setTimeout(async () => {
+    try {
+      const { runConsistencyCheck } = await import('../services/optimizationConsistencyChecker');
+      log.info('[DataSyncScheduler] v509: 部署后首次一致性检查...');
+      const checkResult = await runConsistencyCheck();
+      log.info(`[DataSyncScheduler] v509: 部署后首次检查完成 - 修复=${checkResult.fixedByEventId + checkResult.fixedByKeywordMatch + checkResult.markedSuperseded + checkResult.markedPermanentlyFailed}, pending=${checkResult.scannedEvents}`);
+    } catch (err: unknown) {
+      log.warn(`[DataSyncScheduler] v509: 部署后首次一致性检查失败: ${(err as Error).message}`);
+    }
+  }, 3 * 60 * 1000);
   
   log.info(`[DataSyncScheduler] v488: 统一同步调度器已启动，完整同步间隔: ${defaultIntervalMs / 1000 / 60} 分钟`);
 }

@@ -77,6 +77,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 509,
+    description: 'v509: [同步状态自动回写架构] — (1)P0-event_id外键: optimization_tasks新增 event_id列建立与optimization_events的精确关联，同步完成时自动回写events状态 (2)P0-数据一致性检查器: 每2小时扫描pending超24小时的记录，通过event_id和keyword_id匹配自动修复状态 (3)P0-Amazon API错误码统一映射表: 替代同步引擎中9处硬编码字符串匹配，统一归类处理entityNotFoundError/malformedValueError等错误 (4)P1-历史数据回填: 迁移时自动匹配7天内的tasks和events并回填event_id，立即回写synced/permanently_failed状态',
+    affectedModules: ['sync'],
+    correctionActions: ['rerun_optimization'],
+  },
+  {
     version: 508,
     description: 'v508: [api_sync_status数据完整性修复] — (1)P0-ENUM→VARCHAR(32): optimization_events.api_sync_status从4值ENUM改为VARCHAR(32)，支持permanently_failed/superseded/invalid_legacy等扩展状态 (2)P0-空字符串回写: 21067条空字符串记录根据error_message内容回写正确状态 (3)P0-not_applicable出价事件回写: 23774条被错误标记的bid_increase/bid_decrease事件通过optimization_tasks匹配回写真实状态 (4)P0-invalid_legacy归档: 51574条历史遗留记录统一标记为permanently_failed (5)P1-前端同步健康度修正: 只统计活跃状态(synced/pending/failed)，排除历史/非活跃状态',
     affectedModules: ['optimization'],

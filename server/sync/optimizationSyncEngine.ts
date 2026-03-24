@@ -45,6 +45,7 @@ export interface OptimizationTask {
   campaignId?: number;
   campaignName?: string;
   adGroupId?: number;
+  eventId?: number;  // v509: optimization_events.id 外键关联
 }
 
 export interface BatchSyncResult {
@@ -721,15 +722,16 @@ async function executeBatchByType(
                   await updateLocalBid(conn, 'keyword', t.target_entity_id, t.new_value);
                   result.synced++;
                 } else {
-                  // v458: 检测entityNotFoundError，标记关键词为amazon_deleted避免无限重试
-                  const spFailLower = spFailReason.toLowerCase();
-                  if (spFailLower.includes('entitynotfounderror') || spFailLower.includes('entity_not_found')) {
-                    await markTaskFailed(conn, t.id, `[v458-entity-deleted] ${spFailReason}`);
+                  // v509: 使用统一错误码映射表替代硬编码字符串匹配
+                  const { classifyError, shouldMarkEntityDeleted } = await import('../services/amazonApiErrorMapper');
+                  const spErrorMapping = classifyError(spFailReason);
+                  if (shouldMarkEntityDeleted(spFailReason)) {
+                    await markTaskFailed(conn, t.id, `[v509-${spErrorMapping.code}] ${spFailReason}`);
                     try {
                       await Q.markKeywordDeleted(conn, t.target_entity_id, String(t.amazon_entity_id));
-                      log.warn(`[SyncEngine] v458: SP Keyword ${t.amazon_entity_id} Amazon端已不存在，已标记为amazon_deleted`);
+                      log.warn(`[SyncEngine] v509: SP Keyword ${t.amazon_entity_id} 错误码=${spErrorMapping.code}, 已标记为amazon_deleted`);
                     } catch (markErr: unknown) {
-                      log.warn(`[SyncEngine] v458: 标记Keyword deleted失败: ${(markErr as Error).message}`);
+                      log.warn(`[SyncEngine] v509: 标记Keyword deleted失败: ${(markErr as Error).message}`);
                     }
                   } else {
                     await markTaskForRetry(conn, t.id, t.retry_count, spFailReason);
@@ -848,15 +850,16 @@ async function executeBatchByType(
                   await updateLocalBid(conn, 'keyword', t.target_entity_id, t.new_value);
                   result.synced++;
                 } else {
-                  // v458: 检测entityNotFoundError，标记为amazon_deleted
-                  const sbFailLower = failReason.toLowerCase();
-                  if (sbFailLower.includes('entitynotfounderror') || sbFailLower.includes('entity_not_found')) {
-                    await markTaskFailed(conn, t.id, `[v458-entity-deleted] ${failReason}`);
+                  // v509: 使用统一错误码映射表替代硬编码字符串匹配
+                  const { classifyError: classifySbError, shouldMarkEntityDeleted: shouldMarkSbDeleted } = await import('../services/amazonApiErrorMapper');
+                  const sbErrorMapping = classifySbError(failReason);
+                  if (shouldMarkSbDeleted(failReason)) {
+                    await markTaskFailed(conn, t.id, `[v509-${sbErrorMapping.code}] ${failReason}`);
                     try {
                       await Q.markKeywordDeleted(conn, t.target_entity_id, String(t.amazon_entity_id));
-                      log.warn(`[SyncEngine] v458: SB Keyword ${t.amazon_entity_id} Amazon端已不存在，已标记为amazon_deleted`);
+                      log.warn(`[SyncEngine] v509: SB Keyword ${t.amazon_entity_id} 错误码=${sbErrorMapping.code}, 已标记为amazon_deleted`);
                     } catch (markErr: unknown) {
-                      log.warn(`[SyncEngine] v458: 标记SB Keyword deleted失败: ${(markErr as Error).message}`);
+                      log.warn(`[SyncEngine] v509: 标记SB Keyword deleted失败: ${(markErr as Error).message}`);
                     }
                   } else {
                     await markTaskForRetry(conn, t.id, t.retry_count, failReason);
@@ -934,9 +937,11 @@ async function executeBatchByType(
             for (const t of spPtTasks) {
               const ptFailReason = failedIds.get(String(t.amazon_entity_id));
               if (ptFailReason) {
-                const ptFailLower = ptFailReason.toLowerCase();
-                if (ptFailLower.includes('entitynotfounderror') || ptFailLower.includes('entity_not_found')) {
-                  await markTaskFailed(conn, t.id, `[v458-entity-deleted] ${ptFailReason}`);
+                // v509: 统一错误码映射
+                const { shouldMarkEntityDeleted: shouldMarkPtDeleted, classifyError: classifyPtError } = await import('../services/amazonApiErrorMapper');
+                if (shouldMarkPtDeleted(ptFailReason)) {
+                  const ptMapping = classifyPtError(ptFailReason);
+                  await markTaskFailed(conn, t.id, `[v509-${ptMapping.code}] ${ptFailReason}`);
                   try { await Q.markTargetDeleted(conn, t.target_entity_id, String(t.amazon_entity_id)); } catch (_) {}
                 } else {
                   await markTaskForRetry(conn, t.id, t.retry_count, ptFailReason);
@@ -998,9 +1003,11 @@ async function executeBatchByType(
               for (const t of activeSbPtTasks) {
                 const failReason = sbFailedIds.get(String(t.amazon_entity_id));
                 if (failReason) {
-                  const failLower = failReason.toLowerCase();
-                  if (failLower.includes('entitynotfounderror') || failLower.includes('entity_not_found')) {
-                    await markTaskFailed(conn, t.id, `[v471-entity-deleted] ${failReason}`);
+                  // v509: 统一错误码映射
+                  const { shouldMarkEntityDeleted: shouldMarkSbPtDeleted, classifyError: classifySbPtError } = await import('../services/amazonApiErrorMapper');
+                  if (shouldMarkSbPtDeleted(failReason)) {
+                    const sbPtMapping = classifySbPtError(failReason);
+                    await markTaskFailed(conn, t.id, `[v509-${sbPtMapping.code}] ${failReason}`);
                     try { await Q.markTargetDeleted(conn, t.target_entity_id, String(t.amazon_entity_id)); } catch (_) {}
                   } else {
                     await markTaskForRetry(conn, t.id, t.retry_count, failReason);
@@ -1169,12 +1176,13 @@ async function executeBatchByType(
             for (const t of spKwTasks) {
               const statusFailReason = failedIdMap.get(String(t.amazon_entity_id));
               if (statusFailReason) {
-                const kwStatusFailLower = statusFailReason.toLowerCase();
-                if (kwStatusFailLower.includes('entitynotfounderror') || kwStatusFailLower.includes('entity_not_found')) {
-                  await markTaskFailed(conn, t.id, `[v458-entity-deleted] ${statusFailReason}`);
+                // v509: 统一错误码映射
+                const { shouldMarkEntityDeleted: shouldMarkKwDeleted } = await import('../services/amazonApiErrorMapper');
+                if (shouldMarkKwDeleted(statusFailReason)) {
+                  await markTaskFailed(conn, t.id, `[v509-entity-deleted] ${statusFailReason}`);
                   try { await Q.markKeywordDeleted(conn, t.target_entity_id, String(t.amazon_entity_id)); } catch (_) {}
                 } else if (t.retry_count >= 10) {
-                  await markTaskFailed(conn, t.id, `[v458-max-retries] ${statusFailReason}`);
+                  await markTaskFailed(conn, t.id, `[v509-max-retries] ${statusFailReason}`);
                 } else {
                   await markTaskForRetry(conn, t.id, t.retry_count, statusFailReason);
                 }
@@ -1230,12 +1238,13 @@ async function executeBatchByType(
               for (const t of activeSbKwTasks) {
                 const failReason = sbFailedIds.get(String(t.amazon_entity_id));
                 if (failReason) {
-                  const failLower = failReason.toLowerCase();
-                  if (failLower.includes('entitynotfounderror') || failLower.includes('entity_not_found')) {
-                    await markTaskFailed(conn, t.id, `[v471-entity-deleted] ${failReason}`);
+                  // v509: 统一错误码映射
+                  const { shouldMarkEntityDeleted: shouldMarkSbKwDeleted } = await import('../services/amazonApiErrorMapper');
+                  if (shouldMarkSbKwDeleted(failReason)) {
+                    await markTaskFailed(conn, t.id, `[v509-entity-deleted] ${failReason}`);
                     try { await Q.markKeywordDeleted(conn, t.target_entity_id, String(t.amazon_entity_id)); } catch (_) {}
                   } else if (t.retry_count >= 10) {
-                    await markTaskFailed(conn, t.id, `[v471-max-retries] ${failReason}`);
+                    await markTaskFailed(conn, t.id, `[v509-max-retries] ${failReason}`);
                   } else {
                     await markTaskForRetry(conn, t.id, t.retry_count, failReason);
                   }
@@ -1301,14 +1310,16 @@ async function executeBatchByType(
           result.synced++;
         } catch (err: unknown) {
           const errMsg = (err as Error).message;
-          const errLower = errMsg.toLowerCase();
-          if (errLower.includes('entitynotfounderror') || errLower.includes('entity_not_found') || errLower.includes('could not find')) {
-            await markTaskFailed(conn, t.id, `[v456-entity-archived] ${errMsg}`);
+          // v509: 统一错误码映射
+          const { shouldMarkEntityDeleted: shouldMarkCampaignDeleted, classifyError: classifyCampaignError } = await import('../services/amazonApiErrorMapper');
+          if (shouldMarkCampaignDeleted(errMsg)) {
+            const campaignMapping = classifyCampaignError(errMsg);
+            await markTaskFailed(conn, t.id, `[v509-${campaignMapping.code}] ${errMsg}`);
             try {
               await Q.archiveCampaign(conn, t.target_entity_id, String(t.amazon_entity_id));
-              log.warn(`[SyncEngine] v456: Campaign ${t.target_entity_name} (${t.amazon_entity_id}) Amazon端已不存在，已标记为archived`);
+              log.warn(`[SyncEngine] v509: Campaign ${t.target_entity_name} (${t.amazon_entity_id}) 错误码=${campaignMapping.code}, 已标记为archived`);
             } catch (markErr: unknown) {
-              log.warn(`[SyncEngine] v456: 标记Campaign archived失败: ${(markErr as Error).message}`);
+              log.warn(`[SyncEngine] v509: 标记Campaign archived失败: ${(markErr as Error).message}`);
             }
           } else {
             await markTaskForRetry(conn, t.id, t.retry_count, errMsg);
@@ -1373,12 +1384,13 @@ async function executeBatchByType(
             for (const t of spAgTasks) {
               const failReason = agFailedIds.get(String(t.amazon_entity_id));
               if (failReason) {
-                const failLower = failReason.toLowerCase();
-                if (failLower.includes('entitynotfounderror') || failLower.includes('entity_not_found') || failLower.includes('could not find')) {
-                  await markTaskFailed(conn, t.id, `[v456-entity-archived] ${failReason}`);
+                // v509: 统一错误码映射
+                const { shouldMarkEntityDeleted: shouldMarkSpAgDeleted } = await import('../services/amazonApiErrorMapper');
+                if (shouldMarkSpAgDeleted(failReason)) {
+                  await markTaskFailed(conn, t.id, `[v509-entity-archived] ${failReason}`);
                   try { await Q.archiveAdGroup(conn, t.target_entity_id, String(t.amazon_entity_id)); } catch (_) {}
                 } else {
-                  await markTaskForRetry(conn, t.id, t.retry_count, `v431: SP AdGroup状态更新失败: ${failReason}`);
+                  await markTaskForRetry(conn, t.id, t.retry_count, `v509: SP AdGroup状态更新失败: ${failReason}`);
                 }
                 result.failed++;
               } else {
@@ -1415,12 +1427,13 @@ async function executeBatchByType(
             for (const t of sdAgTasks) {
               const failReason = sdAgFailedIds.get(String(t.amazon_entity_id));
               if (failReason) {
-                const failLower = failReason.toLowerCase();
-                if (failLower.includes('entitynotfounderror') || failLower.includes('entity_not_found')) {
-                  await markTaskFailed(conn, t.id, `[v471-entity-archived] ${failReason}`);
+                // v509: 统一错误码映射
+                const { shouldMarkEntityDeleted: shouldMarkSdAgDeleted } = await import('../services/amazonApiErrorMapper');
+                if (shouldMarkSdAgDeleted(failReason)) {
+                  await markTaskFailed(conn, t.id, `[v509-entity-archived] ${failReason}`);
                   try { await Q.archiveAdGroup(conn, t.target_entity_id, String(t.amazon_entity_id)); } catch (_) {}
                 } else {
-                  await markTaskForRetry(conn, t.id, t.retry_count, `v471: SD AdGroup状态更新失败: ${failReason}`);
+                  await markTaskForRetry(conn, t.id, t.retry_count, `v509: SD AdGroup状态更新失败: ${failReason}`);
                 }
                 result.failed++;
               } else {

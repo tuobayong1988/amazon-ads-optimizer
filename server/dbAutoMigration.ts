@@ -1029,6 +1029,99 @@ export async function runAutoDbMigration(): Promise<{ success: boolean; results:
     }
 
     log.info(`v508: 数据库自动迁移完成, 结果: ${results.join('; ')}`);
+
+    // ========== v509: optimization_tasks 添加 event_id 外键列 ==========
+    // 目的: 建立 optimization_tasks 与 optimization_events 的精确关联，
+    // 实现同步状态的自动回写，从根本上消除状态不一致问题。
+    log.info('v509: 开始添加 optimization_tasks.event_id 外键列...');
+    
+    // 1. 添加 event_id 列
+    try {
+      await database.execute(sql.raw(`
+        ALTER TABLE optimization_tasks 
+        ADD COLUMN event_id INT NULL DEFAULT NULL COMMENT 'v509: optimization_events.id 外键'
+      `));
+      results.push('optimization_tasks: 添加 event_id 列');
+      log.info('v509: optimization_tasks.event_id 列已添加');
+    } catch (e: unknown) {
+      const msg = (e as Error).message;
+      if (msg.includes('Duplicate column')) {
+        log.info('v509: optimization_tasks.event_id 列已存在，跳过');
+      } else {
+        log.warn('v509: 添加 event_id 列失败: ' + msg);
+      }
+    }
+
+    // 2. 添加 event_id 索引（加速回写查询）
+    try {
+      await database.execute(sql.raw(`
+        ALTER TABLE optimization_tasks 
+        ADD INDEX idx_event_id (event_id)
+      `));
+      results.push('optimization_tasks: 添加 idx_event_id 索引');
+      log.info('v509: idx_event_id 索引已添加');
+    } catch (e: unknown) {
+      const msg = (e as Error).message;
+      if (msg.includes('Duplicate key name') || msg.includes('already exists')) {
+        log.info('v509: idx_event_id 索引已存在，跳过');
+      } else {
+        log.warn('v509: 添加 idx_event_id 索引失败: ' + msg);
+      }
+    }
+
+    // 3. 回填历史数据: 通过 keyword_id + 时间窗口匹配已有的 tasks 和 events
+    try {
+      const [backfillResult] = await database.execute(sql.raw(`
+        UPDATE optimization_tasks ot
+        INNER JOIN optimization_events oe 
+          ON oe.keyword_id = ot.target_entity_id 
+          AND oe.account_id = ot.account_id
+          AND ot.task_type = 'bid_adjustment'
+          AND oe.action_type IN ('bid_increase', 'bid_decrease')
+          AND ABS(TIMESTAMPDIFF(MINUTE, oe.created_at, ot.created_at)) < 30
+        SET ot.event_id = oe.id
+        WHERE ot.event_id IS NULL
+          AND ot.created_at > DATE_SUB(NOW(), INTERVAL 7 DAY)
+      `)) as unknown[];
+      const backfillCount = (backfillResult as Record<string, unknown>).affectedRows || 0;
+      log.info(`v509: 回填 event_id: ${backfillCount} 条任务已关联`);
+      results.push(`v509: event_id回填 ${backfillCount} 条`);
+    } catch (e: unknown) {
+      log.warn('v509: event_id回填失败: ' + (e as Error).message);
+    }
+
+    // 4. 利用新建立的 event_id 关联，立即回写一次 optimization_events 状态
+    try {
+      // 回写 synced
+      const [syncedResult] = await database.execute(sql.raw(`
+        UPDATE optimization_events oe
+        INNER JOIN optimization_tasks ot ON ot.event_id = oe.id
+        SET oe.api_sync_status = 'synced', 
+            oe.api_synced_at = ot.completed_at,
+            oe.error_message = CONCAT(COALESCE(oe.error_message, ''), ' | v509: event_id回写synced')
+        WHERE oe.api_sync_status IN ('pending', 'failed')
+          AND ot.status = 'synced'
+      `)) as unknown[];
+      const syncedCount = (syncedResult as Record<string, unknown>).affectedRows || 0;
+
+      // 回写 permanently_failed
+      const [pfResult] = await database.execute(sql.raw(`
+        UPDATE optimization_events oe
+        INNER JOIN optimization_tasks ot ON ot.event_id = oe.id
+        SET oe.api_sync_status = 'permanently_failed',
+            oe.error_message = CONCAT(COALESCE(oe.error_message, ''), ' | v509: event_id回写permanently_failed: ', COALESCE(ot.error_message, ''))
+        WHERE oe.api_sync_status IN ('pending', 'failed')
+          AND ot.status = 'permanently_failed'
+      `)) as unknown[];
+      const pfCount = (pfResult as Record<string, unknown>).affectedRows || 0;
+
+      log.info(`v509: event_id回写完成 - synced=${syncedCount}, permanently_failed=${pfCount}`);
+      results.push(`v509: event_id状态回写 synced=${syncedCount}, permanently_failed=${pfCount}`);
+    } catch (e: unknown) {
+      log.warn('v509: event_id状态回写失败: ' + (e as Error).message);
+    }
+
+    log.info(`v509: 数据库自动迁移完成, 结果: ${results.join('; ')}`);
     return { success: true, results };
 
   } catch (error: unknown) {

@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 508;  // v508: 修复api_sync_status ENUM→VARCHAR(32) + 回写not_applicable/empty/invalid_legacy历史数据 + 前端同步健康度面板修正
+export const SYSTEM_VERSION = 509;  // v509: event_id外键关联+同步状态自动回写+数据一致性检查器+Amazon API错误码统一映射表
