@@ -30,17 +30,25 @@ async function ensureSystemConfigTable(): Promise<void> {
   try {
     const dbInstance = await getDb();
     if (!dbInstance) return;
-    await dbInstance.execute({ sql: `
+    const { sql } = await import('drizzle-orm');
+    // v505: 使用sql模板标签替代{sql,params}对象格式，修复"e.getSQL is not a function"错误
+    await dbInstance.execute(sql`
       CREATE TABLE IF NOT EXISTS system_config (
         \`key\` VARCHAR(255) NOT NULL PRIMARY KEY,
         \`value\` TEXT,
         updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-    `, params: [] });
+    `);
     systemConfigTableEnsured = true;
     log.info('[SystemDefense] system_config表已确认存在');
   } catch (err: unknown) {
-    log.warn(`[SystemDefense] 创建system_config表失败: ${(err as Error).message}`);
+    // v505: 如果表已存在，也标记为成功
+    const errMsg = (err as Error).message || '';
+    if (errMsg.includes('already exists')) {
+      systemConfigTableEnsured = true;
+    } else {
+      log.warn(`[SystemDefense] 创建system_config表失败: ${errMsg}`);
+    }
   }
 }
 
@@ -92,17 +100,18 @@ export async function cleanupSyncFailures(): Promise<DefenseResult> {
 
     // 1a. 清理 amazon_deleted/archived 实体的同步失败记录
     // 这些实体在Amazon端已不存在，同步永远不会成功
+    // v505: 修复列名 - optimization_events表使用snake_case列名
     const [deletedCleanup] = await dbInstance.execute(sql`
       UPDATE optimization_events 
-      SET apiSyncStatus = 'not_applicable',
-          changeReason = CONCAT(COALESCE(changeReason, ''), ' [v504: 目标实体已在Amazon删除/归档，标记为不适用]')
-      WHERE apiSyncStatus = 'failed'
+      SET api_sync_status = 'not_applicable',
+          change_reason = CONCAT(COALESCE(change_reason, ''), ' [v505: 目标实体已在Amazon删除/归档，标记为不适用]')
+      WHERE api_sync_status = 'failed'
         AND (
-          actionDetail LIKE '%amazon_deleted%' 
-          OR actionDetail LIKE '%archived%'
-          OR actionDetail LIKE '%跳过同步%'
+          action_detail LIKE '%amazon_deleted%' 
+          OR action_detail LIKE '%archived%'
+          OR action_detail LIKE '%跳过同步%'
         )
-        AND createdAt >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+        AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
     `);
     const deletedCount = (deletedCleanup as any)?.affectedRows || 0;
     if (deletedCount > 0) {
@@ -112,16 +121,17 @@ export async function cleanupSyncFailures(): Promise<DefenseResult> {
     }
 
     // 1b. 清理缺少Amazon ID的同步失败记录（超过7天未解析的）
+    // v505: 修复列名
     const [missingIdCleanup] = await dbInstance.execute(sql`
       UPDATE optimization_events 
-      SET apiSyncStatus = 'not_applicable',
-          changeReason = CONCAT(COALESCE(changeReason, ''), ' [v504: Amazon ID长期未解析，标记为不适用]')
-      WHERE apiSyncStatus = 'failed'
+      SET api_sync_status = 'not_applicable',
+          change_reason = CONCAT(COALESCE(change_reason, ''), ' [v505: Amazon ID长期未解析，标记为不适用]')
+      WHERE api_sync_status = 'failed'
         AND (
-          actionDetail LIKE '%缺少Amazon ID%'
-          OR actionDetail LIKE '%missing amazon id%'
+          action_detail LIKE '%缺少Amazon ID%'
+          OR action_detail LIKE '%missing amazon id%'
         )
-        AND createdAt < DATE_SUB(NOW(), INTERVAL 7 DAY)
+        AND created_at < DATE_SUB(NOW(), INTERVAL 7 DAY)
     `);
     const missingIdCount = (missingIdCleanup as any)?.affectedRows || 0;
     if (missingIdCount > 0) {
@@ -131,10 +141,11 @@ export async function cleanupSyncFailures(): Promise<DefenseResult> {
     }
 
     // 1c. 统计剩余的可重试失败记录
+    // v505: 修复列名
     const [remainingFailed] = await dbInstance.execute(sql`
       SELECT COUNT(*) as cnt FROM optimization_events 
-      WHERE apiSyncStatus = 'failed'
-        AND createdAt >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+      WHERE api_sync_status = 'failed'
+        AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
     `);
     const remainingCount = Number((remainingFailed as any)?.[0]?.cnt) || 0;
     result.details.push(`剩余可重试的同步失败记录: ${remainingCount}条`);
@@ -185,35 +196,36 @@ export async function checkAlgorithmHealth(): Promise<DefenseResult> {
     // - ACoS低时加价 = 正向
     // - ACoS高时加价 = 负向（关键修复！）
     // - 零转化时任何操作 = 中性（不计入正向率）
+    // v505: 修复列名 - optimization_events表使用snake_case列名
     const [algorithmStats] = await dbInstance.execute(sql`
       SELECT 
         CASE 
-          WHEN actionDetail LIKE '%cascade%' OR actionDetail LIKE '%Cascade%' THEN 'cascade'
-          WHEN actionDetail LIKE '%linucb%' OR actionDetail LIKE '%LinUCB%' THEN 'linucb'
-          WHEN actionDetail LIKE '%cql%' OR actionDetail LIKE '%CQL%' THEN 'cql'
-          WHEN actionDetail LIKE '%sigmoid%' OR actionDetail LIKE '%Sigmoid%' THEN 'sigmoid'
-          WHEN actionDetail LIKE '%rule%' OR actionDetail LIKE '%规则%' THEN 'rule_engine'
-          WHEN actionDetail LIKE '%guardrail%' OR actionDetail LIKE '%护栏%' THEN 'guardrail'
-          WHEN actionDetail LIKE '%campaign_status%' THEN 'campaign_status_manager'
+          WHEN action_detail LIKE '%cascade%' OR action_detail LIKE '%Cascade%' THEN 'cascade'
+          WHEN action_detail LIKE '%linucb%' OR action_detail LIKE '%LinUCB%' THEN 'linucb'
+          WHEN action_detail LIKE '%cql%' OR action_detail LIKE '%CQL%' THEN 'cql'
+          WHEN action_detail LIKE '%sigmoid%' OR action_detail LIKE '%Sigmoid%' THEN 'sigmoid'
+          WHEN action_detail LIKE '%rule%' OR action_detail LIKE '%规则%' THEN 'rule_engine'
+          WHEN action_detail LIKE '%guardrail%' OR action_detail LIKE '%护栏%' THEN 'guardrail'
+          WHEN action_detail LIKE '%campaign_status%' THEN 'campaign_status_manager'
           ELSE 'unknown'
         END as algorithm,
         COUNT(*) as total_ops,
         SUM(CASE 
-          WHEN actionType = 'bid_decrease' AND JSON_EXTRACT(actionDetail, '$.acos') > 40 THEN 1
-          WHEN actionType = 'bid_increase' AND JSON_EXTRACT(actionDetail, '$.acos') < 25 AND JSON_EXTRACT(actionDetail, '$.acos') > 0 THEN 1
-          WHEN actionType = 'bid_decrease' AND bidChangePercent BETWEEN -15 AND -1 THEN 1
+          WHEN action_type = 'bid_decrease' AND JSON_EXTRACT(action_detail, '$.acos') > 40 THEN 1
+          WHEN action_type = 'bid_increase' AND JSON_EXTRACT(action_detail, '$.acos') < 25 AND JSON_EXTRACT(action_detail, '$.acos') > 0 THEN 1
+          WHEN action_type = 'bid_decrease' AND bid_change_percent BETWEEN -15 AND -1 THEN 1
           ELSE 0
         END) as positive_ops,
         SUM(CASE 
-          WHEN actionType = 'bid_increase' AND (JSON_EXTRACT(actionDetail, '$.acos') > 50 OR JSON_EXTRACT(actionDetail, '$.acos') IS NULL) THEN 1
-          WHEN ABS(bidChangePercent) > 25 THEN 1
+          WHEN action_type = 'bid_increase' AND (JSON_EXTRACT(action_detail, '$.acos') > 50 OR JSON_EXTRACT(action_detail, '$.acos') IS NULL) THEN 1
+          WHEN ABS(bid_change_percent) > 25 THEN 1
           ELSE 0
         END) as negative_ops
       FROM optimization_events
-      WHERE eventCategory = 'bid_adjustment'
-        AND actionType IN ('bid_increase', 'bid_decrease', 'bid_auto_adjust')
-        AND apiSyncStatus != 'not_applicable'
-        AND createdAt >= DATE_SUB(NOW(), INTERVAL 14 DAY)
+      WHERE event_category = 'bid_adjustment'
+        AND action_type IN ('bid_increase', 'bid_decrease', 'bid_auto_adjust')
+        AND api_sync_status != 'not_applicable'
+        AND created_at >= DATE_SUB(NOW(), INTERVAL 14 DAY)
       GROUP BY algorithm
       HAVING total_ops >= 10
     `);
@@ -430,12 +442,17 @@ export async function detectAndIntervenDeathSpiral(): Promise<DefenseResult> {
           }
         }
 
-        // 同步暂停状态到Amazon
+        // v505: 同步暂停状态到Amazon - 修复参数格式
         try {
           const { syncCampaignStatusToAmazon } = await import('../services/amazonApiHelper');
-          const campaignIds = highAcosRows.map((c: any) => c.id);
-          await syncCampaignStatusToAmazon(account.id, campaignIds, 'paused');
-          result.details.push(`  已同步${campaignIds.length}个Campaign暂停状态到Amazon`);
+          const statusChanges = highAcosRows.map((c: any) => ({
+            amazonCampaignId: String(c.campaignId),
+            newStatus: 'paused' as const,
+            campaignName: String(c.campaignName || ''),
+            reason: `[SystemDefense] 死亡螺旋干预: ACoS=${Number(c.acos).toFixed(1)}%`,
+          }));
+          await syncCampaignStatusToAmazon(account.id, statusChanges);
+          result.details.push(`  已同步${statusChanges.length}个Campaign暂停状态到Amazon`);
         } catch (syncErr: unknown) {
           result.details.push(`  同步暂停状态到Amazon失败: ${(syncErr as Error).message}`);
         }
@@ -599,7 +616,14 @@ export async function executeRealEmergencyOptimization(): Promise<DefenseResult>
         if (extremeRows.length > 0) {
           try {
             const { syncCampaignStatusToAmazon } = await import('../services/amazonApiHelper');
-            await syncCampaignStatusToAmazon(account.id, extremeRows.map((c: any) => c.id), 'paused');
+            // v505: 修复参数格式 - 传入对象数组而非纯ID数组
+            const statusChanges = extremeRows.map((c: any) => ({
+              amazonCampaignId: String(c.campaignId),
+              newStatus: 'paused' as const,
+              campaignName: String(c.campaignName || ''),
+              reason: `[SystemDefense] 紧急优化: ACoS>200%`,
+            }));
+            await syncCampaignStatusToAmazon(account.id, statusChanges);
             result.details.push(`  已同步${extremeRows.length}个Campaign暂停到Amazon`);
           } catch (syncErr: unknown) {
             result.details.push(`  同步失败: ${(syncErr as Error).message}`);
@@ -660,7 +684,14 @@ export async function executeRealEmergencyOptimization(): Promise<DefenseResult>
         if (zeroConvRows.length > 0) {
           try {
             const { syncCampaignStatusToAmazon } = await import('../services/amazonApiHelper');
-            await syncCampaignStatusToAmazon(account.id, zeroConvRows.map((c: any) => c.id), 'paused');
+            // v505: 修复参数格式
+            const statusChanges = zeroConvRows.map((c: any) => ({
+              amazonCampaignId: String(c.campaignId),
+              newStatus: 'paused' as const,
+              campaignName: String(c.campaignName || ''),
+              reason: `[SystemDefense] 紧急优化: 零转化高花费`,
+            }));
+            await syncCampaignStatusToAmazon(account.id, statusChanges);
           } catch { /* 忽略 */ }
         }
 

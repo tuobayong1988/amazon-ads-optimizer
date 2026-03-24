@@ -906,11 +906,11 @@ AmazonSyncService.prototype.syncKeywordPerformanceData = async function(this: Am
           data: {
             impressions, clicks,
             spend: String(cost), sales: String(sales), orders,
-            keywordAcos: cost > 0 && sales > 0 ? String(((cost / sales) * 100).toFixed(2)) : null,
-            keywordCtr: impressions > 0 ? String((clicks / impressions).toFixed(4)) : null,
-            keywordCvr: clicks > 0 ? String((orders / clicks).toFixed(4)) : null,
-            keywordCpc: clicks > 0 ? String((cost / clicks).toFixed(2)) : null,
-            keywordRoas: cost > 0 && sales > 0 ? String((sales / cost).toFixed(2)) : null,
+            keywordAcos: cost > 0 && sales > 0 ? String(((cost / sales) * 100).toFixed(2)) : '0.00',
+            keywordCtr: impressions > 0 ? String((clicks / impressions).toFixed(4)) : '0.0000',
+            keywordCvr: clicks > 0 ? String((orders / clicks).toFixed(4)) : '0.0000',
+            keywordCpc: clicks > 0 ? String((cost / clicks).toFixed(2)) : '0.00',
+            keywordRoas: cost > 0 && sales > 0 ? String((sales / cost).toFixed(2)) : '0.00',
             updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
           }
         });
@@ -933,11 +933,11 @@ AmazonSyncService.prototype.syncKeywordPerformanceData = async function(this: Am
           data: {
             impressions, clicks,
             spend: String(cost), sales: String(sales), orders,
-            targetAcos: cost > 0 && sales > 0 ? String(((cost / sales) * 100).toFixed(2)) : null,
-            targetRoas: cost > 0 && sales > 0 ? String((sales / cost).toFixed(2)) : null,
-            targetCtr: impressions > 0 ? String((clicks / impressions).toFixed(4)) : null,
-            targetCvr: clicks > 0 ? String((orders / clicks).toFixed(4)) : null,
-            targetCpc: clicks > 0 ? String((cost / clicks).toFixed(2)) : null,
+            targetAcos: cost > 0 && sales > 0 ? String(((cost / sales) * 100).toFixed(2)) : '0.00',
+            targetRoas: cost > 0 && sales > 0 ? String((sales / cost).toFixed(2)) : '0.00',
+            targetCtr: impressions > 0 ? String((clicks / impressions).toFixed(4)) : '0.0000',
+            targetCvr: clicks > 0 ? String((orders / clicks).toFixed(4)) : '0.0000',
+            targetCpc: clicks > 0 ? String((cost / clicks).toFixed(2)) : '0.00',
             updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
           }
         });
@@ -951,52 +951,43 @@ AmazonSyncService.prototype.syncKeywordPerformanceData = async function(this: Am
       }
     }
     
-    // ==================== v387: 批量写入数据库 - 使用分批批量更新替代逐条UPDATE ====================
+    // ==================== v505: 批量写入数据库 - 使用受控并发替代100并发Promise.all ====================
     let dbWritten = 0;
-    const BATCH_SIZE = 100;
+    const CONCURRENCY_LIMIT = 8; // v505: 限制并发数为8，避免超出连接池(limit=20)
     
-    // v387: 分批更新keywords，每批100条
-    for (let i = 0; i < kwUpdates.length; i += BATCH_SIZE) {
-      const batch = kwUpdates.slice(i, i + BATCH_SIZE);
-      try {
-        await Promise.all(batch.map(upd => 
-          db.update(keywords).set(upd.data).where(eq(keywords.id, upd.id))
-        ));
-        dbWritten += batch.length;
-      } catch (batchError: unknown) {
-        // 批量失败时回退到逐条更新
-        log.warn(`v387: keyword批量更新失败，回退到逐条更新: ${(batchError as Error).message}`);
-        for (const upd of batch) {
-          try {
-            await db.update(keywords).set(upd.data).where(eq(keywords.id, upd.id));
-            dbWritten++;
-          } catch (e: unknown) {
-            log.warn(`v387: 更新keyword ${upd.id} 失败: ${(e as Error).message}`);
+    // v505: 受控并发更新函数
+    async function updateWithConcurrencyControl<T extends { id: number; data: Record<string, unknown> }>(
+      updates: T[],
+      tableName: string,
+      updateFn: (upd: T) => Promise<unknown>
+    ): Promise<number> {
+      let written = 0;
+      for (let i = 0; i < updates.length; i += CONCURRENCY_LIMIT) {
+        const chunk = updates.slice(i, i + CONCURRENCY_LIMIT);
+        const results = await Promise.allSettled(chunk.map(upd => updateFn(upd)));
+        for (let j = 0; j < results.length; j++) {
+          if (results[j].status === 'fulfilled') {
+            written++;
+          } else {
+            const err = (results[j] as PromiseRejectedResult).reason;
+            log.warn(`v505: 更新${tableName} ${chunk[j].id} 失败: ${err?.message || err}`);
           }
         }
       }
+      return written;
     }
     
-    // v387: 分批更新product_targets，每批100条
-    for (let i = 0; i < ptUpdates.length; i += BATCH_SIZE) {
-      const batch = ptUpdates.slice(i, i + BATCH_SIZE);
-      try {
-        await Promise.all(batch.map(upd => 
-          db.update(productTargets).set(upd.data).where(eq(productTargets.id, upd.id))
-        ));
-        dbWritten += batch.length;
-      } catch (batchError: unknown) {
-        log.warn(`v387: product_target批量更新失败，回退到逐条更新: ${(batchError as Error).message}`);
-        for (const upd of batch) {
-          try {
-            await db.update(productTargets).set(upd.data).where(eq(productTargets.id, upd.id));
-            dbWritten++;
-          } catch (e: unknown) {
-            log.warn(`v387: 更新product_target ${upd.id} 失败: ${(e as Error).message}`);
-          }
-        }
-      }
-    }
+    // v505: 受控并发更新keywords
+    dbWritten += await updateWithConcurrencyControl(
+      kwUpdates, 'keyword',
+      (upd) => db.update(keywords).set(upd.data).where(eq(keywords.id, upd.id))
+    );
+    
+    // v505: 受控并发更新product_targets
+    dbWritten += await updateWithConcurrencyControl(
+      ptUpdates, 'product_target',
+      (upd) => db.update(productTargets).set(upd.data).where(eq(productTargets.id, upd.id))
+    );
     
     log.info(`v196: 关键词绩效同步完成 - 匹配${synced}条, 未匹配${notMatched}条, 写入${dbWritten}条`);
     log.debug(`v196: 匹配统计 - keywordId:${matchStats.byKeywordId}, adGroup+text+match:${matchStats.byAdGroupTextMatch}, adGroup+text:${matchStats.byAdGroupText}, text:${matchStats.byText}, targetId:${matchStats.byTargetId}, expression:${matchStats.byExpression}`);
