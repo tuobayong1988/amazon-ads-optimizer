@@ -77,6 +77,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 505,
+    description: 'v505: [同步失败根因修复] — (1)P0-syncPerformance连接池耗尽: 批量写入并发从100降至8，避免超出连接池上限(limit=20)导致级联失败 (2)P0-syncPerformance的NULL处理: decimal字段null改为"0.00"修复NOT NULL约束违反 (3)P0-systemDefenseService的ensureSystemConfigTable: 使用sql模板标签替代{sql,params}对象格式，修复"e.getSQL is not a function"错误 (4)P0-systemDefenseService的optimization_events查询: SQL列名从camelCase改为snake_case匹配实际表结构 (5)P0-syncCampaignStatusToAmazon参数格式: 从纯ID数组改为对象数组匹配函数签名',
+    affectedModules: ['sync', 'bid'],
+    correctionActions: ['rerun_optimization'],
+  },
+  {
     version: 487,
     description: 'v487: [团队成员创建修复] — (1)P0-createTeamMemberAccount中角色存储错误: editor/viewer被错误转换为member，导致前端getRoleBadge找不到对应角色配置而报错Cannot read properties of undefined (reading variant) (2)前端添加member角色映射和fallback处理，确保向后兼容',
     affectedModules: [],

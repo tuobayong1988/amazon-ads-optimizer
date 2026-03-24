@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 487;  // v487: 修复团队成员创建时角色存储错误导致的variant报错
+export const SYSTEM_VERSION = 505;  // v505: 修复同步失败根因 - 连接池耗尽、SQL列名错误、API参数格式
