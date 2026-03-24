@@ -3014,15 +3014,58 @@ async function backfillNegativeKeywordIds(database: unknown, accountId: number):
   const results: CorrectionResult[] = [];
   
   try {
-    // 查找缺少amazon_negative_keyword_id的活跃否定词
+    // v507: 查找缺少amazon_negative_keyword_id的活跃否定词
+    // 过滤掉campaignId为NULL的记录（这些无法回填，需要先修复campaignId）
     const [missingIdRows] = await database.execute(sql`
       SELECT id, campaignId, internal_ad_group_id as adGroupId, negativeText, negativeMatchType, negativeLevel
       FROM negative_keywords
       WHERE accountId = ${accountId}
         AND amazon_negative_keyword_id IS NULL
         AND negativeStatus = 'active'
+        AND campaignId IS NOT NULL
+        AND campaignId != ''
       LIMIT 50
     `);
+    
+    // v507: 尝试通过adGroup回填campaignId为NULL的否定词
+    try {
+      const [nullCampaignRows] = await database.execute(sql`
+        SELECT nk.id, nk.internal_ad_group_id
+        FROM negative_keywords nk
+        WHERE nk.accountId = ${accountId}
+          AND nk.amazon_negative_keyword_id IS NULL
+          AND nk.negativeStatus = 'active'
+          AND (nk.campaignId IS NULL OR nk.campaignId = '')
+          AND nk.internal_ad_group_id IS NOT NULL
+        LIMIT 50
+      `);
+      if (nullCampaignRows && (nullCampaignRows as unknown[]).length > 0) {
+        let backfilledCount = 0;
+        for (const row of (nullCampaignRows as unknown[])) {
+          try {
+            // v507: 通过ad_groups表直接获取Amazon campaignId
+            // ad_groups.campaignId 存储的就是Amazon Campaign ID (varchar)
+            const agRows = await database
+              .select({ campaignId: adGroups.campaignId })
+              .from(adGroups)
+              .where(eq(adGroups.id, Number(row.internal_ad_group_id)))
+              .limit(1);
+            if (agRows.length > 0 && agRows[0].campaignId) {
+              await database.execute(sql`
+                UPDATE negative_keywords SET campaignId = ${String(agRows[0].campaignId)}
+                WHERE id = ${row.id}
+              `);
+              backfilledCount++;
+            }
+          } catch (_) { /* 单条失败不影响其他 */ }
+        }
+        if (backfilledCount > 0) {
+          log.info(`v507: 已回填${backfilledCount}个否定词的campaignId (通过adGroup关联)`);
+        }
+      }
+    } catch (backfillErr: unknown) {
+      log.warn(`v507: 回填否定词campaignId失败: ${(backfillErr as Error).message}`);
+    }
     
     if (!missingIdRows || missingIdRows.length === 0) return results;
     

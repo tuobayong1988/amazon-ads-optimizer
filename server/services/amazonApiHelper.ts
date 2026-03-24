@@ -481,10 +481,14 @@ export async function syncBidAdjustmentsToAmazon(
               result.failed++;
               result.errors.push(`SB keyword ${item.keywordId}: ${failReason}`);
               result.itemResults.set(item.localId, { status: 'failed', error: failReason });
-              // entityNotFound标记
-              if (failReason.toLowerCase().includes('entitynotfounderror') || failReason.toLowerCase().includes('entity_not_found')) {
+              // v507: entityNotFound / KEYWORD_CANNOT_FIND_AD_GROUP 标记
+              // 当Amazon返回这些错误时，说明关键词或其所属adGroup在Amazon端已不存在
+              // 需要标记为amazon_deleted/archived以防止纠错器反复重试
+              const failLower = failReason.toLowerCase();
+              if (failLower.includes('entitynotfounderror') || failLower.includes('entity_not_found') || failLower.includes('keyword_cannot_find_ad_group') || failLower.includes('invalid_argument')) {
                 try {
-                  await dbInstance.execute(sql.raw(`UPDATE keywords SET keywordStatus = 'amazon_deleted' WHERE keywordId = '${String(item.keywordId).replace(/'/g, "''")}' LIMIT 1`));
+                  await dbInstance.execute(sql.raw(`UPDATE keywords SET keywordStatus = 'amazon_archived' WHERE keywordId = '${String(item.keywordId).replace(/'/g, "''")}' LIMIT 1`));
+                  log.info(`[v507] SB关键词 ${item.keywordId} 标记为amazon_archived (原因: ${failReason.substring(0, 50)})`);
                 } catch (_) { /* ignore */ }
               }
             }
