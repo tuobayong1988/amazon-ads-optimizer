@@ -308,12 +308,13 @@ export default function AuditLogs() {
                       {/* @ts-ignore */}
                       <SelectItem value="all">全部类型</SelectItem>
                       {actionCategories.map((category: unknown) => (
-                        <div key={category.key}>
+                        <div key={(category as any).key}>
                           {/* @ts-ignore */}
                           {/* @ts-ignore */}
                           <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">{category.label}</div>
                           {(category as any).actions.map((action: unknown) => (
-                            <SelectItem key={action} value={action}>
+                            // @ts-ignore
+                            <SelectItem key={String(action)} value={action}>
                               {/* @ts-ignore */}
                               {getActionDescription(action)}
                             </SelectItem>
@@ -437,7 +438,7 @@ export default function AuditLogs() {
                       </TableHeader>
                       <TableBody>
                         {logsData.logs.map((log: unknown) => (
-                          <TableRow key={log.id}>
+                          <TableRow key={(log as any).id}>
                             <TableCell className="text-sm text-muted-foreground">
                               <div className="flex items-center gap-1">
                                 <Clock className="w-3 h-3" />
@@ -470,14 +471,14 @@ export default function AuditLogs() {
                                 {/* @ts-ignore */}
                                 {log.description}
                                 {(log as any).targetName && (
-                                  <span className="text-muted-foreground ml-1">({log.targetName})</span>
+                                  <span className="text-muted-foreground ml-1">({(log as any).targetName})</span>
                                 )}
                               </div>
                             </TableCell>
                             <TableCell>
                               {/* @ts-ignore */}
                               {log.accountName ? (
-                                <span className="text-sm">{log.accountName}</span>
+                                <span className="text-sm">{(log as any).accountName}</span>
                               ) : (
                                 <span className="text-muted-foreground">-</span>
                               )}
@@ -547,17 +548,15 @@ export default function AuditLogs() {
                 {userStats?.actionsByDay && userStats.actionsByDay.length > 0 ? (
                   <div className="h-[200px] flex items-end gap-1">
                     {userStats.actionsByDay.map((day: unknown, index: unknown) => {
-                      // @ts-ignore
-                      const maxCount = Math.max(...userStats.actionsByDay.map((d: unknown) => d.count));
-                      // @ts-ignore
-                      const height = maxCount > 0 ? (day.count / maxCount) * 100 : 0;
+                      const maxCount = Math.max(...userStats.actionsByDay.map((d: unknown) => (d as any).count));
+                      const height = maxCount > 0 ? ((day as any).count / maxCount) * 100 : 0;
                       return (
                         <div
                           // @ts-ignore
                           key={index}
                           className="flex-1 bg-primary/20 hover:bg-primary/40 transition-colors rounded-t"
                           style={{ height: `${Math.max(height, 2)}%` }}
-                          title={`${day.date}: ${day.count} 次操作`}
+                          title={`${(day as any).date}: ${(day as any).count} 次操作`}
                         />
                       );
                     })}
@@ -624,7 +623,7 @@ export default function AuditLogs() {
                 {userStats?.recentActions && userStats.recentActions.length > 0 ? (
                   <div className="space-y-3">
                     {userStats.recentActions.map((log: unknown) => (
-                      <div key={log.id} className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                      <div key={(log as any).id} className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
                         <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
                           <Activity className="w-4 h-4 text-primary" />
                         </div>

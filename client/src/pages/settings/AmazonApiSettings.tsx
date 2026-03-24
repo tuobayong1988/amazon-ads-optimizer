@@ -288,13 +288,10 @@ export default function AmazonApiSettings() {
         
         if (!hasSiteManagement && selectedAccountId) {
           // 为当前账户创建一个站点状态条目
-          // @ts-ignore
-          const currentAccount = accounts?.find(a => a.id === selectedAccountId);
+          const currentAccount = accounts?.find(a => (a as any).id === selectedAccountId);
           // @ts-ignore
           const mp = currentAccount ? MARKETPLACES.find(m => m.id === currentAccount.marketplace) : null;
-          // @ts-ignore
           siteStatuses = [{
-            // @ts-ignore
             id: selectedAccountId,
             // @ts-ignore
             marketplace: currentAccount?.marketplace || '',
@@ -407,8 +404,7 @@ export default function AmazonApiSettings() {
   // Get selected account
   const selectedAccount = useMemo(() => {
     if (!selectedAccountId || !accounts) return null;
-    // @ts-ignore
-    return accounts.find(a => a.id === selectedAccountId);
+    return accounts.find(a => (a as any).id === selectedAccountId);
   }, [selectedAccountId, accounts]);
 
   // Fetch credentials status
@@ -519,7 +515,6 @@ export default function AmazonApiSettings() {
         if (backendSaved > 0) {
           // v343: 后端已经成功保存了凭证，前端不需要再调用saveMultipleProfiles
           // 这是“刷新授权”场景，或者后端已找到匹配账户的场景
-          // @ts-ignore
           console.log(`[v343 OAuth Callback] 后端已保存 ${backendSaved} 个账户的凭证，前端跳过saveMultipleProfiles，避免重复创建`);
           toast.success(`授权成功！已自动更新 ${backendSaved} 个账户的凭证，数据同步已启动。`);
           setAuthProgress(100);
@@ -545,7 +540,6 @@ export default function AmazonApiSettings() {
               refreshToken,
               region: 'NA',
               profiles: profiles.map(p => ({
-                // @ts-ignore
                 profileId: p.profileId,
                 countryCode: p.countryCode,
                 currencyCode: 'USD',
@@ -554,8 +548,7 @@ export default function AmazonApiSettings() {
             });
             toast.success(`授权完成！已处理 ${profiles.length} 个站点账号。`);
           } catch (saveError: unknown) {
-            // @ts-ignore
-            console.warn('[v343 OAuth Callback] saveMultipleProfiles失败:', saveError.message);
+            console.warn('[v343 OAuth Callback] saveMultipleProfiles失败:', (saveError as any).message);
             toast.error('授权成功，但账户创建失败，请手动添加站点。');
           }
 
@@ -565,7 +558,6 @@ export default function AmazonApiSettings() {
           // 没有profiles信息，后端回调可能已保存，这里尝试前端保存作为兆底
           try {
             await saveCredentialsMutation.mutateAsync({
-              // @ts-ignore
               accountId: selectedAccountId,
               clientId: import.meta.env.VITE_AMAZON_ADS_CLIENT_ID || 'amzn1.application-oa2-client.e6536f0b89044ae4a40a9289efc33053',
               clientSecret: '__USE_SERVER_SECRET__',
@@ -575,8 +567,7 @@ export default function AmazonApiSettings() {
             });
             toast.success('授权完成！已自动保存凭证。');
           } catch (saveError: unknown) {
-            // @ts-ignore
-            console.warn('[v343 OAuth Callback] saveCredentials失败:', saveError.message);
+            console.warn('[v343 OAuth Callback] saveCredentials失败:', (saveError as any).message);
             toast.success('授权成功！凭证已由后端自动保存。');
           }
           setAuthProgress(100);
@@ -1128,40 +1119,34 @@ export default function AmazonApiSettings() {
   };
 
   // 同步单个站点的函数（异步模式 + 轮询）
-  // @ts-ignore
   const syncSingleSite = async (
     site: NonNullable<typeof accounts>[number],
     siteStatuses: SiteSyncStatus[],
     updateProgress: (statuses: SiteSyncStatus[]) => void
   ): Promise<{ success: boolean; results?: typeof syncProgress.results; error?: string }> => {
-    // @ts-ignore
-    const mp = MARKETPLACES.find(m => m.id === site.marketplace);
-    // @ts-ignore
-    const siteName = mp?.name || site.marketplace;
+    const mp = MARKETPLACES.find(m => m.id === (site as any).marketplace);
+    const siteName = mp?.name || (site as any).marketplace;
     
     // 更新站点状态为同步中
     const updatedStatuses = siteStatuses.map(s => 
-      s.id === site.id ? { ...s, status: 'syncing' as const, progress: 10 } : s
+      s.id === (site as any).id ? { ...s, status: 'syncing' as const, progress: 10 } : s
     );
     updateProgress(updatedStatuses);
     
-    // @ts-ignore
     try {
       // 启动异步同步任务
       const result = await syncAllMutation.mutateAsync({ 
-        // @ts-ignore
-        accountId: site.id,
+        accountId: (site as any).id,
         isIncremental: useIncrementalSync,
       });
       
-      // @ts-ignore
       if (!result.jobId) {
         throw new Error('启动同步任务失败');
       }
       
       // 更新进度为30%
       const progressStatuses = siteStatuses.map(s => 
-        s.id === site.id ? { ...s, status: 'syncing' as const, progress: 30 } : s
+        s.id === (site as any).id ? { ...s, status: 'syncing' as const, progress: 30 } : s
       );
       updateProgress(progressStatuses);
       
@@ -1169,7 +1154,7 @@ export default function AmazonApiSettings() {
       const pollResult = await pollSyncJobStatus(result.jobId, 2700, (currentStep, stepProgress, currentStepIndex, totalSteps) => {
         // v407: 实时更新站点卡片中的同步步骤和真实进度
         const stepStatuses = siteStatuses.map(s => 
-          s.id === site.id ? { 
+          s.id === (site as any).id ? { 
             ...s, 
             status: 'syncing' as const, 
             progress: stepProgress, // 直接使用后端真实进度
@@ -1185,17 +1170,15 @@ export default function AmazonApiSettings() {
       if (pollResult.success && pollResult.results) {
         // 更新站点状态为成功
         const successStatuses = siteStatuses.map(s => 
-          s.id === site.id ? { 
+          s.id === (site as any).id ? { 
             ...s, 
             status: 'success' as const, 
             progress: 100,
-            // @ts-ignore
             results: pollResult.results 
           } : s
         );
         updateProgress(successStatuses);
         return { success: true, results: pollResult.results };
-      // @ts-ignore
       } else {
         throw new Error(pollResult.error || '同步失败');
       }
@@ -1204,26 +1187,22 @@ export default function AmazonApiSettings() {
       
       // 更新站点状态为失败
       const failedStatuses = siteStatuses.map(s => 
-        s.id === site.id ? { 
-          // @ts-ignore
+        s.id === (site as any).id ? { 
           ...s, 
           status: 'failed' as const, 
           progress: 0,
-          // @ts-ignore
-          error: error.message || '同步失败' 
+          error: (error as any).message || '同步失败' 
         } : s
       );
       updateProgress(failedStatuses);
       
-      // @ts-ignore
-      return { success: false, error: error.message || '同步失败' };
+      return { success: false, error: (error as any).message || '同步失败' };
     }
   };
   
   // 重试单个失败站点
   const handleRetrySite = async (siteId: number) => {
-    // @ts-ignore
-    const site = accounts?.find(a => a.id === siteId);
+    const site = accounts?.find(a => (a as any).id === siteId);
     if (!site) return;
     
     // @ts-ignore
@@ -1315,12 +1294,10 @@ export default function AmazonApiSettings() {
           failedSites: updatedFailedSites,
           results: newResults,
           completedSites: completedCount,
-          // @ts-ignore
           step: hasFailures ? 'error' : 'complete',
           current: hasFailures 
             ? `同步完成，${updatedFailedSites.length} 个站点失败`
             : `同步完成！已同步 ${completedCount} 个站点`,
-          // @ts-ignore
           progress: hasFailures ? 90 : 100,
         };
       });
@@ -1334,20 +1311,17 @@ export default function AmazonApiSettings() {
             ...s, 
             status: 'failed' as const, 
             progress: 0,
-            // @ts-ignore
-            error: error.message || '重试失败' 
+            error: (error as any).message || '重试失败' 
           } : s
         );
         return {
           ...prev,
           siteStatuses: updatedSiteStatuses,
-          // @ts-ignore
-          current: `${siteName} 重试失败: ${error.message}`,
+          current: `${siteName} 重试失败: ${(error as any).message}`,
         };
       });
       
-      // @ts-ignore
-      toast.error(`${siteName} 重试失败: ${error.message}`);
+      toast.error(`${siteName} 重试失败: ${(error as any).message}`);
     }
   };
   
@@ -1357,9 +1331,7 @@ export default function AmazonApiSettings() {
   // 并行执行任务的辅助函数，控制并发数
   const executeWithConcurrencyLimit = async <T,>(
     tasks: (() => Promise<T>)[],
-    // @ts-ignore
     limit: number,
-    // @ts-ignore
     onProgress?: (completed: number, total: number) => void
   ): Promise<PromiseSettledResult<T>[]> => {
     const results: PromiseSettledResult<T>[] = [];
@@ -1370,10 +1342,8 @@ export default function AmazonApiSettings() {
       const batch = tasks.slice(i, i + limit);
       const batchResults = await Promise.allSettled(batch.map(task => task()));
       results.push(...batchResults);
-      // @ts-ignore
       completed += batch.length;
       onProgress?.(completed, tasks.length);
-    // @ts-ignore
     }
     
     return results;
@@ -1387,9 +1357,9 @@ export default function AmazonApiSettings() {
 
     // 获取该店铺下所有站点
     const storeSites = accounts?.filter(a => 
-      (a.storeName === selectedAccount.storeName) && 
       // @ts-ignore
-      a.marketplace && a.marketplace !== ''
+      ((a as any).storeName === selectedAccount.storeName) && 
+      (a as any).marketplace && (a as any).marketplace !== ''
     ) || [];
 
     if (storeSites.length === 0) {
@@ -1399,15 +1369,11 @@ export default function AmazonApiSettings() {
 
     // 初始化站点同步状态
     const initialSiteStatuses: SiteSyncStatus[] = storeSites.map(site => {
-      // @ts-ignore
-      const mp = MARKETPLACES.find(m => m.id === site.marketplace);
+      const mp = MARKETPLACES.find(m => m.id === (site as any).marketplace);
       return {
-        // @ts-ignore
-        id: site.id,
-        // @ts-ignore
-        marketplace: site.marketplace,
-        // @ts-ignore
-        name: mp?.name || site.marketplace,
+        id: (site as any).id,
+        marketplace: (site as any).marketplace,
+        name: mp?.name || (site as any).marketplace,
         flag: mp?.flag || '🌐',
         status: 'pending' as const,
         progress: 0,
@@ -1416,16 +1382,14 @@ export default function AmazonApiSettings() {
     });
 
     // 获取上次同步数据用于对比
-    // @ts-ignore
     const previousResults = lastSyncData ? {
-      // @ts-ignore
       sp: lastSyncData.sp,
       sb: lastSyncData.sb,
       sd: lastSyncData.sd,
       adGroups: lastSyncData.adGroups,
+      // @ts-ignore
       keywords: lastSyncData.keywords,
       targets: lastSyncData.targets,
-    // @ts-ignore
     } : undefined;
 
     setIsSyncing(true);
@@ -1437,7 +1401,6 @@ export default function AmazonApiSettings() {
     let completedCount = 0;
 
     setSyncProgress({
-      // @ts-ignore
       step: 'sp',
       progress: 5,
       current: `正在串行同步 ${storeSites.length} 个站点的数据...`,
@@ -1454,14 +1417,13 @@ export default function AmazonApiSettings() {
       const syncTasks = storeSites.map((site: unknown, index: unknown) => {
         // @ts-ignore
         const mp = MARKETPLACES.find(m => m.id === site.marketplace);
-        // @ts-ignore
-        const siteName = mp?.name || site.marketplace;
+        const siteName = mp?.name || (site as any).marketplace;
         const siteFlag = mp?.flag || '🌐';
 
         return async () => {
           // 更新当前站点状态为同步中
           currentSiteStatuses = currentSiteStatuses.map(s => 
-            s.id === site.id ? { ...s, status: 'syncing' as const, progress: 10 } : s
+            s.id === (site as any).id ? { ...s, status: 'syncing' as const, progress: 10 } : s
           );
           setSyncProgress(prev => ({
             ...prev,
@@ -1472,8 +1434,7 @@ export default function AmazonApiSettings() {
           try {
             // 启动异步同步任务
             const result = await syncAllMutation.mutateAsync({ 
-              // @ts-ignore
-              accountId: site.id,
+              accountId: (site as any).id,
               isIncremental: useIncrementalSync,
             });
             
@@ -1483,7 +1444,7 @@ export default function AmazonApiSettings() {
             
             // 更新进度为30%
             currentSiteStatuses = currentSiteStatuses.map(s => 
-              s.id === site.id && s.status === 'syncing' ? { ...s, progress: 30 } : s
+              s.id === (site as any).id && s.status === 'syncing' ? { ...s, progress: 30 } : s
             );
             setSyncProgress(prev => ({
               ...prev,
@@ -1497,7 +1458,7 @@ export default function AmazonApiSettings() {
               (currentStep, stepProgress, currentStepIndex, totalSteps) => {
                 // v407: 更新站点的当前步骤、进度、步骤索引和总步骤数
                 currentSiteStatuses = currentSiteStatuses.map(s => 
-                  s.id === site.id && s.status === 'syncing' ? { 
+                  s.id === (site as any).id && s.status === 'syncing' ? { 
                     ...s, 
                     currentStep,
                     stepProgress,
@@ -1536,7 +1497,7 @@ export default function AmazonApiSettings() {
             
             // 更新站点状态为成功，清除步骤信息
             currentSiteStatuses = currentSiteStatuses.map(s => 
-              s.id === site.id ? { 
+              s.id === (site as any).id ? { 
                 ...s, 
                 status: 'success' as const, 
                 progress: 100,
@@ -1563,21 +1524,18 @@ export default function AmazonApiSettings() {
             
             // 更新站点状态为失败
             const failedSiteStatus: SiteSyncStatus = {
-              // @ts-ignore
-              id: site.id,
-              // @ts-ignore
-              marketplace: site.marketplace,
+              id: (site as any).id,
+              marketplace: (site as any).marketplace,
               name: siteName,
               flag: siteFlag,
               status: 'failed' as const,
               progress: 0,
-              // @ts-ignore
-              error: siteError.message || '同步失败',
+              error: (siteError as any).message || '同步失败',
               retryCount: 0,
             };
             
             currentSiteStatuses = currentSiteStatuses.map(s => 
-              s.id === site.id ? failedSiteStatus : s
+              s.id === (site as any).id ? failedSiteStatus : s
             );
             failedSites.push(failedSiteStatus);
             
@@ -1616,15 +1574,10 @@ export default function AmazonApiSettings() {
         current: hasFailures 
           ? `同步完成，${successCount} 个站点成功，${failedSites.length} 个站点失败`
           : `同步完成！已同步 ${storeSites.length} 个站点`,
-        // @ts-ignore
         results: totalResults,
-        // @ts-ignore
         siteStatuses: currentSiteStatuses,
-        // @ts-ignore
         failedSites: failedSites,
-        // @ts-ignore
         totalSites: storeSites.length,
-        // @ts-ignore
         completedSites: successCount,
         // @ts-ignore
         previousResults,
@@ -1633,7 +1586,6 @@ export default function AmazonApiSettings() {
 
       // @ts-ignore
       if (hasFailures) {
-        // @ts-ignore
         toast(`同步完成，${failedSites.length} 个站点失败，可单独重试`, { icon: '⚠️' });
       // @ts-ignore
       } else {
@@ -1659,10 +1611,8 @@ export default function AmazonApiSettings() {
       setSyncProgress(prev => ({
         ...prev,
         step: 'error',
-        // @ts-ignore
-        current: `同步失败: ${error.message || '未知错误'}`,
-        // @ts-ignore
-        error: error.message,
+        current: `同步失败: ${(error as any).message || '未知错误'}`,
+        error: (error as any).message,
       }));
     } finally {
       setIsSyncing(false);
@@ -1671,28 +1621,17 @@ export default function AmazonApiSettings() {
 
   const openEditDialog = useCallback((account: NonNullable<typeof accounts>[number]) => {
     setEditingAccount({
-      // @ts-ignore
-      id: account.id,
-      // @ts-ignore
-      accountId: account.accountId,
-      // @ts-ignore
-      accountName: account.accountName,
-      // @ts-ignore
-      storeName: account.storeName || "",
-      // @ts-ignore
-      storeDescription: account.storeDescription || "",
-      // @ts-ignore
-      storeColor: account.storeColor || "#3B82F6",
-      // @ts-ignore
-      marketplace: account.marketplace,
-      // @ts-ignore
-      marketplaceId: account.marketplaceId || "",
-      // @ts-ignore
-      profileId: account.profileId || "",
-      // @ts-ignore
-      sellerId: account.sellerId || "",
-      // @ts-ignore
-      isDefault: Boolean(account.isDefault),
+      id: (account as any).id,
+      accountId: (account as any).accountId,
+      accountName: (account as any).accountName,
+      storeName: (account as any).storeName || "",
+      storeDescription: (account as any).storeDescription || "",
+      storeColor: (account as any).storeColor || "#3B82F6",
+      marketplace: (account as any).marketplace,
+      marketplaceId: (account as any).marketplaceId || "",
+      profileId: (account as any).profileId || "",
+      sellerId: (account as any).sellerId || "",
+      isDefault: Boolean((account as any).isDefault),
     });
     setIsEditDialogOpen(true);
   }, []);
@@ -1815,7 +1754,9 @@ export default function AmazonApiSettings() {
                         className={`w-8 h-8 rounded-full border-2 transition-all ${
                           formData.storeColor === color ? 'border-white scale-110' : 'border-transparent'
                         }`}
+                        // @ts-ignore
                         style={{ backgroundColor: color }}
+                        // @ts-ignore
                         onClick={() => setFormData({ ...formData, storeColor: color })}
                       />
                     ))}
@@ -1937,21 +1878,15 @@ export default function AmazonApiSettings() {
                 {(() => {
                   // 按storeName分组，过滤掉空站点记录（marketplace为空的占位记录）
                   const groupedAccounts = accounts.reduce((groups: unknown, account: unknown) => {
-                    // @ts-ignore
-                    const groupKey = account.storeName || account.accountName || 'default';
-                    // @ts-ignore
-                    if (!groups[groupKey]) {
-                      // @ts-ignore
-                      groups[groupKey] = { accounts: [], emptyStore: null as typeof account | null };
+                    const groupKey = (account as any).storeName || (account as any).accountName || 'default';
+                    if (!(groups as any)[groupKey]) {
+                      (groups as any)[groupKey] = { accounts: [], emptyStore: null as typeof account | null };
                     }
                     // 检查是否是空店铺占位记录
-                    // @ts-ignore
-                    if (!account.marketplace || account.marketplace === '') {
-                      // @ts-ignore
-                      groups[groupKey].emptyStore = account;
+                    if (!(account as any).marketplace || (account as any).marketplace === '') {
+                      (groups as any)[groupKey].emptyStore = account;
                     } else {
-                      // @ts-ignore
-                      groups[groupKey].accounts.push(account);
+                      (groups as any)[groupKey].accounts.push(account);
                     }
                     return groups;
                   }, {} as Record<string, { accounts: typeof accounts; emptyStore: typeof accounts[0] | null }>);
@@ -2035,7 +1970,6 @@ export default function AmazonApiSettings() {
                                       e.stopPropagation(); 
                                       // 设置当前店铺名称用于同步
                                       setSelectedAccountId(primaryAccount.id);
-                                      // @ts-ignore
                                       setActiveTab('sync');
                                     }}
                                   >
@@ -2073,7 +2007,6 @@ export default function AmazonApiSettings() {
                                     selectedAccountId === emptyStore.id
                                       ? 'bg-primary/10 border-primary/50' 
                                       : 'hover:bg-muted/50 border-muted-foreground/30'
-                                  // @ts-ignore
                                   }`}
                                   onClick={() => {
                                     setSelectedAccountId(emptyStore.id);
@@ -2094,10 +2027,8 @@ export default function AmazonApiSettings() {
                                 </div>
                               )}
                               {storeAccounts.map((account: unknown) => {
-                                // @ts-ignore
-                                const marketplace = MARKETPLACES.find(m => m.id === account.marketplace);
-                                // @ts-ignore
-                                const isSelected = selectedAccountId === account.id;
+                                const marketplace = MARKETPLACES.find(m => m.id === (account as any).marketplace);
+                                const isSelected = selectedAccountId === (account as any).id;
                                 return (
                                   <div 
                                     // @ts-ignore
@@ -2107,7 +2038,7 @@ export default function AmazonApiSettings() {
                                         ? 'bg-primary/10 border border-primary/30' 
                                         : 'hover:bg-muted/50 border border-transparent'
                                     }`}
-                                    onClick={() => setSelectedAccountId(account.id)}
+                                    onClick={() => setSelectedAccountId((account as any).id)}
                                   >
                                     <div className="flex items-center gap-2">
                                       <span className="text-lg">{marketplace?.flag || '🌐'}</span>
@@ -2140,8 +2071,7 @@ export default function AmazonApiSettings() {
                                             // @ts-ignore
                                             onClick={(e) => { 
                                               e.stopPropagation(); 
-                                              // @ts-ignore
-                                              setSelectedAccountId(account.id);
+                                              setSelectedAccountId((account as any).id);
                                               setActiveTab("api-config");
                                             }}
                                           >
@@ -2151,7 +2081,7 @@ export default function AmazonApiSettings() {
 
                                           {/* @ts-ignore */}
                                           {!account.isDefault && (
-                                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleSetDefault(account.id); }}>
+                                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleSetDefault((account as any).id); }}>
                                               <Star className="h-4 w-4 mr-2" />
                                               设为默认
                                             </DropdownMenuItem>
@@ -2440,7 +2370,6 @@ export default function AmazonApiSettings() {
                             const codeInput = document.getElementById('authCode') as HTMLInputElement;
                             const code = codeInput?.value;
                             if (!code) {
-                              // @ts-ignore
                               toast.error('请输入授权码');
                               return;
                             }
@@ -2473,11 +2402,9 @@ export default function AmazonApiSettings() {
                                 
                                 console.log('[Auth] 换取Token成功，新凭证:', {
                                   clientIdPrefix: newCredentials.clientId?.substring(0, 30) + '...',
-                                  // @ts-ignore
                                   hasClientSecret: !!newCredentials.clientSecret,
                                   hasRefreshToken: !!newCredentials.refreshToken,
                                   profileId: newCredentials.profileId,
-                                  // @ts-ignore
                                   region: newCredentials.region,
                                 });
                                 
@@ -2560,12 +2487,10 @@ export default function AmazonApiSettings() {
                               setAuthStep('error');
                               setAuthError({
                                 step: '换取Token',
-                                // @ts-ignore
-                                message: error.message || '授权码无效或已过期',
+                                message: (error as any).message || '授权码无效或已过期',
                                 canRetry: true
                               });
-                              // @ts-ignore
-                              toast.error(`换取失败: ${error.message}`);
+                              toast.error(`换取失败: ${(error as any).message}`);
                             }
                           }}
                           disabled={authStep !== 'idle' && authStep !== 'error'}
@@ -2857,7 +2782,6 @@ export default function AmazonApiSettings() {
                         <AlertCircle className="h-4 w-4 text-yellow-400" />
                         <AlertDescription className="text-yellow-200 text-sm">
                           <strong>重要提示：</strong>授权后您将获得该区域内<strong>所有站点</strong>的广告数据访问权限。
-                          // @ts-ignore
                           例如，选择北美区域将同时获得美国、加拿大、墨西哥、巴西四个站点的授权。
                         </AlertDescription>
                       {/* @ts-ignore */}
@@ -2883,7 +2807,6 @@ export default function AmazonApiSettings() {
                             name: '🇪🇺 欧洲区域 (EU)', 
                             desc: '包含站点：英国 (UK)、德国 (DE)、法国 (FR)、意大利 (IT)、西班牙 (ES) 等', 
                             url: 'https://eu.account.amazon.com/ap/oa',
-                            // @ts-ignore
                             sites: [
                               { flag: '🇬🇧', name: '英国', code: 'UK' },
                               { flag: '🇩🇪', name: '德国', code: 'DE' },
@@ -2907,10 +2830,8 @@ export default function AmazonApiSettings() {
                             ]
                           },
                         ].map((item: unknown) => {
-                          // @ts-ignore
-                          const authUrl = `${item.url}?client_id=${import.meta.env.VITE_AMAZON_ADS_CLIENT_ID || 'amzn1.application-oa2-client.e6536f0b89044ae4a40a9289efc33053'}&scope=advertising::campaign_management&redirect_uri=${encodeURIComponent('https://www.ppcopt.com/api/auth/callback')}&response_type=code`;
-                          // @ts-ignore
-                          const isSelected = credentials.region === item.region;
+                          const authUrl = `${(item as any).url}?client_id=${import.meta.env.VITE_AMAZON_ADS_CLIENT_ID || 'amzn1.application-oa2-client.e6536f0b89044ae4a40a9289efc33053'}&scope=advertising::campaign_management&redirect_uri=${encodeURIComponent('https://www.ppcopt.com/api/auth/callback')}&response_type=code`;
+                          const isSelected = credentials.region === (item as any).region;
                           return (
                             <div 
                               // @ts-ignore
@@ -2920,7 +2841,7 @@ export default function AmazonApiSettings() {
                                   ? 'bg-purple-600/30 border-purple-400' 
                                   : 'bg-purple-900/20 border-purple-500/20 hover:border-purple-400/50'
                               }`}
-                              onClick={() => setCredentials({ ...credentials, region: item.region })}
+                              onClick={() => setCredentials({ ...credentials, region: (item as any).region })}
                             >
                               <div className="flex items-center justify-between mb-2">
                                 <div className="flex items-center gap-2">
@@ -2938,8 +2859,7 @@ export default function AmazonApiSettings() {
                                   className="border-purple-500/30 text-purple-300 hover:bg-purple-900/30"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    // @ts-ignore
-                                    setCredentials({ ...credentials, region: item.region });
+                                    setCredentials({ ...credentials, region: (item as any).region });
                                     navigator.clipboard.writeText(authUrl);
                                     toast.success(
                                       <div>
@@ -2959,7 +2879,7 @@ export default function AmazonApiSettings() {
                               <div className="text-xs text-purple-400 mb-2">{item.desc}</div>
                               <div className="flex flex-wrap gap-1">
                                 {(item as any).sites.map((site: unknown) => (
-                                  <span key={site.code} className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-900/40 rounded text-xs text-purple-300">
+                                  <span key={(site as any).code} className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-900/40 rounded text-xs text-purple-300">
                                     {/* @ts-ignore */}
                                     {site.flag} {site.name}
                                   </span>
@@ -3011,7 +2931,6 @@ export default function AmazonApiSettings() {
                           if (!storeName) {
                             toast.error('请先选择一个店铺');
                             return;
-                          // @ts-ignore
                           }
                           
                           const urlInput = document.getElementById('manualAuthUrl') as HTMLTextAreaElement;
@@ -3043,7 +2962,6 @@ export default function AmazonApiSettings() {
                             
                             // 使用后端环境变量中的凭证，确保安全性
                             const result = await exchangeCodeMutation.mutateAsync({
-                              // @ts-ignore
                               code,
                               region: credentials.region, // 传递当前选择的区域
                             });
@@ -3149,12 +3067,10 @@ export default function AmazonApiSettings() {
                             setAuthStep('error');
                             setAuthError({
                               step: '换取Token',
-                              // @ts-ignore
-                              message: error.message || '授权码无效或已过期',
+                              message: (error as any).message || '授权码无效或已过期',
                               canRetry: true
                             });
-                            // @ts-ignore
-                            toast.error(`授权失败: ${error.message}`);
+                            toast.error(`授权失败: ${(error as any).message}`);
                           }
                         }}
                       >
@@ -3332,10 +3248,8 @@ export default function AmazonApiSettings() {
                               {authStep === 'complete' && <CheckCircle2 className="h-4 w-4 text-green-400" />}
                               {authStep === 'error' && <XCircle className="h-4 w-4 text-red-400" />}
                               <span className={
-                                // @ts-ignore
                                 authStep === 'complete' ? 'text-green-400' : 
                                 authStep === 'error' ? 'text-red-400' : 
-                                // @ts-ignore
                                 'text-purple-300'
                               }>
                                 {authStep === 'exchanging' && '正在与 Amazon Advertising API 通信，换取访问令牌...'}
@@ -3432,18 +3346,17 @@ export default function AmazonApiSettings() {
                   {/* 显示该店铺下的所有站点 */}
                   {(() => {
                     const storeSites = accounts?.filter(a => 
-                      (a.storeName === selectedAccount.storeName) && 
                       // @ts-ignore
-                      a.marketplace && a.marketplace !== ''
+                      ((a as any).storeName === selectedAccount.storeName) && 
+                      (a as any).marketplace && (a as any).marketplace !== ''
                     ) || [];
                     return storeSites.length > 0 && (
                       <div className="flex flex-wrap gap-2 mb-4">
                         <span className="text-sm text-muted-foreground">将同步以下站点：</span>
                         {storeSites.map(site => {
-                          // @ts-ignore
-                          const mp = MARKETPLACES.find(m => m.id === site.marketplace);
+                          const mp = MARKETPLACES.find(m => m.id === (site as any).marketplace);
                           return (
-                            <Badge key={site.id} variant="outline" className="flex items-center gap-1">
+                            <Badge key={(site as any).id} variant="outline" className="flex items-center gap-1">
                               <span>{mp?.flag || '🌐'}</span>
                               {/* @ts-ignore */}
                               <span>{mp?.name || site.marketplace}</span>
@@ -3483,7 +3396,6 @@ export default function AmazonApiSettings() {
                       {/* @ts-ignore */}
                       <Button
                         variant="ghost"
-                        // @ts-ignore
                         size="sm"
                         // @ts-ignore
                         onClick={() => setShowScheduleSettings(!showScheduleSettings)}
@@ -3498,8 +3410,8 @@ export default function AmazonApiSettings() {
                       </Button>
                       {/* @ts-ignore */}
                       <Button
-                        variant="ghost"
                         // @ts-ignore
+                        variant="ghost"
                         size="sm"
                         // @ts-ignore
                         onClick={() => setShowSyncQueue(!showSyncQueue)}
@@ -3521,7 +3433,6 @@ export default function AmazonApiSettings() {
                       </Button>
                       <Button
                         variant="ghost"
-                        // @ts-ignore
                         size="sm"
                         onClick={() => setShowSyncHistory(!showSyncHistory)}
                       >
@@ -3537,7 +3448,6 @@ export default function AmazonApiSettings() {
                     <Button 
                       onClick={() => {
                         handleSyncAll();
-                      // @ts-ignore
                       }} 
                       disabled={isSyncing || !selectedAccountId}
                     >
@@ -3598,12 +3508,9 @@ export default function AmazonApiSettings() {
                                 // @ts-ignore
                                 key={site.id}
                                 className={`flex items-center justify-between p-3 rounded-lg border ${
-                                  // @ts-ignore
-                                  site.status === 'syncing' ? 'bg-primary/5 border-primary/30' :
-                                  // @ts-ignore
-                                  site.status === 'success' ? 'bg-green-500/5 border-green-500/30' :
-                                  // @ts-ignore
-                                  site.status === 'failed' ? 'bg-red-500/5 border-red-500/30' :
+                                  (site as any).status === 'syncing' ? 'bg-primary/5 border-primary/30' :
+                                  (site as any).status === 'success' ? 'bg-green-500/5 border-green-500/30' :
+                                  (site as any).status === 'failed' ? 'bg-red-500/5 border-red-500/30' :
                                   'bg-muted/30 border-muted'
                                 }`}
                               >
@@ -3619,8 +3526,7 @@ export default function AmazonApiSettings() {
                                         <div className="text-xs text-muted-foreground">
                                           {/* @ts-ignore */}
                                           {site.currentStep 
-                                            // @ts-ignore
-                                            ? `正在同步: ${site.currentStep}${site.currentStepIndex && site.totalSteps ? ` (第${site.currentStepIndex}/${site.totalSteps}步)` : ''}` 
+                                            ? `正在同步: ${(site as any).currentStep}${(site as any).currentStepIndex && (site as any).totalSteps ? ` (第${(site as any).currentStepIndex}/${(site as any).totalSteps}步)` : ''}` 
                                             : '正在同步...'}
                                           {(site as any).stepProgress ? ` ${(site as any).stepProgress}%` : ''}
                                         </div>
@@ -3630,11 +3536,11 @@ export default function AmazonApiSettings() {
                                           <div className="flex gap-0.5">
                                             {Array.from({length: Math.min((site as any).totalSteps, 31)}).map((_: unknown, idx: unknown) => {
                                               // @ts-ignore
-                                              const isComplete = idx < (site.currentStepIndex || 0);
                                               // @ts-ignore
-                                              const isCurrent = idx === (site.currentStepIndex || 0);
+                                              const isComplete = idx < ((site as any).currentStepIndex || 0);
+                                              const isCurrent = idx === ((site as any).currentStepIndex || 0);
                                               return (
-                                                <div key={idx} className={`h-1 flex-1 rounded-full ${
+                                                <div key={String(idx)} className={`h-1 flex-1 rounded-full ${
                                                   isComplete ? 'bg-green-500' : isCurrent ? 'bg-primary animate-pulse' : 'bg-muted'
                                                 }`} />
                                               );
@@ -3873,7 +3779,6 @@ export default function AmazonApiSettings() {
                             <Button
                               // @ts-ignore
                               variant="outline"
-                              // @ts-ignore
                               size="sm"
                               // @ts-ignore
                               className="h-7 text-xs border-red-500/50 text-red-500 hover:bg-red-500/10"
@@ -3979,15 +3884,12 @@ export default function AmazonApiSettings() {
                     <div className="space-y-2">
                       {syncHistory && syncHistory.jobs && syncHistory.jobs.length > 0 ? (
                         syncHistory.jobs.map((job: unknown) => (
-                          <div key={job.id} className="flex items-center justify-between p-3 bg-muted/20 rounded-lg border">
+                          <div key={(job as any).id} className="flex items-center justify-between p-3 bg-muted/20 rounded-lg border">
                             <div className="flex items-center gap-3">
                               <div className={`w-2 h-2 rounded-full ${
-                                // @ts-ignore
-                                job.status === 'completed' ? 'bg-green-500' :
-                                // @ts-ignore
-                                job.status === 'failed' ? 'bg-red-500' :
-                                // @ts-ignore
-                                job.status === 'running' ? 'bg-yellow-500 animate-pulse' :
+                                (job as any).status === 'completed' ? 'bg-green-500' :
+                                (job as any).status === 'failed' ? 'bg-red-500' :
+                                (job as any).status === 'running' ? 'bg-yellow-500 animate-pulse' :
                                 'bg-gray-500'
                               }`} />
                               <div>
@@ -4013,11 +3915,9 @@ export default function AmazonApiSettings() {
                               </div>
                               <Button
                                 variant="ghost"
-                                // @ts-ignore
                                 size="sm"
                                 onClick={() => {
-                                  // @ts-ignore
-                                  setSelectedSyncJobId(job.id);
+                                  setSelectedSyncJobId((job as any).id);
                                   setShowChangeSummary(true);
                                 }}
                               >
@@ -4028,10 +3928,8 @@ export default function AmazonApiSettings() {
                               {/* @ts-ignore */}
                               <Badge variant={job.status === 'completed' ? 'default' : job.status === 'failed' ? 'destructive' : 'secondary'}>
                                 {(job as any).status === 'completed' ? '完成' :
-                                 // @ts-ignore
-                                 job.status === 'failed' ? '失败' :
-                                 // @ts-ignore
-                                 job.status === 'running' ? '进行中' : job.status}
+                                 (job as any).status === 'failed' ? '失败' :
+                                 (job as any).status === 'running' ? '进行中' : (job as any).status}
                               </Badge>
                             </div>
                           </div>
@@ -4167,7 +4065,7 @@ export default function AmazonApiSettings() {
                   <CardContent className="space-y-4">
                     {syncConflicts && syncConflicts.length > 0 ? (
                       syncConflicts.map((conflict: unknown) => (
-                        <div key={conflict.id} className="p-4 bg-yellow-500/5 rounded-lg border border-yellow-500/20">
+                        <div key={(conflict as any).id} className="p-4 bg-yellow-500/5 rounded-lg border border-yellow-500/20">
                           <div className="flex items-start justify-between mb-3">
                             <div>
                               {/* @ts-ignore */}
@@ -4185,7 +4083,7 @@ export default function AmazonApiSettings() {
                               <div className="font-medium mb-1">本地数据</div>
                               <div className="text-muted-foreground">
                                 {(conflict as any).conflictFields?.map((field: string) => (
-                                  <div key={field}>{field}: {JSON.stringify(conflict.localData?.[field])}</div>
+                                  <div key={field}>{field}: {JSON.stringify((conflict as any).localData?.[field])}</div>
                                 ))}
                               </div>
                             </div>
@@ -4193,7 +4091,7 @@ export default function AmazonApiSettings() {
                               <div className="font-medium mb-1">远程数据</div>
                               <div className="text-muted-foreground">
                                 {(conflict as any).conflictFields?.map((field: string) => (
-                                  <div key={field}>{field}: {JSON.stringify(conflict.remoteData?.[field])}</div>
+                                  <div key={field}>{field}: {JSON.stringify((conflict as any).remoteData?.[field])}</div>
                                 ))}
                               </div>
                             </div>
@@ -4203,8 +4101,7 @@ export default function AmazonApiSettings() {
                               size="sm"
                               variant="outline"
                               onClick={() => resolveConflictMutation.mutate({
-                                // @ts-ignore
-                                conflictId: conflict.id,
+                                conflictId: (conflict as any).id,
                                 resolution: 'use_local',
                               })}
                             >
@@ -4214,8 +4111,7 @@ export default function AmazonApiSettings() {
                               size="sm"
                               variant="outline"
                               onClick={() => resolveConflictMutation.mutate({
-                                // @ts-ignore
-                                conflictId: conflict.id,
+                                conflictId: (conflict as any).id,
                                 resolution: 'use_remote',
                               })}
                             >
@@ -4226,8 +4122,7 @@ export default function AmazonApiSettings() {
                               variant="ghost"
                               className="text-muted-foreground"
                               onClick={() => resolveConflictMutation.mutate({
-                                // @ts-ignore
-                                conflictId: conflict.id,
+                                conflictId: (conflict as any).id,
                                 resolution: 'manual',
                                 notes: '用户忽略',
                               })}
@@ -4276,12 +4171,10 @@ export default function AmazonApiSettings() {
                           id="schedule-enabled"
                           checked={scheduleConfig && scheduleConfig.length > 0 && scheduleConfig[0]?.isEnabled}
                           onCheckedChange={(checked) => {
-                            // @ts-ignore
                             if (scheduleConfig && scheduleConfig.length > 0) {
                               updateScheduleMutation.mutate({
                                 id: scheduleConfig[0].id!,
                                 isEnabled: checked,
-                              // @ts-ignore
                               });
                             } else if (checked && selectedAccountId) {
                               createScheduleMutation.mutate({
@@ -4289,9 +4182,7 @@ export default function AmazonApiSettings() {
                                 syncType: 'all',
                                 // @ts-ignore
                                 frequency: scheduleFrequency as unknown,
-                                // @ts-ignore
                                 isEnabled: true,
-                              // @ts-ignore
                               });
                             }
                           }}
@@ -4433,20 +4324,14 @@ export default function AmazonApiSettings() {
                     <div className="space-y-2">
                       {syncQueue && syncQueue.length > 0 ? (
                         syncQueue.map((task: unknown) => (
-                          <div key={task.id} className="flex items-center justify-between p-3 bg-muted/20 rounded-lg border">
+                          <div key={(task as any).id} className="flex items-center justify-between p-3 bg-muted/20 rounded-lg border">
                             <div className="flex items-center gap-3">
                               <div className={`w-2 h-2 rounded-full ${
-                                // @ts-ignore
-                                task.status === 'completed' ? 'bg-green-500' :
-                                // @ts-ignore
-                                task.status === 'failed' ? 'bg-red-500' :
-                                // @ts-ignore
-                                task.status === 'running' ? 'bg-blue-500 animate-pulse' :
-                                // @ts-ignore
-                                task.status === 'cancelled' ? 'bg-gray-500' :
-                                // @ts-ignore
+                                (task as any).status === 'completed' ? 'bg-green-500' :
+                                (task as any).status === 'failed' ? 'bg-red-500' :
+                                (task as any).status === 'running' ? 'bg-blue-500 animate-pulse' :
+                                (task as any).status === 'cancelled' ? 'bg-gray-500' :
                                 'bg-yellow-500'
-                              // @ts-ignore
                               }`} />
                               <div>
                                 {/* @ts-ignore */}
@@ -4454,7 +4339,7 @@ export default function AmazonApiSettings() {
                                 <div className="text-xs text-muted-foreground">
                                   {(task as any).syncType === 'full' ? '全量同步' : (task as any).syncType}
                                   {(task as any).progress > 0 && (task as any).status === 'running' && (
-                                    <span className="ml-2">进度: {task.progress}%</span>
+                                    <span className="ml-2">进度: {(task as any).progress}%</span>
                                   )}
                                 </div>
                               </div>
@@ -4472,23 +4357,16 @@ export default function AmazonApiSettings() {
                                 </Button>
                               )}
                               <Badge variant={
-                                // @ts-ignore
-                                task.status === 'completed' ? 'default' :
-                                // @ts-ignore
-                                task.status === 'failed' ? 'destructive' :
-                                // @ts-ignore
-                                task.status === 'running' ? 'secondary' :
+                                (task as any).status === 'completed' ? 'default' :
+                                (task as any).status === 'failed' ? 'destructive' :
+                                (task as any).status === 'running' ? 'secondary' :
                                 'outline'
                               }>
                                 {(task as any).status === 'pending' ? '等待中' :
-                                 // @ts-ignore
-                                 task.status === 'running' ? '运行中' :
-                                 // @ts-ignore
-                                 task.status === 'completed' ? '完成' :
-                                 // @ts-ignore
-                                 task.status === 'failed' ? '失败' :
-                                 // @ts-ignore
-                                 task.status === 'cancelled' ? '已取消' : task.status}
+                                 (task as any).status === 'running' ? '运行中' :
+                                 (task as any).status === 'completed' ? '完成' :
+                                 (task as any).status === 'failed' ? '失败' :
+                                 (task as any).status === 'cancelled' ? '已取消' : (task as any).status}
                               </Badge>
                             </div>
                           </div>
@@ -4634,7 +4512,9 @@ export default function AmazonApiSettings() {
                         className={`w-8 h-8 rounded-full border-2 transition-all ${
                           editingAccount.storeColor === color ? 'border-white scale-110' : 'border-transparent'
                         }`}
+                        // @ts-ignore
                         style={{ backgroundColor: color }}
+                        // @ts-ignore
                         onClick={() => setEditingAccount({ ...editingAccount, storeColor: color })}
                       />
                     ))}
@@ -4750,7 +4630,7 @@ export default function AmazonApiSettings() {
                   <p className="text-sm font-medium">预览结果 ({importPreview.length} 个账号)</p>
                   <div className="max-h-48 overflow-y-auto space-y-2">
                     {importPreview.map((account: unknown, index: unknown) => (
-                      <div key={index} className="flex items-center justify-between text-sm p-2 bg-muted/50 rounded">
+                      <div key={String(index)} className="flex items-center justify-between text-sm p-2 bg-muted/50 rounded">
                         <div className="flex items-center gap-2">
                           {/* @ts-ignore */}
                           <span className="font-medium">{account.storeName || account.accountName}</span>

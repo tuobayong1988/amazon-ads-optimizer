@@ -57,16 +57,11 @@ const [validationStatus, setValidationStatus] = useState<ValidationStatus>('idle
       setValidationStatus('completed');
       if (data.results) {
         setValidationResults(data.results.map((r: unknown) => ({
-          // @ts-ignore
-          entityType: r.entityType,
-          // @ts-ignore
-          localCount: r.localCount,
-          // @ts-ignore
-          remoteCount: r.remoteCount,
-          // @ts-ignore
-          difference: r.remoteCount - r.localCount,
-          // @ts-ignore
-          status: r.localCount === r.remoteCount ? 'match' : 'mismatch',
+          entityType: (r as any).entityType,
+          localCount: (r as any).localCount,
+          remoteCount: (r as any).remoteCount,
+          difference: (r as any).remoteCount - (r as any).localCount,
+          status: (r as any).localCount === (r as any).remoteCount ? 'match' : 'mismatch',
           lastValidated: new Date(),
         })));
       }
@@ -94,7 +89,6 @@ const [validationStatus, setValidationStatus] = useState<ValidationStatus>('idle
 
   // 计算校验统计
   const validationStats = useMemo(() => {
-    // @ts-ignore
     if (!validationResults.length) return null;
     
     const matchCount = validationResults.filter(r => r.status === 'match').length;
@@ -198,7 +192,7 @@ const [validationStatus, setValidationStatus] = useState<ValidationStatus>('idle
                 </SelectTrigger>
                 <SelectContent>
                   {accounts?.map((account: unknown) => (
-                    <SelectItem key={account.id} value={account.id.toString()}>
+                    <SelectItem key={(account as any).id} value={(account as any).id.toString()}>
                       {/* @ts-ignore */}
                       {account.accountName} ({account.marketplace})
                     </SelectItem>
@@ -352,20 +346,16 @@ const [validationStatus, setValidationStatus] = useState<ValidationStatus>('idle
               {/* @ts-ignore */}
               <div className="space-y-3">
                 {validationResults.map((result: unknown, index: unknown) => {
-                  // @ts-ignore
-                  const diffDisplay = getDifferenceDisplay(result.difference);
+                  const diffDisplay = getDifferenceDisplay((result as any).difference);
                   return (
                     <div 
                       // @ts-ignore
                       key={index}
                       className={`p-4 rounded-lg border ${
-                        // @ts-ignore
-                        result.status === 'match' 
+                        (result as any).status === 'match' 
                           ? 'bg-green-500/5 border-green-500/20' 
-                          // @ts-ignore
-                          : result.status === 'error'
+                          : (result as any).status === 'error'
                           ? 'bg-red-500/5 border-red-500/20'
-                          // @ts-ignore
                           : 'bg-yellow-500/5 border-yellow-500/20'
                       }`}
                     >
@@ -375,7 +365,7 @@ const [validationStatus, setValidationStatus] = useState<ValidationStatus>('idle
                           {/* @ts-ignore */}
                           {result.status === 'match' ? (
                             <CheckCircle2 className="w-5 h-5 text-green-500" />
-                          ) : result.status === 'error' ? (
+                          ) : (result as any).status === 'error' ? (
                             <XCircle className="w-5 h-5 text-red-500" />
                           ) : (
                             <AlertTriangle className="w-5 h-5 text-yellow-500" />
@@ -386,8 +376,7 @@ const [validationStatus, setValidationStatus] = useState<ValidationStatus>('idle
                             <p className="text-sm text-muted-foreground">
                               {/* @ts-ignore */}
                               {result.status === 'match' ? '数据一致' : 
-                               // @ts-ignore
-                               result.status === 'error' ? '校验失败' : '数据不一致'}
+                               (result as any).status === 'error' ? '校验失败' : '数据不一致'}
                             </p>
                           </div>
                         {/* @ts-ignore */}

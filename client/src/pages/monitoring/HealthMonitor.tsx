@@ -120,7 +120,7 @@ export default function HealthMonitor() {
               </SelectTrigger>
               <SelectContent>
                 {accountsQuery.data?.map((account: unknown) => (
-                  <SelectItem key={account.id} value={account.id.toString()}>
+                  <SelectItem key={(account as any).id} value={(account as any).id.toString()}>
                     {/* @ts-ignore */}
                     {account.accountName}
                   </SelectItem>
@@ -275,6 +275,7 @@ export default function HealthMonitor() {
                 {/* @ts-ignore */}
                 {healthQuery.isLoading ? (
                   <div className="text-center py-8 text-gray-400">加载中...</div>
+                // @ts-ignore
                 ) : healthQuery.data?.campaigns?.length === 0 ? (
                   <div className="text-center py-8 text-gray-400">暂无广告活动数据</div>
                 ) : (
@@ -292,8 +293,7 @@ export default function HealthMonitor() {
                             {/* @ts-ignore */}
                             <Badge className={getStatusColor(campaign.status)}>
                               {(campaign as any).status === 'healthy' ? '健康' : 
-                               // @ts-ignore
-                               campaign.status === 'warning' ? '警告' : '严重'}
+                               (campaign as any).status === 'warning' ? '警告' : '严重'}
                             </Badge>
                             <span className="font-medium text-white">
                               {/* @ts-ignore */}
@@ -384,10 +384,8 @@ export default function HealthMonitor() {
                                   key={idx}
                                   variant="outline"
                                   className={
-                                    // @ts-ignore
-                                    alert.severity === 'critical' ? 'border-red-500/50 text-red-400' :
-                                    // @ts-ignore
-                                    alert.severity === 'warning' ? 'border-yellow-500/50 text-yellow-400' :
+                                    (alert as any).severity === 'critical' ? 'border-red-500/50 text-red-400' :
+                                    (alert as any).severity === 'warning' ? 'border-yellow-500/50 text-yellow-400' :
                                     'border-blue-500/50 text-blue-400'
                                   }
                                 >
@@ -442,10 +440,8 @@ export default function HealthMonitor() {
                       <div
                         key={idx}
                         className={`p-4 rounded-lg border ${
-                          // @ts-ignore
-                          alert.severity === 'critical' ? 'bg-red-900/20 border-red-500/30' :
-                          // @ts-ignore
-                          alert.severity === 'warning' ? 'bg-yellow-900/20 border-yellow-500/30' :
+                          (alert as any).severity === 'critical' ? 'bg-red-900/20 border-red-500/30' :
+                          (alert as any).severity === 'warning' ? 'bg-yellow-900/20 border-yellow-500/30' :
                           'bg-blue-900/20 border-blue-500/30'
                         }`}
                       >
@@ -461,15 +457,12 @@ export default function HealthMonitor() {
                             </p>
                           </div>
                           <Badge className={
-                            // @ts-ignore
-                            alert.severity === 'critical' ? 'bg-red-500/20 text-red-400' :
-                            // @ts-ignore
-                            alert.severity === 'warning' ? 'bg-yellow-500/20 text-yellow-400' :
+                            (alert as any).severity === 'critical' ? 'bg-red-500/20 text-red-400' :
+                            (alert as any).severity === 'warning' ? 'bg-yellow-500/20 text-yellow-400' :
                             'bg-blue-500/20 text-blue-400'
                           }>
                             {(alert as any).severity === 'critical' ? '严重' :
-                             // @ts-ignore
-                             alert.severity === 'warning' ? '警告' : '提示'}
+                             (alert as any).severity === 'warning' ? '警告' : '提示'}
                           </Badge>
                         </div>
                       </div>
@@ -543,15 +536,12 @@ export default function HealthMonitor() {
                         <div className="flex items-center justify-between mb-2">
                           <div className="flex items-center gap-2">
                             <Badge className={
-                              // @ts-ignore
-                              correction.priority === 'urgent' ? 'bg-red-500/20 text-red-400' :
-                              // @ts-ignore
-                              correction.priority === 'high' ? 'bg-orange-500/20 text-orange-400' :
+                              (correction as any).priority === 'urgent' ? 'bg-red-500/20 text-red-400' :
+                              (correction as any).priority === 'high' ? 'bg-orange-500/20 text-orange-400' :
                               'bg-yellow-500/20 text-yellow-400'
                             }>
                               {(correction as any).priority === 'urgent' ? '紧急' :
-                               // @ts-ignore
-                               correction.priority === 'high' ? '高' : '中'}
+                               (correction as any).priority === 'high' ? '高' : '中'}
                             </Badge>
                             <span className="font-medium text-white">
                               {/* @ts-ignore */}
@@ -560,10 +550,8 @@ export default function HealthMonitor() {
                             </span>
                             <Badge variant="outline" className="text-xs">
                               {(correction as any).errorType === 'premature_decrease' ? '过早降价' :
-                               // @ts-ignore
-                               correction.errorType === 'premature_increase' ? '过早加价' :
-                               // @ts-ignore
-                               correction.errorType === 'over_adjustment' ? '调整过度' : '归因延迟'}
+                               (correction as any).errorType === 'premature_increase' ? '过早加价' :
+                               (correction as any).errorType === 'over_adjustment' ? '调整过度' : '归因延迟'}
                             </Badge>
                           </div>
                           {/* @ts-ignore */}
@@ -625,7 +613,7 @@ export default function HealthMonitor() {
                   </Card>
                 ))}
               </div>
-            ) : resourcesQuery.data?.resources ? (
+            ) : (resourcesQuery as any).data?.resources ? (
               <div className="space-y-4">
                 {/* @ts-ignore */}
                 {/* 告警 */}
@@ -702,7 +690,6 @@ export default function HealthMonitor() {
                         // @ts-ignore
                         value={resourcesQuery.data.resources.memory.system.usagePercent} 
                         className="h-2 mb-2" 
-                      // @ts-ignore
                       />
                       <p className="text-xs text-gray-400">
                         已用: {(resourcesQuery as any).data.resources.memory.system.usedMB}MB / 总计: {(resourcesQuery as any).data.resources.memory.system.totalMB}MB
@@ -747,7 +734,6 @@ export default function HealthMonitor() {
                       {resourcesQuery.data.resources.memory.nodeMaxOldSpaceMB && (
                         <p className="text-xs text-gray-500 mt-1">
                           V8堆上限: {(resourcesQuery as any).data.resources.memory.nodeMaxOldSpaceMB}MB
-                          // @ts-ignore
                           （已用 {(resourcesQuery as any).data.resources.memory.process.heapUsedMB}MB / {(resourcesQuery as any).data.resources.memory.nodeMaxOldSpaceMB}MB）
                         </p>
                       )}

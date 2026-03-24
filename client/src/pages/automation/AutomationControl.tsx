@@ -180,7 +180,6 @@ const [activeTab, setActiveTab] = useState("overview");
     if (!accountId || !config) return;
     const newTypes = enabled
       ? [...config.enabledTypes, type]
-      // @ts-ignore
       : config.enabledTypes.filter(t => t !== type);
     // @ts-ignore
     updateConfig.mutate({ accountId, enabledTypes: newTypes as unknown });
@@ -228,7 +227,7 @@ const [activeTab, setActiveTab] = useState("overview");
               {/* @ts-ignore */}
               <SelectContent>
                 {accounts?.map((account: unknown) => (
-                  <SelectItem key={account.id} value={account.id.toString()}>
+                  <SelectItem key={(account as any).id} value={(account as any).id.toString()}>
                     {/* @ts-ignore */}
                     {account.accountName}
                   </SelectItem>
@@ -340,10 +339,9 @@ const [activeTab, setActiveTab] = useState("overview");
               <CardContent>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                   {executionTypes.map((type: unknown) => {
+                    const Icon = (type as any).icon;
                     // @ts-ignore
-                    const Icon = type.icon;
-                    // @ts-ignore
-                    const isEnabled = config?.enabledTypes?.includes(type.key as unknown) || false;
+                    const isEnabled = config?.enabledTypes?.includes((type as any).key as unknown) || false;
                     return (
                       <div
                         // @ts-ignore
@@ -362,7 +360,7 @@ const [activeTab, setActiveTab] = useState("overview");
                           </div>
                           <Switch
                             checked={isEnabled}
-                            onCheckedChange={(checked) => handleToggleType(type.key, checked)}
+                            onCheckedChange={(checked) => handleToggleType((type as any).key, checked)}
                           />
                         </div>
                       </div>
@@ -389,10 +387,9 @@ const [activeTab, setActiveTab] = useState("overview");
                     <div
                       // @ts-ignore
                       key={mode.value}
-                      onClick={() => handleModeChange(mode.value)}
+                      onClick={() => handleModeChange((mode as any).value)}
                       className={`p-4 rounded-lg border cursor-pointer transition-colors ${
-                        // @ts-ignore
-                        config?.mode === mode.value
+                        config?.mode === (mode as any).value
                           ? 'border-primary bg-primary/5'
                           : 'border-border hover:border-primary/50'
                       }`}
@@ -596,7 +593,7 @@ const [activeTab, setActiveTab] = useState("overview");
                     </TableHeader>
                     <TableBody>
                       {executionHistory.map((batch: unknown) => (
-                        <TableRow key={batch.id}>
+                        <TableRow key={(batch as any).id}>
                           {/* @ts-ignore */}
                           <TableCell className="font-mono text-xs">{batch.id.slice(0, 12)}...</TableCell>
                           {/* @ts-ignore */}

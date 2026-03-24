@@ -212,7 +212,6 @@ export default function CampaignDetail() {
     
     executeAIOptimizationMutation.mutate({
       campaignId,
-      // @ts-ignore
       suggestions: selectedSuggestionsList,
       // @ts-ignore
       predictions: aiAnalysisResult.predictions,
@@ -445,7 +444,7 @@ export default function CampaignDetail() {
                         <div className="grid grid-cols-3 gap-4">
                           {/* @ts-ignore */}
                           {aiAnalysisResult.predictions.map((pred: unknown) => (
-                            <div key={pred.period} className="p-3 bg-background rounded border">
+                            <div key={(pred as any).period} className="p-3 bg-background rounded border">
                               <div className="text-sm font-medium mb-2">
                                 {(pred as any).period === "7_days" ? "7天后" : (pred as any).period === "14_days" ? "14天后" : "30天后"}
                               </div>
@@ -503,7 +502,6 @@ export default function CampaignDetail() {
                           key={index}
                           className={`p-3 rounded-lg border cursor-pointer transition-colors ${
                             selectedSuggestions.has(index) ? "bg-primary/10 border-primary" : "bg-muted/30 hover:bg-muted/50"
-                          // @ts-ignore
                           }`}
                           onClick={() => toggleSuggestion(index)}
                         >
@@ -1211,24 +1209,17 @@ export default function CampaignDetail() {
                         </TableHeader>
                         <TableBody>
                           {adGroups.map((adGroup: unknown) => {
-                            // @ts-ignore
-                            const agSpend = parseFloat(adGroup.spend || "0");
-                            // @ts-ignore
-                            const agSales = parseFloat(adGroup.sales || "0");
-                            // @ts-ignore
-                            const agImpressions = adGroup.impressions || 0;
-                            // @ts-ignore
-                            const agClicks = adGroup.clicks || 0;
-                            // @ts-ignore
-                            const agOrders = adGroup.orders || 0;
+                            const agSpend = parseFloat((adGroup as any).spend || "0");
+                            const agSales = parseFloat((adGroup as any).sales || "0");
+                            const agImpressions = (adGroup as any).impressions || 0;
+                            const agClicks = (adGroup as any).clicks || 0;
+                            const agOrders = (adGroup as any).orders || 0;
                             const agAcos = agSales > 0 ? (agSpend / agSales * 100) : 0;
                             const agRoas = agSpend > 0 ? (agSales / agSpend) : 0;
                             const agCtr = agImpressions > 0 ? (agClicks / agImpressions * 100) : 0;
-                            // @ts-ignore
                             const agCpc = agClicks > 0 ? (agSpend / agClicks) : 0;
-                            // @ts-ignore
                             return (
-                              <TableRow key={adGroup.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setLocation(`/ad-groups/${adGroup.id}`)}>
+                              <TableRow key={(adGroup as any).id} className="cursor-pointer hover:bg-muted/50" onClick={() => setLocation(`/ad-groups/${(adGroup as any).id}`)}>
                                 {/* @ts-ignore */}
                                 <TableCell className="font-medium max-w-[200px] truncate" title={adGroup.adGroupName}>{adGroup.adGroupName}</TableCell>
                                 <TableCell>
@@ -1283,7 +1274,7 @@ export default function CampaignDetail() {
                         <CardContent>
                           <div className="space-y-4">
                             {adGroups.filter((ag: unknown) => (ag as any).headline || (ag as any).videoAssetId || (ag as any).brandLogoAssetId || (ag as any).customImageAssetId || (ag as any).videoUrl || (ag as any).brandLogoUrl || (ag as any).customImageUrl).map((adGroup: unknown) => (
-                              <div key={adGroup.id} className="border rounded-lg p-4 bg-white">
+                              <div key={(adGroup as any).id} className="border rounded-lg p-4 bg-white">
                                 {/* @ts-ignore */}
                                 <h4 className="font-medium text-sm mb-3">{adGroup.adGroupName}</h4>
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -1320,7 +1311,7 @@ export default function CampaignDetail() {
                                       <p className="text-xs text-muted-foreground mb-1">品牌Logo</p>
                                       {/* @ts-ignore */}
                                       {adGroup.brandLogoUrl ? (
-                                        <a href={adGroup.brandLogoUrl} target="_blank" rel="noopener noreferrer" title="点击查看原图">
+                                        <a href={(adGroup as any).brandLogoUrl} target="_blank" rel="noopener noreferrer" title="点击查看原图">
                                           {/* @ts-ignore */}
                                           <img src={adGroup.brandLogoUrl} alt="Brand Logo" className="h-14 w-auto rounded border hover:shadow-md hover:border-blue-300 transition-all cursor-pointer" />
                                         </a>
@@ -1339,7 +1330,7 @@ export default function CampaignDetail() {
                                       <p className="text-xs text-muted-foreground mb-1">自定义图片</p>
                                       {/* @ts-ignore */}
                                       {adGroup.customImageUrl ? (
-                                        <a href={adGroup.customImageUrl} target="_blank" rel="noopener noreferrer" title="点击查看原图">
+                                        <a href={(adGroup as any).customImageUrl} target="_blank" rel="noopener noreferrer" title="点击查看原图">
                                           {/* @ts-ignore */}
                                           <img src={adGroup.customImageUrl} alt="Custom Image" className="h-24 w-auto rounded border hover:shadow-md hover:border-blue-300 transition-all cursor-pointer" />
                                         </a>
@@ -1530,7 +1521,7 @@ export default function CampaignDetail() {
                       </TableHeader>
                       <TableBody>
                         {changeHistory.records.map((record: unknown) => (
-                          <TableRow key={record.id}>
+                          <TableRow key={(record as any).id}>
                             <TableCell className="text-xs whitespace-nowrap">
                               {(record as any).timestamp ? new Date((record as any).timestamp).toLocaleString('zh-CN') : '-'}
                             </TableCell>
@@ -1546,7 +1537,7 @@ export default function CampaignDetail() {
                               {/* @ts-ignore */}
                               {record.target}
                               {(record as any).matchType && (
-                                <span className="text-xs text-muted-foreground ml-1">({record.matchType})</span>
+                                <span className="text-xs text-muted-foreground ml-1">({(record as any).matchType})</span>
                               )}
                             </TableCell>
                             {/* @ts-ignore */}
@@ -1556,7 +1547,7 @@ export default function CampaignDetail() {
                             <TableCell className="text-sm">
                               {/* @ts-ignore */}
                               {record.changePercent && (
-                                <span className={parseFloat(record.changePercent) > 0 ? 'text-green-500' : 'text-red-500'}>
+                                <span className={parseFloat((record as any).changePercent) > 0 ? 'text-green-500' : 'text-red-500'}>
                                   {parseFloat((record as any).changePercent) > 0 ? '+' : ''}{(record as any).changePercent}
                                 </span>
                               )}
@@ -1564,32 +1555,22 @@ export default function CampaignDetail() {
                             <TableCell>
                               <Badge variant="outline" className="text-xs">
                                 {(record as any).source === 'auto_optimal' ? '自动优化' :
-                                 // @ts-ignore
-                                 record.source === 'auto_dayparting' ? '分时优化' :
-                                 // @ts-ignore
-                                 record.source === 'auto_placement' ? '广告位优化' :
-                                 // @ts-ignore
-                                 record.source === 'manual' ? '手动' :
-                                 // @ts-ignore
-                                 record.source === 'batch_campaign' ? '批量操作' :
-                                 // @ts-ignore
-                                 record.source === 'rule_based' ? '规则触发' :
-                                 // @ts-ignore
-                                 record.source === 'api_sync' ? 'API同步' :
-                                 // @ts-ignore
-                                 record.source || '未知'}
+                                 (record as any).source === 'auto_dayparting' ? '分时优化' :
+                                 (record as any).source === 'auto_placement' ? '广告位优化' :
+                                 (record as any).source === 'manual' ? '手动' :
+                                 (record as any).source === 'batch_campaign' ? '批量操作' :
+                                 (record as any).source === 'rule_based' ? '规则触发' :
+                                 (record as any).source === 'api_sync' ? 'API同步' :
+                                 (record as any).source || '未知'}
                               </Badge>
                             </TableCell>
                             <TableCell>
                               {/* @ts-ignore */}
                               <Badge variant={record.status === 'applied' ? 'default' : record.status === 'failed' ? 'destructive' : 'secondary'}>
                                 {(record as any).status === 'applied' ? '已应用' :
-                                 // @ts-ignore
-                                 record.status === 'pending' ? '待执行' :
-                                 // @ts-ignore
-                                 record.status === 'failed' ? '失败' :
-                                 // @ts-ignore
-                                 record.status === 'rolled_back' ? '已回滚' : record.status}
+                                 (record as any).status === 'pending' ? '待执行' :
+                                 (record as any).status === 'failed' ? '失败' :
+                                 (record as any).status === 'rolled_back' ? '已回滚' : (record as any).status}
                               </Badge>
                             </TableCell>
                           </TableRow>

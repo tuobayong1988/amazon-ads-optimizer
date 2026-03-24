@@ -19,7 +19,7 @@ export default function PrelaunchM6Video() {
 
   const projectsQuery = trpc.prelaunch.listProjects.useQuery() as unknown;
   // @ts-ignore
-  const projects = (() => { const d = projectsQuery.data; return (d && 'data' in (d as unknown) ? (d as Record<string, unknown>).data : d) || []; })();
+  const projects = (() => { const d = (projectsQuery as any).data; return (d && 'data' in (d as unknown) ? (d as Record<string, unknown>).data : d) || []; })();
   if (!projectId && projects.length > 0) setProjectId(projects[0].id);
 
   const scriptsQuery = trpc.prelaunch.getVideoScripts.useQuery(
@@ -101,7 +101,7 @@ export default function PrelaunchM6Video() {
             ) : (
               <div className="space-y-4">
                 {scriptsData.map((script: unknown) => (
-                  <Card key={script.id} className="hover:border-red-500/20 transition-colors">
+                  <Card key={(script as any).id} className="hover:border-red-500/20 transition-colors">
                     {/* @ts-ignore */}
                     <CardHeader className="pb-2">
                       <div className="flex items-center justify-between">
@@ -132,7 +132,7 @@ export default function PrelaunchM6Video() {
                               <div key={i} className="aspect-video bg-muted/20 rounded border border-border/30 flex items-center justify-center">
                                 {/* @ts-ignore */}
                                 {frame.imageUrl ? (
-                                  <img src={frame.imageUrl} alt={`Frame ${i + 1}`} className="w-full h-full object-cover rounded" />
+                                  <img src={(frame as any).imageUrl} alt={`Frame ${i + 1}`} className="w-full h-full object-cover rounded" />
                                 ) : (
                                   <span className="text-xs text-muted-foreground">F{i + 1}</span>
                                 )}
@@ -161,7 +161,7 @@ export default function PrelaunchM6Video() {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {bannersData.map((banner: unknown) => (
-                  <Card key={banner.id} className="overflow-hidden hover:border-red-500/30 transition-colors">
+                  <Card key={(banner as any).id} className="overflow-hidden hover:border-red-500/30 transition-colors">
                     {/* @ts-ignore */}
                     {banner.imageUrl ? (
                       <div className="aspect-[16/9] bg-muted/30 overflow-hidden">

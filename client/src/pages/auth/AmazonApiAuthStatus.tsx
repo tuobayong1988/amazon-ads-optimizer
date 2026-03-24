@@ -188,13 +188,11 @@ export default function AmazonApiAuthStatus() {
           <div className="space-y-4">
             {/* @ts-ignore */}
             {safeSummary?.accounts && safeSummary.accounts.length > 0 ? (
-              // @ts-ignore
               safeSummary.accounts.map((account: unknown) => (
                 <div
                   // @ts-ignore
                   key={account.accountId}
                   className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50/5 transition"
-                // @ts-ignore
                 >
                   <div className="flex items-center gap-4 flex-1">
                     {/* @ts-ignore */}
@@ -228,7 +226,7 @@ export default function AmazonApiAuthStatus() {
                         variant="outline"
                         // @ts-ignore
                         onClick={() => handleRefreshToken(account.accountId)}
-                        disabled={refreshing === account.accountId}
+                        disabled={refreshing === (account as any).accountId}
                       >
                         {/* @ts-ignore */}
                         {refreshing === account.accountId ? (

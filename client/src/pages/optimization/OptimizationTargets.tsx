@@ -125,7 +125,7 @@ function CreateOptimizationTargetDialog({
     const searchLower = debouncedFilterCampaignName.toLowerCase();
     
     // @ts-ignore
-    return campaignsData.filter(campaign => {
+    return (campaignsData as any).filter(campaign => {
       // 按名称筛选 - 使用防抖后的搜索词
       if (searchLower && !campaign.campaignName?.toLowerCase().includes(searchLower)) {
         return false;
@@ -190,11 +190,10 @@ function CreateOptimizationTargetDialog({
 
     // 全部数据统计
     const byType = { sp_auto: 0, sp_manual: 0, sb: 0, sd: 0 };
-    // @ts-ignore
     const byStatus = { enabled: 0, paused: 0 };
     
     // @ts-ignore
-    campaignsData.forEach(campaign => {
+    (campaignsData as any).forEach(campaign => {
       const type = campaign.campaignType?.toLowerCase() || '';
       const status = campaign.campaignStatus?.toLowerCase() || '';
       
@@ -212,7 +211,6 @@ function CreateOptimizationTargetDialog({
     const filteredByStatus = { enabled: 0, paused: 0 };
     let totalSpend = 0;
     let totalSales = 0;
-    // @ts-ignore
     let totalAcos = 0;
     let acosCount = 0;
 
@@ -235,13 +233,11 @@ function CreateOptimizationTargetDialog({
       if (acos > 0) {
         totalAcos += acos;
         acosCount++;
-      // @ts-ignore
       }
     });
 
     return {
-      // @ts-ignore
-      total: campaignsData.length,
+      total: (campaignsData as any).length,
       byType,
       byStatus,
       filtered: filteredCampaigns.length,
@@ -274,7 +270,6 @@ function CreateOptimizationTargetDialog({
   // 使用Set优化选择状态查找性能（2000+广告活动时避免O(n)查找）
   const selectedCampaignIdSet = useMemo(() => new Set(selectedCampaignIds), [selectedCampaignIds]);
 
-  // @ts-ignore
   const handleSelectAll = () => {
     if (selectedCampaignIds.length === filteredCampaigns.length && 
         // @ts-ignore
@@ -319,7 +314,6 @@ function CreateOptimizationTargetDialog({
     }
     
     const accountId = filterAccountId === "all" 
-      // @ts-ignore
       ? (accounts?.[0]?.id || 1) 
       : parseInt(filterAccountId);
 
@@ -382,11 +376,10 @@ function CreateOptimizationTargetDialog({
         {/* 步骤指示器 */}
         <div className="flex items-center justify-center gap-2 py-4">
           {[1, 2, 3].map((s: unknown) => (
-            <div key={s} className="flex items-center">
+            <div key={String(s)} className="flex items-center">
               <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
                 s === step ? "bg-primary text-primary-foreground" : 
-                // @ts-ignore
-                s < step ? "bg-green-500 text-white" : "bg-muted text-muted-foreground"
+                (s as any) < step ? "bg-green-500 text-white" : "bg-muted text-muted-foreground"
               }`}>
                 {Number(s) < step ? <CheckCircle2 className="w-4 h-4" /> : String(s)}
               </div>
@@ -416,7 +409,7 @@ function CreateOptimizationTargetDialog({
                   <SelectContent>
                     <SelectItem value="all">所有账号</SelectItem>
                     {accounts?.map((account: unknown) => (
-                      <SelectItem key={account.id} value={account.id.toString()}>
+                      <SelectItem key={(account as any).id} value={(account as any).id.toString()}>
                         {/* @ts-ignore */}
                         {account.accountName}
                       </SelectItem>
@@ -672,22 +665,20 @@ function CreateOptimizationTargetDialog({
                       }}
                     >
                       {campaignVirtualizer.getVirtualItems().map((virtualRow: unknown) => {
-                        // @ts-ignore
-                        const campaign = filteredCampaigns[virtualRow.index];
+                        const campaign = filteredCampaigns[(virtualRow as any).index];
                         if (!campaign) return null;
                         const isSelected = selectedCampaignIdSet.has(campaign.id);
                         return (
                           <div
                             key={campaign.id}
-                            data-index={virtualRow.index}
+                            data-index={(virtualRow as any).index}
                             ref={campaignVirtualizer.measureElement}
                             style={{
                               position: 'absolute',
                               top: 0,
                               left: 0,
                               width: '100%',
-                              // @ts-ignore
-                              transform: `translateY(${virtualRow.start}px)`,
+                              transform: `translateY(${(virtualRow as any).start}px)`,
                               padding: '4px 0',
                             }}
                           >
@@ -847,7 +838,6 @@ function CreateOptimizationTargetDialog({
 // 优化目标卡片组件
 function OptimizationTargetCard({ 
   target, 
-  // @ts-ignore
   onManage,
   onRefresh 
 }: { 
@@ -855,20 +845,19 @@ function OptimizationTargetCard({
   onManage: () => void;
   onRefresh: () => void;
 }) {
-  // @ts-ignore
-  const [isActive, setIsActive] = useState(target.status === "active");
+  const [isActive, setIsActive] = useState((target as any).status === "active");
   const [isExecuting, setIsExecuting] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
 
   // 获取执行摘要
   const { data: executionSummary, isLoading: summaryLoading } = trpc.performanceGroup.getExecutionSummary.useQuery(
-    { targetId: target.id },
+    { targetId: (target as any).id },
     { enabled: isActive }
   );
 
   // 预览执行
   const { data: previewData, isLoading: previewLoading } = trpc.performanceGroup.previewExecution.useQuery(
-    { targetId: target.id },
+    { targetId: (target as any).id },
     { enabled: showPreview }
   );
 
@@ -887,71 +876,51 @@ function OptimizationTargetCard({
     },
     onError: (error) => {
       setIsExecuting(false);
-      // @ts-ignore
       toast.error(`执行失败: ${error.message}`);
     },
   });
 
-  // @ts-ignore
   const handleExecute = () => {
     setIsExecuting(true);
-    // @ts-ignore
-    executeOptimization.mutate({ targetId: target.id });
+    executeOptimization.mutate({ targetId: (target as any).id });
   };
 
   const toggleEnabled = trpc.performanceGroup.toggleEnabled.useMutation({
     onSuccess: () => {
       toast.success(isActive ? "已暂停优化" : "已启用优化");
       onRefresh();
-    // @ts-ignore
     },
-    // @ts-ignore
     onError: (error) => {
-      // @ts-ignore
       toast.error(`操作失败: ${error.message}`);
-      // @ts-ignore
       setIsActive(!isActive);
-    // @ts-ignore
     },
-  // @ts-ignore
   });
 
   const handleToggle = () => {
     setIsActive(!isActive);
-    // @ts-ignore
-    toggleEnabled.mutate({ targetId: target.id, isEnabled: !isActive });
+    toggleEnabled.mutate({ targetId: (target as any).id, isEnabled: !isActive });
   };
 
   const getTargetTypeLabel = () => {
-    // @ts-ignore
-    switch (target.targetType) {
+    switch ((target as any).targetType) {
       case "maximize_sales": return "销售最大化";
       case "target_acos": return `目标ACoS`;
       case "target_roas": return `目标ROAS`;
-      // @ts-ignore
       case "target_cpa": return `目标CPA`;
-      // @ts-ignore
-      default: return target.targetType;
+      default: return (target as any).targetType;
     }
   };
 
   const getTargetValueDisplay = () => {
-    // @ts-ignore
-    if (!target.targetValue) return null;
-    // @ts-ignore
-    switch (target.targetType) {
-      // @ts-ignore
-      case "target_acos": return `${target.targetValue}%`;
-      // @ts-ignore
-      case "target_roas": return target.targetValue;
-      // @ts-ignore
-      case "target_cpa": return `$${target.targetValue}`;
-      // @ts-ignore
-      default: return target.targetValue;
+    if (!(target as any).targetValue) return null;
+    switch ((target as any).targetType) {
+      case "target_acos": return `${(target as any).targetValue}%`;
+      case "target_roas": return (target as any).targetValue;
+      case "target_cpa": return `$${(target as any).targetValue}`;
+      default: return (target as any).targetValue;
     }
   };
 
-  // @ts-ignore
   return (
     <Card className="relative overflow-hidden">
       {/* @ts-ignore */}
@@ -1031,32 +1000,21 @@ function OptimizationTargetCard({
                 {/* @ts-ignore */}
                 {target.goalProgressDetail?.level && (
                   <span className={`text-[10px] px-1 py-0.5 rounded font-medium ${
-                    // @ts-ignore
-                    target.goalProgressDetail.level === 'excellent' ? 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400' :
-                    // @ts-ignore
-                    target.goalProgressDetail.level === 'good' ? 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400' :
-                    // @ts-ignore
-                    target.goalProgressDetail.level === 'fair' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-500/20 dark:text-yellow-400' :
-                    // @ts-ignore
+                    (target as any).goalProgressDetail.level === 'excellent' ? 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400' :
+                    (target as any).goalProgressDetail.level === 'good' ? 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400' :
+                    (target as any).goalProgressDetail.level === 'fair' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-500/20 dark:text-yellow-400' :
                     'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400'
-                  // @ts-ignore
                   }`}>
                     {(target as any).goalProgressDetail.level === 'excellent' ? '优秀' :
-                     // @ts-ignore
-                     target.goalProgressDetail.level === 'good' ? '良好' :
-                     // @ts-ignore
-                     target.goalProgressDetail.level === 'fair' ? '一般' : '待改善'}
+                     (target as any).goalProgressDetail.level === 'good' ? '良好' :
+                     (target as any).goalProgressDetail.level === 'fair' ? '一般' : '待改善'}
                   </span>
                 )}
                 <p className={`text-xs font-bold ${
-                  // @ts-ignore
-                  target.goalProgress >= 85 ? 'text-green-600 dark:text-green-400' :
-                  // @ts-ignore
-                  target.goalProgress >= 65 ? 'text-blue-600 dark:text-blue-400' :
-                  // @ts-ignore
-                  target.goalProgress >= 40 ? 'text-yellow-600 dark:text-yellow-400' :
+                  (target as any).goalProgress >= 85 ? 'text-green-600 dark:text-green-400' :
+                  (target as any).goalProgress >= 65 ? 'text-blue-600 dark:text-blue-400' :
+                  (target as any).goalProgress >= 40 ? 'text-yellow-600 dark:text-yellow-400' :
                   'text-red-600 dark:text-red-400'
-                // @ts-ignore
                 }`}>
                   {/* @ts-ignore */}
                   {target.goalProgress.toFixed(0)}分
@@ -1066,53 +1024,41 @@ function OptimizationTargetCard({
             </div>
             <div className="w-full bg-gray-200 dark:bg-muted/50 rounded-full h-2">
               <div 
-                // @ts-ignore
                 className={`h-2 rounded-full transition-all duration-500 ${
-                  // @ts-ignore
-                  target.goalProgress >= 85 ? 'bg-gradient-to-r from-green-500 to-emerald-400' :
-                  // @ts-ignore
-                  target.goalProgress >= 65 ? 'bg-gradient-to-r from-blue-500 to-cyan-400' :
-                  // @ts-ignore
-                  target.goalProgress >= 40 ? 'bg-gradient-to-r from-yellow-500 to-amber-400' :
+                  (target as any).goalProgress >= 85 ? 'bg-gradient-to-r from-green-500 to-emerald-400' :
+                  (target as any).goalProgress >= 65 ? 'bg-gradient-to-r from-blue-500 to-cyan-400' :
+                  (target as any).goalProgress >= 40 ? 'bg-gradient-to-r from-yellow-500 to-amber-400' :
                   'bg-gradient-to-r from-red-500 to-orange-400'
                 }`}
-                style={{ width: `${Math.min(100, target.goalProgress)}%` }}
+                style={{ width: `${Math.min(100, (target as any).goalProgress)}%` }}
               />
             </div>
             {/* v164: 五维度得分小条 */}
             {/* @ts-ignore */}
             {/* @ts-ignore */}
             {target.goalProgressDetail?.dimensions && target.goalProgressDetail.dimensions.length > 0 && (
-              <div className={`grid gap-1 ${target.goalProgressDetail.dimensions.length >= 5 ? 'grid-cols-5' : 'grid-cols-4'}`}>
+              <div className={`grid gap-1 ${(target as any).goalProgressDetail.dimensions.length >= 5 ? 'grid-cols-5' : 'grid-cols-4'}`}>
                 {/* @ts-ignore */}
                 {target.goalProgressDetail.dimensions.map((dim: unknown) => (
-                  <div key={dim.name} className="text-center" title={dim.detail}>
+                  <div key={(dim as any).name} className="text-center" title={(dim as any).detail}>
                     {/* @ts-ignore */}
                     <div className="text-[9px] text-muted-foreground">{dim.nameZh}</div>
                     <div className={`text-[10px] font-semibold ${
-                      // @ts-ignore
-                      dim.score >= 80 ? 'text-green-600 dark:text-green-400' :
-                      // @ts-ignore
-                      dim.score >= 60 ? 'text-blue-600 dark:text-blue-400' :
-                      // @ts-ignore
-                      dim.score >= 40 ? 'text-yellow-600 dark:text-yellow-400' :
-                      // @ts-ignore
+                      (dim as any).score >= 80 ? 'text-green-600 dark:text-green-400' :
+                      (dim as any).score >= 60 ? 'text-blue-600 dark:text-blue-400' :
+                      (dim as any).score >= 40 ? 'text-yellow-600 dark:text-yellow-400' :
                       'text-red-600 dark:text-red-400'
-                    // @ts-ignore
-                    }`}>{dim.score}</div>
+                    }`}>{(dim as any).score}</div>
                     <div className="w-full h-0.5 bg-gray-200 dark:bg-muted/40 rounded-full overflow-hidden">
                       {/* @ts-ignore */}
                       <div 
                         className={`h-full rounded-full ${
-                          // @ts-ignore
-                          dim.score >= 80 ? 'bg-green-500' :
-                          // @ts-ignore
-                          dim.score >= 60 ? 'bg-blue-500' :
-                          // @ts-ignore
-                          dim.score >= 40 ? 'bg-yellow-500' :
+                          (dim as any).score >= 80 ? 'bg-green-500' :
+                          (dim as any).score >= 60 ? 'bg-blue-500' :
+                          (dim as any).score >= 40 ? 'bg-yellow-500' :
                           'bg-red-500'
                         }`}
-                        style={{ width: `${Math.min(100, Math.max(0, dim.score))}%` }}
+                        style={{ width: `${Math.min(100, Math.max(0, (dim as any).score))}%` }}
                       />
                     </div>
                   </div>
@@ -1220,9 +1166,7 @@ function OptimizationTargetCard({
 }
 
 // 主页面组件
-// @ts-ignore
 export default function OptimizationTargets() {
-  // @ts-ignore
   const [, setLocation] = useLocation();
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [templateData, setTemplateData] = useState<{
@@ -1261,9 +1205,8 @@ export default function OptimizationTargets() {
     // 如果有选中的店铺和站点，精确匹配
     if (currentStore && currentMarketplace) {
       const account = accounts.find((a: unknown) => 
-        (a.storeName || a.accountName).trim() === currentStore && 
-        // @ts-ignore
-        a.marketplace === currentMarketplace
+        ((a as any).storeName || (a as any).accountName).trim() === currentStore && 
+        (a as any).marketplace === currentMarketplace
       );
       if (account) return account.id;
     }
@@ -1271,7 +1214,7 @@ export default function OptimizationTargets() {
     // 如果只有店铺，匹配第一个站点
     if (currentStore) {
       const account = accounts.find((a: unknown) => 
-        (a.storeName || a.accountName).trim() === currentStore
+        ((a as any).storeName || (a as any).accountName).trim() === currentStore
       );
       if (account) return account.id;
     }
@@ -1288,6 +1231,7 @@ export default function OptimizationTargets() {
 
   // v426: 使用轻量级statusCounts API替代全量加载
   const { data: campaignCounts } = trpc.campaign.statusCounts.useQuery(
+    // @ts-ignore
     { accountId: currentAccountId as unknown},
 
     { enabled: !!currentAccountId }
@@ -1295,20 +1239,16 @@ export default function OptimizationTargets() {
 
   // 统计数据
   const stats = useMemo(() => {
-    // @ts-ignore
-    const managedCampaigns = campaignCounts?.managed || 0;
-    // @ts-ignore
-    const unmanagedCampaigns = campaignCounts?.unmanaged || 0;
+    const managedCampaigns = (campaignCounts as any)?.managed || 0;
+    const unmanagedCampaigns = (campaignCounts as any)?.unmanaged || 0;
 
     const activeTargets = targets?.filter(t => t.status === "active").length || 0;
     const pausedTargets = targets?.filter(t => t.status !== "active").length || 0;
     
     return {
       totalTargets: targets?.length || 0,
-      // @ts-ignore
-      managedCampaigns: campaignCounts?.managed || 0,
-      // @ts-ignore
-      unmanagedCampaigns: campaignCounts?.unmanaged || 0,
+      managedCampaigns: (campaignCounts as any)?.managed || 0,
+      unmanagedCampaigns: (campaignCounts as any)?.unmanaged || 0,
       activeTargets,
       pausedTargets,
     };

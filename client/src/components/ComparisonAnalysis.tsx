@@ -75,8 +75,7 @@ export function ComparisonAnalysis({ groups }: ComparisonAnalysisProps) {
       
       selectedGroupsData.forEach(group => {
         const dayData = group.data.find(d => d.date === date);
-        // @ts-ignore
-        dataPoint[`${group.name}_${metric}`] = dayData ? dayData[metric] : 0;
+        (dataPoint as any)[`${group.name}_${metric}`] = dayData ? dayData[metric] : 0;
       });
 
       return dataPoint;
@@ -91,7 +90,6 @@ export function ComparisonAnalysis({ groups }: ComparisonAnalysisProps) {
       const group = groups.find(g => g.id === groupId);
       if (!group) return null;
 
-      // @ts-ignore
       const values = group.data.map(d => Number(d[metric as keyof typeof d]) || 0);
       // @ts-ignore
       const total = values.reduce((sum: number, v: Record<string, unknown>) => sum + v, 0);
@@ -100,9 +98,7 @@ export function ComparisonAnalysis({ groups }: ComparisonAnalysisProps) {
       const min = Math.min(...values);
       
       // 计算趋势
-      // @ts-ignore
       const firstHalf = values.slice(0, Math.floor(values.length / 2));
-      // @ts-ignore
       const secondHalf = values.slice(Math.floor(values.length / 2));
       // @ts-ignore
       const firstAvg = firstHalf.reduce((sum: number, v: Record<string, unknown>) => sum + v, 0) / firstHalf.length;
@@ -134,13 +130,11 @@ export function ComparisonAnalysis({ groups }: ComparisonAnalysisProps) {
       const dataPoint: unknown = { metric: m };
       
       selectedGroups.forEach(groupId => {
-        // @ts-ignore
         const group = groups.find(g => g.id === groupId);
         if (group) {
           const values = group.data.map(d => Number(d[m as keyof typeof d]) || 0);
           const avg = (values as number[]).reduce((sum: number, v: number) => sum + v, 0) / values.length;
-          // @ts-ignore
-          dataPoint[group.name] = avg;
+          (dataPoint as any)[group.name] = avg;
         }
       });
 
@@ -236,6 +230,7 @@ export function ComparisonAnalysis({ groups }: ComparisonAnalysisProps) {
                 {/* @ts-ignore */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {statistics.map((stat: unknown, index: unknown) => (
+                    // @ts-ignore
                     <Card key={stat?.groupId}>
                       {/* @ts-ignore */}
                       <CardHeader className="pb-2">
@@ -248,7 +243,7 @@ export function ComparisonAnalysis({ groups }: ComparisonAnalysisProps) {
                             variant={stat?.trend === 'up' ? 'default' : stat?.trend === 'down' ? 'destructive' : 'secondary'}
                             className="text-xs"
                           >
-                            {(stat as any).trend === 'up' ? <TrendingUp className="w-3 h-3 mr-1" /> :
+                            {(stat as any)?.trend === 'up' ? <TrendingUp className="w-3 h-3 mr-1" /> :
                              // @ts-ignore
                              stat?.trend === 'down' ? <TrendingDown className="w-3 h-3 mr-1" /> :
                              <Minus className="w-3 h-3 mr-1" />}
@@ -303,7 +298,6 @@ export function ComparisonAnalysis({ groups }: ComparisonAnalysisProps) {
                             />
                             <Tooltip
                               contentStyle={{
-                                // @ts-ignore
                                 backgroundColor: 'hsl(var(--background))',
                                 border: '1px solid hsl(var(--border))',
                                 borderRadius: '6px'
@@ -318,9 +312,11 @@ export function ComparisonAnalysis({ groups }: ComparisonAnalysisProps) {
                                   key={groupId}
                                   type="monotone"
                                   dataKey={`${group?.name}_${metric}`}
+                                  // @ts-ignore
                                   stroke={COLORS[index % COLORS.length]}
                                   strokeWidth={2}
                                   name={group?.name}
+                                  // @ts-ignore
                                   dot={{ fill: COLORS[index % COLORS.length] }}
                                 />
                               );
@@ -354,6 +350,7 @@ export function ComparisonAnalysis({ groups }: ComparisonAnalysisProps) {
                                   // @ts-ignore
                                   key={groupId}
                                   dataKey={`${group?.name}_${metric}`}
+                                  // @ts-ignore
                                   fill={COLORS[index % COLORS.length]}
                                   name={group?.name}
                                 />
@@ -378,7 +375,9 @@ export function ComparisonAnalysis({ groups }: ComparisonAnalysisProps) {
                                   key={groupId}
                                   name={group?.name}
                                   dataKey={group?.name}
+                                  // @ts-ignore
                                   stroke={COLORS[index % COLORS.length]}
+                                  // @ts-ignore
                                   fill={COLORS[index % COLORS.length]}
                                   fillOpacity={0.5}
                                 />

@@ -327,7 +327,7 @@ export default function Scheduler() {
                       {/* @ts-ignore */}
                       <SelectContent>
                         {['周日', '周一', '周二', '周三', '周四', '周五', '周六'].map((day: unknown, i: unknown) => (
-                          <SelectItem key={i} value={i.toString()}>{day}</SelectItem>
+                          <SelectItem key={String(i)} value={(i as any).toString()}>{String(day)}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -401,11 +401,10 @@ export default function Scheduler() {
             {tasks && tasks.length > 0 ? (
               <div className="grid gap-4">
                 {tasks.map((task: unknown) => {
-                  // @ts-ignore
-                  const config = taskTypeConfig[task.taskType as TaskType];
+                  const config = taskTypeConfig[(task as any).taskType as TaskType];
                   const Icon = config?.icon || Clock;
                   return (
-                    <Card key={task.id}>
+                    <Card key={(task as any).id}>
                       <CardContent className="p-6">
                         <div className="flex items-start justify-between">
                           <div className="flex items-start gap-4">
@@ -450,7 +449,6 @@ export default function Scheduler() {
                           <div className="flex items-center gap-2">
                             <Button
                               variant="outline"
-                              // @ts-ignore
                               size="sm"
                               // @ts-ignore
                               onClick={() => handleRunTask(task.id)}
@@ -577,7 +575,7 @@ export default function Scheduler() {
                       </SelectTrigger>
                       <SelectContent>
                         {tasks.map((task: unknown) => (
-                          <SelectItem key={task.id} value={task.id.toString()}>
+                          <SelectItem key={(task as any).id} value={(task as any).id.toString()}>
                             {/* @ts-ignore */}
                             {task.name}
                           </SelectItem>
@@ -590,7 +588,6 @@ export default function Scheduler() {
               {/* @ts-ignore */}
               <CardContent>
                 {selectedTask ? (
-                  // @ts-ignore
                   historyLoading ? (
                     <div className="flex items-center justify-center h-32">
                       <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -614,7 +611,7 @@ export default function Scheduler() {
                       </TableHeader>
                       <TableBody>
                         {executionHistory.map((execution: unknown) => (
-                          <TableRow key={execution.id}>
+                          <TableRow key={(execution as any).id}>
                             <TableCell>
                               {/* @ts-ignore */}
                               {safeToLocaleString(execution.startedAt, 'zh-CN')}
@@ -623,7 +620,7 @@ export default function Scheduler() {
                               {/* @ts-ignore */}
                               {execution.status === 'success' ? (
                                 <CheckCircle className="h-4 w-4 text-green-500" />
-                              ) : execution.status === 'failed' ? (
+                              ) : (execution as any).status === 'failed' ? (
                                 <XCircle className="h-4 w-4 text-red-500" />
                               ) : (
                                 <RefreshCw className="h-4 w-4 text-blue-500 animate-spin" />

@@ -223,7 +223,7 @@ export function InitializationProgress({ accountId, accountName }: Initializatio
               <h4 className="font-medium">初始化阶段</h4>
               <div className="space-y-3">
                 {progress.phases.map((phase: unknown) => (
-                  <div key={phase.phase} className="space-y-1">
+                  <div key={(phase as any).phase} className="space-y-1">
                     {/* @ts-ignore */}
                     <div className="flex items-center justify-between text-sm">
                       {/* @ts-ignore */}
@@ -237,7 +237,7 @@ export function InitializationProgress({ accountId, accountName }: Initializatio
                         {/* @ts-ignore */}
                         {phase.completedTasks}/{phase.totalTasks} 任务
                         {(phase as any).failedTasks > 0 && (
-                          <span className="text-red-500 ml-2">({phase.failedTasks} 失败)</span>
+                          <span className="text-red-500 ml-2">({(phase as any).failedTasks} 失败)</span>
                         )}
                       </span>
                     </div>

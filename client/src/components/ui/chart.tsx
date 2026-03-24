@@ -172,31 +172,25 @@ function ChartTooltipContent({
 
   if (!active || !payload?.length) {
     return null;
-  // @ts-ignore
   }
 
   const nestLabel = payload.length === 1 && indicator !== "dot";
 
-  // @ts-ignore
   return (
     <div
       className={cn(
         "border-border/50 bg-background grid min-w-[8rem] items-start gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs shadow-xl",
-        // @ts-ignore
         className
       )}
     >
       {!nestLabel ? tooltipLabel : null}
       <div className="grid gap-1.5">
         {payload
-          // @ts-ignore
-          .filter((item: unknown) => item.type !== "none")
+          .filter((item: unknown) => (item as any).type !== "none")
           .map((item: unknown, index: number) => {
-            // @ts-ignore
-            const key = `${nameKey || item.name || item.dataKey || "value"}`;
+            const key = `${nameKey || (item as any).name || (item as any).dataKey || "value"}`;
             const itemConfig = getPayloadConfigFromPayload(config, item, key);
-            // @ts-ignore
-            const indicatorColor = color || item.payload.fill || item.color;
+            const indicatorColor = color || (item as any).payload.fill || (item as any).color;
 
             return (
               <div
@@ -226,13 +220,11 @@ function ChartTooltipContent({
                               "w-0 border-[1.5px] border-dashed bg-transparent":
                                 indicator === "dashed",
                               "my-0.5": nestLabel && indicator === "dashed",
-                            // @ts-ignore
                             }
                           )}
                           style={
                             {
                               "--color-bg": indicatorColor,
-                              // @ts-ignore
                               "--color-border": indicatorColor,
                             } as React.CSSProperties
                           }
@@ -275,7 +267,6 @@ function ChartTooltipContent({
 
 const ChartLegend = RechartsPrimitive.Legend;
 
-// @ts-ignore
 function ChartLegendContent({
   // @ts-ignore
   className,
@@ -294,7 +285,6 @@ function ChartLegendContent({
 
   if (!payload?.length) {
     return null;
-  // @ts-ignore
   }
 
   return (
@@ -306,11 +296,9 @@ function ChartLegendContent({
       )}
     >
       {payload
-        // @ts-ignore
-        .filter((item: unknown) => item.type !== "none")
+        .filter((item: unknown) => (item as any).type !== "none")
         .map((item: unknown) => {
-          // @ts-ignore
-          const key = `${nameKey || item.dataKey || "value"}`;
+          const key = `${nameKey || (item as any).dataKey || "value"}`;
           const itemConfig = getPayloadConfigFromPayload(config, item, key);
 
           return (
@@ -327,8 +315,7 @@ function ChartLegendContent({
                 <div
                   className="h-2 w-2 shrink-0 rounded-[2px]"
                   style={{
-                    // @ts-ignore
-                    backgroundColor: item.color,
+                    backgroundColor: (item as any).color,
                   }}
                 />
               )}

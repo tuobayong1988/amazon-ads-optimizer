@@ -99,20 +99,13 @@ const getMetricLabel = (metric: string): string => {
 // 指标对比柱状图组件
 function MetricComparisonChart({ metrics }: { metrics: MetricAnalysis[] }) {
   const chartData = metrics.map((m: unknown) => ({
-    // @ts-ignore
-    name: getMetricLabel(m.metricName),
-    // @ts-ignore
-    metric: m.metricName,
-    // @ts-ignore
-    对照组: m.controlValue,
-    // @ts-ignore
-    实验组: m.treatmentValue,
-    // @ts-ignore
-    变化: m.relativeDifference,
-    // @ts-ignore
-    isSignificant: m.isSignificant,
-    // @ts-ignore
-    winner: m.winner,
+    name: getMetricLabel((m as any).metricName),
+    metric: (m as any).metricName,
+    对照组: (m as any).controlValue,
+    实验组: (m as any).treatmentValue,
+    变化: (m as any).relativeDifference,
+    isSignificant: (m as any).isSignificant,
+    winner: (m as any).winner,
   }));
 
   // @ts-ignore
@@ -164,22 +157,16 @@ function MetricComparisonChart({ metrics }: { metrics: MetricAnalysis[] }) {
     {/* @ts-ignore */}
     </ResponsiveContainer>
   );
-// @ts-ignore
 }
 
 // 效果提升百分比图表
 function ImprovementChart({ metrics }: { metrics: MetricAnalysis[] }) {
   const chartData = metrics.map((m: unknown) => ({
-    // @ts-ignore
-    name: getMetricLabel(m.metricName),
-    // @ts-ignore
-    metric: m.metricName,
-    // @ts-ignore
-    提升: m.relativeDifference,
-    // @ts-ignore
-    isSignificant: m.isSignificant,
-    // @ts-ignore
-    winner: m.winner,
+    name: getMetricLabel((m as any).metricName),
+    metric: (m as any).metricName,
+    提升: (m as any).relativeDifference,
+    isSignificant: (m as any).isSignificant,
+    winner: (m as any).winner,
   }));
 
   const CustomBar = (props: unknown) => {
@@ -265,60 +252,42 @@ function ImprovementChart({ metrics }: { metrics: MetricAnalysis[] }) {
 }
 
 // 置信区间可视化
-// @ts-ignore
 function ConfidenceIntervalChart({ metrics }: { metrics: MetricAnalysis[] }) {
-  // @ts-ignore
   const chartData = metrics.map((m: unknown) => ({
-    // @ts-ignore
-    name: getMetricLabel(m.metricName),
-    // @ts-ignore
-    metric: m.metricName,
-    // @ts-ignore
-    差异: m.relativeDifference,
-    // @ts-ignore
-    下限: m.confidenceInterval.lower,
-    // @ts-ignore
-    上限: m.confidenceInterval.upper,
-    // @ts-ignore
-    isSignificant: m.isSignificant,
-    // @ts-ignore
-    pValue: m.pValue,
+    name: getMetricLabel((m as any).metricName),
+    metric: (m as any).metricName,
+    差异: (m as any).relativeDifference,
+    下限: (m as any).confidenceInterval.lower,
+    上限: (m as any).confidenceInterval.upper,
+    isSignificant: (m as any).isSignificant,
+    pValue: (m as any).pValue,
   }));
 
-  // @ts-ignore
   return (
     <div className="space-y-4">
       {chartData.map((item: unknown, index: unknown) => {
-        // @ts-ignore
-        const range = item.上限 - item.下限;
-        // @ts-ignore
-        const center = (item.上限 + item.下限) / 2;
-        // @ts-ignore
-        const minVal = Math.min(item.下限, -20);
-        // @ts-ignore
-        const maxVal = Math.max(item.上限, 20);
+        const range = (item as any).上限 - (item as any).下限;
+        const center = ((item as any).上限 + (item as any).下限) / 2;
+        const minVal = Math.min((item as any).下限, -20);
+        const maxVal = Math.max((item as any).上限, 20);
         const totalRange = maxVal - minVal;
         
         // 计算位置百分比
-        // @ts-ignore
-        const lowerPos = ((item.下限 - minVal) / totalRange) * 100;
-        // @ts-ignore
-        const upperPos = ((item.上限 - minVal) / totalRange) * 100;
-        // @ts-ignore
-        const centerPos = ((item.差异 - minVal) / totalRange) * 100;
+        const lowerPos = (((item as any).下限 - minVal) / totalRange) * 100;
+        const upperPos = (((item as any).上限 - minVal) / totalRange) * 100;
+        const centerPos = (((item as any).差异 - minVal) / totalRange) * 100;
         const zeroPos = ((0 - minVal) / totalRange) * 100;
         
         // @ts-ignore
         const isPositive = item.下限 > 0;
         // @ts-ignore
         const isNegative = item.上限 < 0;
-        // @ts-ignore
-        const color = item.isSignificant 
+        const color = (item as any).isSignificant 
           ? (isPositive ? COLORS.positive : isNegative ? COLORS.negative : COLORS.neutral)
           : COLORS.neutral;
 
         return (
-          <div key={item.name} className="space-y-2">
+          <div key={(item as any).name} className="space-y-2">
             <div className="flex items-center justify-between">
               {/* @ts-ignore */}
               <span className="text-sm font-medium">{item.name}</span>
@@ -356,7 +325,6 @@ function ConfidenceIntervalChart({ metrics }: { metrics: MetricAnalysis[] }) {
                 // @ts-ignore
                 className="absolute top-1 bottom-1 w-1 rounded"
                 style={{ 
-                  // @ts-ignore
                   left: `${centerPos}%`,
                   backgroundColor: color
                 }}
@@ -421,7 +389,6 @@ function TrendComparisonChart({
           tickFormatter={(value) => {
             const date = safeParseDate(value);
             return `${date.getMonth() + 1}/${date.getDate()}`;
-          // @ts-ignore
           }}
         />
         <YAxis tick={{ fill: COLORS.text, fontSize: 12 }} />
@@ -467,8 +434,7 @@ function CumulativeEffectChart({ dailyMetrics }: { dailyMetrics: DailyMetric[] }
     const difference = cumulativeTreatment - cumulativeControl;
     
     return {
-      // @ts-ignore
-      date: item.date,
+      date: (item as any).date,
       累计差异: difference,
       对照组累计: cumulativeControl,
       实验组累计: cumulativeTreatment,
@@ -659,7 +625,7 @@ export default function ABTestCharts({ analysisResults, testName }: ABTestCharts
                     {/* @ts-ignore */}
                     <SelectContent>
                       {analysisResults.metrics.map((m: unknown) => (
-                        <SelectItem key={m.metricName} value={m.metricName}>
+                        <SelectItem key={(m as any).metricName} value={(m as any).metricName}>
                           {/* @ts-ignore */}
                           {getMetricLabel(m.metricName)}
                         </SelectItem>
@@ -701,7 +667,7 @@ export default function ABTestCharts({ analysisResults, testName }: ABTestCharts
               </thead>
               <tbody>
                 {analysisResults.metrics.map((metric: unknown) => (
-                  <tr key={metric.metricName} className="border-b hover:bg-accent/50">
+                  <tr key={(metric as any).metricName} className="border-b hover:bg-accent/50">
                     {/* @ts-ignore */}
                     <td className="py-3 px-4 font-medium">{getMetricLabel(metric.metricName)}</td>
                     {/* @ts-ignore */}

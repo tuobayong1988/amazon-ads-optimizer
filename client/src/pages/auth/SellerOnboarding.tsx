@@ -71,10 +71,8 @@ export default function SellerOnboarding() {
   // 计算当前步骤
   const getCurrentStep = () => {
     if (!user) return 1;
-    // @ts-ignore
     if (!accounts || accounts.length === 0) return 2;
-    // @ts-ignore
-    const hasData = accounts.some((acc: unknown) => acc.lastSyncTime);
+    const hasData = accounts.some((acc: unknown) => (acc as any).lastSyncTime);
     if (!hasData) return 3;
     return 4;
   };
@@ -132,16 +130,12 @@ export default function SellerOnboarding() {
               {/* @ts-ignore */}
               <div className="flex justify-between mt-6">
                 {onboardingSteps.map((step: unknown) => {
-                  // @ts-ignore
-                  const StepIcon = step.icon;
-                  // @ts-ignore
-                  const isCompleted = step.id < currentStep;
-                  // @ts-ignore
-                  const isCurrent = step.id === currentStep;
+                  const StepIcon = (step as any).icon;
+                  const isCompleted = (step as any).id < currentStep;
+                  const isCurrent = (step as any).id === currentStep;
                   return (
-                    <div key={step.id} className="flex flex-col items-center gap-2 flex-1">
+                    <div key={(step as any).id} className="flex flex-col items-center gap-2 flex-1">
                       <div className={`w-10 h-10 rounded-full flex items-center justify-center
-                        // @ts-ignore
                         ${isCompleted ? 'bg-green-500/20 text-green-400' : 
                           isCurrent ? 'bg-purple-500/20 text-purple-400 ring-2 ring-purple-500' : 
                           'bg-muted text-muted-foreground'}`}>
@@ -238,7 +232,7 @@ export default function SellerOnboarding() {
             <CardContent>
               <div className="space-y-3">
                 {accounts.map((account: unknown) => (
-                  <div key={account.id} className="flex items-center justify-between p-3 rounded-lg border bg-card">
+                  <div key={(account as any).id} className="flex items-center justify-between p-3 rounded-lg border bg-card">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold"
                         // @ts-ignore
@@ -268,10 +262,9 @@ export default function SellerOnboarding() {
         {/* 功能亮点 */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {features.map((feature: unknown, index: unknown) => {
-            // @ts-ignore
-            const FeatureIcon = feature.icon;
+            const FeatureIcon = (feature as any).icon;
             return (
-              <Card key={index} className="bg-gradient-to-br from-muted/50 to-muted/30">
+              <Card key={String(index)} className="bg-gradient-to-br from-muted/50 to-muted/30">
                 <CardContent className="pt-6">
                   <div className="flex flex-col items-center text-center space-y-2">
                     <div className="w-12 h-12 rounded-full bg-purple-500/20 flex items-center justify-center">

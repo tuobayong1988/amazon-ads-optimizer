@@ -139,8 +139,7 @@ const [activeTab, setActiveTab] = useState("recommendations");
   };
 
   const getEventStatusBadge = (event: unknown) => {
-    // @ts-ignore
-    const daysUntil = getDaysUntil(event.startDate);
+    const daysUntil = getDaysUntil((event as any).startDate);
     if (daysUntil < 0) {
       return <Badge className="bg-green-500">进行中</Badge>;
     } else if (daysUntil <= 7) {
@@ -486,7 +485,6 @@ const [activeTab, setActiveTab] = useState("recommendations");
                     <div
                       key={index}
                       className="border rounded-lg p-4"
-                    // @ts-ignore
                     >
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-2">

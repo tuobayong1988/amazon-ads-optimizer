@@ -246,7 +246,6 @@ export default function AutoOptimizationDashboard() {
                   // @ts-ignore
                   key={action.id}
                   className="flex items-start justify-between p-4 border rounded-lg hover:bg-gray-50/5 transition"
-                // @ts-ignore
                 >
                   <div className="flex items-start gap-4 flex-1">
                     {/* @ts-ignore */}

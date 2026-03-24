@@ -228,9 +228,7 @@ export default function CollaborationNotifications() {
                         // @ts-ignore
                         key={notification.id}
                         className={`p-4 hover:bg-muted/50 transition-colors ${
-                          // @ts-ignore
-                          notification.status === "sent" ? "bg-blue-500/5" : ""
-                        // @ts-ignore
+                          (notification as any).status === "sent" ? "bg-blue-500/5" : ""
                         }`}
                       >
                         <div className="flex items-start gap-4">

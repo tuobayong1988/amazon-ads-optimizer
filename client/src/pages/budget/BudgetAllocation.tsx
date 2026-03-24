@@ -230,26 +230,18 @@ const [prioritizeHighRoas, setPrioritizeHighRoas] = useState(true);
         : resultData;
       
       if (result?.allocations) {
-        // @ts-ignore
         result.allocations.forEach((item: unknown, index: number) => {
-          // @ts-ignore
-          if (item.currentBudget !== item.recommendedBudget) {
-            // @ts-ignore
-            const changePercent = item.currentBudget > 0 
-              // @ts-ignore
-              ? ((item.recommendedBudget - item.currentBudget) / item.currentBudget) * 100 
+          if ((item as any).currentBudget !== (item as any).recommendedBudget) {
+            const changePercent = (item as any).currentBudget > 0 
+              ? (((item as any).recommendedBudget - (item as any).currentBudget) / (item as any).currentBudget) * 100 
               : 0;
             changes.push({
-              // @ts-ignore
-              id: item.campaignId || index,
-              // @ts-ignore
-              name: item.campaignName || `广告活动 ${index + 1}`,
+              id: (item as any).campaignId || index,
+              name: (item as any).campaignName || `广告活动 ${index + 1}`,
               field: 'budget',
               fieldLabel: '每日预算',
-              // @ts-ignore
-              oldValue: item.currentBudget,
-              // @ts-ignore
-              newValue: item.recommendedBudget,
+              oldValue: (item as any).currentBudget,
+              newValue: (item as any).recommendedBudget,
               unit: '$',
               changePercent,
             });
@@ -276,10 +268,8 @@ const [prioritizeHighRoas, setPrioritizeHighRoas] = useState(true);
         ? `此操作将影响 ${changes.length} 个广告活动的预算，请谨慎确认` 
         : undefined,
       onConfirm: () => {
-        // @ts-ignore
         setIsApplying(true);
         applyMutation.mutate({ allocationId });
-      // @ts-ignore
       },
     });
   };
@@ -327,7 +317,7 @@ const [prioritizeHighRoas, setPrioritizeHighRoas] = useState(true);
               <SelectContent>
                 <SelectItem value="all">全部账号</SelectItem>
                 {accounts?.map((account: unknown) => (
-                  <SelectItem key={account.id} value={account.id.toString()}>
+                  <SelectItem key={(account as any).id} value={(account as any).id.toString()}>
                     {/* @ts-ignore */}
                     {account.storeName || account.accountName}
                   </SelectItem>
@@ -585,18 +575,16 @@ const [prioritizeHighRoas, setPrioritizeHighRoas] = useState(true);
                                     </span>
                                   </div>
                                   <div className={`flex items-center justify-end gap-1 text-sm ${
-                                    // @ts-ignore
-                                    rec.budgetChange > 0
+                                    (rec as any).budgetChange > 0
                                       ? "text-green-500"
-                                      // @ts-ignore
-                                      : rec.budgetChange < 0
+                                      : (rec as any).budgetChange < 0
                                       ? "text-red-500"
                                       : "text-muted-foreground"
                                   }`}>
                                     {/* @ts-ignore */}
                                     {rec.budgetChange > 0 ? (
                                       <ArrowUpRight className="h-4 w-4" />
-                                    ) : rec.budgetChange < 0 ? (
+                                    ) : (rec as any).budgetChange < 0 ? (
                                       <ArrowDownRight className="h-4 w-4" />
                                     ) : (
                                       <Minus className="h-4 w-4" />
@@ -648,7 +636,7 @@ const [prioritizeHighRoas, setPrioritizeHighRoas] = useState(true);
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {budgetGoals?.map((goal: unknown) => (
-                <Card key={goal.id}>
+                <Card key={(goal as any).id}>
                   {/* @ts-ignore */}
                   <CardHeader className="pb-2">
                     <div className="flex items-center justify-between">
@@ -677,10 +665,8 @@ const [prioritizeHighRoas, setPrioritizeHighRoas] = useState(true);
                         <span className="font-medium">
                           {/* @ts-ignore */}
                           {goal.goalType.includes("acos") || goal.goalType.includes("roas")
-                            // @ts-ignore
-                            ? `${Number(goal.targetValue).toFixed(2)}`
-                            // @ts-ignore
-                            : `$${Number(goal.targetValue).toLocaleString()}`}
+                            ? `${Number((goal as any).targetValue).toFixed(2)}`
+                            : `$${Number((goal as any).targetValue).toLocaleString()}`}
                         </span>
                       </div>
                       <div className="flex justify-between">
@@ -737,7 +723,7 @@ const [prioritizeHighRoas, setPrioritizeHighRoas] = useState(true);
 
             <div className="space-y-4">
               {allocationHistory?.map((allocation: unknown) => (
-                <Card key={allocation.id}>
+                <Card key={(allocation as any).id}>
                   <CardContent className="pt-6">
                     <div className="flex items-start justify-between">
                       <div>
@@ -746,11 +732,9 @@ const [prioritizeHighRoas, setPrioritizeHighRoas] = useState(true);
                           <h3 className="font-medium">{allocation.allocationName}</h3>
                           <Badge
                             variant={
-                              // @ts-ignore
-                              allocation.status === "applied"
+                              (allocation as any).status === "applied"
                                 ? "default"
-                                // @ts-ignore
-                                : allocation.status === "draft"
+                                : (allocation as any).status === "draft"
                                 ? "secondary"
                                 : "outline"
                             }
@@ -758,11 +742,9 @@ const [prioritizeHighRoas, setPrioritizeHighRoas] = useState(true);
                             {/* @ts-ignore */}
                             {allocation.status === "applied"
                               ? "已应用"
-                              // @ts-ignore
-                              : allocation.status === "draft"
+                              : (allocation as any).status === "draft"
                               ? "草稿"
-                              // @ts-ignore
-                              : allocation.status}
+                              : (allocation as any).status}
                           </Badge>
                         </div>
                         {/* @ts-ignore */}
@@ -864,11 +846,9 @@ const [prioritizeHighRoas, setPrioritizeHighRoas] = useState(true);
                           </div>
                           <div
                             className={`text-sm ${
-                              // @ts-ignore
-                              Number(record.changeAmount) > 0
+                              Number((record as any).changeAmount) > 0
                                 ? "text-green-500"
-                                // @ts-ignore
-                                : Number(record.changeAmount) < 0
+                                : Number((record as any).changeAmount) < 0
                                 ? "text-red-500"
                                 : "text-muted-foreground"
                             }`}
@@ -880,11 +860,9 @@ const [prioritizeHighRoas, setPrioritizeHighRoas] = useState(true);
                             {/* @ts-ignore */}
                             {record.source === "auto_allocation"
                               ? "自动分配"
-                              // @ts-ignore
-                              : record.source === "manual"
+                              : (record as any).source === "manual"
                               ? "手动调整"
-                              // @ts-ignore
-                              : record.source}
+                              : (record as any).source}
                           </Badge>
                         </div>
                       </div>

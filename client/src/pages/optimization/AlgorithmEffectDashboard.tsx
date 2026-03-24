@@ -161,12 +161,9 @@ export default function AlgorithmEffectDashboard() {
   );
 
   // 计算统计数据
-  // @ts-ignore
-  const autoCount = (byTypeAnalysis || []).filter((t: unknown) => t.adjustmentType?.startsWith('auto')).reduce((sum: number, t: unknown) => sum + (t.count || 0), 0);
-  // @ts-ignore
-  const manualCount = (byTypeAnalysis || []).filter((t: unknown) => t.adjustmentType === 'manual').reduce((sum: number, t: unknown) => sum + (t.count || 0), 0);
-  // @ts-ignore
-  const avgChange = (byTypeAnalysis || []).reduce((sum: number, t: unknown) => sum + (t.avgBidChange || 0), 0) / Math.max((byTypeAnalysis || []).length, 1);
+  const autoCount = (byTypeAnalysis || []).filter((t: unknown) => (t as any).adjustmentType?.startsWith('auto')).reduce((sum: number, t: unknown) => sum + ((t as any).count || 0), 0);
+  const manualCount = (byTypeAnalysis || []).filter((t: unknown) => (t as any).adjustmentType === 'manual').reduce((sum: number, t: unknown) => sum + ((t as any).count || 0), 0);
+  const avgChange = (byTypeAnalysis || []).reduce((sum: number, t: unknown) => sum + ((t as any).avgBidChange || 0), 0) / Math.max((byTypeAnalysis || []).length, 1);
   
   const stats = {
     totalAdjustments: algorithmPerformance?.totalAdjustments || 0,
@@ -175,13 +172,11 @@ export default function AlgorithmEffectDashboard() {
     avgBidChangePercent: avgChange,
     successRate: algorithmPerformance?.trackingRate || 95,
     avgProfitIncrease: algorithmPerformance?.totalEstimatedProfit || 0
-  // @ts-ignore
   };
 
   // v135: 算法层级分布数据
   const algorithmDistribution = useMemo(() => {
-    // @ts-ignore
-    if (!algorithmEffectStats || algorithmEffectStats.length === 0) return [];
+    if (!algorithmEffectStats || (algorithmEffectStats as any).length === 0) return [];
     
     // 按算法层级归类
     const tierMap = new Map<string, { count: number; positiveRate: number; algorithms: string[] }>();
@@ -202,48 +197,33 @@ export default function AlgorithmEffectDashboard() {
       }
       const entry = tierMap.get(tier)!;
       entry.count += stat.count;
-      // @ts-ignore
       entry.positiveRate = (entry.positiveRate * (entry.algorithms.length) + stat.positiveRate) / (entry.algorithms.length + 1);
       entry.algorithms.push(algo);
     }
     
     return Array.from(tierMap.entries()).map(([tier, data]) => ({
-      // @ts-ignore
       tier,
-      // @ts-ignore
-      name: (TIER_COLORS as Record<string, unknown>)[tier]?.label || tier,
+      name: (TIER_COLORS as any)[tier]?.label || tier,
       count: data.count,
       positiveRate: Math.round(data.positiveRate),
-      // @ts-ignore
       algorithms: data.algorithms,
-      // @ts-ignore
-      fill: (TIER_COLORS as Record<string, unknown>)[tier]?.fill || '#6B7280',
-    // @ts-ignore
-    })).sort((a: unknown, b: unknown) => b.count - a.count);
-  // @ts-ignore
+      fill: (TIER_COLORS as any)[tier]?.fill || '#6B7280',
+    })).sort((a: unknown, b: unknown) => (b as any).count - (a as any).count);
   }, [algorithmEffectStats]);
 
   // 算法详细统计
-  // @ts-ignore
   const algorithmDetailStats = useMemo(() => {
-    // @ts-ignore
-    if (!algorithmEffectStats || algorithmEffectStats.length === 0) return [];
-    // @ts-ignore
-    return algorithmEffectStats.map((stat: unknown) => ({
+    if (!algorithmEffectStats || (algorithmEffectStats as any).length === 0) return [];
+    return (algorithmEffectStats as any).map((stat: unknown) => ({
+      algorithm: (stat as any).algorithm,
+      count: (stat as any).count,
+      positiveRate: (stat as any).positiveRate,
+      avgEffectScore: (stat as any).avgEffectScore,
       // @ts-ignore
-      algorithm: stat.algorithm,
+      label: (TIER_COLORS as Record<string, unknown>)[(stat as any).algorithm]?.label || (stat as any).algorithm,
       // @ts-ignore
-      count: stat.count,
-      // @ts-ignore
-      positiveRate: stat.positiveRate,
-      // @ts-ignore
-      avgEffectScore: stat.avgEffectScore,
-      // @ts-ignore
-      label: (TIER_COLORS as Record<string, unknown>)[stat.algorithm]?.label || stat.algorithm,
-      // @ts-ignore
-      fill: (TIER_COLORS as Record<string, unknown>)[stat.algorithm]?.fill || '#6B7280',
-    // @ts-ignore
-    })).sort((a: unknown, b: unknown) => b.count - a.count);
+      fill: (TIER_COLORS as Record<string, unknown>)[(stat as any).algorithm]?.fill || '#6B7280',
+    })).sort((a: unknown, b: unknown) => (b as any).count - (a as any).count);
   }, [algorithmEffectStats]);
 
   // v187: 使用真实API数据替代模拟的ACoS趋势数据
@@ -252,29 +232,21 @@ export default function AlgorithmEffectDashboard() {
     { enabled: true }
   );
   const acosTrendData = useMemo(() => {
-    // @ts-ignore
-    if (!trendData || trendData.length === 0) return [];
-    // @ts-ignore
-    return trendData.map((d: unknown) => ({
-      // @ts-ignore
-      date: d.date,
-      // @ts-ignore
-      actualAcos: d.acos ? d.acos.toFixed(1) : '0',
+    if (!trendData || (trendData as any).length === 0) return [];
+    return (trendData as any).map((d: unknown) => ({
+      date: (d as any).date,
+      actualAcos: (d as any).acos ? (d as any).acos.toFixed(1) : '0',
       targetAcos: 30,
       beforeOptimization: null
     }));
   }, [trendData]);
 
   // v135: 从真实趋势数据计算统计指标
-  // @ts-ignore
   const acosTrendStats = useMemo(() => {
-    // @ts-ignore
     if (!acosTrendData || acosTrendData.length === 0) return { avgChange: 0, daysOnTarget: 0, targetRate: 0 };
-    // @ts-ignore
-    const acosValues = acosTrendData.map((d: unknown) => parseFloat(d.actualAcos) || 0).filter((v: number) => v > 0);
+    const acosValues = acosTrendData.map((d: unknown) => parseFloat((d as any).actualAcos) || 0).filter((v: number) => v > 0);
     if (acosValues.length < 2) return { avgChange: 0, daysOnTarget: 0, targetRate: 0 };
     
-    // @ts-ignore
     const firstHalf = acosValues.slice(0, Math.floor(acosValues.length / 2));
     const secondHalf = acosValues.slice(Math.floor(acosValues.length / 2));
     const firstAvg = firstHalf.reduce((a: number, b: number) => a + b, 0) / firstHalf.length;
@@ -284,30 +256,21 @@ export default function AlgorithmEffectDashboard() {
     const daysOnTarget = acosValues.filter((v: number) => v <= 30).length;
     const targetRate = acosValues.length > 0 ? (daysOnTarget / acosValues.length * 100) : 0;
     
-    // @ts-ignore
     return { avgChange: Math.round(avgChange * 10) / 10, daysOnTarget, targetRate: Math.round(targetRate * 10) / 10 };
-  // @ts-ignore
   }, [acosTrendData]);
 
   // 使用真实API数据生成调整分布
   const adjustmentDistribution = {
     byType: (byTypeAnalysis || []).map((item: unknown) => ({
-      // @ts-ignore
-      type: item.adjustmentType === 'auto_optimal' ? '最优出价' :
-            // @ts-ignore
-            item.adjustmentType === 'auto_dayparting' ? '分时调整' :
-            // @ts-ignore
-            item.adjustmentType === 'auto_placement' ? '位置优化' :
-            // @ts-ignore
-            item.adjustmentType === 'manual' ? '手动调整' : item.adjustmentType,
-      // @ts-ignore
-      count: item.count || 0
+      type: (item as any).adjustmentType === 'auto_optimal' ? '最优出价' :
+            (item as any).adjustmentType === 'auto_dayparting' ? '分时调整' :
+            (item as any).adjustmentType === 'auto_placement' ? '位置优化' :
+            (item as any).adjustmentType === 'manual' ? '手动调整' : (item as any).adjustmentType,
+      count: (item as any).count || 0
     })),
     byRange: (byRangeAnalysis || []).map((item: unknown) => ({
-      // @ts-ignore
-      range: item.range,
-      // @ts-ignore
-      count: item.count || 0
+      range: (item as any).range,
+      count: (item as any).count || 0
     }))
   };
 
@@ -315,16 +278,22 @@ export default function AlgorithmEffectDashboard() {
   const effectComparisonData = useMemo(() => {
     if (!algorithmPerformance) return [];
     return [
+      // @ts-ignore
+      // @ts-ignore
       { metric: 'ACoS (%)', before: (algorithmPerformance as Record<string, unknown>).avgAcosBefore || 0, after: (algorithmPerformance as Record<string, unknown>).avgAcosAfter || 0 },
+      // @ts-ignore
+      // @ts-ignore
       { metric: 'ROAS', before: (algorithmPerformance as Record<string, unknown>).avgRoasBefore || 0, after: (algorithmPerformance as Record<string, unknown>).avgRoasAfter || 0 },
+      // @ts-ignore
+      // @ts-ignore
       { metric: '每次点击成本 ($)', before: (algorithmPerformance as Record<string, unknown>).avgCpcBefore || 0, after: (algorithmPerformance as Record<string, unknown>).avgCpcAfter || 0 },
+    // @ts-ignore
     // @ts-ignore
     ].filter(item => item.before > 0 || item.after > 0);
   }, [algorithmPerformance]);
 
   // v135: 计算总调整中各层级占比（用于核心指标卡片迷你图）
-  // @ts-ignore
-  const totalAlgoCount = algorithmDistribution.reduce((sum: number, d: Record<string, unknown>) => sum + d.count, 0);
+  const totalAlgoCount = algorithmDistribution.reduce((sum: number, d: Record<string, unknown>) => sum + (d.count as any), 0);
 
   return (
     <DashboardLayout>
@@ -348,7 +317,7 @@ export default function AlgorithmEffectDashboard() {
               <SelectContent>
                 <SelectItem value="all">全部账户</SelectItem>
                 {accounts?.map((account: unknown) => (
-                  <SelectItem key={account.id} value={account.id.toString()}>
+                  <SelectItem key={(account as any).id} value={(account as any).id.toString()}>
                     {/* @ts-ignore */}
                     {account.accountName}
                   </SelectItem>
@@ -444,10 +413,9 @@ export default function AlgorithmEffectDashboard() {
                   {totalAlgoCount > 0 ? (
                     <div className="mt-2 space-y-1.5">
                       {algorithmDistribution.slice(0, 3).map((d: unknown) => {
-                        // @ts-ignore
-                        const pct = totalAlgoCount > 0 ? Math.round(d.count / totalAlgoCount * 100) : 0;
+                        const pct = totalAlgoCount > 0 ? Math.round((d as any).count / totalAlgoCount * 100) : 0;
                         return (
-                          <div key={d.tier} className="flex items-center gap-2">
+                          <div key={(d as any).tier} className="flex items-center gap-2">
                             {/* @ts-ignore */}
                             <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: d.fill }} />
                             {/* @ts-ignore */}
@@ -595,11 +563,11 @@ export default function AlgorithmEffectDashboard() {
                               cy="50%"
                               outerRadius={100}
                               innerRadius={50}
-                              label={(props: unknown) => `${props.name || ''} ${((props.percent ?? 0) * 100).toFixed(0)}%`}
+                              label={(props: unknown) => `${(props as any).name || ''} ${(((props as any).percent ?? 0) * 100).toFixed(0)}%`}
                               labelLine={{ stroke: '#9CA3AF' }}
                             >
                               {algorithmDistribution.map((entry: unknown, index: unknown) => (
-                                <Cell key={`cell-${index}`} fill={entry.fill} />
+                                <Cell key={`cell-${index}`} fill={(entry as any).fill} />
                               ))}
                             </Pie>
                             <Tooltip
@@ -612,10 +580,9 @@ export default function AlgorithmEffectDashboard() {
                       </div>
                       <div className="mt-4 space-y-2">
                         {algorithmDistribution.map((d: unknown) => {
-                          // @ts-ignore
-                          const pct = totalAlgoCount > 0 ? (d.count / totalAlgoCount * 100).toFixed(1) : '0';
+                          const pct = totalAlgoCount > 0 ? ((d as any).count / totalAlgoCount * 100).toFixed(1) : '0';
                           return (
-                            <div key={d.tier} className="flex items-center justify-between p-2 rounded bg-gray-700/30">
+                            <div key={(d as any).tier} className="flex items-center justify-between p-2 rounded bg-gray-700/30">
                               <div className="flex items-center gap-2">
                                 {/* @ts-ignore */}
                                 {/* @ts-ignore */}
@@ -660,7 +627,7 @@ export default function AlgorithmEffectDashboard() {
                   {algorithmDetailStats.length > 0 ? (
                     <div className="space-y-3">
                       {algorithmDetailStats.map((stat: unknown) => (
-                        <div key={stat.algorithm} className="p-3 rounded-lg bg-gray-700/30 border border-gray-700/50">
+                        <div key={(stat as any).algorithm} className="p-3 rounded-lg bg-gray-700/30 border border-gray-700/50">
                           <div className="flex items-center justify-between mb-2">
                             <div className="flex items-center gap-2">
                               {/* @ts-ignore */}
@@ -681,8 +648,7 @@ export default function AlgorithmEffectDashboard() {
                             <div className="flex-1">
                               {/* @ts-ignore */}
                               <Progress
-                                // @ts-ignore
-                                value={stat.positiveRate}
+                                value={(stat as any).positiveRate}
                                 className="h-2 [&>[data-slot=progress-indicator]]:bg-green-400"
                               />
                             </div>
@@ -736,12 +702,10 @@ export default function AlgorithmEffectDashboard() {
                 <div className="mt-4 grid grid-cols-4 gap-4">
                   {effectComparisonData.length > 0 ? (
                     effectComparisonData.map((item: unknown) => {
-                      // @ts-ignore
-                      const change = item.before > 0 ? ((item.after - item.before) / item.before * 100) : 0;
-                      // @ts-ignore
-                      const isPositive = item.metric.includes('ACoS') || item.metric.includes('成本') ? change < 0 : change > 0;
+                      const change = (item as any).before > 0 ? (((item as any).after - (item as any).before) / (item as any).before * 100) : 0;
+                      const isPositive = (item as any).metric.includes('ACoS') || (item as any).metric.includes('成本') ? change < 0 : change > 0;
                       return (
-                        <div key={item.metric} className="bg-gray-700/50 rounded-lg p-4 text-center">
+                        <div key={(item as any).metric} className="bg-gray-700/50 rounded-lg p-4 text-center">
                           {/* @ts-ignore */}
                           <p className="text-sm text-gray-400">{item.metric}变化</p>
                           <div className="flex items-center justify-center gap-1 mt-1">
@@ -839,12 +803,9 @@ export default function AlgorithmEffectDashboard() {
                         <div>
                           <p className="text-white font-medium">
                             {(item as any).adjustmentType === 'auto_optimal' ? '最优出价调整' :
-                             // @ts-ignore
-                             item.adjustmentType === 'auto_dayparting' ? '分时出价调整' :
-                             // @ts-ignore
-                             item.adjustmentType === 'auto_placement' ? '广告位优化' :
-                             // @ts-ignore
-                             item.adjustmentType === 'manual' ? '手动调整' : item.adjustmentType}
+                             (item as any).adjustmentType === 'auto_dayparting' ? '分时出价调整' :
+                             (item as any).adjustmentType === 'auto_placement' ? '广告位优化' :
+                             (item as any).adjustmentType === 'manual' ? '手动调整' : (item as any).adjustmentType}
                           </p>
                           <p className="text-sm text-gray-400">
                             平均变化: {(item as any).avgBidChange?.toFixed(1)}%
@@ -916,10 +877,8 @@ export default function AlgorithmEffectDashboard() {
                   </Select>
                   {/* @ts-ignore */}
                   <Button
-                    // @ts-ignore
                     variant={causalFilterSignificant ? "default" : "outline"}
                     size="sm"
-                    // @ts-ignore
                     onClick={() => setCausalFilterSignificant(!causalFilterSignificant)}
                     className={causalFilterSignificant ? "bg-green-600 hover:bg-green-700" : "border-gray-600 text-gray-300"}
                   >
@@ -930,11 +889,8 @@ export default function AlgorithmEffectDashboard() {
                   <span className="text-xs text-gray-500 ml-auto">
                     共 {(() => {
                       let data = causalInsights?.results || [];
-                      // @ts-ignore
-                      if (causalFilterSignificant) data = data.filter((r: unknown) => r.upliftScore > 0 && r.confidenceInterval && r.confidenceInterval < 0.5);
-                      // @ts-ignore
-                      if (causalSearchKeyword) data = data.filter((r: unknown) => String(r.keywordId || r.targetId || '').includes(causalSearchKeyword));
-                      // @ts-ignore
+                      if (causalFilterSignificant) data = data.filter((r: unknown) => (r as any).upliftScore > 0 && (r as any).confidenceInterval && (r as any).confidenceInterval < 0.5);
+                      if (causalSearchKeyword) data = data.filter((r: unknown) => String((r as any).keywordId || (r as any).targetId || '').includes(causalSearchKeyword));
                       return data.length;
                     })()} 条结果
                   </span>
@@ -978,21 +934,14 @@ export default function AlgorithmEffectDashboard() {
                       {(() => {
                         let data = [...(causalInsights?.results || [])];
                         // v276: 筛选
-                        // @ts-ignore
-                        if (causalFilterSignificant) data = data.filter((r: unknown) => r.upliftScore > 0 && r.confidenceInterval && r.confidenceInterval < 0.5);
-                        // @ts-ignore
-                        if (causalSearchKeyword) data = data.filter((r: unknown) => String(r.keywordId || r.targetId || '').includes(causalSearchKeyword));
+                        if (causalFilterSignificant) data = data.filter((r: unknown) => (r as any).upliftScore > 0 && (r as any).confidenceInterval && (r as any).confidenceInterval < 0.5);
+                        if (causalSearchKeyword) data = data.filter((r: unknown) => String((r as any).keywordId || (r as any).targetId || '').includes(causalSearchKeyword));
                         // v276: 排序
-                        // @ts-ignore
-                        if (causalSortBy === 'uplift') data.sort((a: unknown, b: unknown) => (b.upliftScore || 0) - (a.upliftScore || 0));
-                        // @ts-ignore
-                        else if (causalSortBy === 'profit') data.sort((a: unknown, b: unknown) => (b.incrementalProfit || 0) - (a.incrementalProfit || 0));
-                        // @ts-ignore
-                        else if (causalSortBy === 'roas') data.sort((a: unknown, b: unknown) => (b.incrementalRoas || 0) - (a.incrementalRoas || 0));
-                        // @ts-ignore
-                        else if (causalSortBy === 'sample') data.sort((a: unknown, b: unknown) => (b.sampleSize || 0) - (a.sampleSize || 0));
-                        // @ts-ignore
-                        else data.sort((a: unknown, b: unknown) => (b.analysisDate || '').localeCompare(a.analysisDate || ''));
+                        if (causalSortBy === 'uplift') data.sort((a: unknown, b: unknown) => ((b as any).upliftScore || 0) - ((a as any).upliftScore || 0));
+                        else if (causalSortBy === 'profit') data.sort((a: unknown, b: unknown) => ((b as any).incrementalProfit || 0) - ((a as any).incrementalProfit || 0));
+                        else if (causalSortBy === 'roas') data.sort((a: unknown, b: unknown) => ((b as any).incrementalRoas || 0) - ((a as any).incrementalRoas || 0));
+                        else if (causalSortBy === 'sample') data.sort((a: unknown, b: unknown) => ((b as any).sampleSize || 0) - ((a as any).sampleSize || 0));
+                        else data.sort((a: unknown, b: unknown) => ((b as any).analysisDate || '').localeCompare((a as any).analysisDate || ''));
                         return data.slice(0, 30);
                       })().map((r: unknown, i: number) => (
                         <tr key={i} className="border-b border-gray-700/50 hover:bg-gray-700/30">
@@ -1096,14 +1045,10 @@ export default function AlgorithmEffectDashboard() {
                 <div className="space-y-3">
                   {(() => {
                     const models = [...(cqlModelStatus?.models || [])];
-                    // @ts-ignore
-                    if (cqlSortBy === 'version') models.sort((a: unknown, b: unknown) => (b.modelVersion || 0) - (a.modelVersion || 0));
-                    // @ts-ignore
-                    else if (cqlSortBy === 'loss') models.sort((a: unknown, b: unknown) => (a.avgLoss || 999) - (b.avgLoss || 999));
-                    // @ts-ignore
-                    else if (cqlSortBy === 'steps') models.sort((a: unknown, b: unknown) => (b.trainingSteps || 0) - (a.trainingSteps || 0));
-                    // @ts-ignore
-                    else models.sort((a: unknown, b: unknown) => new Date(b.lastTrainedAt || 0).getTime() - new Date(a.lastTrainedAt || 0).getTime());
+                    if (cqlSortBy === 'version') models.sort((a: unknown, b: unknown) => ((b as any).modelVersion || 0) - ((a as any).modelVersion || 0));
+                    else if (cqlSortBy === 'loss') models.sort((a: unknown, b: unknown) => ((a as any).avgLoss || 999) - ((b as any).avgLoss || 999));
+                    else if (cqlSortBy === 'steps') models.sort((a: unknown, b: unknown) => ((b as any).trainingSteps || 0) - ((a as any).trainingSteps || 0));
+                    else models.sort((a: unknown, b: unknown) => new Date((b as any).lastTrainedAt || 0).getTime() - new Date((a as any).lastTrainedAt || 0).getTime());
                     return models;
                   })().map((model: unknown, i: number) => (
                     <div key={i} className="flex items-center justify-between p-4 bg-gray-700/50 rounded-lg">
@@ -1175,10 +1120,8 @@ export default function AlgorithmEffectDashboard() {
                       <PieChart>
                         <Pie
                           data={(competitionInsights?.distribution || []).map((d: unknown) => ({
-                            // @ts-ignore
-                            name: d.label,
-                            // @ts-ignore
-                            value: d.count,
+                            name: (d as any).label,
+                            value: (d as any).count,
                           }))}
                           cx="50%"
                           cy="50%"
@@ -1186,6 +1129,7 @@ export default function AlgorithmEffectDashboard() {
                           outerRadius={90}
                           paddingAngle={3}
                           dataKey="value"
+                          // @ts-ignore
                           // @ts-ignore
                           label={({ name, percent }: unknown) => `${name} ${(percent * 100).toFixed(0)}%`}
                         >
@@ -1397,21 +1341,15 @@ export default function AlgorithmEffectDashboard() {
                       <td className="py-3 px-4 text-gray-300">{record.keywordText || '-'}</td>
                       <td className="py-3 px-4">
                         <Badge variant="outline" className={
-                          // @ts-ignore
-                          record.adjustmentType === 'auto_optimal' ? 'border-blue-500 text-blue-400' :
-                          // @ts-ignore
-                          record.adjustmentType === 'auto_dayparting' ? 'border-purple-500 text-purple-400' :
-                          // @ts-ignore
-                          record.adjustmentType === 'auto_placement' ? 'border-orange-500 text-orange-400' :
+                          (record as any).adjustmentType === 'auto_optimal' ? 'border-blue-500 text-blue-400' :
+                          (record as any).adjustmentType === 'auto_dayparting' ? 'border-purple-500 text-purple-400' :
+                          (record as any).adjustmentType === 'auto_placement' ? 'border-orange-500 text-orange-400' :
                           'border-gray-500 text-gray-400'
                         }>
                           {(record as any).adjustmentType === 'auto_optimal' ? '最优出价' :
-                           // @ts-ignore
-                           record.adjustmentType === 'auto_dayparting' ? '分时调整' :
-                           // @ts-ignore
-                           record.adjustmentType === 'auto_placement' ? '位置优化' :
-                           // @ts-ignore
-                           record.adjustmentType === 'manual' ? '手动调整' : record.adjustmentType}
+                           (record as any).adjustmentType === 'auto_dayparting' ? '分时调整' :
+                           (record as any).adjustmentType === 'auto_placement' ? '位置优化' :
+                           (record as any).adjustmentType === 'manual' ? '手动调整' : (record as any).adjustmentType}
                         </Badge>
                       </td>
                       {/* @ts-ignore */}
@@ -1428,10 +1366,8 @@ export default function AlgorithmEffectDashboard() {
                         {/* @ts-ignore */}
                         <Badge variant={record.status === 'applied' ? 'default' : record.status === 'rolled_back' ? 'destructive' : 'secondary'}>
                           {(record as any).status === 'applied' ? '已应用' :
-                           // @ts-ignore
-                           record.status === 'rolled_back' ? '已回滚' :
-                           // @ts-ignore
-                           record.status === 'pending' ? '待执行' : record.status}
+                           (record as any).status === 'rolled_back' ? '已回滚' :
+                           (record as any).status === 'pending' ? '待执行' : (record as any).status}
                         </Badge>
                       </td>
                     </tr>

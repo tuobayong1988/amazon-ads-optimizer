@@ -82,7 +82,6 @@ const [createDialogOpen, setCreateDialogOpen] = useState(false);
       setTemplateDialogOpen(false);
       refetchTests();
     },
-    // @ts-ignore
     onError: (error: unknown) => {
       // @ts-ignore
       toast.error(error.message);
@@ -161,7 +160,6 @@ const [createDialogOpen, setCreateDialogOpen] = useState(false);
   };
 
   const handleCreateFromTemplate = () => {
-    // @ts-ignore
     if (!selectedAccountId) return;
     createFromTemplateMutation.mutate({
       accountId: selectedAccountId,
@@ -178,7 +176,6 @@ const [createDialogOpen, setCreateDialogOpen] = useState(false);
       completed: { variant: 'default', label: '已完成', icon: CheckCircle2 },
       cancelled: { variant: 'destructive', label: '已取消', icon: XCircle },
     };
-    // @ts-ignore
     const config = statusConfig[status] || { variant: 'secondary', label: status, icon: Clock };
     const Icon = config.icon;
     return (
@@ -221,7 +218,7 @@ const [createDialogOpen, setCreateDialogOpen] = useState(false);
               </SelectTrigger>
               <SelectContent>
                 {accounts?.map((account: unknown) => (
-                  <SelectItem key={account.id} value={account.id.toString()}>
+                  <SelectItem key={(account as any).id} value={(account as any).id.toString()}>
                     {/* @ts-ignore */}
                     {account.accountName}
                   </SelectItem>
@@ -310,7 +307,6 @@ const [createDialogOpen, setCreateDialogOpen] = useState(false);
                       value={newTest.testDescription}
                       onChange={(e) => setNewTest({ ...newTest, testDescription: e.target.value })}
                       placeholder="输入测试描述"
-                    // @ts-ignore
                     />
                   </div>
                   <div className="space-y-2">
@@ -318,6 +314,7 @@ const [createDialogOpen, setCreateDialogOpen] = useState(false);
                     <Select
                       value={newTest.testType}
                       onValueChange={(value) => 
+                        // @ts-ignore
                         setNewTest({ ...newTest, testType: value as unknown })
                       }
                     >
@@ -337,6 +334,7 @@ const [createDialogOpen, setCreateDialogOpen] = useState(false);
                     <Select
                       value={newTest.targetMetric}
                       onValueChange={(value) => 
+                        // @ts-ignore
                         setNewTest({ ...newTest, targetMetric: value as unknown })
                       }
                     >
@@ -477,10 +475,9 @@ const [createDialogOpen, setCreateDialogOpen] = useState(false);
                     // @ts-ignore
                     key={test.id}
                     className={`p-3 rounded-lg border cursor-pointer transition-colors ${
-                      // @ts-ignore
-                      selectedTestId === test.id ? 'bg-accent border-primary' : 'hover:bg-accent/50'
+                      selectedTestId === (test as any).id ? 'bg-accent border-primary' : 'hover:bg-accent/50'
                     }`}
-                    onClick={() => setSelectedTestId(test.id)}
+                    onClick={() => setSelectedTestId((test as any).id)}
                   >
                     <div className="flex items-center justify-between">
                       {/* @ts-ignore */}
@@ -491,8 +488,7 @@ const [createDialogOpen, setCreateDialogOpen] = useState(false);
                     <div className="flex items-center gap-2 mt-1">
                       <span className="text-xs text-muted-foreground">
                         {(test as any).testType === 'budget_allocation' ? '预算分配' : 
-                         // @ts-ignore
-                         test.testType === 'bid_strategy' ? '出价策略' : '定向策略'}
+                         (test as any).testType === 'bid_strategy' ? '出价策略' : '定向策略'}
                       </span>
                       <span className="text-xs text-muted-foreground">·</span>
                       <span className="text-xs text-muted-foreground">
@@ -798,7 +794,7 @@ const [createDialogOpen, setCreateDialogOpen] = useState(false);
                   </thead>
                   <tbody>
                     {overview.recentResults.map((r: unknown) => (
-                      <tr key={r.testId} className="border-b hover:bg-accent/50 cursor-pointer" onClick={() => setSelectedTestId(r.testId)}>
+                      <tr key={(r as any).testId} className="border-b hover:bg-accent/50 cursor-pointer" onClick={() => setSelectedTestId((r as any).testId)}>
                         {/* @ts-ignore */}
                         <td className="p-2 font-medium">{r.testName}</td>
                         {/* @ts-ignore */}

@@ -128,8 +128,7 @@ export function StrategyTemplates({ currentAcos, onApplyTemplate }: StrategyTemp
       <CardContent>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {templates.map((template: unknown) => {
-            // @ts-ignore
-            const isRecommended = template.id === recommendedId;
+            const isRecommended = (template as any).id === recommendedId;
             return (
               <div
                 // @ts-ignore
@@ -195,7 +194,7 @@ export function StrategyTemplates({ currentAcos, onApplyTemplate }: StrategyTemp
                 <div className="flex flex-wrap gap-1 mb-4">
                   {/* @ts-ignore */}
                   {template.tags.map((tag: unknown) => (
-                    <Badge key={tag} variant="secondary" className="text-xs">
+                    <Badge key={String(tag)} variant="secondary" className="text-xs">
                       {/* @ts-ignore */}
                       {tag}
                     </Badge>
@@ -205,6 +204,7 @@ export function StrategyTemplates({ currentAcos, onApplyTemplate }: StrategyTemp
                 <Button
                   className="w-full"
                   variant={isRecommended ? "default" : "outline"}
+                  // @ts-ignore
                   onClick={() => onApplyTemplate(template)}
                 >
                   应用此策略

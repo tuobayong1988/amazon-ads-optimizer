@@ -233,6 +233,7 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null
       };
     }
 
+    // @ts-ignore
     const totalSpend = performanceData.reduce((sum: number, p: Record<string, unknown>) => sum + (p.metrics?.spend || 0), 0);
     // @ts-ignore
     const totalSales = performanceData.reduce((sum: number, p: Record<string, unknown>) => sum + (p.metrics?.sales || 0), 0);
@@ -243,7 +244,7 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null
     
     const bestPlacement = performanceData.reduce((best: unknown, current: unknown) => {
       // @ts-ignore
-      if (!best || (current.metrics?.roas || 0) > (best.metrics?.roas || 0)) {
+      if (!best || ((current as any).metrics?.roas || 0) > (best.metrics?.roas || 0)) {
         return current;
       }
       return best;
@@ -299,7 +300,7 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null
                   </SelectTrigger>
                   <SelectContent>
                     {accounts?.map((account: unknown) => (
-                      <SelectItem key={account.id} value={account.id.toString()}>
+                      <SelectItem key={(account as any).id} value={(account as any).id.toString()}>
                         {/* @ts-ignore */}
                         {account.storeName || account.accountName}
                       </SelectItem>
@@ -319,8 +320,8 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null
                     <SelectValue placeholder="选择广告活动" />
                   </SelectTrigger>
                   <SelectContent>
-                    {(campaigns as any).map((campaign: unknown) => (
-                      <SelectItem key={campaign.campaignId} value={campaign.campaignId}>
+                    {(campaigns as any)?.map((campaign: unknown) => (
+                      <SelectItem key={(campaign as any).campaignId} value={(campaign as any).campaignId}>
                         {/* @ts-ignore */}
                         {campaign.campaignName}
                       </SelectItem>
@@ -511,15 +512,12 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null
                 </TableHeader>
                 <TableBody>
                   {performanceData.map((placement: unknown) => {
-                    // @ts-ignore
-                    const metrics = placement.metrics;
-                    // @ts-ignore
-                    const placementInfo = PLACEMENT_LABELS[placement.placementType];
-                    // @ts-ignore
-                    const currentAdjustment = currentSettings?.[placement.placementType as keyof typeof currentSettings] || 0;
+                    const metrics = (placement as any).metrics;
+                    const placementInfo = PLACEMENT_LABELS[(placement as any).placementType];
+                    const currentAdjustment = currentSettings?.[(placement as any).placementType as keyof typeof currentSettings] || 0;
                     
                     return (
-                      <TableRow key={placement.placementType}>
+                      <TableRow key={(placement as any).placementType}>
                         <TableCell>
                           <div className="flex items-center gap-2">
                             {placementInfo?.icon}
@@ -653,17 +651,13 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null
             
             <div className="space-y-4">
               {pendingSuggestions.map((suggestion: unknown, index: unknown) => {
-                // @ts-ignore
-                const placementInfo = PLACEMENT_LABELS[suggestion.placementType];
-                // @ts-ignore
-                const confidenceInfo = getConfidenceLevel(suggestion.confidence);
-                // @ts-ignore
-                const isIncrease = suggestion.adjustmentDelta > 0;
-                // @ts-ignore
-                const isDecrease = suggestion.adjustmentDelta < 0;
+                const placementInfo = PLACEMENT_LABELS[(suggestion as any).placementType];
+                const confidenceInfo = getConfidenceLevel((suggestion as any).confidence);
+                const isIncrease = (suggestion as any).adjustmentDelta > 0;
+                const isDecrease = (suggestion as any).adjustmentDelta < 0;
                 
                 return (
-                  <Card key={index}>
+                  <Card key={String(index)}>
                     <CardContent className="pt-4">
                       <div className="flex items-start justify-between">
                         <div className="flex items-center gap-2">
@@ -704,7 +698,6 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null
                     </CardContent>
                   </Card>
                 );
-              // @ts-ignore
               })}
             </div>
 
@@ -742,7 +735,7 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null
               <AlertDescription>
                 <ul className="list-disc list-inside text-sm mt-2 space-y-1">
                   {pendingSuggestions.map((s: unknown, i: unknown) => (
-                    <li key={i}>
+                    <li key={String(i)}>
                       {PLACEMENT_LABELS[(s as any).placementType]?.name}: {formatPercent((s as any).currentAdjustment)} → {formatPercent((s as any).suggestedAdjustment)}
                     </li>
                   ))}

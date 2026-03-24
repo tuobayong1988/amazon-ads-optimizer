@@ -20,7 +20,7 @@ export default function PrelaunchM4XCopy() {
 
   const projectsQuery = trpc.prelaunch.listProjects.useQuery() as unknown;
   // @ts-ignore
-  const projects = (() => { const d = projectsQuery.data; return (d && 'data' in (d as unknown) ? (d as Record<string, unknown>).data : d) || []; })();
+  const projects = (() => { const d = (projectsQuery as any).data; return (d && 'data' in (d as unknown) ? (d as Record<string, unknown>).data : d) || []; })();
   if (!projectId && projects.length > 0) setProjectId(projects[0].id);
 
   const copiesQuery = trpc.prelaunch.getCopyVersions.useQuery(
@@ -118,10 +118,9 @@ export default function PrelaunchM4XCopy() {
             ) : (
               <div className="space-y-4">
                 {copiesData.map((copy: unknown) => {
-                  // @ts-ignore
-                  const typeInfo = copyTypeLabels[copy.copyType] || { label: copy.copyType, color: 'bg-gray-500/20 text-gray-400' };
+                  const typeInfo = copyTypeLabels[(copy as any).copyType] || { label: (copy as any).copyType, color: 'bg-gray-500/20 text-gray-400' };
                   return (
-                    <Card key={copy.id} className="hover:border-amber-500/20 transition-colors">
+                    <Card key={(copy as any).id} className="hover:border-amber-500/20 transition-colors">
                       {/* @ts-ignore */}
                       <CardHeader className="pb-2">
                         {/* @ts-ignore */}
@@ -135,7 +134,7 @@ export default function PrelaunchM4XCopy() {
                           {/* @ts-ignore */}
                           {/* @ts-ignore */}
                           {copy.fitnessScore && (
-                            <span className="text-xs text-muted-foreground">适应度: {Number(copy.fitnessScore).toFixed(2)}</span>
+                            <span className="text-xs text-muted-foreground">适应度: {Number((copy as any).fitnessScore).toFixed(2)}</span>
                           )}
                         </div>
                       </CardHeader>

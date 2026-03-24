@@ -57,29 +57,19 @@ const [page, setPage] = useState(1);
     if (!syncHistoryData?.jobs) return { logs: [], total: 0 };
     
     const logs = syncHistoryData.jobs.map((job: unknown) => ({
-      // @ts-ignore
-      id: job.id,
-      // @ts-ignore
-      level: job.status === 'completed' ? 'success' : job.status === 'failed' ? 'error' : 'info',
+      id: (job as any).id,
+      level: (job as any).status === 'completed' ? 'success' : (job as any).status === 'failed' ? 'error' : 'info',
       logType: 'sync',
-      // @ts-ignore
-      message: `同步任务 #${job.id} - ${job.status === 'completed' ? '完成' : job.status === 'failed' ? '失败' : job.status === 'running' ? '进行中' : '等待中'}`,
-      // @ts-ignore
+      message: `同步任务 #${(job as any).id} - ${(job as any).status === 'completed' ? '完成' : (job as any).status === 'failed' ? '失败' : (job as any).status === 'running' ? '进行中' : '等待中'}`,
       details: {
-        // @ts-ignore
-        campaigns: job.campaignsSynced,
-        // @ts-ignore
-        adGroups: job.adGroupsSynced,
-        // @ts-ignore
-        keywords: job.keywordsSynced,
-        // @ts-ignore
-        error: job.errorMessage,
+        campaigns: (job as any).campaignsSynced,
+        adGroups: (job as any).adGroupsSynced,
+        keywords: (job as any).keywordsSynced,
+        error: (job as any).errorMessage,
       },
-      // @ts-ignore
-      createdAt: job.startedAt || job.createdAt,
+      createdAt: (job as any).startedAt || (job as any).createdAt,
     }));
     
-    // @ts-ignore
     return { logs, total: syncHistoryData.total };
   }, [syncHistoryData]);
 
@@ -87,14 +77,11 @@ const [page, setPage] = useState(1);
   const logStats = useMemo(() => {
     if (!syncHistoryData?.jobs) return null;
     
-    // @ts-ignore
-    const successCount = syncHistoryData.jobs.filter((job: unknown) => job.status === 'completed').length;
-    // @ts-ignore
-    const errorCount = syncHistoryData.jobs.filter((job: unknown) => job.status === 'failed').length;
+    const successCount = syncHistoryData.jobs.filter((job: unknown) => (job as any).status === 'completed').length;
+    const errorCount = syncHistoryData.jobs.filter((job: unknown) => (job as any).status === 'failed').length;
     const warningCount = 0;
     
     return { successCount, errorCount, warningCount };
-  // @ts-ignore
   }, [syncHistoryData]);
 
   // 过滤日志
@@ -103,40 +90,32 @@ const [page, setPage] = useState(1);
     
     return logsData.logs.filter((log: unknown) => {
       // 搜索过滤
-      // @ts-ignore
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
-        // @ts-ignore
-        const message = (log.message || '').toLowerCase();
-        // @ts-ignore
-        const details = JSON.stringify(log.details || {}).toLowerCase();
+        const message = ((log as any).message || '').toLowerCase();
+        const details = JSON.stringify((log as any).details || {}).toLowerCase();
         if (!message.includes(query) && !details.includes(query)) {
           return false;
         }
       }
       
       // 级别过滤
-      // @ts-ignore
-      if (levelFilter !== 'all' && log.level !== levelFilter) {
+      if (levelFilter !== 'all' && (log as any).level !== levelFilter) {
         return false;
-      // @ts-ignore
       }
       
       // 类型过滤
-      // @ts-ignore
-      if (typeFilter !== 'all' && log.logType !== typeFilter) {
+      if (typeFilter !== 'all' && (log as any).logType !== typeFilter) {
         return false;
       }
       
       // 日期过滤
       if (startDate) {
-        // @ts-ignore
-        const logDate = safeParseDate(log.createdAt);
+        const logDate = safeParseDate((log as any).createdAt);
         if (logDate < startDate) return false;
       }
       if (endDate) {
-        // @ts-ignore
-        const logDate = safeParseDate(log.createdAt);
+        const logDate = safeParseDate((log as any).createdAt);
         const endOfDay = safeParseDate(endDate);
         endOfDay.setHours(23, 59, 59, 999);
         if (logDate > endOfDay) return false;
@@ -165,15 +144,10 @@ const [page, setPage] = useState(1);
   const getTypeLabel = (type: string) => {
     const typeMap: Record<string, string> = {
       campaign: '广告活动',
-      // @ts-ignore
       adGroup: '广告组',
-      // @ts-ignore
       keyword: '关键词',
-      // @ts-ignore
       productTarget: '商品定位',
-      // @ts-ignore
       performance: '绩效数据',
-      // @ts-ignore
       negativeKeyword: '否定词',
     };
     return typeMap[type] || type;
@@ -186,16 +160,11 @@ const [page, setPage] = useState(1);
     const csvContent = [
       ['时间', '级别', '类型', '消息', '详情'].join(','),
       ...filteredLogs.map((log: unknown) => [
-        // @ts-ignore
-        format(safeParseDate(log.createdAt), 'yyyy-MM-dd HH:mm:ss'),
-        // @ts-ignore
-        log.level,
-        // @ts-ignore
-        getTypeLabel(log.logType || ''),
-        // @ts-ignore
-        `"${(log.message || '').replace(/"/g, '""')}"`,
-        // @ts-ignore
-        `"${JSON.stringify(log.details || {}).replace(/"/g, '""')}"`,
+        format(safeParseDate((log as any).createdAt), 'yyyy-MM-dd HH:mm:ss'),
+        (log as any).level,
+        getTypeLabel((log as any).logType || ''),
+        `"${((log as any).message || '').replace(/"/g, '""')}"`,
+        `"${JSON.stringify((log as any).details || {}).replace(/"/g, '""')}"`,
       ].join(','))
     ].join('\n');
     
@@ -253,7 +222,7 @@ const [page, setPage] = useState(1);
                 </SelectTrigger>
                 <SelectContent>
                   {accounts?.map((account: unknown) => (
-                    <SelectItem key={account.id} value={account.id.toString()}>
+                    <SelectItem key={(account as any).id} value={(account as any).id.toString()}>
                       {/* @ts-ignore */}
                       {account.accountName} ({account.marketplace})
                     </SelectItem>

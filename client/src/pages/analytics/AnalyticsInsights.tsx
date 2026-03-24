@@ -130,10 +130,8 @@ const [activeTab, setActiveTab] = useState("overview");
     }
 
     // 季节性调整
-    // @ts-ignore
     if (seasonalQuery.data?.adjustments) {
-      // @ts-ignore
-      const upcoming = seasonalQuery.data.adjustments.filter((a: unknown) => a.status === 'upcoming');
+      const upcoming = seasonalQuery.data.adjustments.filter((a: unknown) => (a as any).status === 'upcoming');
       if (upcoming.length > 0) {
         suggestions.push(`${upcoming.length}个季节性调整计划待执行`);
       }
@@ -176,7 +174,7 @@ const [activeTab, setActiveTab] = useState("overview");
               {/* @ts-ignore */}
               <SelectContent>
                 {accounts?.map((account: unknown) => (
-                  <SelectItem key={account.id} value={account.id.toString()}>
+                  <SelectItem key={(account as any).id} value={(account as any).id.toString()}>
                     {/* @ts-ignore */}
                     {account.accountName}
                   </SelectItem>
@@ -212,7 +210,7 @@ const [activeTab, setActiveTab] = useState("overview");
               {insightsSummary.critical.length > 0 && (
                 <div className="mt-3 space-y-1">
                   {insightsSummary.critical.map((item: unknown, idx: unknown) => (
-                    <p key={idx} className="text-sm text-red-300">{item}</p>
+                    <p key={String(idx)} className="text-sm text-red-300">{String(item)}</p>
                   ))}
                 </div>
               )}
@@ -234,7 +232,7 @@ const [activeTab, setActiveTab] = useState("overview");
               {insightsSummary.warnings.length > 0 && (
                 <div className="mt-3 space-y-1">
                   {insightsSummary.warnings.map((item: unknown, idx: unknown) => (
-                    <p key={idx} className="text-sm text-yellow-300">{item}</p>
+                    <p key={String(idx)} className="text-sm text-yellow-300">{String(item)}</p>
                   ))}
                 </div>
               )}
@@ -256,7 +254,7 @@ const [activeTab, setActiveTab] = useState("overview");
               {insightsSummary.suggestions.length > 0 && (
                 <div className="mt-3 space-y-1">
                   {insightsSummary.suggestions.map((item: unknown, idx: unknown) => (
-                    <p key={idx} className="text-sm text-blue-300">{item}</p>
+                    <p key={String(idx)} className="text-sm text-blue-300">{String(item)}</p>
                   ))}
                 </div>
               )}
@@ -379,7 +377,7 @@ const [activeTab, setActiveTab] = useState("overview");
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {(attributionQuery as any).map((day: unknown, idx: number) => (
+                  {(attributionQuery as any)?.data?.map((day: unknown, idx: number) => (
                     <div key={idx} className="p-4 rounded-lg border bg-card/50">
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-2">
@@ -553,7 +551,7 @@ const [activeTab, setActiveTab] = useState("overview");
                           {/* @ts-ignore */}
                           {item.type === 'holiday' ? (
                             <Gift className="h-5 w-5 text-red-400" />
-                          ) : item.type === 'summer' ? (
+                          ) : (item as any).type === 'summer' ? (
                             <Sun className="h-5 w-5 text-yellow-400" />
                           ) : (
                             <Snowflake className="h-5 w-5 text-blue-400" />

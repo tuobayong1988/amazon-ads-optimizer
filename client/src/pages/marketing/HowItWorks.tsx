@@ -232,7 +232,7 @@ export default function HowItWorks() {
           </div>
           <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-6">
             {algorithmSteps.map((step: unknown, i: unknown) => (
-              <div key={i} className="relative">
+              <div key={String(i)} className="relative">
                 {/* @ts-ignore */}
                 {i < algorithmSteps.length - 1 && (
                   <div className="hidden lg:block absolute top-12 left-full w-full h-0.5 bg-gradient-to-r from-primary/50 to-transparent -translate-x-4"></div>
@@ -258,7 +258,7 @@ export default function HowItWorks() {
                   <p className="text-sm text-muted-foreground mb-4">{step.description}</p>
                   <div className="flex flex-wrap justify-center gap-2">
                     {(step as any).details.map((detail: unknown, j: unknown) => (
-                      <Badge key={j} variant="secondary" className="text-xs">{detail}</Badge>
+                      <Badge key={String(j)} variant="secondary" className="text-xs">{String(detail)}</Badge>
                     ))}
                   </div>
                 </div>
@@ -286,7 +286,7 @@ export default function HowItWorks() {
           {/* @ts-ignore */}
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
             {mlEngines.map((engine: unknown, i: unknown) => (
-              <Card key={i} className="bg-card/50 border-blue-500/20 hover:border-blue-500/50 transition-colors group">
+              <Card key={String(i)} className="bg-card/50 border-blue-500/20 hover:border-blue-500/50 transition-colors group">
                 <CardHeader>
                   {/* @ts-ignore */}
                   <div className="w-12 h-12 rounded-lg bg-blue-500/10 flex items-center justify-center mb-4 group-hover:bg-blue-500/20 transition-colors">
@@ -305,7 +305,7 @@ export default function HowItWorks() {
                   <p className="text-sm text-muted-foreground mb-4">{engine.description}</p>
                   <ul className="space-y-2">
                     {(engine as any).benefits.map((benefit: unknown, j: unknown) => (
-                      <li key={j} className="flex items-center gap-2 text-sm">
+                      <li key={String(j)} className="flex items-center gap-2 text-sm">
                         <CheckCircle2 className="w-4 h-4 text-blue-500 flex-shrink-0" />
                         {/* @ts-ignore */}
                         <span>{benefit}</span>
@@ -354,7 +354,7 @@ export default function HowItWorks() {
           {/* @ts-ignore */}
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
             {gtoEngines.map((engine: unknown, i: unknown) => (
-              <Card key={i} className="bg-card/50 border-amber-500/20 hover:border-amber-500/50 transition-colors group">
+              <Card key={String(i)} className="bg-card/50 border-amber-500/20 hover:border-amber-500/50 transition-colors group">
                 <CardHeader>
                   <div className="w-12 h-12 rounded-lg bg-amber-500/10 flex items-center justify-center mb-4 group-hover:bg-amber-500/20 transition-colors">
                     {/* @ts-ignore */}
@@ -370,7 +370,7 @@ export default function HowItWorks() {
                   <p className="text-sm text-muted-foreground mb-4">{engine.description}</p>
                   <ul className="space-y-2">
                     {(engine as any).benefits.map((benefit: unknown, j: unknown) => (
-                      <li key={j} className="flex items-center gap-2 text-sm">
+                      <li key={String(j)} className="flex items-center gap-2 text-sm">
                         <CheckCircle2 className="w-4 h-4 text-amber-500 flex-shrink-0" />
                         {/* @ts-ignore */}
                         <span>{benefit}</span>
@@ -400,7 +400,7 @@ export default function HowItWorks() {
           <div className="max-w-4xl mx-auto">
             <div className="grid gap-4">
               {comparisons.map((item: unknown, i: unknown) => (
-                <div key={i} className="grid md:grid-cols-3 gap-4 p-4 rounded-lg bg-card border border-border/50">
+                <div key={String(i)} className="grid md:grid-cols-3 gap-4 p-4 rounded-lg bg-card border border-border/50">
                   {/* @ts-ignore */}
                   <div className="font-medium text-primary">{item.aspect}</div>
                   <div className="flex items-start gap-2">

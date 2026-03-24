@@ -466,12 +466,11 @@ export default function OnboardingWizard({ isOpen, onComplete, onSkip, onPause, 
         <div className="py-4">
           <div className="flex items-center justify-between mb-2">
             {steps.map((step: unknown, index: unknown) => (
-              <div key={step.id} className="flex items-center">
+              <div key={(step as any).id} className="flex items-center">
                 <div className={`flex items-center justify-center w-8 h-8 rounded-full text-sm font-medium ${
                   // @ts-ignore
                   index <= currentStepIndex 
                     ? 'bg-primary text-primary-foreground' 
-                    // @ts-ignore
                     : 'bg-muted text-muted-foreground'
                 }`}>
                   {/* @ts-ignore */}

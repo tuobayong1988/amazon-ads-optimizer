@@ -274,7 +274,7 @@ export default function ProfitObservabilityPanel() {
                   {/* 各维度评分 */}
                   <div className="space-y-2">
                     {efficiencyData.dimensions.map((dim: unknown, idx: unknown) => (
-                      <div key={idx} className="flex items-center gap-2 text-sm">
+                      <div key={String(idx)} className="flex items-center gap-2 text-sm">
                         {/* @ts-ignore */}
                         <span className="w-24 text-muted-foreground">{dim.name}</span>
                         <div className="flex-1">
@@ -419,7 +419,7 @@ export default function ProfitObservabilityPanel() {
               {decisions.length > 0 ? (
                 <div className="space-y-2">
                   {decisions.slice(0, 10).map((d: unknown, idx: unknown) => (
-                    <div key={idx} className="flex items-center gap-3 p-2 rounded-lg bg-muted/50 text-sm">
+                    <div key={String(idx)} className="flex items-center gap-3 p-2 rounded-lg bg-muted/50 text-sm">
                       <div className="flex-shrink-0">
                         {/* @ts-ignore */}
                         {d.fusionMode === 'cascade_ensemble' ? (
@@ -447,9 +447,7 @@ export default function ProfitObservabilityPanel() {
                         </div>
                         <div className="text-xs text-muted-foreground mt-0.5">
                           探索率: {((d as any).explorationRate * 100).toFixed(0)}% | 
-                          // @ts-ignore
                           出价变化: {(d as any).bidChange > 0 ? '+' : ''}{((d as any).bidChange * 100).toFixed(1)}% | 
-                          // @ts-ignore
                           策略: {(d as any).strategyTemplate || 'default'}
                         </div>
                       </div>
@@ -516,7 +514,7 @@ export default function ProfitObservabilityPanel() {
                     <div className="space-y-2">
                       <p className="text-sm font-medium">最近调整记录</p>
                       {weightStatus.tuningHistory.slice(0, 5).map((h: unknown, idx: unknown) => (
-                        <div key={idx} className="text-xs p-2 bg-muted/50 rounded">
+                        <div key={String(idx)} className="text-xs p-2 bg-muted/50 rounded">
                           {/* @ts-ignore */}
                           <span className="text-muted-foreground">{new Date(h.timestamp).toLocaleString()}</span>
                           {/* @ts-ignore */}

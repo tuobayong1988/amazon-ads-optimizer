@@ -131,7 +131,7 @@ export function MobileListCard({
             <button
               // @ts-ignore
               key={item.id}
-              onClick={() => onItemClick?.(item.id)}
+              onClick={() => onItemClick?.((item as any).id)}
               className="flex items-center justify-between w-full px-4 py-3 text-left active:bg-muted/50 transition-colors"
               disabled={!onItemClick}
             >
@@ -142,7 +142,7 @@ export function MobileListCard({
                 <p className="text-sm font-medium truncate">{item.label}</p>
                 {/* @ts-ignore */}
                 {item.subtitle && (
-                  <p className="text-xs text-muted-foreground mt-0.5">{item.subtitle}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{(item as any).subtitle}</p>
                 )}
               </div>
               <div className="flex items-center gap-2 ml-2">

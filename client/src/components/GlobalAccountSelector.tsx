@@ -174,12 +174,9 @@ export default function GlobalAccountSelector({ compact = false }: GlobalAccount
     if (accounts && accounts.length > 0) {
       // 如果没有选中店铺，选择第一个（trim空格）
       if (!currentStore || !stores.includes(currentStore)) {
-        // @ts-ignore
         const firstAccount = accounts[0] as unknown;
-        // @ts-ignore
-        const firstStore = (firstAccount.storeName || firstAccount.accountName).trim();
-        // @ts-ignore
-        const firstMarketplace = firstAccount.marketplace;
+        const firstStore = ((firstAccount as any).storeName || (firstAccount as any).accountName).trim();
+        const firstMarketplace = (firstAccount as any).marketplace;
         setCurrentSelection(firstStore, firstMarketplace);
         // console.log('[GlobalAccountSelector] Auto-selected:', firstStore, firstMarketplace);
       }
@@ -292,6 +289,7 @@ export default function GlobalAccountSelector({ compact = false }: GlobalAccount
             <DropdownMenuItem
               // @ts-ignore
               key={store}
+              // @ts-ignore
               onClick={() => handleStoreChange(store)}
               className="flex items-center justify-between cursor-pointer"
             >
@@ -333,6 +331,7 @@ export default function GlobalAccountSelector({ compact = false }: GlobalAccount
             <DropdownMenuItem
               // @ts-ignore
               key={marketplace}
+              // @ts-ignore
               onClick={() => handleMarketplaceChange(marketplace)}
               className="flex items-center justify-between cursor-pointer"
             >

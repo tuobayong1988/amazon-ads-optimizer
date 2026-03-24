@@ -316,15 +316,15 @@ function MarketingPage() {
             {/* 核心指标展示 */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
               {performanceMetrics.map((metric: unknown, i: unknown) => (
-                <div key={i} className="bg-card/50 backdrop-blur-sm border border-border/50 rounded-lg p-4">
+                <div key={String(i)} className="bg-card/50 backdrop-blur-sm border border-border/50 rounded-lg p-4">
                   {/* @ts-ignore */}
                   <div className="flex items-center gap-2 mb-1">
                     {/* @ts-ignore */}
                     {/* @ts-ignore */}
                     {metric.trend === "up" ? (
-                      <ArrowUpRight className={`w-4 h-4 ${metric.color}`} />
+                      <ArrowUpRight className={`w-4 h-4 ${(metric as any).color}`} />
                     ) : (
-                      <ArrowDownRight className={`w-4 h-4 ${metric.color}`} />
+                      <ArrowDownRight className={`w-4 h-4 ${(metric as any).color}`} />
                     )}
                     <span className={`text-2xl font-bold ${(metric as any).color}`}>{(metric as any).value}</span>
                   </div>
@@ -379,7 +379,7 @@ function MarketingPage() {
             </div>
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
               {mlEngines.map((feature: unknown, i: unknown) => (
-                <Card key={i} className="bg-card/50 border-blue-500/20 hover:border-blue-500/50 transition-colors group">
+                <Card key={String(i)} className="bg-card/50 border-blue-500/20 hover:border-blue-500/50 transition-colors group">
                   <CardHeader>
                     {/* @ts-ignore */}
                     <div className="w-12 h-12 rounded-lg bg-blue-500/10 flex items-center justify-center mb-4 group-hover:bg-blue-500/20 transition-colors">
@@ -397,7 +397,7 @@ function MarketingPage() {
                     <p className="text-sm text-muted-foreground mb-4">{feature.description}</p>
                     <ul className="space-y-2">
                       {(feature as any).benefits.map((benefit: unknown, j: unknown) => (
-                        <li key={j} className="flex items-center gap-2 text-sm">
+                        <li key={String(j)} className="flex items-center gap-2 text-sm">
                           <CheckCircle2 className="w-4 h-4 text-blue-500 flex-shrink-0" />
                           {/* @ts-ignore */}
                           <span>{benefit}</span>
@@ -442,7 +442,7 @@ function MarketingPage() {
             {/* @ts-ignore */}
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
               {gtoEngines.map((feature: unknown, i: unknown) => (
-                <Card key={i} className="bg-card/50 border-amber-500/20 hover:border-amber-500/50 transition-colors group">
+                <Card key={String(i)} className="bg-card/50 border-amber-500/20 hover:border-amber-500/50 transition-colors group">
                   <CardHeader>
                     <div className="w-12 h-12 rounded-lg bg-amber-500/10 flex items-center justify-center mb-4 group-hover:bg-amber-500/20 transition-colors">
                       {/* @ts-ignore */}
@@ -458,7 +458,7 @@ function MarketingPage() {
                     <p className="text-sm text-muted-foreground mb-4">{feature.description}</p>
                     <ul className="space-y-2">
                       {(feature as any).benefits.map((benefit: unknown, j: unknown) => (
-                        <li key={j} className="flex items-center gap-2 text-sm">
+                        <li key={String(j)} className="flex items-center gap-2 text-sm">
                           <CheckCircle2 className="w-4 h-4 text-amber-500 flex-shrink-0" />
                           {/* @ts-ignore */}
                           <span>{benefit}</span>
@@ -492,7 +492,7 @@ function MarketingPage() {
           {/* @ts-ignore */}
           <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-6">
             {algorithmSteps.map((step: unknown, i: unknown) => (
-              <div key={i} className="relative">
+              <div key={String(i)} className="relative">
                 {/* 连接线 */}
                 {/* @ts-ignore */}
                 {i < algorithmSteps.length - 1 && (
@@ -516,7 +516,7 @@ function MarketingPage() {
                   <p className="text-sm text-muted-foreground mb-4">{step.description}</p>
                   <div className="flex flex-wrap justify-center gap-2">
                     {(step as any).details.map((detail: unknown, j: unknown) => (
-                      <Badge key={j} variant="secondary" className="text-xs">
+                      <Badge key={String(j)} variant="secondary" className="text-xs">
                         {/* @ts-ignore */}
                         {detail}
                       </Badge>
@@ -544,16 +544,13 @@ function MarketingPage() {
             <div className="grid gap-4">
               {[
                 {
-                  // @ts-ignore
                   aspect: "出价决策算法",
                   traditional: "固定规则或单一算法，所有关键词一视同仁",
                   ours: "NextGen-GTO双层12引擎，ML计算基础出价 + GTO博弈论修正"
-                // @ts-ignore
                 },
                 {
                   aspect: "竞争环境感知",
                   traditional: "完全忽略竞争对手行为，只看自身数据",
-                  // @ts-ignore
                   ours: "GTO引擎实时感知竞争环境，自动识别对手行为模式并调整策略"
                 },
                 {
@@ -577,7 +574,7 @@ function MarketingPage() {
                   ours: "三层降级 + GTO安全边界(0.6~1.4) + 预算熔断，永不失控"
                 }
               ].map((item: unknown, i: unknown) => (
-                <div key={i} className="grid md:grid-cols-3 gap-4 p-4 rounded-lg bg-card border border-border/50">
+                <div key={String(i)} className="grid md:grid-cols-3 gap-4 p-4 rounded-lg bg-card border border-border/50">
                   {/* @ts-ignore */}
                   <div className="font-medium text-primary">{item.aspect}</div>
                   <div className="flex items-start gap-2">
@@ -633,7 +630,7 @@ function MarketingPage() {
                 features: ["受众定向优化", "再营销策略", "跨渠道追踪"]
               }
             ].map((ad: unknown, i: unknown) => (
-              <Card key={i} className="text-center">
+              <Card key={String(i)} className="text-center">
                 <CardHeader>
                   <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
                     {/* @ts-ignore */}
@@ -648,7 +645,7 @@ function MarketingPage() {
                 <CardContent>
                   <ul className="space-y-2 text-left">
                     {(ad as any).features.map((feature: unknown, j: unknown) => (
-                      <li key={j} className="flex items-center gap-2 text-sm">
+                      <li key={String(j)} className="flex items-center gap-2 text-sm">
                         {/* @ts-ignore */}
                         <CheckCircle2 className="w-4 h-4 text-green-500" />
                         {/* @ts-ignore */}
@@ -676,13 +673,12 @@ function MarketingPage() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
             {getAllPosts().slice(0, 6).map((post: unknown) => (
-              <Link key={post.id} href={`/blog/${post.slug}`}>
+              <Link key={(post as any).id} href={`/blog/${(post as any).slug}`}>
                 <Card className="overflow-hidden hover:shadow-lg transition-all duration-300 group cursor-pointer h-full">
                   <div className="relative aspect-video overflow-hidden">
                     <img
-                      // @ts-ignore
-                      src={post.coverImage}
-                      alt={post.title}
+                      src={(post as any).coverImage}
+                      alt={(post as any).title}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                     />
                     <Badge className="absolute top-3 left-3 bg-primary/90">
@@ -918,14 +914,12 @@ function DashboardContent() {
     }
   }, [userPreferences]);
 
-  // @ts-ignore
   useEffect(() => {
     if (userPreferences && (userPreferences as Record<string, unknown>).dashboardCardOrder) {
       const savedOrder = (userPreferences as Record<string, unknown>).dashboardCardOrder as string[];
       // 确保所有默认卡片都存在（防止新增卡片丢失）
       const mergedOrder = [...savedOrder];
       DEFAULT_CARD_ORDER.forEach(id => {
-        // @ts-ignore
         if (!mergedOrder.includes(id)) mergedOrder.push(id);
       });
       // 移除已删除的卡片
@@ -967,36 +961,33 @@ function DashboardContent() {
     { enabled: !!user }
   );
   
-  // @ts-ignore
   const days = timeRangeValue.days;
-  // @ts-ignore
   const startDate = format(timeRangeValue.dateRange.from, 'yyyy-MM-dd');
   const endDate = format(timeRangeValue.dateRange.to, 'yyyy-MM-dd');
   const timeRange = timeRangeValue.preset === 'custom' ? 'custom' : timeRangeValue.preset;
   
   // 获取账户列表及绩效数据
   const { data: accountsWithPerformance, refetch: refetchAccounts, isLoading: isAccountsLoading } = trpc.adAccount.listWithPerformance.useQuery(
+    // @ts-ignore
     { timeRange: timeRange as unknown, days, startDate, endDate },
     { enabled: !!user }
   );
   
   // 获取图表趋势数据
-  // @ts-ignore
   const { data: trendData } = trpc.adAccount.getDailyTrend.useQuery(
+    // @ts-ignore
     { days, timeRange: timeRange as unknown, startDate, endDate },
     { enabled: !!user }
   );
   
   // v268 性能优化: 非关键数据请求增加staleTime，减少首屏并发请求数
   // v233: 获取纠错监控数据
-  // @ts-ignore
   const { data: correctionDashboard } = trpc.autoCorrection.getDashboard.useQuery(
     undefined,
     { enabled: !!user, refetchInterval: 60000, staleTime: 60 * 1000 }
   );
   
   // v233: 获取算法效果统计
-  // @ts-ignore
   const { data: algorithmStats } = trpc.algorithmEffect.getStats.useQuery(
     { days: 30 },
     { enabled: !!user, staleTime: 5 * 60 * 1000 }
@@ -1019,57 +1010,44 @@ function DashboardContent() {
   );
   
   // 图表数据
-  // @ts-ignore
   const chartData = useMemo(() => {
-    // @ts-ignore
-    if (trendData && trendData.length > 0) return trendData;
+    if (trendData && (trendData as any).length > 0) return trendData;
     return [];
   }, [trendData]);
   
   // v233: 合并图表数据 - 花费/销售额柱状图 + ACoS折线图
   const combinedChartData = useMemo(() => {
-    // @ts-ignore
-    return chartData.map((d: unknown) => ({
+    return (chartData as any).map((d: unknown) => ({
       // @ts-ignore
       ...d,
-      // @ts-ignore
-      profit: d.sales - d.spend,
+      profit: (d as any).sales - (d as any).spend,
     }));
   }, [chartData]);
   
   // 按ACoS从高到低排序（风险排行）
   const accountsData = useMemo(() => {
+    if (!accountsWithPerformance || (accountsWithPerformance as any).length === 0) return [];
     // @ts-ignore
-    if (!accountsWithPerformance || accountsWithPerformance.length === 0) return [];
-    // @ts-ignore
-    return [...accountsWithPerformance].sort((a: unknown, b: unknown) => b.acos - a.acos);
-  // @ts-ignore
+    return [...accountsWithPerformance].sort((a: unknown, b: unknown) => (b as any).acos - (a as any).acos);
   }, [accountsWithPerformance]);
   
   // 计算汇总数据
-  // @ts-ignore
   const summary = useMemo(() => {
-    // @ts-ignore
-    const totalSpend = accountsData.reduce((sum: number, a: Record<string, unknown>) => sum + a.spend, 0);
-    // @ts-ignore
-    const totalSales = accountsData.reduce((sum: number, a: Record<string, unknown>) => sum + a.sales, 0);
-    // @ts-ignore
-    const totalOrders = accountsData.reduce((sum: number, a: Record<string, unknown>) => sum + a.orders, 0);
+    const totalSpend = accountsData.reduce((sum: number, a: Record<string, unknown>) => sum + (a.spend as any), 0);
+    const totalSales = accountsData.reduce((sum: number, a: Record<string, unknown>) => sum + (a.sales as any), 0);
+    const totalOrders = accountsData.reduce((sum: number, a: Record<string, unknown>) => sum + (a.orders as any), 0);
     const avgAcos = totalSpend > 0 && totalSales > 0 ? (totalSpend / totalSales) * 100 : 0;
     const avgRoas = totalSpend > 0 ? totalSales / totalSpend : 0;
     const profit = totalSales - totalSpend;
     
     const spendChange = accountsData.length > 0 
-      // @ts-ignore
-      ? accountsData.reduce((sum: number, a: Record<string, unknown>) => sum + (a.change?.spend || 0) * a.spend, 0) / Math.max(totalSpend, 1)
+      ? accountsData.reduce((sum: number, a: Record<string, unknown>) => sum + ((a as any).change?.spend || 0) * (a.spend as any), 0) / Math.max(totalSpend, 1)
       : 0;
     const salesChange = accountsData.length > 0
-      // @ts-ignore
-      ? accountsData.reduce((sum: number, a: Record<string, unknown>) => sum + (a.change?.sales || 0) * a.sales, 0) / Math.max(totalSales, 1)
+      ? accountsData.reduce((sum: number, a: Record<string, unknown>) => sum + ((a as any).change?.sales || 0) * (a.sales as any), 0) / Math.max(totalSales, 1)
       : 0;
     const acosChange = accountsData.length > 0
-      // @ts-ignore
-      ? accountsData.reduce((sum: number, a: Record<string, unknown>) => sum + (a.change?.acos || 0), 0) / accountsData.length
+      ? accountsData.reduce((sum: number, a: Record<string, unknown>) => sum + ((a as any).change?.acos || 0), 0) / accountsData.length
       : 0;
     const roasChange = -acosChange;
     
@@ -1090,12 +1068,10 @@ function DashboardContent() {
   // 非活跃状态(排除): not_applicable(不适用), invalid_legacy(历史遗留),
   //   permanently_failed(永久失败), superseded(已过时), 空字符串(历史异常)
   const syncStats = useMemo(() => {
+    if (!(correctionDashboard as any)?.statusDistribution) return { synced: 0, pending: 0, failed: 0, total: 0, notApplicable: 0, inactive: 0 };
+    const dist = (correctionDashboard as any).statusDistribution as unknown[];
     // @ts-ignore
-    if (!correctionDashboard?.statusDistribution) return { synced: 0, pending: 0, failed: 0, total: 0, notApplicable: 0, inactive: 0 };
-    // @ts-ignore
-    const dist = correctionDashboard.statusDistribution as unknown[];
-    // @ts-ignore
-    const getCount = (status: string) => Number(dist.find((d: unknown) => d.api_sync_status === status)?.count || 0);
+    const getCount = (status: string) => Number(dist.find((d: unknown) => (d as any).api_sync_status === status)?.count || 0);
     
     // 活跃同步状态
     const synced = getCount('synced');
@@ -1117,14 +1093,11 @@ function DashboardContent() {
   
   // v233: 算法使用统计
   const algorithmSummary = useMemo(() => {
+    if (!algorithmStats || (algorithmStats as any).length === 0) return { totalOps: 0, avgPositiveRate: 0, bestAlgorithm: '无数据', algorithms: [] };
+    const totalOps = (algorithmStats as any).reduce((sum: number, a: Record<string, unknown>) => sum + (a.count as any), 0);
+    const avgPositiveRate = (algorithmStats as any).reduce((sum: number, a: Record<string, unknown>) => sum + (a.positiveRate as any) * (a.count as any), 0) / Math.max(totalOps, 1);
     // @ts-ignore
-    if (!algorithmStats || algorithmStats.length === 0) return { totalOps: 0, avgPositiveRate: 0, bestAlgorithm: '无数据', algorithms: [] };
-    // @ts-ignore
-    const totalOps = algorithmStats.reduce((sum: number, a: Record<string, unknown>) => sum + a.count, 0);
-    // @ts-ignore
-    const avgPositiveRate = algorithmStats.reduce((sum: number, a: Record<string, unknown>) => sum + a.positiveRate * a.count, 0) / Math.max(totalOps, 1);
-    // @ts-ignore
-    const best = [...algorithmStats].sort((a: unknown, b: unknown) => b.positiveRate - a.positiveRate)[0];
+    const best = [...algorithmStats].sort((a: unknown, b: unknown) => (b as any).positiveRate - (a as any).positiveRate)[0];
     return { totalOps, avgPositiveRate, bestAlgorithm: best?.algorithm || '无数据', algorithms: algorithmStats };
   }, [algorithmStats]);
   
@@ -1144,7 +1117,6 @@ function DashboardContent() {
     switch (status) {
       case 'healthy': return 'bg-green-500/20 border-green-500/50';
       case 'warning': return 'bg-yellow-500/20 border-yellow-500/50';
-      // @ts-ignore
       case 'critical': return 'bg-red-500/20 border-red-500/50';
       default: return 'bg-muted';
     }
@@ -1229,7 +1201,9 @@ function DashboardContent() {
                   const isFullWidth = sizeType === 'full';
                   
                   return (
-                  <Draggable key={cardId} draggableId={cardId} index={index}>
+                  // @ts-ignore
+                  // @ts-ignore
+                  <Draggable key={String(cardId)} draggableId={cardId} index={index}>
                     {(provided, snapshot) => (
                       <div
                         ref={provided.innerRef}
@@ -1252,7 +1226,7 @@ function DashboardContent() {
                               value={`$${summary.totalSpend.toFixed(0)}`}
                               icon={<DollarSign className="w-4 h-4 text-blue-500" />}
                               change={summary.spendChange}
-                              sparklineData={(trendData || []).map((d: unknown) => ({ value: d.spend }))}
+                              sparklineData={((trendData || []) as any).map((d: unknown) => ({ value: (d as any).spend }))}
                               isRealtime={true}
                               realtimeDelay="<5分钟"
                               gradientFrom="blue-500"
@@ -1265,27 +1239,23 @@ function DashboardContent() {
                               value={`$${summary.totalSales.toFixed(0)}`}
                               icon={<ShoppingCart className="w-4 h-4 text-green-500" />}
                               change={summary.salesChange}
-                              sparklineData={(trendData || []).map((d: unknown) => ({ value: d.sales }))}
+                              sparklineData={((trendData || []) as any).map((d: unknown) => ({ value: (d as any).sales }))}
                               isRealtime={true}
                               realtimeDelay="<5分钟"
                               gradientFrom="green-500"
-                              // @ts-ignore
                               gradientTo="green-600"
-                              // @ts-ignore
                               borderColor="green-500"
                               isLoading={isAccountsLoading}
                             />
                             <EnhancedMetricCard
                               title="平均ACoS"
-                              // @ts-ignore
                               value={`${summary.avgAcos.toFixed(1)}%`}
                               icon={<Percent className="w-4 h-4 text-orange-500" />}
                               change={summary.acosChange}
                               isInverse={true}
-                              sparklineData={(trendData || []).map((d: unknown) => ({ value: d.acos }))}
+                              sparklineData={((trendData || []) as any).map((d: unknown) => ({ value: (d as any).acos }))}
                               gradientFrom="orange-500"
                               gradientTo="orange-600"
-                              // @ts-ignore
                               borderColor="orange-500"
                               isLoading={isAccountsLoading}
                             />
@@ -1297,7 +1267,6 @@ function DashboardContent() {
                               change={summary.roasChange}
                               gradientFrom="purple-500"
                               gradientTo="purple-600"
-                              // @ts-ignore
                               borderColor="purple-500"
                               isLoading={isAccountsLoading}
                             />
@@ -1309,15 +1278,12 @@ function DashboardContent() {
                               isLoading={isAccountsLoading}
                             />
                             <EnhancedMetricCard
-                              // @ts-ignore
                               title="总订单"
-                              // @ts-ignore
                               value={summary.totalOrders.toString()}
                               icon={<BarChart3 className="w-4 h-4 text-cyan-500" />}
                               change={summary.salesChange}
                               gradientFrom="cyan-500"
                               gradientTo="cyan-600"
-                              // @ts-ignore
                               borderColor="cyan-500"
                               isLoading={isAccountsLoading}
                             />
@@ -1352,28 +1318,21 @@ function DashboardContent() {
                               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                 {/* 回滚率 */}
                                 <div className={`p-4 rounded-lg border ${
-                                  // @ts-ignore
-                                  healthMetrics.metrics.rollbackRate.status === 'healthy' 
+                                  (healthMetrics as any).metrics.rollbackRate.status === 'healthy' 
                                     ? 'border-green-500/30 bg-green-500/5' 
-                                    // @ts-ignore
-                                    : healthMetrics.metrics.rollbackRate.status === 'warning'
+                                    : (healthMetrics as any).metrics.rollbackRate.status === 'warning'
                                     ? 'border-yellow-500/30 bg-yellow-500/5' : 'border-red-500/30 bg-red-500/5'
-                                // @ts-ignore
                                 }`}>
                                   <div className="flex items-center gap-2 mb-2">
                                     <div className={`w-2 h-2 rounded-full ${
-                                      // @ts-ignore
-                                      healthMetrics.metrics.rollbackRate.status === 'healthy' ? 'bg-green-500' :
-                                      // @ts-ignore
-                                      healthMetrics.metrics.rollbackRate.status === 'warning' ? 'bg-yellow-500' : 'bg-red-500'
+                                      (healthMetrics as any).metrics.rollbackRate.status === 'healthy' ? 'bg-green-500' :
+                                      (healthMetrics as any).metrics.rollbackRate.status === 'warning' ? 'bg-yellow-500' : 'bg-red-500'
                                     }`} />
                                     <span className="text-xs text-muted-foreground">回滚率</span>
                                   </div>
                                   <div className={`text-2xl font-bold ${
-                                    // @ts-ignore
-                                    healthMetrics.metrics.rollbackRate.status === 'healthy' ? 'text-green-400' :
-                                    // @ts-ignore
-                                    healthMetrics.metrics.rollbackRate.status === 'warning' ? 'text-yellow-400' : 'text-red-400'
+                                    (healthMetrics as any).metrics.rollbackRate.status === 'healthy' ? 'text-green-400' :
+                                    (healthMetrics as any).metrics.rollbackRate.status === 'warning' ? 'text-yellow-400' : 'text-red-400'
                                   }`}>
                                     {/* @ts-ignore */}
                                     {healthMetrics.metrics.rollbackRate.rate.toFixed(1)}%
@@ -1382,7 +1341,7 @@ function DashboardContent() {
                                     {/* @ts-ignore */}
                                     {healthMetrics.metrics.rollbackRate.trend === 'improving' ? (
                                       <><TrendingDown className="w-3 h-3 text-green-500" /> 改善中</>
-                                    ) : healthMetrics.metrics.rollbackRate.trend === 'worsening' ? (
+                                    ) : (healthMetrics as any).metrics.rollbackRate.trend === 'worsening' ? (
                                       <><TrendingUp className="w-3 h-3 text-red-500" /> 恶化中</>
                                     ) : '稳定'}
                                     <span className="ml-1">(前期: {(healthMetrics as any).metrics.rollbackRate.previousRate.toFixed(1)}%)</span>
@@ -1391,29 +1350,22 @@ function DashboardContent() {
                                 </div>
                                 {/* 算法激活率 */}
                                 <div className={`p-4 rounded-lg border ${
-                                  // @ts-ignore
-                                  healthMetrics.metrics.algorithmActivation.status === 'healthy'
+                                  (healthMetrics as any).metrics.algorithmActivation.status === 'healthy'
                                     ? 'border-green-500/30 bg-green-500/5'
-                                    // @ts-ignore
-                                    : healthMetrics.metrics.algorithmActivation.status === 'warning'
-                                    // @ts-ignore
+                                    : (healthMetrics as any).metrics.algorithmActivation.status === 'warning'
                                     ? 'border-yellow-500/30 bg-yellow-500/5' : 'border-red-500/30 bg-red-500/5'
                                 }`}>
                                   <div className="flex items-center gap-2 mb-2">
                                     <div className={`w-2 h-2 rounded-full ${
-                                      // @ts-ignore
-                                      healthMetrics.metrics.algorithmActivation.status === 'healthy' ? 'bg-green-500' :
-                                      // @ts-ignore
-                                      healthMetrics.metrics.algorithmActivation.status === 'warning' ? 'bg-yellow-500' : 'bg-red-500'
+                                      (healthMetrics as any).metrics.algorithmActivation.status === 'healthy' ? 'bg-green-500' :
+                                      (healthMetrics as any).metrics.algorithmActivation.status === 'warning' ? 'bg-yellow-500' : 'bg-red-500'
                                     }`} />
                                     {/* @ts-ignore */}
                                     <span className="text-xs text-muted-foreground">高级算法激活率</span>
                                   </div>
                                   <div className={`text-2xl font-bold ${
-                                    // @ts-ignore
-                                    healthMetrics.metrics.algorithmActivation.status === 'healthy' ? 'text-green-400' :
-                                    // @ts-ignore
-                                    healthMetrics.metrics.algorithmActivation.status === 'warning' ? 'text-yellow-400' : 'text-red-400'
+                                    (healthMetrics as any).metrics.algorithmActivation.status === 'healthy' ? 'text-green-400' :
+                                    (healthMetrics as any).metrics.algorithmActivation.status === 'warning' ? 'text-yellow-400' : 'text-red-400'
                                   }`}>
                                     {/* @ts-ignore */}
                                     {/* @ts-ignore */}
@@ -1425,8 +1377,7 @@ function DashboardContent() {
                                 </div>
                                 {/* ACoS趋势 */}
                                 {(() => {
-                                  // @ts-ignore
-                                  const acosTrend = healthMetrics.metrics.acosTrend;
+                                  const acosTrend = (healthMetrics as any).metrics.acosTrend;
                                   const acosStatus = acosTrend.deathSpiralDetected ? 'critical' : acosTrend.direction === 'improving' ? 'healthy' : acosTrend.direction === 'worsening' ? 'warning' : 'healthy';
                                   return (
                                 <div className={`p-4 rounded-lg border ${
@@ -1458,20 +1409,15 @@ function DashboardContent() {
                                   </div>
                                 </div>
                                   );
-                                // @ts-ignore
                                 })()}
                                 {/* 熔断状态 */}
                                 {(() => {
-                                  // @ts-ignore
-                                  const cbr = healthMetrics.metrics.circuitBreakerRate;
+                                  const cbr = (healthMetrics as any).metrics.circuitBreakerRate;
                                   const cbrStatus = cbr.rate < 5 ? 'healthy' : cbr.rate < 20 ? 'warning' : 'critical';
                                   return (
                                 <div className={`p-4 rounded-lg border ${
-                                  // @ts-ignore
                                   cbrStatus === 'healthy'
-                                    // @ts-ignore
                                     ? 'border-green-500/30 bg-green-500/5'
-                                    // @ts-ignore
                                     : cbrStatus === 'warning'
                                     ? 'border-yellow-500/30 bg-yellow-500/5' : 'border-red-500/30 bg-red-500/5'
                                 }`}>
@@ -1480,7 +1426,6 @@ function DashboardContent() {
                                     <div className={`w-2 h-2 rounded-full ${
                                       cbrStatus === 'healthy' ? 'bg-green-500' :
                                       cbrStatus === 'warning' ? 'bg-yellow-500' : 'bg-red-500'
-                                    // @ts-ignore
                                     }`} />
                                     {/* @ts-ignore */}
                                     <span className="text-xs text-muted-foreground">熔断率</span>
@@ -1574,9 +1519,8 @@ function DashboardContent() {
                               <div className="space-y-3">
                                 {accountsData.map((account: unknown, idx: unknown) => (
                                   <div 
-                                    // @ts-ignore
-                                    key={account.id}
-                                    className={`p-3 rounded-lg border ${getStatusColor(account.status)} flex items-center gap-4`}
+                                    key={(account as any).id}
+                                    className={`p-3 rounded-lg border ${getStatusColor((account as any).status)} flex items-center gap-4`}
                                   >
                                     {/* @ts-ignore */}
                                     <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${account.status === 'critical' ? 'bg-red-500/30 text-red-400' : account.status === 'warning' ? 'bg-yellow-500/30 text-yellow-400' : 'bg-green-500/30 text-green-400'}`}>
@@ -1608,9 +1552,8 @@ function DashboardContent() {
                                     <div className="w-20 shrink-0 hidden sm:block">
                                       <div className="h-2 bg-muted rounded-full overflow-hidden">
                                         <div 
-                                          // @ts-ignore
-                                          className={`h-full rounded-full transition-all ${getAcosBgColor(account.acos)}`}
-                                          style={{ width: `${Math.min(account.acos / 100 * 100, 100)}%` }}
+                                          className={`h-full rounded-full transition-all ${getAcosBgColor((account as any).acos)}`}
+                                          style={{ width: `${Math.min((account as any).acos / 100 * 100, 100)}%` }}
                                         />
                                       {/* @ts-ignore */}
                                       </div>
@@ -1698,7 +1641,6 @@ function DashboardContent() {
                                   <div className="text-xs text-muted-foreground">最近扫描</div>
                                   <div className="text-xs mt-1">
                                     发现 <span className="text-yellow-500 font-semibold">{(correctionDashboard as any).lastScan.totalIssuesFound}</span> 个问题，
-                                    // @ts-ignore
                                     已纠正 <span className="text-green-500 font-semibold">{(correctionDashboard as any).lastScan.totalCorrected}</span> 个
                                   </div>
                                 </div>
@@ -1739,13 +1681,12 @@ function DashboardContent() {
                               {algorithmSummary.algorithms.length > 0 && (
                                 <div className="pt-2 border-t border-border/50 space-y-2">
                                   <div className="text-xs text-muted-foreground">各算法表现</div>
-                                  {algorithmSummary.algorithms.map((alg: any) => (
+                                  {(algorithmSummary as any).algorithms?.map((alg: any) => (
                                     <div key={alg.algorithm} className="flex items-center gap-2">
                                       {/* @ts-ignore */}
                                       <span className="text-xs w-24 truncate" title={getAlgorithmNameCN(alg.algorithm)}>{getAlgorithmNameCN(alg.algorithm)}</span>
                                       <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
                                         <div 
-                                          // @ts-ignore
                                           className={`h-full rounded-full ${alg.positiveRate >= 60 ? 'bg-green-500' : alg.positiveRate >= 40 ? 'bg-yellow-500' : 'bg-red-500'}`}
                                           style={{ width: `${alg.positiveRate}%` }}
                                         />

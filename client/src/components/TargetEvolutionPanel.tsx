@@ -229,7 +229,7 @@ export default function TargetEvolutionPanel({ performanceGroupId }: TargetEvolu
                       </thead>
                       <tbody>
                         {evaluation.algorithmPerformance.map((ap: unknown) => (
-                          <tr key={ap.algorithm} className="border-t">
+                          <tr key={(ap as any).algorithm} className="border-t">
                             {/* @ts-ignore */}
                             {/* @ts-ignore */}
                             <td className="p-2">{ap.algorithm}</td>
@@ -248,7 +248,7 @@ export default function TargetEvolutionPanel({ performanceGroupId }: TargetEvolu
                               {/* @ts-ignore */}
                               {ap.successRate >= 60 ? (
                                 <Badge variant="default" className="bg-green-500">优秀</Badge>
-                              ) : ap.successRate >= 40 ? (
+                              ) : (ap as any).successRate >= 40 ? (
                                 <Badge variant="secondary">一般</Badge>
                               ) : (
                                 <Badge variant="destructive">待改进</Badge>
@@ -284,7 +284,7 @@ export default function TargetEvolutionPanel({ performanceGroupId }: TargetEvolu
                       {/* @ts-ignore */}
                       <tbody>
                         {evaluation.rangePerformance.map((rp: unknown) => (
-                          <tr key={rp.range} className="border-t">
+                          <tr key={(rp as any).range} className="border-t">
                             {/* @ts-ignore */}
                             <td className="p-2">{rp.range}</td>
                             {/* @ts-ignore */}

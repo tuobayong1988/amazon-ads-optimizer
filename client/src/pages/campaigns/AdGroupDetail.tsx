@@ -109,24 +109,17 @@ export default function AdGroupDetail() {
   // 过滤关键词
   const filteredKeywords = keywords?.filter((kw: unknown) => {
     const matchesSearch = !searchTerm || 
-      // @ts-ignore
-      kw.keywordText?.toLowerCase().includes(searchTerm.toLowerCase());
-    // @ts-ignore
-    const matchesStatus = statusFilter === "all" || kw.keywordStatus === statusFilter;
+      (kw as any).keywordText?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = statusFilter === "all" || (kw as any).keywordStatus === statusFilter;
     return matchesSearch && matchesStatus;
   }) || [];
   
   // 过滤商品定位
-  // @ts-ignore
   const filteredTargets = productTargets?.filter((pt: unknown) => {
-    // @ts-ignore
     const matchesSearch = !searchTerm || 
-      // @ts-ignore
-      pt.targetExpression?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      // @ts-ignore
-      pt.targetValue?.toLowerCase().includes(searchTerm.toLowerCase());
-    // @ts-ignore
-    const matchesStatus = statusFilter === "all" || pt.targetStatus === statusFilter;
+      (pt as any).targetExpression?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (pt as any).targetValue?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = statusFilter === "all" || (pt as any).targetStatus === statusFilter;
     return matchesSearch && matchesStatus;
   }) || [];
   
@@ -636,26 +629,18 @@ export default function AdGroupDetail() {
                         {/* @ts-ignore */}
                         <TableBody>
                           {filteredKeywords.map((keyword: unknown) => {
-                            // @ts-ignore
-                            const kwSpend = parseFloat(keyword.spend || "0");
-                            // @ts-ignore
-                            const kwSales = parseFloat(keyword.sales || "0");
-                            // @ts-ignore
-                            const kwImpressions = keyword.impressions || 0;
-                            // @ts-ignore
-                            const kwClicks = keyword.clicks || 0;
-                            // @ts-ignore
-                            const kwOrders = keyword.orders || 0;
-                            // @ts-ignore
+                            const kwSpend = parseFloat((keyword as any).spend || "0");
+                            const kwSales = parseFloat((keyword as any).sales || "0");
+                            const kwImpressions = (keyword as any).impressions || 0;
+                            const kwClicks = (keyword as any).clicks || 0;
+                            const kwOrders = (keyword as any).orders || 0;
                             const kwAcos = kwSales > 0 ? (kwSpend / kwSales * 100) : 0;
                             const kwRoas = kwSpend > 0 ? (kwSales / kwSpend) : 0;
-                            // @ts-ignore
                             const kwCtr = kwImpressions > 0 ? (kwClicks / kwImpressions * 100) : 0;
-                            // @ts-ignore
                             const kwCvr = kwClicks > 0 ? (kwOrders / kwClicks * 100) : 0;
                             
                             return (
-                              <TableRow key={keyword.id}>
+                              <TableRow key={(keyword as any).id}>
                                 {/* @ts-ignore */}
                                 <TableCell className="font-medium">{keyword.keywordText}</TableCell>
                                 {/* @ts-ignore */}
@@ -667,7 +652,7 @@ export default function AdGroupDetail() {
                                 <TableCell className="text-right">
                                   {/* @ts-ignore */}
                                   {keyword.suggestedBid ? (
-                                    <span className={parseFloat(keyword.suggestedBid) > parseFloat(keyword.bid || "0") ? "text-yellow-400" : "text-green-400"}>
+                                    <span className={parseFloat((keyword as any).suggestedBid) > parseFloat((keyword as any).bid || "0") ? "text-yellow-400" : "text-green-400"}>
                                       ${parseFloat((keyword as any).suggestedBid).toFixed(2)}
                                     </span>
                                   ) : (
@@ -736,23 +721,18 @@ export default function AdGroupDetail() {
                         </TableHeader>
                         <TableBody>
                           {filteredTargets.map((target: unknown) => {
-                            // @ts-ignore
-                            const tSpend = parseFloat(target.spend || "0");
-                            // @ts-ignore
-                            const tSales = parseFloat(target.sales || "0");
-                            // @ts-ignore
-                            const tImpressions = target.impressions || 0;
-                            // @ts-ignore
-                            const tClicks = target.clicks || 0;
-                            // @ts-ignore
-                            const tOrders = target.orders || 0;
+                            const tSpend = parseFloat((target as any).spend || "0");
+                            const tSales = parseFloat((target as any).sales || "0");
+                            const tImpressions = (target as any).impressions || 0;
+                            const tClicks = (target as any).clicks || 0;
+                            const tOrders = (target as any).orders || 0;
                             const tAcos = tSales > 0 ? (tSpend / tSales * 100) : 0;
                             const tRoas = tSpend > 0 ? (tSales / tSpend) : 0;
                             const tCtr = tImpressions > 0 ? (tClicks / tImpressions * 100) : 0;
                             const tCvr = tClicks > 0 ? (tOrders / tClicks * 100) : 0;
                             
                             return (
-                              <TableRow key={target.id}>
+                              <TableRow key={(target as any).id}>
                                 <TableCell className="font-medium">
                                   {/* @ts-ignore */}
                                   {target.targetValue || target.targetExpression || "N/A"}
@@ -769,7 +749,7 @@ export default function AdGroupDetail() {
                                 <TableCell className="text-right">
                                   {/* @ts-ignore */}
                                   {target.suggestedBid ? (
-                                    <span className={parseFloat(target.suggestedBid) > parseFloat(target.bid || "0") ? "text-yellow-400" : "text-green-400"}>
+                                    <span className={parseFloat((target as any).suggestedBid) > parseFloat((target as any).bid || "0") ? "text-yellow-400" : "text-green-400"}>
                                       ${parseFloat((target as any).suggestedBid).toFixed(2)}
                                     </span>
                                   ) : (
@@ -825,7 +805,6 @@ export default function AdGroupDetail() {
                 <CardDescription>
                   {isSPAuto || campaignType === "sp_manual"
                     ? "Ad Group级别的否定关键词和否定商品定向"
-                    // @ts-ignore
                     : isSB 
                       ? "品牌广告的否定关键词和否定商品定向"
                       : "展示型广告的否定商品定向"}
@@ -850,7 +829,7 @@ export default function AdGroupDetail() {
                       </TableHeader>
                       <TableBody>
                         {adGroupNegatives.map((neg: unknown) => (
-                          <TableRow key={neg.id}>
+                          <TableRow key={(neg as any).id}>
                             {/* @ts-ignore */}
                             <TableCell className="font-medium">{neg.negativeText}</TableCell>
                             <TableCell>
@@ -869,12 +848,9 @@ export default function AdGroupDetail() {
                             <TableCell>{getStatusBadge(neg.negativeStatus || "active")}</TableCell>
                             <TableCell className="text-sm text-muted-foreground">
                               {(neg as any).negativeSource === "manual" ? "手动" : 
-                               // @ts-ignore
-                               neg.negativeSource === "auto_optimization" ? "自动优化" :
-                               // @ts-ignore
-                               neg.negativeSource === "search_term_harvest" ? "搜索词收割" :
-                               // @ts-ignore
-                               neg.negativeSource || "未知"}
+                               (neg as any).negativeSource === "auto_optimization" ? "自动优化" :
+                               (neg as any).negativeSource === "search_term_harvest" ? "搜索词收割" :
+                               (neg as any).negativeSource || "未知"}
                             </TableCell>
                           </TableRow>
                         ))}
@@ -927,22 +903,17 @@ export default function AdGroupDetail() {
                         </TableHeader>
                         <TableBody>
                           {adGroupSearchTerms.map((st: unknown) => {
-                            // @ts-ignore
-                            const stSpend = parseFloat(st.searchTermSpend || "0");
-                            // @ts-ignore
-                            const stSales = parseFloat(st.searchTermSales || "0");
-                            // @ts-ignore
-                            const stImpressions = st.searchTermImpressions || 0;
-                            // @ts-ignore
-                            const stClicks = st.searchTermClicks || 0;
-                            // @ts-ignore
-                            const stOrders = st.searchTermOrders || 0;
+                            const stSpend = parseFloat((st as any).searchTermSpend || "0");
+                            const stSales = parseFloat((st as any).searchTermSales || "0");
+                            const stImpressions = (st as any).searchTermImpressions || 0;
+                            const stClicks = (st as any).searchTermClicks || 0;
+                            const stOrders = (st as any).searchTermOrders || 0;
                             const stAcos = stSales > 0 ? (stSpend / stSales * 100) : 0;
                             const stRoas = stSpend > 0 ? (stSales / stSpend) : 0;
                             const stCtr = stImpressions > 0 ? (stClicks / stImpressions * 100) : 0;
                             
                             return (
-                              <TableRow key={st.id}>
+                              <TableRow key={(st as any).id}>
                                 {/* @ts-ignore */}
                                 <TableCell className="font-medium">{st.searchTerm}</TableCell>
                                 <TableCell>
@@ -1095,7 +1066,7 @@ export default function AdGroupDetail() {
                       </TableHeader>
                       <TableBody>
                         {changeHistory.records.map((record: unknown) => (
-                          <TableRow key={record.id}>
+                          <TableRow key={(record as any).id}>
                             <TableCell className="text-xs whitespace-nowrap">
                               {(record as any).timestamp ? new Date((record as any).timestamp).toLocaleString('zh-CN') : '-'}
                             </TableCell>
@@ -1108,7 +1079,7 @@ export default function AdGroupDetail() {
                               {/* @ts-ignore */}
                               {record.target}
                               {(record as any).matchType && (
-                                <span className="text-xs text-muted-foreground ml-1">({record.matchType})</span>
+                                <span className="text-xs text-muted-foreground ml-1">({(record as any).matchType})</span>
                               )}
                             </TableCell>
                             {/* @ts-ignore */}
@@ -1118,7 +1089,7 @@ export default function AdGroupDetail() {
                             <TableCell className="text-sm">
                               {/* @ts-ignore */}
                               {record.changePercent && (
-                                <span className={parseFloat(record.changePercent) > 0 ? 'text-green-500' : 'text-red-500'}>
+                                <span className={parseFloat((record as any).changePercent) > 0 ? 'text-green-500' : 'text-red-500'}>
                                   {parseFloat((record as any).changePercent) > 0 ? '+' : ''}{(record as any).changePercent}
                                 </span>
                               )}
@@ -1126,28 +1097,20 @@ export default function AdGroupDetail() {
                             <TableCell>
                               <Badge variant="outline" className="text-xs">
                                 {(record as any).source === 'auto_optimal' ? '自动优化' :
-                                 // @ts-ignore
-                                 record.source === 'auto_dayparting' ? '分时优化' :
-                                 // @ts-ignore
-                                 record.source === 'auto_placement' ? '广告位优化' :
-                                 // @ts-ignore
-                                 record.source === 'manual' ? '手动' :
-                                 // @ts-ignore
-                                 record.source === 'batch_campaign' ? '批量操作' :
-                                 // @ts-ignore
-                                 record.source || '未知'}
+                                 (record as any).source === 'auto_dayparting' ? '分时优化' :
+                                 (record as any).source === 'auto_placement' ? '广告位优化' :
+                                 (record as any).source === 'manual' ? '手动' :
+                                 (record as any).source === 'batch_campaign' ? '批量操作' :
+                                 (record as any).source || '未知'}
                               </Badge>
                             </TableCell>
                             <TableCell>
                               {/* @ts-ignore */}
                               <Badge variant={record.status === 'applied' ? 'default' : record.status === 'failed' ? 'destructive' : 'secondary'}>
                                 {(record as any).status === 'applied' ? '已应用' :
-                                 // @ts-ignore
-                                 record.status === 'pending' ? '待执行' :
-                                 // @ts-ignore
-                                 record.status === 'failed' ? '失败' :
-                                 // @ts-ignore
-                                 record.status === 'rolled_back' ? '已回滚' : record.status}
+                                 (record as any).status === 'pending' ? '待执行' :
+                                 (record as any).status === 'failed' ? '失败' :
+                                 (record as any).status === 'rolled_back' ? '已回滚' : (record as any).status}
                               </Badge>
                             </TableCell>
                           </TableRow>

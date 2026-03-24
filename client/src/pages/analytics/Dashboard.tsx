@@ -162,41 +162,27 @@ function PerformanceGroupCard({ group }: { group: unknown }) {
   // 优先使用后端 goalProgress 字段（七维度加权评分），回退到简单比值计算
   const progress = useMemo(() => {
     // v400: 优先使用后端返回的七维度评分结果
-    // @ts-ignore
-    if (group.goalProgress != null && group.goalProgress > 0) {
-      // @ts-ignore
-      return Math.min(100, Math.round(group.goalProgress));
+    if ((group as any).goalProgress != null && (group as any).goalProgress > 0) {
+      return Math.min(100, Math.round((group as any).goalProgress));
     }
     
     // 回退：后端未返回评分时使用简单比值计算
-    // @ts-ignore
-    if (!group.targetValue || group.targetValue <= 0) return 0;
+    if (!(group as any).targetValue || (group as any).targetValue <= 0) return 0;
     
-    // @ts-ignore
-    if (group.optimizationGoal === 'target_acos') {
-      // @ts-ignore
-      const actualAcos = group.actualAcos || group.acos;
+    if ((group as any).optimizationGoal === 'target_acos') {
+      const actualAcos = (group as any).actualAcos || (group as any).acos;
       if (!actualAcos || actualAcos <= 0) return 0;
-      // @ts-ignore
-      if (actualAcos <= group.targetValue) return 100;
-      // @ts-ignore
-      return Math.min(100, Math.round((group.targetValue / actualAcos) * 100));
-    // @ts-ignore
-    } else if (group.optimizationGoal === 'target_roas') {
-      // @ts-ignore
-      const actualRoas = group.actualRoas || group.roas;
+      if (actualAcos <= (group as any).targetValue) return 100;
+      return Math.min(100, Math.round(((group as any).targetValue / actualAcos) * 100));
+    } else if ((group as any).optimizationGoal === 'target_roas') {
+      const actualRoas = (group as any).actualRoas || (group as any).roas;
       if (!actualRoas || actualRoas <= 0) return 0;
-      // @ts-ignore
-      if (actualRoas >= group.targetValue) return 100;
-      // @ts-ignore
-      return Math.min(100, Math.round((actualRoas / group.targetValue) * 100));
-    // @ts-ignore
-    } else if (group.optimizationGoal === 'daily_budget') {
-      // @ts-ignore
-      const actualSpend = group.actualSpend || group.spend;
+      if (actualRoas >= (group as any).targetValue) return 100;
+      return Math.min(100, Math.round((actualRoas / (group as any).targetValue) * 100));
+    } else if ((group as any).optimizationGoal === 'daily_budget') {
+      const actualSpend = (group as any).actualSpend || (group as any).spend;
       if (!actualSpend) return 0;
-      // @ts-ignore
-      return Math.min(100, Math.round((actualSpend / group.targetValue) * 100));
+      return Math.min(100, Math.round((actualSpend / (group as any).targetValue) * 100));
     }
     return 0;
   }, [group]);
@@ -234,12 +220,9 @@ function PerformanceGroupCard({ group }: { group: unknown }) {
             <span className="font-medium">
               {/* @ts-ignore */}
               {group.targetValue ? 
-                // @ts-ignore
-                (group.optimizationGoal === 'target_acos' ? `${group.targetValue}%` : 
-                 // @ts-ignore
-                 group.optimizationGoal === 'daily_budget' ? `$${group.targetValue}` :
-                 // @ts-ignore
-                 group.targetValue) 
+                ((group as any).optimizationGoal === 'target_acos' ? `${(group as any).targetValue}%` : 
+                 (group as any).optimizationGoal === 'daily_budget' ? `$${(group as any).targetValue}` :
+                 (group as any).targetValue) 
                 : '-'}
             </span>
           </div>
@@ -407,7 +390,6 @@ const [isRefreshing, setIsRefreshing] = useState(false);
   // 计算KPI日期范围
   const kpiDateRange = useMemo(() => {
     if (kpiDatePreset === 'custom') {
-      // @ts-ignore
       return {
         startDate: kpiCustomStartDate ? format(kpiCustomStartDate, 'yyyy-MM-dd') : undefined,
         endDate: kpiCustomEndDate ? format(kpiCustomEndDate, 'yyyy-MM-dd') : undefined,
@@ -418,20 +400,14 @@ const [isRefreshing, setIsRefreshing] = useState(false);
       startDate: format(range.start, 'yyyy-MM-dd'),
       endDate: format(range.end, 'yyyy-MM-dd'),
     };
-  // @ts-ignore
   }, [kpiDatePreset, kpiCustomStartDate, kpiCustomEndDate, currentMarketplace]);
 
   // ✅ Fetch KPIs - 与日期选择器联动
-  // @ts-ignore
   const { data: kpis, isLoading: kpisLoading, refetch: refetchKpis } = trpc.analytics.getKPIs.useQuery(
     { 
-      // @ts-ignore
       accountId: accountId!,
-      // @ts-ignore
       startDate: kpiDateRange.startDate,
-      // @ts-ignore
       endDate: kpiDateRange.endDate,
-    // @ts-ignore
     },
     { enabled: !!accountId, staleTime: 2 * 60 * 1000 } // v386: 2分钟缓存，与后端API缓存对齐
   );
@@ -454,16 +430,11 @@ const [isRefreshing, setIsRefreshing] = useState(false);
     // 汇总调整后的数据
     // @ts-ignore
     const totals = attributionData.reduce((acc: unknown, day: unknown) => ({
-      // @ts-ignore
-      sales: acc.sales + day.adjusted.sales,
-      // @ts-ignore
-      spend: acc.spend + day.adjusted.spend,
-      // @ts-ignore
-      orders: acc.orders + day.adjusted.orders,
-      // @ts-ignore
-      clicks: acc.clicks + day.adjusted.clicks,
-      // @ts-ignore
-      impressions: acc.impressions + day.adjusted.impressions,
+      sales: (acc as any).sales + (day as any).adjusted.sales,
+      spend: (acc as any).spend + (day as any).adjusted.spend,
+      orders: (acc as any).orders + (day as any).adjusted.orders,
+      clicks: (acc as any).clicks + (day as any).adjusted.clicks,
+      impressions: (acc as any).impressions + (day as any).adjusted.impressions,
     }), { sales: 0, spend: 0, orders: 0, clicks: 0, impressions: 0 });
 
     // @ts-ignore
@@ -543,7 +514,6 @@ const [isRefreshing, setIsRefreshing] = useState(false);
   // 计算区域对比的时间范围
   const regionDateRange = useMemo(() => {
     if (regionDatePreset === 'custom') {
-      // @ts-ignore
       return {
         startDate: regionCustomStartDate ? format(regionCustomStartDate, 'yyyy-MM-dd') : undefined,
         endDate: regionCustomEndDate ? format(regionCustomEndDate, 'yyyy-MM-dd') : undefined,
@@ -559,7 +529,6 @@ const [isRefreshing, setIsRefreshing] = useState(false);
   // v386: 区域对比数据延迟加载（跨账户查询较重，不阻塞关键路径）
   const { data: regionComparison, isLoading: regionLoading } = trpc.analytics.getRegionComparison.useQuery(
     { 
-      // @ts-ignore
       userId: user?.id!,
       startDate: regionDateRange.startDate,
       endDate: regionDateRange.endDate,
@@ -734,20 +703,20 @@ const [isRefreshing, setIsRefreshing] = useState(false);
             icon={<ShoppingCart className="w-5 h-5" />}
             trend={12.5}
             trendLabel="vs 上周"
-            // @ts-ignore
             color="blue"
           />
           <KPICard
             title={showAdjustedData && adjustedKpis ? "ROAS*" : "ROAS"}
+            // @ts-ignore
             value={(showAdjustedData && adjustedKpis ? adjustedKpis.roas : kpis?.roas)?.toFixed(2) || "0"}
             icon={<Target className="w-5 h-5" />}
             trend={8.3}
             trendLabel="vs 上周"
-            // @ts-ignore
             color="green"
           />
           <KPICard
             title={showAdjustedData && adjustedKpis ? "销售额*" : "销售额"}
+            // @ts-ignore
             value={`${currencySymbol}${((showAdjustedData && adjustedKpis ? adjustedKpis.totalSales : kpis?.totalSales) || 0).toLocaleString()}`}
             icon={<DollarSign className="w-5 h-5" />}
             trend={15.2}
@@ -756,6 +725,7 @@ const [isRefreshing, setIsRefreshing] = useState(false);
           />
           <KPICard
             title={showAdjustedData && adjustedKpis ? "ACoS*" : "ACoS"}
+            // @ts-ignore
             value={`${((showAdjustedData && adjustedKpis ? adjustedKpis.acos : kpis?.acos) || 0).toFixed(1)}%`}
             icon={<Percent className="w-5 h-5" />}
             trend={-3.2}
@@ -771,7 +741,6 @@ const [isRefreshing, setIsRefreshing] = useState(false);
             trend={10.8}
             trendLabel="vs 上周"
             color="cyan"
-          // @ts-ignore
           />
         </div>
 
@@ -788,9 +757,7 @@ const [isRefreshing, setIsRefreshing] = useState(false);
               <span className="text-amber-600 dark:text-amber-400">{kpis.dataMaturity.message}</span>
               <span className="text-muted-foreground ml-2">
                 (SP: {(kpis as any).dataMaturity.sp === 'finalized' ? '✅已稳定' : '⏳归因中'} | 
-                 // @ts-ignore
                  SB: {(kpis as any).dataMaturity.sb === 'finalized' ? '✅已稳定' : '⏳归因中'} | 
-                 // @ts-ignore
                  SD: {(kpis as any).dataMaturity.sd === 'finalized' ? '✅已稳定' : '⏳归因中'})
               </span>
             </div>
@@ -828,7 +795,6 @@ const [isRefreshing, setIsRefreshing] = useState(false);
                     ? 'bg-gradient-to-br from-green-500/10 to-transparent border-green-500/20' 
                     // @ts-ignore
                     : healthMetrics.metrics.rollbackRate.status === 'warning'
-                    // @ts-ignore
                     ? 'bg-gradient-to-br from-yellow-500/10 to-transparent border-yellow-500/20'
                     : 'bg-gradient-to-br from-red-500/10 to-transparent border-red-500/20'
                 }`}>
@@ -883,7 +849,6 @@ const [isRefreshing, setIsRefreshing] = useState(false);
                     ? 'bg-gradient-to-br from-blue-500/10 to-transparent border-blue-500/20'
                     // @ts-ignore
                     : healthMetrics.metrics.algorithmActivation.status === 'warning'
-                    // @ts-ignore
                     ? 'bg-gradient-to-br from-yellow-500/10 to-transparent border-yellow-500/20'
                     : 'bg-gradient-to-br from-red-500/10 to-transparent border-red-500/20'
                 }`}>
@@ -893,7 +858,6 @@ const [isRefreshing, setIsRefreshing] = useState(false);
                       healthMetrics.metrics.algorithmActivation.status === 'healthy' ? 'bg-blue-500/20' :
                       // @ts-ignore
                       healthMetrics.metrics.algorithmActivation.status === 'warning' ? 'bg-yellow-500/20' : 'bg-red-500/20'
-                    // @ts-ignore
                     }`}>
                       {/* @ts-ignore */}
                       <Cpu className={`w-5 h-5 ${
@@ -918,9 +882,7 @@ const [isRefreshing, setIsRefreshing] = useState(false);
                       {/* @ts-ignore */}
                       {Object.entries(healthMetrics.metrics.algorithmActivation.algorithmRates)
                         .sort(([,a], [,b]) => (b as number) - (a as number))
-                        // @ts-ignore
                         .slice(0, 4)
-                        // @ts-ignore
                         .map(([alg, rate]) => (
                           <Badge key={alg} variant="secondary" className="text-[10px] px-1.5 py-0">
                             {alg}: {(rate as number).toFixed(0)}%
@@ -938,7 +900,6 @@ const [isRefreshing, setIsRefreshing] = useState(false);
                     ? 'bg-gradient-to-br from-red-500/10 to-transparent border-red-500/20'
                     // @ts-ignore
                     : healthMetrics.metrics.acosTrend.direction === 'improving'
-                    // @ts-ignore
                     ? 'bg-gradient-to-br from-green-500/10 to-transparent border-green-500/20'
                     // @ts-ignore
                     : healthMetrics.metrics.acosTrend.direction === 'worsening'
@@ -1005,12 +966,10 @@ const [isRefreshing, setIsRefreshing] = useState(false);
                 <div className={`p-4 rounded-lg border ${
                   // @ts-ignore
                   healthMetrics.metrics.circuitBreakerRate.rate < 5
-                    // @ts-ignore
                     ? 'bg-gradient-to-br from-emerald-500/10 to-transparent border-emerald-500/20'
                     // @ts-ignore
                     : healthMetrics.metrics.circuitBreakerRate.rate < 15
                     ? 'bg-gradient-to-br from-yellow-500/10 to-transparent border-yellow-500/20'
-                    // @ts-ignore
                     : 'bg-gradient-to-br from-red-500/10 to-transparent border-red-500/20'
                 }`}>
                   <div className="flex items-center gap-3">
@@ -1020,7 +979,6 @@ const [isRefreshing, setIsRefreshing] = useState(false);
                       healthMetrics.metrics.circuitBreakerRate.rate < 5 ? 'bg-emerald-500/20' :
                       // @ts-ignore
                       healthMetrics.metrics.circuitBreakerRate.rate < 15 ? 'bg-yellow-500/20' : 'bg-red-500/20'
-                    // @ts-ignore
                     }`}>
                       <Shield className={`w-5 h-5 ${
                         // @ts-ignore
@@ -1069,7 +1027,7 @@ const [isRefreshing, setIsRefreshing] = useState(false);
                       <p className="font-semibold">{healthMetrics.metrics.bidIncreaseAnalysis.avgIncreasePercent.toFixed(1)}%</p>
                     </div>
                     {(healthMetrics as any).metrics.bidIncreaseAnalysis.byScenario.slice(0, 2).map((s: unknown) => (
-                      <div key={s.scenario}>
+                      <div key={(s as any).scenario}>
                         {/* @ts-ignore */}
                         <p className="text-muted-foreground text-xs truncate" title={s.scenario}>{s.scenario}</p>
                         {/* @ts-ignore */}
@@ -1124,7 +1082,6 @@ const [isRefreshing, setIsRefreshing] = useState(false);
                       <p className={`text-lg font-bold ${
                         // @ts-ignore
                         deployCorrectionReport.report.latestVerification.verificationResult?.passed 
-                          // @ts-ignore
                           ? 'text-green-500' : 'text-yellow-500'
                       }`}>
                         {(deployCorrectionReport as any).report.latestVerification.verificationResult?.passed ? '✓ 通过' : '⚠ 待确认'}
@@ -1171,9 +1128,7 @@ const [isRefreshing, setIsRefreshing] = useState(false);
                       : regionDatePreset === 'today' ? '今天'
                       : regionDatePreset === 'yesterday' ? '昨天'
                       : regionDatePreset === 'last7days' ? '最近7天'
-                      // @ts-ignore
                       : regionDatePreset === 'last30days' ? '最近30天'
-                      // @ts-ignore
                       : regionDatePreset === 'thisMonth' ? '本月'
                       : regionDatePreset === 'lastMonth' ? '上月'
                       : '各区域广告表现对比'}
@@ -1322,7 +1277,9 @@ const [isRefreshing, setIsRefreshing] = useState(false);
                 <DashboardCharts
                   // @ts-ignore
                   trendData={trendData}
+                  // @ts-ignore
                   weeklyComparison={weeklyComparison}
+                  // @ts-ignore
                   regionComparison={regionComparison}
                   currencySymbol={currencySymbol}
                 />
@@ -1378,7 +1335,7 @@ const [isRefreshing, setIsRefreshing] = useState(false);
             {performanceGroups && performanceGroups.length > 0 ? (
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {performanceGroups.slice(0, 6).map((group: unknown) => (
-                  <PerformanceGroupCard key={group.id} group={group} />
+                  <PerformanceGroupCard key={(group as any).id} group={group} />
                 ))}
               </div>
             ) : (

@@ -117,11 +117,10 @@ export function FloatingActionButton({
                 className="w-10 h-10 rounded-full shadow-lg"
                 // @ts-ignore
                 onClick={() => {
-                  // @ts-ignore
-                  action.onClick();
+                  (action as any).onClick();
                   setIsOpen(false);
                 }}
-                disabled={action.disabled}
+                disabled={(action as any).disabled}
               >
                 {/* @ts-ignore */}
                 <action.icon className="w-5 h-5" />

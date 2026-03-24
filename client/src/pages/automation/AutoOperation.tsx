@@ -157,7 +157,7 @@ const [isExecuting, setIsExecuting] = useState(false);
               </SelectTrigger>
               <SelectContent>
                 {accounts?.map((account: unknown) => (
-                  <SelectItem key={account.id} value={account.id.toString()}>
+                  <SelectItem key={(account as any).id} value={(account as any).id.toString()}>
                     {/* @ts-ignore */}
                     {account.storeName || account.accountName}
                   </SelectItem>
@@ -306,29 +306,19 @@ const [isExecuting, setIsExecuting] = useState(false);
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {OPERATION_STEPS.map((step: unknown) => {
                       // 构建配置键名
-                      // @ts-ignore
-                      const keyParts = step.key.split('_');
+                      const keyParts = (step as any).key.split('_');
                       // @ts-expect-error - array method type inference
                       const configKeyName = 'enable' + keyParts.map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('');
                       
                       // 根据步骤获取对应的配置值
-                      // @ts-ignore
                       let isEnabled = true;
-                      // @ts-ignore
                       if (config) {
-                        // @ts-ignore
-                        if (step.key === 'data_sync') isEnabled = config.enableDataSync ?? true;
-                        // @ts-ignore
-                        else if (step.key === 'ngram_analysis') isEnabled = config.enableNgramAnalysis ?? true;
-                        // @ts-ignore
-                        else if (step.key === 'funnel_sync') isEnabled = config.enableFunnelSync ?? true;
-                        // @ts-ignore
-                        else if (step.key === 'conflict_detection') isEnabled = config.enableConflictDetection ?? true;
-                        // @ts-ignore
-                        else if (step.key === 'migration_suggestion') isEnabled = config.enableMigrationSuggestion ?? true;
-                        // @ts-ignore
-                        else if (step.key === 'bid_optimization') isEnabled = config.enableBidOptimization ?? true;
-                      // @ts-ignore
+                        if ((step as any).key === 'data_sync') isEnabled = config.enableDataSync ?? true;
+                        else if ((step as any).key === 'ngram_analysis') isEnabled = config.enableNgramAnalysis ?? true;
+                        else if ((step as any).key === 'funnel_sync') isEnabled = config.enableFunnelSync ?? true;
+                        else if ((step as any).key === 'conflict_detection') isEnabled = config.enableConflictDetection ?? true;
+                        else if ((step as any).key === 'migration_suggestion') isEnabled = config.enableMigrationSuggestion ?? true;
+                        else if ((step as any).key === 'bid_optimization') isEnabled = config.enableBidOptimization ?? true;
                       }
                       
                       return (
@@ -393,7 +383,7 @@ const [isExecuting, setIsExecuting] = useState(false);
                     {/* @ts-ignore */}
                     <TableBody>
                       {logs.map((log: unknown) => (
-                        <TableRow key={log.id}>
+                        <TableRow key={(log as any).id}>
                           {/* @ts-ignore */}
                           <TableCell>{formatDateTime(log.startedAt)}</TableCell>
                           {/* @ts-ignore */}
@@ -435,13 +425,12 @@ const [isExecuting, setIsExecuting] = useState(false);
                           <TableCell>
                             {/* @ts-ignore */}
                             {log.errorMessage ? (
-                              <span className="text-red-500 text-sm">{log.errorMessage}</span>
+                              <span className="text-red-500 text-sm">{(log as any).errorMessage}</span>
                             ) : (
                               <span className="text-muted-foreground text-sm">
                                 {/* @ts-ignore */}
                                 {log.details?.summary ? 
-                                  // @ts-ignore
-                                  `成功: ${log.details.summary.successSteps}, 失败: ${log.details.summary.failedSteps}` : 
+                                  `成功: ${(log as any).details.summary.successSteps}, 失败: ${(log as any).details.summary.failedSteps}` : 
                                   '-'
                                 }
                               </span>
@@ -482,7 +471,7 @@ const [isExecuting, setIsExecuting] = useState(false);
               <CardContent>
                 <div className="space-y-4">
                   {OPERATION_STEPS.map((step: unknown, index: unknown) => (
-                    <div key={step.key} className="flex items-start gap-4 p-4 border rounded-lg">
+                    <div key={(step as any).key} className="flex items-start gap-4 p-4 border rounded-lg">
                       <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
                         {/* @ts-ignore */}
                         {index + 1}

@@ -199,10 +199,8 @@ function MarketCurveVisualization({
             d={`
               M 0 ${100}
               ${curveData.map((p: unknown, i: unknown) => {
-                // @ts-ignore
-                const x = (p.bid / maxBid) * 100;
-                // @ts-ignore
-                const y = 100 - ((p.profit - minProfit) / profitRange) * 100;
+                const x = ((p as any).bid / maxBid) * 100;
+                const y = 100 - (((p as any).profit - minProfit) / profitRange) * 100;
                 return `L ${x} ${y}`;
               }).join(' ')}
               L 100 100
@@ -214,13 +212,10 @@ function MarketCurveVisualization({
           {/* 曲线 */}
           <path
             d={`
-              // @ts-ignore
               M ${(curveData[0].bid / maxBid) * 100} ${100 - ((curveData[0].profit - minProfit) / profitRange) * 100}
               ${curveData.slice(1).map((p: unknown) => {
-                // @ts-ignore
-                const x = (p.bid / maxBid) * 100;
-                // @ts-ignore
-                const y = 100 - ((p.profit - minProfit) / profitRange) * 100;
+                const x = ((p as any).bid / maxBid) * 100;
+                const y = 100 - (((p as any).profit - minProfit) / profitRange) * 100;
                 return `L ${x} ${y}`;
               }).join(' ')}
             `}
@@ -300,6 +295,7 @@ function DecisionTreeVisualization({
     );
   }
 
+  // @ts-ignore
   const isLeaf = treeData.isLeaf || (!treeData.left && !treeData.right);
   
   return (
@@ -368,9 +364,7 @@ function DecisionTreeVisualization({
 }
 
 // 关键词预测表格组件
-// @ts-ignore
 function KeywordPredictionTable({ 
-  // @ts-ignore
   predictions,
   onRefresh
 }: { 
@@ -382,10 +376,8 @@ function KeywordPredictionTable({
 
   const sortedPredictions = useMemo(() => {
     return [...predictions].sort((a: unknown, b: unknown) => {
-      // @ts-ignore
-      const aVal = a[sortBy];
-      // @ts-ignore
-      const bVal = b[sortBy];
+      const aVal = (a as any)[sortBy];
+      const bVal = (b as any)[sortBy];
       return sortOrder === 'desc' ? bVal - aVal : aVal - bVal;
     });
   }, [predictions, sortBy, sortOrder]);
@@ -445,10 +437,9 @@ function KeywordPredictionTable({
           </TableHeader>
           <TableBody>
             {sortedPredictions.slice(0, 20).map((pred: unknown) => {
-              // @ts-ignore
-              const confidenceInfo = getConfidenceLevel(pred.confidence);
+              const confidenceInfo = getConfidenceLevel((pred as any).confidence);
               return (
-                <TableRow key={pred.keywordId}>
+                <TableRow key={(pred as any).keywordId}>
                   {/* @ts-ignore */}
                   <TableCell className="font-medium max-w-[200px] truncate">
                     {/* @ts-ignore */}
@@ -473,14 +464,13 @@ function KeywordPredictionTable({
                   <TableCell>
                     <Badge variant="secondary">
                       {(pred as any).predictionSource === 'decision_tree' ? '决策树' : 
-                       // @ts-ignore
-                       pred.predictionSource === 'bayesian' ? '贝叶斯' : '历史数据'}
+                       (pred as any).predictionSource === 'bayesian' ? '贝叶斯' : '历史数据'}
                     </Badge>
                   </TableCell>
                   <TableCell>
                     {/* @ts-ignore */}
                     {pred.actualCR !== undefined ? (
-                      <span className={pred.actualCR > pred.predictedCR ? 'text-green-500' : 'text-red-500'}>
+                      <span className={(pred as any).actualCR > (pred as any).predictedCR ? 'text-green-500' : 'text-red-500'}>
                         {/* @ts-ignore */}
                         {(pred.actualCR * 100).toFixed(2)}%
                       </span>
@@ -645,23 +635,19 @@ function BidObjectProfitTable({
           </TableHeader>
           <TableBody>
             {profitData.map((item: unknown) => {
-              // @ts-ignore
-              const confidenceInfo = getConfidenceLevel(item.confidence);
-              // @ts-ignore
-              const profitChangePercent = item.currentProfit !== 0 
-                // @ts-ignore
-                ? ((item.profitChange / Math.abs(item.currentProfit)) * 100)
-                // @ts-ignore
+              const confidenceInfo = getConfidenceLevel((item as any).confidence);
+              const profitChangePercent = (item as any).currentProfit !== 0 
+                ? (((item as any).profitChange / Math.abs((item as any).currentProfit)) * 100)
                 : 0;
               
               return (
-                <TableRow key={item.bidObjectId}>
+                <TableRow key={(item as any).bidObjectId}>
                   <TableCell>
                     <input
                       type="checkbox"
                       // @ts-ignore
                       checked={selectedIds.has(item.bidObjectId)}
-                      onChange={() => toggleSelect(item.bidObjectId)}
+                      onChange={() => toggleSelect((item as any).bidObjectId)}
                       className="rounded"
                     />
                   </TableCell>
@@ -739,13 +725,11 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null
   // 获取优化建议 - 使用generateSuggestions代替
   const generateSuggestionsMutation = trpc.placement.generateSuggestions.useMutation({
     onSuccess: (data: unknown) => {
-      // @ts-ignore
-      toast.success(`分析完成，发现 ${data.suggestions?.length || 0} 条优化建议`);
+      toast.success(`分析完成，发现 ${(data as any).suggestions?.length || 0} 条优化建议`);
       refetchPerformance();
     },
     onError: (error: unknown) => {
-      // @ts-ignore
-      toast.error(`分析失败: ${error.message}`);
+      toast.error(`分析失败: ${(error as any).message}`);
     }
   });
 
@@ -787,14 +771,10 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null
     if (!selectedAccountId) {
       toast.error("请先选择账号");
       return;
-    // @ts-ignore
     }
     generateSuggestionsMutation.mutate({
-      // @ts-ignore
       accountId: selectedAccountId,
-      // @ts-ignore
       campaignId: selectedCampaignId || '',
-      // @ts-ignore
       days: 7
     });
   };
@@ -833,6 +813,7 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null
       };
     }
 
+    // @ts-ignore
     const totalSpend = performanceData.reduce((sum: number, p: Record<string, unknown>) => sum + (p.metrics?.spend || 0), 0);
     // @ts-ignore
     const totalSales = performanceData.reduce((sum: number, p: Record<string, unknown>) => sum + (p.metrics?.sales || 0), 0);
@@ -855,6 +836,7 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null
 
   // TODO v187: 此市场曲线数据为数学模型生成，应替换为基于真实历史数据的弹性系数曲线
   // 当前保留作为参考实现，未来应从后端API获取真实的出价响应曲线数据
+  // @ts-ignore
   const mockMarketCurveData: MarketCurvePoint[] = useMemo(() => {
     const points: MarketCurvePoint[] = [];
     for (let bid = 0.1; bid <= 3.0; bid += 0.1) {
@@ -886,7 +868,7 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null
   const optimalPoint = useMemo(() => {
     if (mockMarketCurveData.length === 0) return undefined;
     // @ts-ignore
-    const maxProfitPoint = mockMarketCurveData.reduce((max: unknown, p: unknown) => p.profit > max.profit ? p : max);
+    const maxProfitPoint = mockMarketCurveData.reduce((max: unknown, p: unknown) => (p as any).profit > (max as any).profit ? p : max);
     return { bid: maxProfitPoint.bid, profit: maxProfitPoint.profit };
   }, [mockMarketCurveData]);
 
@@ -941,7 +923,6 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null
                 <Select
                   value={selectedAccountId?.toString() || ""}
                   onValueChange={(value) => {
-                    // @ts-ignore
                     setSelectedAccountId(Number(value));
                     setSelectedCampaignId(null);
                   }}
@@ -951,7 +932,7 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null
                   </SelectTrigger>
                   <SelectContent>
                     {accounts?.map((account: unknown) => (
-                      <SelectItem key={account.id} value={account.id.toString()}>
+                      <SelectItem key={(account as any).id} value={(account as any).id.toString()}>
                         {/* @ts-ignore */}
                         {account.storeName || account.accountName}
                       </SelectItem>
@@ -971,8 +952,8 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">全部广告活动</SelectItem>
-                    {(campaigns as any).map((campaign: unknown) => (
-                      <SelectItem key={campaign.id} value={campaign.campaignId}>
+                    {(campaigns as any)?.map((campaign: unknown) => (
+                      <SelectItem key={(campaign as any).id} value={(campaign as any).campaignId}>
                         {/* @ts-ignore */}
                         {campaign.campaignName}
                       </SelectItem>
@@ -1155,10 +1136,8 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null
                   <CardContent>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       {performanceData.map((placement: unknown) => {
-                        // @ts-ignore
-                        const placementInfo = PLACEMENT_LABELS[placement.placementType];
-                        // @ts-ignore
-                        const profit = (placement.metrics?.sales || 0) - (placement.metrics?.spend || 0);
+                        const placementInfo = PLACEMENT_LABELS[(placement as any).placementType];
+                        const profit = ((placement as any).metrics?.sales || 0) - ((placement as any).metrics?.spend || 0);
                         
                         return (
                           <div 
@@ -1363,7 +1342,7 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null
                       { name: "产品类别", importance: 0.12, color: "bg-orange-500" },
                       { name: "平均出价", importance: 0.08, color: "bg-pink-500" },
                     ].map((feature: unknown) => (
-                      <div key={feature.name} className="space-y-1">
+                      <div key={(feature as any).name} className="space-y-1">
                         <div className="flex justify-between text-sm">
                           {/* @ts-ignore */}
                           <span>{feature.name}</span>
@@ -1376,7 +1355,7 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null
                           <div 
                             // @ts-ignore
                             className={`h-full ${feature.color}`}
-                            style={{ width: `${feature.importance * 100}%` }}
+                            style={{ width: `${(feature as any).importance * 100}%` }}
                           />
                         </div>
                       </div>

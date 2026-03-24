@@ -184,7 +184,6 @@ export default function BatchAuthorization() {
         toast.success(`请在紫鸟浏览器中打开授权链接，完成 ${result.regions.length} 个区域的授权`);
       } else {
         // 标准模式：自动打开所有授权页面
-        // @ts-ignore
         result.regions.forEach((region: unknown, index: unknown) => {
           // @ts-ignore
           setTimeout(() => {
@@ -198,8 +197,7 @@ export default function BatchAuthorization() {
       }
       
     } catch (error: unknown) {
-      // @ts-ignore
-      toast.error(`创建授权会话失败: ${error.message}`);
+      toast.error(`创建授权会话失败: ${(error as any).message}`);
     }
   };
   
@@ -266,19 +264,16 @@ export default function BatchAuthorization() {
       } else if (successCount > 0) {
         toast.success(`${successCount}/${codesWithRegion.length} 个区域授权成功`);
         setCurrentStep('complete');
-      // @ts-ignore
       } else {
         toast.error('授权失败，请检查授权码是否正确');
       }
       
     } catch (error: unknown) {
-      // @ts-ignore
-      toast.error(`处理授权码失败: ${error.message}`);
+      toast.error(`处理授权码失败: ${(error as any).message}`);
       setRegionAuthStates(prev => prev.map(state => ({
         ...state,
         status: state.status === 'exchanging' ? 'error' : state.status,
-        // @ts-ignore
-        error: error.message,
+        error: (error as any).message,
       })));
     } finally {
       setIsProcessing(false);
@@ -487,30 +482,26 @@ export default function BatchAuthorization() {
                       </AlertDescription>
                     </Alert>
                   ) : (
-                    // @ts-ignore
                     regions.map((region: unknown) => {
-                      // @ts-ignore
-                      const isSelected = selectedRegions.includes(region.code as RegionCode);
+                      const isSelected = selectedRegions.includes((region as any).code as RegionCode);
                       // @ts-expect-error - error code check
                       const isAuthorized = authorizedRegions?.regions?.find(r => r.code === region.code)?.authorized;
                       
-                      // @ts-ignore
                       return (
                         <div
                           // @ts-ignore
                           key={region.code}
                           className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
-                            // @ts-ignore
                             isSelected 
                               ? 'border-primary bg-primary/5' 
                               : 'border-border hover:border-primary/50'
                           }`}
-                          onClick={() => toggleRegion(region.code as RegionCode)}
+                          onClick={() => toggleRegion((region as any).code as RegionCode)}
                         >
                           <div className="flex items-start gap-4">
                             <Checkbox 
                               checked={isSelected}
-                              onCheckedChange={() => toggleRegion(region.code as RegionCode)}
+                              onCheckedChange={() => toggleRegion((region as any).code as RegionCode)}
                             />
                             <div className="flex-1">
                               <div className="flex items-center gap-2 flex-wrap">
@@ -531,7 +522,7 @@ export default function BatchAuthorization() {
                               </div>
                               <div className="mt-2 flex flex-wrap gap-2">
                                 {(region as any).marketplaces.map((mp: unknown) => (
-                                  <Badge key={mp.code} variant="outline" className="text-xs">
+                                  <Badge key={(mp as any).code} variant="outline" className="text-xs">
                                     {/* @ts-ignore */}
                                     {mp.flag} {mp.name}
                                   </Badge>
@@ -658,19 +649,14 @@ export default function BatchAuthorization() {
             
             <div className="grid gap-4">
               {regionAuthStates.map((state: unknown) => {
-                // @ts-ignore
-                const region = regions.find(r => r.code === state.regionCode);
+                const region = regions.find(r => r.code === (state as any).regionCode);
                 
                 return (
-                  <Card key={state.regionCode} className={
-                    // @ts-ignore
-                    state.status === 'success' ? 'border-green-500/50 bg-green-500/5' :
-                    // @ts-ignore
-                    state.status === 'error' ? 'border-red-500/50 bg-red-500/5' :
-                    // @ts-ignore
-                    state.status === 'exchanging' ? 'border-yellow-500/50 bg-yellow-500/5' :
+                  <Card key={(state as any).regionCode} className={
+                    (state as any).status === 'success' ? 'border-green-500/50 bg-green-500/5' :
+                    (state as any).status === 'error' ? 'border-red-500/50 bg-red-500/5' :
+                    (state as any).status === 'exchanging' ? 'border-yellow-500/50 bg-yellow-500/5' :
                     ''
-                  // @ts-ignore
                   }>
                     <CardContent className="pt-6">
                       <div className="flex items-start gap-4">
@@ -679,9 +665,9 @@ export default function BatchAuthorization() {
                           {/* @ts-ignore */}
                           {state.status === 'success' ? (
                             <CheckCircle2 className="h-8 w-8 text-green-500" />
-                          ) : state.status === 'error' ? (
+                          ) : (state as any).status === 'error' ? (
                             <XCircle className="h-8 w-8 text-red-500" />
-                          ) : state.status === 'exchanging' ? (
+                          ) : (state as any).status === 'exchanging' ? (
                             <Loader2 className="h-8 w-8 text-yellow-500 animate-spin" />
                           ) : (
                             <Globe className="h-8 w-8 text-muted-foreground" />
@@ -718,11 +704,9 @@ export default function BatchAuthorization() {
                                     readOnly
                                     // @ts-ignore
                                     className="text-xs font-mono"
-                                  // @ts-ignore
                                   />
                                   <Button
                                     variant="outline"
-                                    // @ts-ignore
                                     size="sm"
                                     // @ts-ignore
                                     onClick={() => copyAuthUrl(state.authUrl)}
@@ -737,8 +721,8 @@ export default function BatchAuthorization() {
                                   placeholder="粘贴授权码 (code参数)"
                                   // @ts-ignore
                                   value={state.code || ''}
-                                  onChange={(e) => updateAuthCode(state.regionCode, e.target.value)}
-                                  disabled={state.status === 'exchanging'}
+                                  onChange={(e) => updateAuthCode((state as any).regionCode, e.target.value)}
+                                  disabled={(state as any).status === 'exchanging'}
                                 />
                                 <Button
                                   variant="outline"
@@ -754,7 +738,7 @@ export default function BatchAuthorization() {
                           )}
                           
                           {(state as any).error && (
-                            <p className="text-sm text-red-500">{state.error}</p>
+                            <p className="text-sm text-red-500">{(state as any).error}</p>
                           )}
                           
                           {(state as any).status === 'success' && (
@@ -817,10 +801,9 @@ export default function BatchAuthorization() {
               <CardContent>
                 <div className="space-y-4">
                   {regionAuthStates.map((state: unknown) => {
-                    // @ts-ignore
-                    const region = regions.find(r => r.code === state.regionCode);
+                    const region = regions.find(r => r.code === (state as any).regionCode);
                     return (
-                      <div key={state.regionCode} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                      <div key={(state as any).regionCode} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
                         <div className="flex items-center gap-3">
                           {/* @ts-ignore */}
                           {state.status === 'success' ? (

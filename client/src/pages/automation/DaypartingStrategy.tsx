@@ -194,22 +194,19 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<number | null>(null
     );
 
     bidPreview.adjustments.forEach((adj: unknown) => {
+      if (!matrix[(adj as any).dayOfWeek]) matrix[(adj as any).dayOfWeek] = [];
       // @ts-ignore
-      if (!matrix[adj.dayOfWeek]) matrix[adj.dayOfWeek] = [];
       // @ts-ignore
-      matrix[adj.dayOfWeek][adj.hour] = adj;
+      matrix[(adj as any).dayOfWeek][(adj as any).hour] = adj;
     });
 
     return matrix;
   }, [bidPreview?.adjustments]);
 
   // 设置默认账号
-  // @ts-ignore
   if (accounts && accounts.length > 0 && !selectedAccountId) {
-    // @ts-ignore
-    const defaultAccount = accounts.find((a: unknown) => a.isDefault) || accounts[0];
-    // @ts-ignore
-    setSelectedAccountId(defaultAccount.id);
+    const defaultAccount = accounts.find((a: unknown) => (a as any).isDefault) || accounts[0];
+    setSelectedAccountId((defaultAccount as any).id);
   }
 
   return (
@@ -242,7 +239,7 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<number | null>(null
               </SelectTrigger>
               <SelectContent>
                 {accounts?.map((account: unknown) => (
-                  <SelectItem key={account.id} value={account.id.toString()}>
+                  <SelectItem key={(account as any).id} value={(account as any).id.toString()}>
                     {/* @ts-ignore */}
                     {account.accountName}
                   </SelectItem>
@@ -261,8 +258,8 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<number | null>(null
                 <SelectValue placeholder="选择广告活动" />
               </SelectTrigger>
               <SelectContent>
-                {(campaigns as any).map((campaign: unknown) => (
-                  <SelectItem key={campaign.id} value={campaign.id.toString()}>
+                {(campaigns as any)?.map((campaign: unknown) => (
+                  <SelectItem key={(campaign as any).id} value={(campaign as any).id.toString()}>
                     {/* @ts-ignore */}
                     {campaign.campaignName}
                   </SelectItem>
@@ -310,12 +307,12 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<number | null>(null
                           // @ts-ignore
                           key={goal.value}
                           className={`p-3 rounded-lg border cursor-pointer transition-colors ${
-                            // @ts-ignore
-                            newStrategy.optimizationGoal === goal.value
+                            newStrategy.optimizationGoal === (goal as any).value
                               ? "border-primary bg-primary/5"
                               : "border-border hover:border-primary/50"
                           }`}
-                          onClick={() => setNewStrategy({ ...newStrategy, optimizationGoal: goal.value as unknown })}
+                          // @ts-ignore
+                          onClick={() => setNewStrategy({ ...newStrategy, optimizationGoal: (goal as any).value as unknown })}
                         >
                           {/* @ts-ignore */}
                           <div className="font-medium">{goal.label}</div>
@@ -454,10 +451,8 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<number | null>(null
                         size="sm"
                         onClick={() => {
                           updateStatusMutation.mutate({
-                            // @ts-ignore
-                            strategyId: strategy.id,
-                            // @ts-ignore
-                            status: strategy.daypartingStatus === "active" ? "paused" : "active",
+                            strategyId: (strategy as any).id,
+                            status: (strategy as any).daypartingStatus === "active" ? "paused" : "active",
                           });
                         }}
                       >
@@ -508,7 +503,7 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<number | null>(null
                     ) : weeklyAnalysis && weeklyAnalysis.length > 0 ? (
                       <div className="space-y-3">
                         {weeklyAnalysis.map((day: unknown) => (
-                          <div key={day.dayOfWeek} className="flex items-center gap-3">
+                          <div key={(day as any).dayOfWeek} className="flex items-center gap-3">
                             {/* @ts-ignore */}
                             <div className="w-12 text-sm font-medium">{day.dayLabel}</div>
                             <div className="flex-1">
@@ -516,7 +511,7 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<number | null>(null
                                 <div
                                   // @ts-ignore
                                   className={`h-full ${getHeatmapColor(day.performanceScore, 0, 100)} transition-all`}
-                                  style={{ width: `${day.performanceScore}%` }}
+                                  style={{ width: `${(day as any).performanceScore}%` }}
                                 />
                               </div>
                             </div>
@@ -552,7 +547,7 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<number | null>(null
                     {budgetPreview?.allocation ? (
                       <div className="space-y-3">
                         {budgetPreview.allocation.map((rule: unknown) => (
-                          <div key={rule.dayOfWeek} className="flex items-center gap-3">
+                          <div key={(rule as any).dayOfWeek} className="flex items-center gap-3">
                             {/* @ts-ignore */}
                             <div className="w-12 text-sm font-medium">{DAY_LABELS[rule.dayOfWeek]}</div>
                             <div className="flex-1 flex items-center gap-2">
@@ -600,12 +595,10 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<number | null>(null
                       {/* 热力图 */}
                       <div className="grid grid-cols-7 gap-2">
                         {DAY_LABELS.map((label: unknown, index: unknown) => {
-                          // @ts-ignore
-                          const dayData = budgetPreview.weeklyData.find((d: unknown) => d.dayOfWeek === index);
-                          // @ts-ignore
-                          const allocation = budgetPreview.allocation.find((a: unknown) => a.dayOfWeek === index);
+                          const dayData = budgetPreview.weeklyData.find((d: unknown) => (d as any).dayOfWeek === index);
+                          const allocation = budgetPreview.allocation.find((a: unknown) => (a as any).dayOfWeek === index);
                           return (
-                            <div key={index} className="text-center">
+                            <div key={String(index)} className="text-center">
                               {/* @ts-ignore */}
                               <div className="text-sm font-medium mb-2">{label}</div>
                               <div
@@ -682,7 +675,7 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<number | null>(null
                         <div className="flex mb-2">
                           <div className="w-16" />
                           {HOUR_LABELS.map((hour: unknown, index: unknown) => (
-                            <div key={index} className="flex-1 text-center text-xs text-muted-foreground">
+                            <div key={String(index)} className="flex-1 text-center text-xs text-muted-foreground">
                               {(index as any) % 3 === 0 ? (hour as any).split(":")[0] : ""}
                             </div>
                           ))}
@@ -690,7 +683,7 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<number | null>(null
 
                         {/* 热力图网格 */}
                         {DAY_LABELS.map((dayLabel: unknown, dayIndex: unknown) => (
-                          <div key={dayIndex} className="flex mb-1">
+                          <div key={String(dayIndex)} className="flex mb-1">
                             {/* @ts-ignore */}
                             <div className="w-16 text-sm font-medium flex items-center">{dayLabel}</div>
                             <div className="flex-1 flex gap-0.5">
@@ -704,6 +697,7 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<number | null>(null
                                     // @ts-ignore
                                     key={hourIndex}
                                     className={`flex-1 h-8 rounded-sm ${getMultiplierColor(multiplier)} flex items-center justify-center cursor-pointer hover:ring-2 hover:ring-primary transition-all`}
+                                    // @ts-ignore
                                     title={`${dayLabel} ${HOUR_LABELS[hourIndex]}: ${multiplier.toFixed(2)}x`}
                                   >
                                     <span className="text-[10px] font-mono opacity-80">

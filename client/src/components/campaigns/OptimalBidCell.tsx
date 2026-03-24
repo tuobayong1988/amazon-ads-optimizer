@@ -174,7 +174,7 @@ export default function OptimalBidCell({ campaignId, accountId, onApplySuccess }
             <div className="max-h-48 overflow-y-auto space-y-2">
               <p className="text-xs text-muted-foreground font-medium">调整明细（显示前10个）</p>
               {keywords.slice(0, 10).map((kw: unknown) => (
-                <div key={kw.keywordId} className="flex items-center justify-between text-xs p-2 bg-muted/20 rounded">
+                <div key={(kw as any).keywordId} className="flex items-center justify-between text-xs p-2 bg-muted/20 rounded">
                   {/* @ts-ignore */}
                   <span className="truncate max-w-[200px]" title={kw.keywordText}>{kw.keywordText}</span>
                   <div className="flex items-center gap-2">

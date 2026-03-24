@@ -154,7 +154,6 @@ export default function HolidayCalendarManagement() {
     }
 
     if (editingHoliday) {
-      // @ts-ignore
       updateMutation.mutate({
         // @ts-ignore
         id: editingHoliday.id,
@@ -169,24 +168,16 @@ export default function HolidayCalendarManagement() {
   };
 
   const handleEdit = (holiday: unknown) => {
-    // @ts-ignore
     setEditingHoliday(holiday);
     // @ts-ignore
     setFormData({
-      // @ts-ignore
-      name: holiday.name,
-      // @ts-ignore
-      startDate: holiday.startDate,
-      // @ts-ignore
-      endDate: holiday.endDate,
-      // @ts-ignore
-      bidMultiplier: holiday.bidMultiplier,
-      // @ts-ignore
-      budgetMultiplier: holiday.budgetMultiplier,
-      // @ts-ignore
-      priority: holiday.priority,
-      // @ts-ignore
-      preHolidayDays: holiday.preHolidayDays || 7
+      name: (holiday as any).name,
+      startDate: (holiday as any).startDate,
+      endDate: (holiday as any).endDate,
+      bidMultiplier: (holiday as any).bidMultiplier,
+      budgetMultiplier: (holiday as any).budgetMultiplier,
+      priority: (holiday as any).priority,
+      preHolidayDays: (holiday as any).preHolidayDays || 7
     });
     setIsAddDialogOpen(true);
   };
@@ -389,8 +380,7 @@ export default function HolidayCalendarManagement() {
               {/* @ts-ignore */}
               <div className="flex flex-wrap gap-3">
                 {upcomingHolidays.slice(0, 5).map((holiday: unknown) => {
-                  // @ts-ignore
-                  const daysUntil = getDaysUntil(holiday.startDate);
+                  const daysUntil = getDaysUntil((holiday as any).startDate);
                   return (
                     <div
                       // @ts-ignore
@@ -581,12 +571,12 @@ function HolidayTable({
             {/* @ts-ignore */}
             <tbody>
               {holidays.map((holiday: unknown) => (
-                <tr key={holiday.id} className="border-b border-gray-700/50 hover:bg-gray-700/30">
+                <tr key={(holiday as any).id} className="border-b border-gray-700/50 hover:bg-gray-700/30">
                   <td className="py-3 px-4">
                     <Switch
                       // @ts-ignore
                       checked={holiday.isActive === 1}
-                      onCheckedChange={() => onToggle(holiday.id, holiday.isActive)}
+                      onCheckedChange={() => onToggle((holiday as any).id, (holiday as any).isActive)}
                     />
                   </td>
                   {/* @ts-ignore */}

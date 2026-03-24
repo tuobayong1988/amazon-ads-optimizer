@@ -183,8 +183,7 @@ export function UnifiedHistoryTracker({ performanceGroupId, performanceGroupName
       setRollbackTarget(null);
     },
     onError: (error: unknown) => {
-      // @ts-ignore
-      toast.error(`回滚失败: ${error.message}`);
+      toast.error(`回滚失败: ${(error as any).message}`);
     },
   });
 
@@ -212,12 +211,9 @@ export function UnifiedHistoryTracker({ performanceGroupId, performanceGroupName
 
   const toggleSelectAll = () => {
     if (!adjustmentData?.events) return;
-    // @ts-ignore
     const rollbackableIds = adjustmentData.events
-      // @ts-ignore
-      .filter((r: unknown) => r.status === 'success')
-      // @ts-ignore
-      .map((r: unknown) => r.id);
+      .filter((r: unknown) => (r as any).status === 'success')
+      .map((r: unknown) => (r as any).id);
     if (selectedIds.length === rollbackableIds.length) {
       setSelectedIds([]);
     } else {
@@ -236,7 +232,6 @@ export function UnifiedHistoryTracker({ performanceGroupId, performanceGroupName
   const renderApiSyncBadge = (syncStatus: string | null) => {
     const info = API_SYNC_LABELS[syncStatus || 'not_applicable'] || API_SYNC_LABELS.not_applicable;
     if (!info.icon) return <span className="text-xs text-muted-foreground">-</span>;
-    // @ts-ignore
     const Icon = info.icon;
     return (
       <span className={`flex items-center gap-1 text-xs ${info.color}`}>
@@ -245,7 +240,6 @@ export function UnifiedHistoryTracker({ performanceGroupId, performanceGroupName
         {info.label}
       </span>
     );
-  // @ts-ignore
   };
 
   const renderProfit = (val: unknown) => {
@@ -412,21 +406,15 @@ export function UnifiedHistoryTracker({ performanceGroupId, performanceGroupName
                   </TableHeader>
                   <TableBody>
                     {adjustmentData.events.map((record: unknown) => {
-                      // @ts-ignore
-                      const statusInfo = STATUS_LABELS[record.status] || STATUS_LABELS.pending;
-                      // @ts-ignore
+                      const statusInfo = STATUS_LABELS[(record as any).status] || STATUS_LABELS.pending;
                       const StatusIcon = statusInfo.icon;
-                      // @ts-ignore
-                      const changePercent = record.bidChangePercent ? parseFloat(record.bidChangePercent) : 0;
-                      // @ts-ignore
-                      const prevBid = parseFloat(record.previousBid || '0');
-                      // @ts-ignore
-                      const newBid = parseFloat(record.newBid || '0');
-                      // @ts-ignore
-                      const adjType = ADJUSTMENT_TYPE_LABELS[record.adjustmentType] || { label: record.adjustmentType || '自动', color: "bg-gray-500/20 text-gray-400" };
+                      const changePercent = (record as any).bidChangePercent ? parseFloat((record as any).bidChangePercent) : 0;
+                      const prevBid = parseFloat((record as any).previousBid || '0');
+                      const newBid = parseFloat((record as any).newBid || '0');
+                      const adjType = ADJUSTMENT_TYPE_LABELS[(record as any).adjustmentType] || { label: (record as any).adjustmentType || '自动', color: "bg-gray-500/20 text-gray-400" };
                       
                       return (
-                        <TableRow key={record.id}>
+                        <TableRow key={(record as any).id}>
                           {/* @ts-ignore */}
                           <TableCell>
                             {/* @ts-ignore */}
@@ -434,7 +422,7 @@ export function UnifiedHistoryTracker({ performanceGroupId, performanceGroupName
                               <Checkbox 
                                 // @ts-ignore
                                 checked={selectedIds.includes(record.id)}
-                                onCheckedChange={() => toggleSelect(record.id)}
+                                onCheckedChange={() => toggleSelect((record as any).id)}
                               />
                             )}
                           </TableCell>
@@ -445,7 +433,7 @@ export function UnifiedHistoryTracker({ performanceGroupId, performanceGroupName
                             {/* @ts-ignore */}
                             {record.keywordText || record.targetName || '-'}
                             {(record as any).matchType && (
-                              <Badge variant="outline" className="ml-1 text-[10px] px-1">{record.matchType}</Badge>
+                              <Badge variant="outline" className="ml-1 text-[10px] px-1">{(record as any).matchType}</Badge>
                             )}
                           </TableCell>
                           <TableCell className="max-w-[120px] truncate text-xs text-muted-foreground">
@@ -579,20 +567,16 @@ export function UnifiedHistoryTracker({ performanceGroupId, performanceGroupName
                   <TableBody>
                     {/* @ts-ignore */}
                     {adjustmentData.events
-                      // @ts-ignore
-                      .filter((r: unknown) => r.actualProfit7D !== null || r.actualProfit14D !== null || r.actualProfit30D !== null)
+                      .filter((r: unknown) => (r as any).actualProfit7D !== null || (r as any).actualProfit14D !== null || (r as any).actualProfit30D !== null)
                       .map((record: unknown) => {
-                        // @ts-ignore
-                        const prevBid = parseFloat(record.previousBid || '0');
-                        // @ts-ignore
-                        const newBid = parseFloat(record.newBid || '0');
+                        const prevBid = parseFloat((record as any).previousBid || '0');
+                        const newBid = parseFloat((record as any).newBid || '0');
                         const changeStr = newBid >= prevBid 
                           ? `+${currencySymbol}${(newBid - prevBid).toFixed(2)}` 
                           : `-${currencySymbol}${(prevBid - newBid).toFixed(2)}`;
                         
-                        // @ts-ignore
                         return (
-                          <TableRow key={record.id}>
+                          <TableRow key={(record as any).id}>
                             <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
                               {(record as any).createdAt ? safeToLocaleDateString((record as any).createdAt, 'zh-CN') : '-'}
                             </TableCell>
@@ -712,37 +696,28 @@ export function UnifiedHistoryTracker({ performanceGroupId, performanceGroupName
                   </TableHeader>
                   <TableBody>
                     {allEventsData.events.map((event: unknown) => {
-                      // @ts-ignore
-                      const catInfo = EVENT_CATEGORY_LABELS[event.eventCategory] || { label: event.eventCategory, color: "bg-gray-500/20 text-gray-400" };
-                      // @ts-ignore
-                      const statusInfo = STATUS_LABELS[event.status] || STATUS_LABELS.pending;
+                      const catInfo = EVENT_CATEGORY_LABELS[(event as any).eventCategory] || { label: (event as any).eventCategory, color: "bg-gray-500/20 text-gray-400" };
+                      const statusInfo = STATUS_LABELS[(event as any).status] || STATUS_LABELS.pending;
                       const StatusIcon = statusInfo.icon;
                       
                       // 构建变更详情显示
                       let changeDetail = '';
-                      // @ts-ignore
-                      if (event.previousBid && event.newBid) {
-                        // @ts-ignore
-                        changeDetail = `${currencySymbol}${parseFloat(event.previousBid).toFixed(2)} → ${currencySymbol}${parseFloat(event.newBid).toFixed(2)}`;
-                      // @ts-ignore
-                      } else if (event.previousValue && event.newValue) {
+                      if ((event as any).previousBid && (event as any).newBid) {
+                        changeDetail = `${currencySymbol}${parseFloat((event as any).previousBid).toFixed(2)} → ${currencySymbol}${parseFloat((event as any).newBid).toFixed(2)}`;
+                      } else if ((event as any).previousValue && (event as any).newValue) {
                         // v175: 根据事件类型添加货币符号（后端不再存储$符号）
-                        // @ts-ignore
-                        const isCurrencyEvent = ['bid_adjustment', 'budget_adjustment', 'dayparting_bid'].includes(event.eventCategory);
-                        // @ts-ignore
-                        const prevDisplay = isCurrencyEvent && !isNaN(parseFloat(event.previousValue)) ? `${currencySymbol}${parseFloat(event.previousValue).toFixed(2)}` : event.previousValue;
-                        // @ts-ignore
-                        const newDisplay = isCurrencyEvent && !isNaN(parseFloat(event.newValue)) ? `${currencySymbol}${parseFloat(event.newValue).toFixed(2)}` : event.newValue;
+                        const isCurrencyEvent = ['bid_adjustment', 'budget_adjustment', 'dayparting_bid'].includes((event as any).eventCategory);
+                        const prevDisplay = isCurrencyEvent && !isNaN(parseFloat((event as any).previousValue)) ? `${currencySymbol}${parseFloat((event as any).previousValue).toFixed(2)}` : (event as any).previousValue;
+                        const newDisplay = isCurrencyEvent && !isNaN(parseFloat((event as any).newValue)) ? `${currencySymbol}${parseFloat((event as any).newValue).toFixed(2)}` : (event as any).newValue;
                         changeDetail = `${prevDisplay} → ${newDisplay}`;
                       // @ts-ignore
                       } else if (event.actionDetail) {
-                        // @ts-ignore
-                        const detail = typeof event.actionDetail === 'string' ? event.actionDetail : JSON.stringify(event.actionDetail);
+                        const detail = typeof (event as any).actionDetail === 'string' ? (event as any).actionDetail : JSON.stringify((event as any).actionDetail);
                         changeDetail = detail.slice(0, 80);
                       }
                       
                       return (
-                        <TableRow key={event.id}>
+                        <TableRow key={(event as any).id}>
                           <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
                             {(event as any).createdAt ? safeToLocaleString((event as any).createdAt, 'zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-'}
                           </TableCell>

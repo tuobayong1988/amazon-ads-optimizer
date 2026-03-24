@@ -133,15 +133,15 @@ export default function LandingPage() {
             {/* 核心指标 */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
               {performanceMetrics.map((metric: unknown, i: unknown) => (
-                <div key={i} className="bg-card/50 backdrop-blur-sm border border-border/50 rounded-lg p-4">
+                <div key={String(i)} className="bg-card/50 backdrop-blur-sm border border-border/50 rounded-lg p-4">
                   {/* @ts-ignore */}
                   <div className="flex items-center gap-2 mb-1">
                     {/* @ts-ignore */}
                     {/* @ts-ignore */}
                     {metric.trend === "up" ? (
-                      <ArrowUpRight className={`w-4 h-4 ${metric.color}`} />
+                      <ArrowUpRight className={`w-4 h-4 ${(metric as any).color}`} />
                     ) : (
-                      <ArrowDownRight className={`w-4 h-4 ${metric.color}`} />
+                      <ArrowDownRight className={`w-4 h-4 ${(metric as any).color}`} />
                     )}
                     <span className={`text-2xl font-bold ${(metric as any).color}`}>{(metric as any).value}</span>
                   </div>
@@ -183,7 +183,7 @@ export default function LandingPage() {
 
           <div className="grid md:grid-cols-2 gap-6 max-w-5xl mx-auto">
             {highlights.map((item: unknown, i: unknown) => (
-              <Card key={i} className={`${item.borderColor} hover:shadow-lg transition-all duration-300 group`}>
+              <Card key={String(i)} className={`${(item as any).borderColor} hover:shadow-lg transition-all duration-300 group`}>
                 {/* @ts-ignore */}
                 <CardHeader>
                   {/* @ts-ignore */}
@@ -226,7 +226,7 @@ export default function LandingPage() {
           </div>
           <div className="grid md:grid-cols-3 gap-8 max-w-3xl mx-auto">
             {adTypes.map((ad: unknown, i: unknown) => (
-              <div key={i} className="text-center p-8 rounded-2xl bg-card border border-border/50 hover:border-primary/30 transition-colors">
+              <div key={String(i)} className="text-center p-8 rounded-2xl bg-card border border-border/50 hover:border-primary/30 transition-colors">
                 <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
                   {/* @ts-ignore */}
                   <span className="text-2xl font-bold text-primary">{ad.abbr}</span>
@@ -257,14 +257,14 @@ export default function LandingPage() {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
               {blogPosts.map((post: unknown) => (
-                <Link key={post.id} href={`/blog/${post.slug}`}>
+                <Link key={(post as any).id} href={`/blog/${(post as any).slug}`}>
                   {/* @ts-ignore */}
                   <Card className="overflow-hidden hover:shadow-lg transition-all duration-300 group cursor-pointer h-full">
                     <div className="relative aspect-video overflow-hidden">
                       <img
                         // @ts-ignore
                         src={post.coverImage}
-                        alt={post.title}
+                        alt={(post as any).title}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                       />
                       <Badge className="absolute top-3 left-3 bg-primary/90">
@@ -317,7 +317,7 @@ export default function LandingPage() {
           </div>
           <div className="max-w-3xl mx-auto space-y-4">
             {faqs.map((faq: unknown, i: unknown) => (
-              <div key={i} className="bg-card border border-border/50 rounded-lg overflow-hidden">
+              <div key={String(i)} className="bg-card border border-border/50 rounded-lg overflow-hidden">
                 <button
                   className="w-full px-6 py-4 text-left flex items-center justify-between hover:bg-muted/50 transition-colors"
                   // @ts-ignore

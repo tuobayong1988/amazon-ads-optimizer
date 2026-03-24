@@ -40,23 +40,18 @@ export function MobileBottomNav() {
     >
       <div className="flex items-center justify-around h-16">
         {navItems.map((item: unknown) => {
-          // @ts-ignore
-          const isActive = location === item.path || 
-            // @ts-ignore
-            (item.path !== "/" && location.startsWith(item.path));
+          const isActive = location === (item as any).path || 
+            ((item as any).path !== "/" && location.startsWith((item as any).path));
           
-          // @ts-ignore
           return (
             <button
               // @ts-ignore
               key={item.path}
-              onClick={() => setLocation(item.path)}
+              onClick={() => setLocation((item as any).path)}
               className={`flex flex-col items-center justify-center flex-1 h-full gap-1 transition-colors ${
                 isActive 
-                  // @ts-ignore
                   ? "text-primary" 
                   : "text-muted-foreground active:text-foreground"
-              // @ts-ignore
               }`}
             >
               {/* @ts-ignore */}

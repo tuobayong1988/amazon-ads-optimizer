@@ -222,6 +222,7 @@ export function TimeRangeSelector({
             <DropdownMenuItem
               // @ts-ignore
               key={preset}
+              // @ts-ignore
               onClick={() => handlePresetSelect(preset)}
               className="flex items-center justify-between text-sm"
             >

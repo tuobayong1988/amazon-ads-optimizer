@@ -75,18 +75,12 @@ export function BatchExport({ groups, onExport }: BatchExportProps) {
           
           // 创建工作表
           const ws = XLSX.utils.json_to_sheet(data.map(d => ({
-            // @ts-ignore
-            '日期': d.date,
-            // @ts-ignore
-            '花费($)': d.spend,
-            // @ts-ignore
-            '销售额($)': d.sales,
-            // @ts-ignore
-            'ACoS(%)': d.acos,
-            // @ts-ignore
-            '转化数': d.orders || 0,
-            // @ts-ignore
-            '点击数': d.clicks || 0,
+            '日期': (d as any).date,
+            '花费($)': (d as any).spend,
+            '销售额($)': (d as any).sales,
+            'ACoS(%)': (d as any).acos,
+            '转化数': (d as any).orders || 0,
+            '点击数': (d as any).clicks || 0,
             // @ts-ignore
             '展示数': d.impressions || 0
           })));
@@ -112,22 +106,15 @@ export function BatchExport({ groups, onExport }: BatchExportProps) {
           const group = groups.find(g => g.id === groupId);
           
           // 获取数据
-          // @ts-ignore
           const data = await onExport([groupId], format, timeRange);
           
           // 生成CSV内容
-          // @ts-ignore
           const csvContent = [
-            // @ts-ignore
             ['日期', '花费($)', '销售额($)', 'ACoS(%)', '转化数', '点击数', '展示数'],
-            // @ts-ignore
             ...data.map(d => [
-              // @ts-ignore
-              d.date,
-              // @ts-ignore
-              d.spend,
-              // @ts-ignore
-              d.sales,
+              (d as any).date,
+              (d as any).spend,
+              (d as any).sales,
               // @ts-ignore
               d.acos,
               // @ts-ignore
@@ -160,8 +147,7 @@ export function BatchExport({ groups, onExport }: BatchExportProps) {
       
     } catch (error: unknown) {
       console.error('批量导出失败:', error);
-      // @ts-ignore
-      toast.error(`导出失败: ${error.message}`);
+      toast.error(`导出失败: ${(error as any).message}`);
     } finally {
       setExporting(false);
       setProgress(0);

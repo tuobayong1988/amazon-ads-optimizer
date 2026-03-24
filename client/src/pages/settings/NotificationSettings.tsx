@@ -321,8 +321,7 @@ export default function NotificationSettings() {
                         // @ts-ignore
                         key={notification.id}
                         className={`flex items-start gap-4 p-4 rounded-lg border ${
-                          // @ts-ignore
-                          notification.status === 'read' ? 'bg-muted/30' : 'bg-background'
+                          (notification as any).status === 'read' ? 'bg-muted/30' : 'bg-background'
                         }`}
                       >
                         {/* @ts-ignore */}

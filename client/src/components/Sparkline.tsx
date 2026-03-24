@@ -27,7 +27,7 @@ export function Sparkline({
       return { path: "", areaPath: "", minY: 0, maxY: 0 };
     }
 
-    const values = data.map((d: unknown) => d.value);
+    const values = data.map((d: unknown) => (d as any).value);
     const min = Math.min(...values);
     const max = Math.max(...values);
     const range = max - min || 1;
@@ -36,19 +36,16 @@ export function Sparkline({
     const chartWidth = width - padding * 2;
     const chartHeight = height - padding * 2;
 
-    // @ts-ignore
     const points = values.map((value: unknown, index: unknown) => {
       // @ts-ignore
       const x = padding + (index / (values.length - 1)) * chartWidth;
       // @ts-ignore
       const y = padding + chartHeight - ((value - min) / range) * chartHeight;
       return { x, y };
-    // @ts-ignore
     });
 
     const linePath = points
-      // @ts-ignore
-      .map((point: unknown, index: unknown) => (index === 0 ? `M ${point.x} ${point.y}` : `L ${point.x} ${point.y}`))
+      .map((point: unknown, index: unknown) => (index === 0 ? `M ${(point as any).x} ${(point as any).y}` : `L ${(point as any).x} ${(point as any).y}`))
       .join(" ");
 
     const areaPathStr = showArea
@@ -109,7 +106,6 @@ interface MiniSparklineProps {
 
 export function MiniSparkline({ data, trend, size = "sm" }: MiniSparklineProps) {
   const dimensions = size === "sm" ? { width: 40, height: 16 } : { width: 60, height: 24 };
-  // @ts-ignore
   const color = trend === "up" ? "#22c55e" : trend === "down" ? "#ef4444" : "#94a3b8";
 
   return (

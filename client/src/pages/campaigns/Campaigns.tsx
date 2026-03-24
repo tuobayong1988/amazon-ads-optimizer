@@ -667,7 +667,6 @@ export default function Campaigns() {
   const { data: paginatedResponse, isLoading, refetch } = trpc.campaign.listPaginated.useQuery(
     { 
       accountId: accountId!, 
-      // @ts-ignore
       marketplace: currentMarketplace || undefined,
       // @ts-ignore
       timeRange: (timeRangeValue.preset === 'custom' ? 'custom' : timeRangeValue.preset) as unknown,
@@ -696,7 +695,7 @@ export default function Campaigns() {
   const serverFilteredTotal = paginatedResponse?.filteredTotal || 0;
   // @ts-ignore
   const serverStatusCounts = paginatedResponse?.statusCounts;
-  const serverTypeCounts = (paginatedResponse as any).typeCounts;
+  const serverTypeCounts = (paginatedResponse as any)?.typeCounts;
 
   // Fetch performance groups for assignment
   const { data: performanceGroups } = trpc.performanceGroup.list.useQuery(
@@ -794,7 +793,6 @@ export default function Campaigns() {
       toast.success("已分配到绩效组");
       refetch();
     },
-  // @ts-ignore
   });
 
   // 获取店铺和站点信息（从账号列表中获取）
@@ -805,7 +803,6 @@ export default function Campaigns() {
     return [
       { value: "all", label: "全部店铺" },
       ...stores.map(s => ({ value: s, label: s }))
-    // @ts-ignore
     ];
   }, [accounts]);
 
@@ -823,7 +820,6 @@ export default function Campaigns() {
   const filteredAccountIds = useMemo(() => {
     if (!accounts) return [];
     return accounts
-      // @ts-ignore
       .filter(a => {
         const matchesStore = storeFilter === "all" || (a.storeName || a.accountName).trim() === storeFilter;
         const matchesMarketplace = marketplaceFilter === "all" || a.marketplace === marketplaceFilter;
@@ -838,18 +834,15 @@ export default function Campaigns() {
     
     const searchLower = debouncedSearchTerm.toLowerCase();
     
-    // @ts-ignore
     return campaigns.filter((campaign: unknown) => {
       // 搜索匹配 - 使用防抖后的搜索词
-      // @ts-ignore
-      const matchesSearch = !searchLower || campaign.campaignName.toLowerCase().includes(searchLower);
+      const matchesSearch = !searchLower || (campaign as any).campaignName.toLowerCase().includes(searchLower);
       
       // 账号匹配
       const matchesAccount = (storeFilter === "all" && marketplaceFilter === "all") || filteredAccountIds.includes((campaign as any).accountId);
       
       // 类型匹配
-      // @ts-ignore
-      const matchesType = typeFilter === "all" || campaign.campaignType === typeFilter;
+      const matchesType = typeFilter === "all" || (campaign as any).campaignType === typeFilter;
       
       // 计费方式匹配
       const matchesBillingType = billingTypeFilter === "all" || (campaign as Record<string, unknown>).billingType === billingTypeFilter;
@@ -858,16 +851,13 @@ export default function Campaigns() {
       const matchesRunningStatus = runningStatusFilter === "all" || (campaign as any).campaignStatus === runningStatusFilter;
       
       // 优化状态匹配
-      // @ts-ignore
       const matchesOptimizationStatus = optimizationStatusFilter === "all" || 
-        // @ts-ignore
         (campaign as Record<string, unknown>).optimizationStatus === optimizationStatusFilter ||
         (optimizationStatusFilter === "managed" && (campaign as Record<string, unknown>).performanceGroupId) ||
         (optimizationStatusFilter === "unmanaged" && !(campaign as Record<string, unknown>).performanceGroupId);
       
       // 高级筛选 - 曝光
-      // @ts-ignore
-      const impressions = Number(campaign.impressions) || 0;
+      const impressions = Number((campaign as any).impressions) || 0;
       const matchesImpMin = !filters.impMin || impressions >= Number(filters.impMin);
       const matchesImpMax = !filters.impMax || impressions <= Number(filters.impMax);
       
@@ -919,18 +909,12 @@ export default function Campaigns() {
     if (serverStatusCounts) {
       return {
         enabled: serverStatusCounts.enabled || 0,
-        // @ts-ignore
         paused: serverStatusCounts.paused || 0,
-        // @ts-ignore
         managed: serverStatusCounts.managed || 0,
-        // @ts-ignore
         unmanaged: serverStatusCounts.unmanaged || 0,
-      // @ts-ignore
       };
-    // @ts-ignore
     }
     // 回退：从当前数据计算
-    // @ts-ignore
     if (!campaigns) return { enabled: 0, paused: 0, managed: 0, unmanaged: 0 };
     return campaigns.reduce((acc: unknown, campaign: unknown) => {
       if ((campaign as any).campaignStatus === 'enabled') (acc as any).enabled++;
@@ -1015,23 +999,17 @@ export default function Campaigns() {
   };
 
   // 排序后的数据
-  // @ts-ignore
   const sortedCampaigns = useMemo(() => {
     if (!filteredCampaigns) return [];
     if (!sortField) return filteredCampaigns;
     
-    // @ts-ignore
     return [...filteredCampaigns].sort((a: unknown, b: unknown) => {
-      // @ts-ignore
       let aValue: unknown;
-      // @ts-ignore
       let bValue: unknown;
       
       switch (sortField) {
-        // @ts-ignore
         case 'campaignName':
-          // @ts-ignore
-          aValue = a.campaignName.toLowerCase();
+          aValue = (a as any).campaignName.toLowerCase();
           bValue = (b as any).campaignName.toLowerCase();
           break;
         case 'campaignType':
@@ -1040,101 +1018,68 @@ export default function Campaigns() {
           break;
         case 'costType':
           aValue = (a as Record<string, unknown>).costType || 'cpc';
-          // @ts-ignore
           bValue = (b as Record<string, unknown>).costType || 'cpc';
-          // @ts-ignore
           break;
         case 'campaignGoal':
           aValue = (a as Record<string, unknown>).campaignGoal || '';
-          // @ts-ignore
           bValue = (b as Record<string, unknown>).campaignGoal || '';
-          // @ts-ignore
           break;
         case 'adFormat':
           aValue = (a as Record<string, unknown>).adFormat || '';
-          // @ts-ignore
           bValue = (b as Record<string, unknown>).adFormat || '';
-          // @ts-ignore
           break;
-        // @ts-ignore
         case 'startDate':
-          // @ts-ignore
           aValue = safeGetTime((a as Record<string, unknown>).startDate || 0);
           bValue = safeGetTime((b as Record<string, unknown>).startDate || 0);
           break;
-        // @ts-ignore
         case 'status':
-          // @ts-ignore
-          aValue = a.campaignStatus || '';
-          // @ts-ignore
-          bValue = b.campaignStatus || '';
-          // @ts-ignore
+          aValue = (a as any).campaignStatus || '';
+          bValue = (b as any).campaignStatus || '';
           break;
-        // @ts-ignore
         case 'dailyBudget':
           // @ts-ignore
           aValue = parseFloat((a as Record<string, unknown>).dailyBudget || '0');
           // @ts-ignore
           bValue = parseFloat((b as Record<string, unknown>).dailyBudget || '0');
           break;
-        // @ts-ignore
         case 'dailySpend':
           // @ts-ignore
           aValue = parseFloat((a as Record<string, unknown>).dailySpend || '0');
           // @ts-ignore
           bValue = parseFloat((b as Record<string, unknown>).dailySpend || '0');
-          // @ts-ignore
           break;
-        // @ts-ignore
         case 'impressions':
-          // @ts-ignore
-          aValue = a.impressions || 0;
+          aValue = (a as any).impressions || 0;
           bValue = (b as any).impressions || 0;
           break;
-        // @ts-ignore
         case 'clicks':
-          // @ts-ignore
-          aValue = a.clicks || 0;
-          // @ts-ignore
-          bValue = b.clicks || 0;
-          // @ts-ignore
+          aValue = (a as any).clicks || 0;
+          bValue = (b as any).clicks || 0;
           break;
-        // @ts-ignore
         case 'ctr':
-          // @ts-ignore
-          aValue = a.impressions ? (a.clicks || 0) / a.impressions : 0;
+          aValue = (a as any).impressions ? ((a as any).clicks || 0) / (a as any).impressions : 0;
           bValue = (b as any).impressions ? ((b as any).clicks || 0) / (b as any).impressions : 0;
-          // @ts-ignore
           break;
-        // @ts-ignore
         case 'totalSpend':
-          // @ts-ignore
-          aValue = parseFloat(a.spend || '0');
+          aValue = parseFloat((a as any).spend || '0');
           bValue = parseFloat((b as any).spend || '0');
           break;
-        // @ts-ignore
         case 'dailySales':
           // @ts-ignore
           aValue = parseFloat((a as Record<string, unknown>).dailySales || '0');
           // @ts-ignore
           bValue = parseFloat((b as Record<string, unknown>).dailySales || '0');
           break;
-        // @ts-ignore
         case 'totalSales':
-          // @ts-ignore
-          aValue = parseFloat(a.sales || '0');
+          aValue = parseFloat((a as any).sales || '0');
           bValue = parseFloat((b as any).sales || '0');
           break;
-        // @ts-ignore
         case 'acos':
-          // @ts-ignore
-          aValue = parseFloat(a.acos || '0');
+          aValue = parseFloat((a as any).acos || '0');
           bValue = parseFloat((b as any).acos || '0');
           break;
-        // @ts-ignore
         case 'roas':
-          // @ts-ignore
-          aValue = parseFloat(a.roas || '0');
+          aValue = parseFloat((a as any).roas || '0');
           bValue = parseFloat((b as any).roas || '0');
           break;
         case 'performanceGroup':
@@ -1142,9 +1087,7 @@ export default function Campaigns() {
           aValue = getPerformanceGroupName((a as Record<string, unknown>).performanceGroupId);
           // @ts-ignore
           bValue = getPerformanceGroupName((b as Record<string, unknown>).performanceGroupId);
-          // @ts-ignore
           break;
-        // @ts-ignore
         default:
           return 0;
       }
@@ -1156,7 +1099,6 @@ export default function Campaigns() {
   }, [filteredCampaigns, sortField, sortDirection, performanceGroups]);
 
   // v402: 分页数据计算 - 服务端分页模式 vs 前端分页模式
-  // @ts-ignore
   const totalItems = useServerPagination ? serverFilteredTotal : sortedCampaigns.length;
   const totalPages = Math.ceil(totalItems / pageSize);
   const validCurrentPage = Math.min(currentPage, Math.max(1, totalPages));
@@ -1238,7 +1180,6 @@ export default function Campaigns() {
   };
 
   // 格式化日期
-  // @ts-ignore
   const formatDate = (dateStr: string | Date | null | undefined) => {
     if (!dateStr) return "-";
     const date = safeParseDate(dateStr);
@@ -1251,15 +1192,12 @@ export default function Campaigns() {
     if (newVisible.has(key)) {
       // 至少保留广告活动名称列
       if (key !== 'campaignName') {
-        // @ts-ignore
         newVisible.delete(key);
       }
     } else {
-      // @ts-ignore
       newVisible.add(key);
     }
     setVisibleColumns(newVisible);
-  // @ts-ignore
   };
 
   // 重置为默认列
@@ -1273,40 +1211,32 @@ export default function Campaigns() {
     if (!sortedCampaigns || sortedCampaigns.length === 0) {
       toast.error('没有可导出的数据');
       return;
-    // @ts-ignore
     }
     
     setIsExporting(true);
     
     try {
       // 准备导出列（只导出可见列）
-      // @ts-ignore
       const exportColumns: ExportColumn[] = columns
         .filter(col => visibleColumns.has(col.key) && col.key !== 'actions' && col.key !== 'optimalBid' && col.key !== 'autoOptimization')
-        // @ts-ignore
         .map(col => ({ key: col.key, label: col.label }));
       
       // 准备导出数据
       // @ts-ignore
       const exportData = sortedCampaigns.map(campaign => {
         const row: Record<string, unknown> = {};
-        // @ts-ignore
         exportColumns.forEach(col => {
           switch (col.key) {
             case 'campaignName':
-              // @ts-ignore
               row[col.key] = campaign.campaignName;
               break;
-            // @ts-ignore
             case 'campaignType':
               const typeConfig = campaignTypes.find(t => t.value === campaign.campaignType);
               row[col.key] = typeConfig?.label || campaign.campaignType;
-              // @ts-ignore
               break;
             case 'costType':
               // @ts-ignore
               row[col.key] = billingTypeLabels[(campaign as Record<string, unknown>).costType || 'cpc'] || (campaign as Record<string, unknown>).costType || 'CPC';
-              // @ts-ignore
               break;
             case 'campaignGoal':
               // @ts-ignore
@@ -1318,53 +1248,43 @@ export default function Campaigns() {
               break;
             case 'startDate':
               row[col.key] = (campaign as Record<string, unknown>).startDate ? safeToLocaleDateString((campaign as Record<string, unknown>).startDate, 'zh-CN') : '';
-              // @ts-ignore
               break;
             case 'status':
               row[col.key] = campaign.campaignStatus === 'enabled' ? '投放中' : '已暂停';
-              // @ts-ignore
               break;
             case 'dailyBudget':
               // @ts-ignore
               row[col.key] = `${currencySymbol}${parseFloat((campaign as Record<string, unknown>).dailyBudget || '0').toFixed(2)}`;
-              // @ts-ignore
               break;
             case 'dailySpend':
-              row[col.key] = `${currencySymbol}${((campaign as Record<string, unknown> as any).spend || 0).toFixed(2)}`;
-              // @ts-ignore
+              row[col.key] = `${currencySymbol}${(((campaign as Record<string, unknown>).performance as any)?.spend || 0).toFixed(2)}`;
               break;
             case 'impressions':
-              row[col.key] = (campaign as Record<string, unknown> as any).impressions || 0;
-              // @ts-ignore
+              row[col.key] = ((campaign as Record<string, unknown>).performance as any)?.impressions || 0;
               break;
-            // @ts-ignore
             case 'clicks':
-              row[col.key] = (campaign as Record<string, unknown> as any).clicks || 0;
+              row[col.key] = ((campaign as Record<string, unknown>).performance as any)?.clicks || 0;
               break;
             case 'ctr':
               // @ts-ignore
               const impressions = (campaign as Record<string, unknown>).performance?.impressions || 0;
-              const clicks = (campaign as Record<string, unknown> as any).clicks || 0;
+              const clicks = ((campaign as Record<string, unknown>).performance as any)?.clicks || 0;
               row[col.key] = impressions > 0 ? `${((clicks / impressions) * 100).toFixed(2)}%` : '-';
-              // @ts-ignore
               break;
             case 'totalSpend':
-              row[col.key] = `${currencySymbol}${((campaign as Record<string, unknown> as any).totalSpend || 0).toFixed(2)}`;
-              // @ts-ignore
+              row[col.key] = `${currencySymbol}${(((campaign as Record<string, unknown>).performance as any)?.totalSpend || 0).toFixed(2)}`;
               break;
             case 'dailySales':
-              row[col.key] = `${currencySymbol}${((campaign as Record<string, unknown> as any).sales || 0).toFixed(2)}`;
-              // @ts-ignore
+              row[col.key] = `${currencySymbol}${(((campaign as Record<string, unknown>).performance as any)?.sales || 0).toFixed(2)}`;
               break;
             case 'totalSales':
-              row[col.key] = `${currencySymbol}${((campaign as Record<string, unknown> as any).totalSales || 0).toFixed(2)}`;
-              // @ts-ignore
+              row[col.key] = `${currencySymbol}${(((campaign as Record<string, unknown>).performance as any)?.totalSales || 0).toFixed(2)}`;
               break;
             case 'acos':
-              row[col.key] = `${((campaign as Record<string, unknown> as any).acos || 0).toFixed(1)}%`;
+              row[col.key] = `${(((campaign as Record<string, unknown>).performance as any)?.acos || 0).toFixed(1)}%`;
               break;
             case 'roas':
-              row[col.key] = ((campaign as Record<string, unknown> as any).roas || 0).toFixed(2);
+              row[col.key] = (((campaign as Record<string, unknown>).performance as any)?.roas || 0).toFixed(2);
               break;
             case 'performanceGroup':
               const group = performanceGroups?.find(g => g.id === campaign.performanceGroupId);
@@ -1384,14 +1304,12 @@ export default function Campaigns() {
       if (format === 'csv') {
         exportToCSV({ filename, columns: exportColumns, data: exportData });
       } else {
-        // @ts-ignore
         exportToExcel({ filename, columns: exportColumns, data: exportData });
       }
       
       toast.success(`已导出 ${exportData.length} 条记录`);
     } catch (error) {
       toast.error('导出失败');
-      // @ts-ignore
       console.error('Export error:', error);
     } finally {
       setIsExporting(false);
@@ -1412,11 +1330,8 @@ export default function Campaigns() {
       marketplace: filters.marketplace,
       type: filters.type,
       billing: filters.billing,
-      // @ts-ignore
       status: filters.status,
-      // @ts-ignore
       optimization: filters.optimization,
-    // @ts-ignore
     };
     
     addPreset(newPresetName.trim(), currentFilters);
@@ -1443,33 +1358,24 @@ export default function Campaigns() {
   // 处理暂停/启用操作
   const handleToggleStatus = (campaign: unknown) => {
     const newStatus = (campaign as any).campaignStatus === "enabled" ? "paused" : "enabled";
-    // @ts-ignore
-    const isHighRisk = campaign.campaignStatus === "enabled";
+    const isHighRisk = (campaign as any).campaignStatus === "enabled";
     
     // @ts-ignore
     showConfirm({
-      // @ts-ignore
       operationType: newStatus === "paused" ? 'campaign_pause' : 'campaign_enable',
       title: newStatus === "paused" ? '暂停广告活动' : '启用广告活动',
       description: `您即将${newStatus === "paused" ? '暂停' : '启用'}广告活动"${(campaign as any).campaignName}"`,
-      // @ts-ignore
       changes: [{
         id: (campaign as any).id,
         name: (campaign as any).campaignName,
         field: 'status',
-        // @ts-ignore
         fieldLabel: '状态',
-        // @ts-ignore
-        oldValue: campaign.campaignStatus === "enabled" ? '启用中' : '已暂停',
-        // @ts-ignore
+        oldValue: (campaign as any).campaignStatus === "enabled" ? '启用中' : '已暂停',
         newValue: newStatus === "paused" ? '已暂停' : '启用中',
-      // @ts-ignore
       }],
-      // @ts-ignore
       warningMessage: isHighRisk 
         // @ts-ignore
         ? '暂停广告活动将立即停止广告展示，可能影响销售' 
-        // @ts-ignore
         : undefined,
       onConfirm: () => {
         updateCampaign.mutate({
@@ -1482,7 +1388,6 @@ export default function Campaigns() {
   };
 
   // 处理编辑预算
-  // @ts-ignore
   const handleEditBudget = (campaign: unknown) => {
     // @ts-ignore
     setEditBudgetDialog({
@@ -1498,12 +1403,10 @@ export default function Campaigns() {
 
   // 确认编辑预算
   const confirmEditBudget = () => {
-    // @ts-ignore
     const newBudget = parseFloat(editBudgetDialog.newBudget);
     if (isNaN(newBudget) || newBudget < 0) {
       toast.error("请输入有效的预算金额");
       return;
-    // @ts-ignore
     }
 
     showConfirm({
@@ -1512,9 +1415,7 @@ export default function Campaigns() {
       description: `您即将修改广告活动"${editBudgetDialog.campaignName}"的日预算`,
       changes: [{
         id: editBudgetDialog.campaignId!,
-        // @ts-ignore
         name: editBudgetDialog.campaignName,
-        // @ts-ignore
         field: 'dailyBudget',
         fieldLabel: '日预算',
         oldValue: `${currencySymbol}${editBudgetDialog.currentBudget.toFixed(2)}`,
@@ -1526,7 +1427,6 @@ export default function Campaigns() {
       onConfirm: () => {
         updateCampaign.mutate({
           id: editBudgetDialog.campaignId!,
-          // @ts-ignore
           dailyBudget: newBudget.toString(),
         });
         setEditBudgetDialog({ open: false, campaignId: null, campaignName: '', currentBudget: 0, newBudget: '' });
@@ -1537,22 +1437,19 @@ export default function Campaigns() {
   };
 
   // 渲染单元格内容
-  // @ts-ignore
   const renderCell = (campaign: unknown, columnKey: ColumnKey) => {
     // @ts-ignore
     const typeConfig = getCampaignTypeConfig(campaign.campaignType);
     // @ts-ignore
     const dailySpend = parseFloat((campaign as Record<string, unknown>).dailySpend || "0");
-    // @ts-ignore
-    const totalSpend = parseFloat(campaign.spend || "0");
+    const totalSpend = parseFloat((campaign as any).spend || "0");
     // @ts-ignore
     const dailySales = parseFloat((campaign as Record<string, unknown>).dailySales || "0");
     const totalSales = parseFloat((campaign as any).sales || "0");
     // @ts-ignore
     const dailyBudget = parseFloat((campaign as Record<string, unknown>).dailyBudget || "0");
     const impressions = Number((campaign as any).impressions) || 0;
-    // @ts-ignore
-    const clicks = Number(campaign.clicks) || 0;
+    const clicks = Number((campaign as any).clicks) || 0;
 
     switch (columnKey) {
       case 'campaignName': {
@@ -1567,13 +1464,11 @@ export default function Campaigns() {
           // 提取匹配方式
           if (/Exact/i.test(n)) tags.push({ label: '精确', color: 'bg-green-500/15 text-green-600' });
           else if (/Phrase/i.test(n)) tags.push({ label: '词组', color: 'bg-amber-500/15 text-amber-600' });
-          // @ts-ignore
           else if (/Broad/i.test(n)) tags.push({ label: '广泛', color: 'bg-red-500/15 text-red-600' });
           // 提取ASIN
           const asinMatch = n.match(/B0[A-Z0-9]{8}/i);
           if (asinMatch) tags.push({ label: asinMatch[0], color: 'bg-gray-500/15 text-gray-600' });
           return tags;
-        // @ts-ignore
         };
         const tags = extractTags(name);
         return (
@@ -1594,7 +1489,7 @@ export default function Campaigns() {
             {tags.length > 0 && (
               <div className="flex items-center gap-1 mt-0.5 flex-wrap">
                 {tags.map((tag: unknown, i: unknown) => (
-                  <span key={i} className={`text-[10px] px-1.5 py-0 rounded-sm font-medium ${(tag as any).color}`}>
+                  <span key={String(i)} className={`text-[10px] px-1.5 py-0 rounded-sm font-medium ${(tag as any).color}`}>
                     {(tag as any).label}
                   </span>
                 ))}
@@ -1616,13 +1511,12 @@ export default function Campaigns() {
           </span>
         );
       case 'campaignGoal': {
-        // @ts-ignore
         const goal = (campaign as Record<string, unknown>).campaignGoal;
         if (!goal) {
           // SP广告没有goal字段，显示“-”
-          // @ts-ignore
           return <span className="text-sm text-muted-foreground">-</span>;
         }
+        // @ts-ignore
         const goalLabel = campaignGoalLabels[goal] || goal;
         // 根据目标类型显示不同颜色
         const isImpressionGoal = goal === 'GROW_BRAND_IMPRESSION_SHARE' || goal === 'growBrandImpressionShare' || goal === 'reach';
@@ -1633,9 +1527,7 @@ export default function Campaigns() {
         );
       }
       case 'adFormat': {
-        // @ts-ignore
         const format = (campaign as Record<string, unknown>).adFormat;
-        // @ts-ignore
         if (!format) {
           return <span className="text-sm text-muted-foreground">-</span>;
         }
@@ -1687,12 +1579,10 @@ export default function Campaigns() {
             {String((campaign as Record<string, unknown>).portfolioName || '-')}
           </span>
         );
-      // @ts-ignore
       case 'biddingStrategy':
         const strategyLabels: Record<string, string> = {
           'legacyForSales': '动态竞价-仅降低',
           'autoForSales': '动态竞价-提高和降低',
-          // @ts-ignore
           'manual': '固定竞价',
           'ruleBasedBidding': '规则竞价'
         };
@@ -1803,7 +1693,6 @@ export default function Campaigns() {
             {(campaign as Record<string, unknown>).ntbSales ? `${currencySymbol}${parseFloat(((campaign as Record<string, unknown>).ntbSales as any)).toFixed(2)}` : '-'}
           </span>
         );
-      // @ts-ignore
       case 'ntbSalesPercent':
         return (
           <span className="text-sm tabular-nums">
@@ -1840,7 +1729,6 @@ export default function Campaigns() {
             {((campaign as Record<string, unknown>).householdReach || 0).toLocaleString()}
           </span>
         );
-      // @ts-ignore
       case 'viewableImpressions':
         return (
           <span className="text-sm tabular-nums">
@@ -1853,7 +1741,6 @@ export default function Campaigns() {
             {(campaign as Record<string, unknown>).cpmConverted ? `${currencySymbol}${parseFloat(((campaign as Record<string, unknown>).cpmConverted as any)).toFixed(2)}` : '-'}
           </span>
         );
-      // @ts-ignore
       case 'cpm':
         return (
           <span className="text-sm tabular-nums">
@@ -1867,7 +1754,6 @@ export default function Campaigns() {
           </span>
         );
       case 'vcpm':
-        // @ts-ignore
         return (
           <span className="text-sm tabular-nums">
             {(campaign as Record<string, unknown>).vcpm ? `${currencySymbol}${parseFloat(((campaign as Record<string, unknown>).vcpm as any)).toFixed(2)}` : '-'}
@@ -1879,7 +1765,6 @@ export default function Campaigns() {
             {((campaign as Record<string, unknown>).videoFirstQuartile || 0).toLocaleString()}
           </span>
         );
-      // @ts-ignore
       case 'videoMidpoint':
         return (
           <span className="text-sm tabular-nums">
@@ -1905,7 +1790,6 @@ export default function Campaigns() {
           </span>
         );
       case 'vtr':
-        // @ts-ignore
         return (
           <span className="text-sm tabular-nums">
             {(campaign as Record<string, unknown>).vtr ? `${(parseFloat(((campaign as Record<string, unknown>).vtr as any)) * 100).toFixed(2)}%` : '-'}
@@ -1922,7 +1806,6 @@ export default function Campaigns() {
       case 'dailyBudget':
         return <span className="tabular-nums font-medium">${dailyBudget.toFixed(2)}</span>;
       case 'dailySpend':
-        // @ts-ignore
         return (
           <span className={`tabular-nums ${dailySpend > dailyBudget * 0.9 ? "text-orange-500" : ""}`}>
             ${dailySpend.toFixed(2)}
@@ -1936,7 +1819,6 @@ export default function Campaigns() {
         return <span className="tabular-nums">{calculateCTR(clicks, impressions)}</span>;
       case 'totalSpend':
         return <span className="tabular-nums font-medium">${totalSpend.toFixed(2)}</span>;
-      // @ts-ignore
       case 'dailySales':
         return <span className="tabular-nums text-green-600">${dailySales.toFixed(2)}</span>;
       case 'totalSales':
@@ -1958,9 +1840,7 @@ export default function Campaigns() {
       case 'performanceGroup':
         const pgName = (campaign as Record<string, unknown>).performanceGroupName;
         const pgStrategy = (campaign as Record<string, unknown>).performanceGroupStrategyTemplate;
-        // @ts-ignore
         if (pgName) {
-          // @ts-ignore
           return (
             <div className="flex flex-col gap-0.5">
               {/* @ts-ignore */}
@@ -2010,25 +1890,22 @@ export default function Campaigns() {
         }
         const strategyColorMap: Record<string, string> = {
           'aggressive-growth': 'bg-red-100 text-red-700 border-red-200',
-          // @ts-ignore
           'balanced': 'bg-blue-100 text-blue-700 border-blue-200',
           'profit-focused': 'bg-green-100 text-green-700 border-green-200',
-          // @ts-ignore
           'seasonal-boost': 'bg-yellow-100 text-yellow-700 border-yellow-200',
           'brand-defense': 'bg-purple-100 text-purple-700 border-purple-200',
-        // @ts-ignore
         };
         // @ts-ignore
         const strategyColor = strategyColorMap[recTemplateId] || 'bg-gray-100 text-gray-700 border-gray-200';
-        // @ts-ignore
         return (
+          // @ts-ignore
           <div className="flex flex-col gap-0.5" title={recReason || ''}>
             {/* @ts-ignore */}
             <Badge variant="outline" className={`text-xs px-2 py-0.5 ${strategyColor}`}>
-              {/* @ts-ignore */}
-              {recTemplateName}
+                {String(recTemplateName)}
             </Badge>
             {recReason && (
+              // @ts-ignore
               <span className="text-[10px] text-muted-foreground truncate max-w-[150px]" title={recReason}>
                 {String(recReason)}
               </span>
@@ -2038,7 +1915,7 @@ export default function Campaigns() {
       case 'amazonCreatedDate':
         const amazonDate = (campaign as Record<string, unknown>).amazonCreatedDate;
         return amazonDate ? (
-          <span className="text-sm">{amazonDate}</span>
+          <span className="text-sm">{String(amazonDate)}</span>
         ) : (
           <span className="text-xs text-muted-foreground">-</span>
         );
@@ -2081,26 +1958,22 @@ export default function Campaigns() {
             )}
           </div>
         );
-      // @ts-ignore
       case 'actions':
-        // @ts-ignore
         return (
           <QuickActions
             // @ts-ignore
             campaignId={campaign.campaignId}
             accountId={(campaign as any).accountId || 0}
-            currentBudget={campaign.dailyBudget || 0}
+            currentBudget={(campaign as any).dailyBudget || 0}
             status={(campaign as any).campaignStatus || 'enabled'}
             onStatusChange={(newStatus) => {
               handleToggleStatus(campaign);
-            // @ts-ignore
             }}
             onBudgetChange={(newBudget) => {
               handleEditBudget(campaign);
             }}
             onBidChange={(multiplier) => {
               toast.info("竞价调整功能开发中");
-            // @ts-ignore
             }}
           />
         );
@@ -2243,7 +2116,6 @@ export default function Campaigns() {
                       <Button
                         // @ts-ignore
                         variant="ghost"
-                        // @ts-ignore
                         size="sm"
                         className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100"
                         // @ts-ignore
@@ -2310,11 +2182,9 @@ export default function Campaigns() {
                   const count = (type as any).value === "all" 
                     ? serverTotal || 0 
                     : typeCounts[(type as any).value] || 0;
-                  // @ts-ignore
-                  const isActive = typeFilter === type.value;
+                  const isActive = typeFilter === (type as any).value;
                   const Icon = (type as any).icon;
                   
-                  // @ts-ignore
                   return (
                     <Button
                       key={(type as any).value}
@@ -2356,16 +2226,13 @@ export default function Campaigns() {
                   <span className="text-sm text-muted-foreground">运行状态:</span>
                   <div className="flex gap-1">
                     {runningStatusOptions.map((option: unknown) => {
-                      // @ts-ignore
-                      const count = option.value === "all" 
-                        // @ts-ignore
+                      const count = (option as any).value === "all" 
                         ? serverTotal || 0 
                         : (option as any).value === "enabled" ? statusCounts.enabled : statusCounts.paused;
-                      // @ts-ignore
                       return (
                         <Button
                           key={(option as any).value}
-                          variant={runningStatusFilter === option.value ? "default" : "outline"}
+                          variant={runningStatusFilter === (option as any).value ? "default" : "outline"}
                           size="sm"
                           onClick={() => setRunningStatusFilter((option as any).value)}
                           className="h-8"
@@ -2385,16 +2252,13 @@ export default function Campaigns() {
                   <span className="text-sm text-muted-foreground">优化状态:</span>
                   <div className="flex gap-1">
                     {optimizationStatusOptions.map((option: unknown) => {
-                      // @ts-ignore
-                      const count = option.value === "all" 
-                        // @ts-ignore
+                      const count = (option as any).value === "all" 
                         ? serverTotal || 0 
                         : (option as any).value === "managed" ? statusCounts.managed : statusCounts.unmanaged;
-                      // @ts-ignore
                       return (
                         <Button
                           key={(option as any).value}
-                          variant={optimizationStatusFilter === option.value ? "default" : "outline"}
+                          variant={optimizationStatusFilter === (option as any).value ? "default" : "outline"}
                           size="sm"
                           // @ts-ignore
                           onClick={() => setOptimizationStatusFilter(option.value)}
@@ -2561,7 +2425,6 @@ export default function Campaigns() {
                         <Input
                           // @ts-ignore
                           type="number"
-                          // @ts-ignore
                           placeholder="最大"
                           step="0.01"
                           value={filters.roasMax || ''}
@@ -2710,9 +2573,7 @@ export default function Campaigns() {
                 <div className="flex items-center gap-2">
                   <Select
                     onValueChange={(value) => {
-                      // @ts-ignore
                       batchAssignToGroup.mutate({
-                        // @ts-ignore
                         campaignIds: Array.from(selectedCampaigns),
                         performanceGroupId: parseInt(value),
                       });
@@ -2802,22 +2663,17 @@ export default function Campaigns() {
                         </TableHead>
                         {columns.filter(col => mobileVisibleColumns.has(col.key)).map((column: unknown, colIndex: unknown) => {
                           const colWidth = getWidth((column as any).key);
-                          // @ts-ignore
-                          const colIsPinned = isPinned(column.key);
-                          // @ts-ignore
-                          const pinnedOffset = colIsPinned ? getPinnedOffset(column.key) + 40 : 0; // 40 for checkbox column
+                          const colIsPinned = isPinned((column as any).key);
+                          const pinnedOffset = colIsPinned ? getPinnedOffset((column as any).key) + 40 : 0; // 40 for checkbox column
                           
                           return (
                             <TableHead 
                               key={(column as any).key}
                               className={`relative ${colIsPinned ? 'sticky bg-muted/50 z-30' : ''} ${(column as any).align === 'right' ? 'text-right' : (column as any).align === 'center' ? 'text-center' : ''}`}
                               style={{ 
-                                // @ts-ignore
                                 width: colWidth,
-                                // @ts-ignore
                                 minWidth: colWidth,
                                 left: colIsPinned ? pinnedOffset : undefined,
-                              // @ts-ignore
                               }}
                             >
                               <div className={`flex items-center gap-1 ${(column as any).align === 'right' ? 'justify-end' : (column as any).align === 'center' ? 'justify-center' : ''}`}>
@@ -2831,7 +2687,7 @@ export default function Campaigns() {
                                     {getSortIcon((column as any).key as SortField)}
                                   </button>
                                 ) : (
-                                  <span>{column.label}</span>
+                                  <span>{(column as any).label}</span>
                                 )}
                                 {(column as any).key !== 'actions' && (
                                   <PinButton
@@ -2849,14 +2705,12 @@ export default function Campaigns() {
                               )}
                             </TableHead>
                           );
-                        // @ts-ignore
                         })}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {rowVirtualizer.getVirtualItems().map((virtualRow: unknown) => {
-                        // @ts-ignore
-                        const campaign = paginatedCampaigns[virtualRow.index];
+                        const campaign = paginatedCampaigns[(virtualRow as any).index];
                         if (!campaign) return null;
                         return (
                           <TableRow 
@@ -2879,17 +2733,14 @@ export default function Campaigns() {
                             </TableCell>
                             {columns.filter(col => mobileVisibleColumns.has(col.key)).map((column: unknown) => {
                               const colWidth = getWidth((column as any).key);
-                              // @ts-ignore
-                              const colIsPinned = isPinned(column.key);
-                              // @ts-ignore
-                              const pinnedOffset = colIsPinned ? getPinnedOffset(column.key) + 40 : 0;
+                              const colIsPinned = isPinned((column as any).key);
+                              const pinnedOffset = colIsPinned ? getPinnedOffset((column as any).key) + 40 : 0;
                               
                               return (
                                 <TableCell 
                                   key={(column as any).key}
                                   className={`${colIsPinned ? 'sticky bg-background z-10' : ''} ${(column as any).align === 'right' ? 'text-right' : (column as any).align === 'center' ? 'text-center' : ''}`}
                                   style={{ 
-                                    // @ts-ignore
                                     width: colWidth,
                                     minWidth: colWidth,
                                     left: colIsPinned ? pinnedOffset : undefined,

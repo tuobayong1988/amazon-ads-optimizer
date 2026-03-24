@@ -30,8 +30,7 @@ export default function PrelaunchM1Keywords() {
   // 获取项目列表
   const projectsQuery = trpc.prelaunch.listProjects.useQuery() as unknown;
   const projects = (() => {
-    // @ts-ignore
-    const d = projectsQuery.data;
+    const d = (projectsQuery as any).data;
     // @ts-ignore
     return (d && 'data' in (d as unknown) ? (d as Record<string, unknown>).data : d) || [];
   })();
@@ -72,7 +71,6 @@ export default function PrelaunchM1Keywords() {
       toast.success("M1搜索词库引擎已启动");
       keywordsQuery.refetch();
     },
-    // @ts-ignore
     onError: (err) => toast.error("启动失败: " + err.message),
   // @ts-ignore
   });
@@ -124,7 +122,7 @@ export default function PrelaunchM1Keywords() {
             >
               <option value="">选择项目</option>
               {projects.map((p: unknown) => (
-                <option key={p.id} value={p.id}>{p.projectName}</option>
+                <option key={(p as any).id} value={(p as any).id}>{(p as any).projectName}</option>
               ))}
             </select>
             <Button
@@ -191,8 +189,7 @@ export default function PrelaunchM1Keywords() {
                   <p className="text-xs text-muted-foreground">平均KVI分</p>
                   <p className="text-2xl font-bold">
                     {keywordsData.length > 0
-                      // @ts-ignore
-                      ? (keywordsData.reduce((s: number, k: unknown) => s + Number(k.kviScore || 0), 0) / keywordsData.length).toFixed(2)
+                      ? (keywordsData.reduce((s: number, k: unknown) => s + Number((k as any).kviScore || 0), 0) / keywordsData.length).toFixed(2)
                       : '-'}
                   </p>
                 </div>
@@ -225,7 +222,7 @@ export default function PrelaunchM1Keywords() {
                 <Button
                   // @ts-ignore
                   key={layer.key}
-                  variant={relevanceFilter === layer.key ? "default" : "outline"}
+                  variant={relevanceFilter === (layer as any).key ? "default" : "outline"}
                   size="sm"
                   // @ts-ignore
                   className="h-7 text-xs"
@@ -241,6 +238,7 @@ export default function PrelaunchM1Keywords() {
                 <select
                   className="h-7 rounded border border-input bg-transparent px-2 text-xs"
                   value={sortBy}
+                  // @ts-ignore
                   onChange={(e) => setSortBy(e.target.value as unknown)}
                 >
                   <option value="kviScore">KVI评分</option>
@@ -292,7 +290,7 @@ export default function PrelaunchM1Keywords() {
                       </thead>
                       <tbody>
                         {keywordsData.map((kw: unknown) => (
-                          <tr key={kw.id} className="border-b border-border/30 hover:bg-muted/20 transition-colors">
+                          <tr key={(kw as any).id} className="border-b border-border/30 hover:bg-muted/20 transition-colors">
                             {/* @ts-ignore */}
                             {/* @ts-ignore */}
                             <td className="px-4 py-2.5 font-medium">{kw.keyword}</td>
@@ -300,19 +298,14 @@ export default function PrelaunchM1Keywords() {
                             <td className="px-3 py-2.5 text-center">
                               {/* @ts-ignore */}
                               <Badge variant="outline" className={`text-xs ${
-                                // @ts-ignore
-                                kw.relevanceLayer === 'core' ? 'border-blue-500/50 text-blue-400' :
-                                // @ts-ignore
-                                kw.relevanceLayer === 'extended' ? 'border-green-500/50 text-green-400' :
-                                // @ts-ignore
-                                kw.relevanceLayer === 'long_tail' ? 'border-amber-500/50 text-amber-400' :
+                                (kw as any).relevanceLayer === 'core' ? 'border-blue-500/50 text-blue-400' :
+                                (kw as any).relevanceLayer === 'extended' ? 'border-green-500/50 text-green-400' :
+                                (kw as any).relevanceLayer === 'long_tail' ? 'border-amber-500/50 text-amber-400' :
                                 'border-gray-500/50 text-gray-400'
                               }`}>
                                 {(kw as any).relevanceLayer === 'core' ? '核心' :
-                                 // @ts-ignore
-                                 kw.relevanceLayer === 'extended' ? '扩展' :
-                                 // @ts-ignore
-                                 kw.relevanceLayer === 'long_tail' ? '长尾' : '无关'}
+                                 (kw as any).relevanceLayer === 'extended' ? '扩展' :
+                                 (kw as any).relevanceLayer === 'long_tail' ? '长尾' : '无关'}
                               </Badge>
                             </td>
                             {/* @ts-ignore */}
@@ -324,13 +317,13 @@ export default function PrelaunchM1Keywords() {
                             <td className="px-3 py-2.5 text-center">
                               {/* @ts-ignore */}
                               {kw.scenarioCode ? (
-                                <Badge variant="secondary" className="text-xs">{kw.scenarioCode}</Badge>
+                                <Badge variant="secondary" className="text-xs">{(kw as any).scenarioCode}</Badge>
                               ) : '-'}
                             </td>
                             <td className="px-3 py-2.5 text-center">
                               {/* @ts-ignore */}
                               {kw.intentTag ? (
-                                <Badge variant="secondary" className="text-xs">{kw.intentTag}</Badge>
+                                <Badge variant="secondary" className="text-xs">{(kw as any).intentTag}</Badge>
                               ) : '-'}
                             </td>
                           </tr>
@@ -375,7 +368,7 @@ export default function PrelaunchM1Keywords() {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {clustersData.map((cluster: unknown) => (
-                  <Card key={cluster.clusterId || cluster.id} className="hover:border-blue-500/30 transition-colors">
+                  <Card key={(cluster as any).clusterId || (cluster as any).id} className="hover:border-blue-500/30 transition-colors">
                     <CardHeader className="pb-2">
                       <div className="flex items-center justify-between">
                         {/* @ts-ignore */}

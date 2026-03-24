@@ -24,7 +24,7 @@ export default function PrelaunchM7AdFramework() {
 
   const projectsQuery = trpc.prelaunch.listProjects.useQuery() as unknown;
   // @ts-ignore
-  const projects = (() => { const d = projectsQuery.data; return (d && 'data' in (d as unknown) ? (d as Record<string, unknown>).data : d) || []; })();
+  const projects = (() => { const d = (projectsQuery as any).data; return (d && 'data' in (d as unknown) ? (d as Record<string, unknown>).data : d) || []; })();
   if (!projectId && projects.length > 0) setProjectId(projects[0].id);
 
   const frameworksQuery = trpc.prelaunch.getAdFrameworks.useQuery(
@@ -117,8 +117,8 @@ export default function PrelaunchM7AdFramework() {
                 <Card
                   // @ts-ignore
                   key={fw.id}
-                  className={`cursor-pointer transition-colors ${selectedFramework === fw.id ? 'border-indigo-500/50 bg-indigo-500/5' : 'hover:border-indigo-500/20'}`}
-                  onClick={() => setSelectedFramework(fw.id)}
+                  className={`cursor-pointer transition-colors ${selectedFramework === (fw as any).id ? 'border-indigo-500/50 bg-indigo-500/5' : 'hover:border-indigo-500/20'}`}
+                  onClick={() => setSelectedFramework((fw as any).id)}
                 >
                   {/* @ts-ignore */}
                   <CardContent className="py-3 px-4">
@@ -176,8 +176,7 @@ export default function PrelaunchM7AdFramework() {
                     <Card>
                       <CardContent className="py-6">
                         {(() => {
-                          // @ts-ignore
-                          const fw = frameworksData.find((f: unknown) => f.id === selectedFramework);
+                          const fw = frameworksData.find((f: unknown) => (f as any).id === selectedFramework);
                           if (!fw) return <p className="text-muted-foreground text-sm">未找到框架详情</p>;
                           return (
                             <div className="space-y-4">

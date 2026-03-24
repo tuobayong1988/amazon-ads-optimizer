@@ -166,18 +166,14 @@ export default function AutoRollbackSettings() {
     },
   });
 
-  // @ts-ignore
   const openEditDialog = (rule: unknown) => {
     // @ts-ignore
     setEditingRule(rule);
     // @ts-ignore
     setRuleForm({
-      // @ts-ignore
-      name: rule.name,
-      // @ts-ignore
-      description: rule.description,
-      // @ts-ignore
-      enabled: rule.enabled,
+      name: (rule as any).name,
+      description: (rule as any).description,
+      enabled: (rule as any).enabled,
       // @ts-ignore
       conditions: { ...rule.conditions },
       // @ts-ignore
@@ -382,8 +378,7 @@ export default function AutoRollbackSettings() {
                               {/* @ts-ignore */}
                               <Badge className={priorityColors[rule.actions.notificationPriority]}>
                                 {(rule as any).actions.notificationPriority === 'high' ? '高优先级' : 
-                                 // @ts-ignore
-                                 rule.actions.notificationPriority === 'medium' ? '中优先级' : '低优先级'}
+                                 (rule as any).actions.notificationPriority === 'medium' ? '中优先级' : '低优先级'}
                               </Badge>
                             </div>
                             {/* @ts-ignore */}
@@ -478,7 +473,7 @@ export default function AutoRollbackSettings() {
                       </TableHeader>
                       <TableBody>
                         {suggestions?.map((suggestion: unknown) => (
-                          <TableRow key={suggestion.id}>
+                          <TableRow key={(suggestion as any).id}>
                             <TableCell className="font-medium max-w-[150px] truncate">
                               {/* @ts-ignore */}
                               {suggestion.keywordText || '-'}
@@ -515,10 +510,8 @@ export default function AutoRollbackSettings() {
                               {/* @ts-ignore */}
                               <Badge className={statusColors[suggestion.status]}>
                                 {(suggestion as any).status === 'pending' ? '待处理' :
-                                 // @ts-ignore
-                                 suggestion.status === 'approved' ? '已批准' :
-                                 // @ts-ignore
-                                 suggestion.status === 'rejected' ? '已拒绝' : '已执行'}
+                                 (suggestion as any).status === 'approved' ? '已批准' :
+                                 (suggestion as any).status === 'rejected' ? '已拒绝' : '已执行'}
                               </Badge>
                             </TableCell>
                             <TableCell className="text-center">

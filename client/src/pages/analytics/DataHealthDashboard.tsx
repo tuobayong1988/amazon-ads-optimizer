@@ -306,12 +306,12 @@ export default function DataHealthDashboard() {
                 {(data?.syncJobs as unknown)?.recent?.length > 0 ? (
                   <div className="space-y-2">
                     {((data?.syncJobs as any)?.recent as unknown[])?.map((job: unknown) => (
-                      <div key={job.id} className="flex items-center justify-between p-3 rounded-lg border">
+                      <div key={(job as any).id} className="flex items-center justify-between p-3 rounded-lg border">
                         <div className="flex items-center gap-3">
                           {/* @ts-ignore */}
                           {job.status === 'completed' ? (
                             <CheckCircle className="h-5 w-5 text-green-500" />
-                          ) : job.status === 'failed' ? (
+                          ) : (job as any).status === 'failed' ? (
                             <XCircle className="h-5 w-5 text-red-500" />
                           ) : (
                             <Activity className="h-5 w-5 text-blue-500 animate-pulse" />
@@ -337,16 +337,12 @@ export default function DataHealthDashboard() {
                             />
                           </div>
                           <Badge variant={
-                            // @ts-ignore
-                            job.status === 'completed' ? 'default' :
-                            // @ts-ignore
-                            job.status === 'failed' ? 'destructive' : 'secondary'
+                            (job as any).status === 'completed' ? 'default' :
+                            (job as any).status === 'failed' ? 'destructive' : 'secondary'
                           }>
                             {(job as any).status === 'completed' ? '完成' :
-                             // @ts-ignore
-                             job.status === 'failed' ? '失败' :
-                             // @ts-ignore
-                             job.status === 'running' ? '运行中' : job.status}
+                             (job as any).status === 'failed' ? '失败' :
+                             (job as any).status === 'running' ? '运行中' : (job as any).status}
                           </Badge>
                         </div>
                       {/* @ts-ignore */}
@@ -514,8 +510,7 @@ export default function DataHealthDashboard() {
                               <span>
                                 {/* @ts-ignore */}
                                 {record.result?.issuesFound > 0 
-                                  // @ts-ignore
-                                  ? `发现${record.result.issuesFound}/修复${record.result.issuesFixed}` 
+                                  ? `发现${(record as any).result.issuesFound}/修复${(record as any).result.issuesFixed}` 
                                   : '无异常'}
                               </span>
                               {/* @ts-ignore */}

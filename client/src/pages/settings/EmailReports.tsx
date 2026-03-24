@@ -186,41 +186,24 @@ export default function EmailReports() {
   const handleUpdate = useCallback(() => {
     if (!editingId) return;
     updateMutation.mutate({ id: editingId, ...form });
-  // @ts-ignore
   }, [editingId, form, updateMutation]);
 
-  // @ts-ignore
   const handleEdit = useCallback((subscription: unknown) => {
-    // @ts-ignore
-    setEditingId(subscription.id);
-    // @ts-ignore
+    setEditingId((subscription as any).id);
     setForm({
-      // @ts-ignore
-      name: subscription.name,
-      // @ts-ignore
-      description: subscription.description || "",
-      // @ts-ignore
-      reportType: subscription.reportType,
-      // @ts-ignore
-      frequency: subscription.frequency,
-      // @ts-ignore
-      sendTime: subscription.sendTime || "09:00",
-      // @ts-ignore
-      sendDayOfWeek: subscription.sendDayOfWeek,
-      // @ts-ignore
-      sendDayOfMonth: subscription.sendDayOfMonth,
-      // @ts-ignore
-      recipients: subscription.recipients || [],
-      // @ts-ignore
-      ccRecipients: subscription.ccRecipients || [],
-      // @ts-ignore
-      accountIds: subscription.accountIds || [],
-      // @ts-ignore
-      includeCharts: subscription.includeCharts ?? true,
-      // @ts-ignore
-      includeDetails: subscription.includeDetails ?? true,
-      // @ts-ignore
-      dateRange: subscription.dateRange || "last_7_days",
+      name: (subscription as any).name,
+      description: (subscription as any).description || "",
+      reportType: (subscription as any).reportType,
+      frequency: (subscription as any).frequency,
+      sendTime: (subscription as any).sendTime || "09:00",
+      sendDayOfWeek: (subscription as any).sendDayOfWeek,
+      sendDayOfMonth: (subscription as any).sendDayOfMonth,
+      recipients: (subscription as any).recipients || [],
+      ccRecipients: (subscription as any).ccRecipients || [],
+      accountIds: (subscription as any).accountIds || [],
+      includeCharts: (subscription as any).includeCharts ?? true,
+      includeDetails: (subscription as any).includeDetails ?? true,
+      dateRange: (subscription as any).dateRange || "last_7_days",
     });
     setIsEditOpen(true);
   }, []);
@@ -267,7 +250,6 @@ export default function EmailReports() {
         <Label htmlFor="description">描述</Label>
         <Input
           id="description"
-          // @ts-ignore
           placeholder="可选"
           // @ts-ignore
           value={form.description}
@@ -286,7 +268,7 @@ export default function EmailReports() {
           </SelectTrigger>
           <SelectContent>
             {(reportTypes || Object.entries(reportTypeLabels).map(([id, info]) => ({ id, ...info }))).map((type: unknown) => (
-              <SelectItem key={type.id} value={type.id}>
+              <SelectItem key={(type as any).id} value={(type as any).id}>
                 {/* @ts-ignore */}
                 {type.name}
               </SelectItem>
@@ -339,7 +321,7 @@ export default function EmailReports() {
             </SelectTrigger>
             <SelectContent>
               {dayOfWeekLabels.map((label: unknown, index: unknown) => (
-                <SelectItem key={index} value={String(index)}>{label}</SelectItem>
+                <SelectItem key={String(index)} value={String(index)}>{String(label)}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -358,7 +340,8 @@ export default function EmailReports() {
             </SelectTrigger>
             <SelectContent>
               {Array.from({ length: 28 }, (_, i) => i + 1).map((day: unknown) => (
-                <SelectItem key={day} value={String(day)}>{day}号</SelectItem>
+                // @ts-ignore
+                <SelectItem key={String(day)} value={String(day)}>{day}号</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -424,17 +407,15 @@ export default function EmailReports() {
         <p className="text-sm text-muted-foreground mb-2">不选择则包含所有账号</p>
         <div className="space-y-2 max-h-40 overflow-y-auto border rounded-lg p-2">
           {accounts?.map((account: unknown) => (
-            <div key={account.id} className="flex items-center gap-2">
+            <div key={(account as any).id} className="flex items-center gap-2">
               <Checkbox
                 // @ts-ignore
                 checked={form.accountIds.includes(account.id)}
                 onCheckedChange={(checked) => {
                   if (checked) {
-                    // @ts-ignore
-                    setForm({ ...form, accountIds: [...form.accountIds, account.id] });
+                    setForm({ ...form, accountIds: [...form.accountIds, (account as any).id] });
                   } else {
-                    // @ts-ignore
-                    setForm({ ...form, accountIds: form.accountIds.filter(id => id !== account.id) });
+                    setForm({ ...form, accountIds: form.accountIds.filter(id => id !== (account as any).id) });
                   }
                 }}
               />
@@ -575,7 +556,7 @@ export default function EmailReports() {
                 </TableHeader>
                 <TableBody>
                   {subscriptions?.map((subscription: unknown) => (
-                    <TableRow key={subscription.id}>
+                    <TableRow key={(subscription as any).id}>
                       <TableCell>
                         {/* @ts-ignore */}
                         <div>
@@ -583,7 +564,7 @@ export default function EmailReports() {
                           <div className="font-medium">{subscription.name}</div>
                           {/* @ts-ignore */}
                           {subscription.description && (
-                            <div className="text-sm text-muted-foreground">{subscription.description}</div>
+                            <div className="text-sm text-muted-foreground">{(subscription as any).description}</div>
                           )}
                         </div>
                       </TableCell>
@@ -619,7 +600,7 @@ export default function EmailReports() {
                       <TableCell>
                         <div className="flex flex-wrap gap-1">
                           {(((subscription as any).recipients as string[]) || []).slice(0, 2).map((email: unknown) => (
-                            <Badge key={email} variant="secondary" className="text-xs">
+                            <Badge key={String(email)} variant="secondary" className="text-xs">
                               {/* @ts-ignore */}
                               {email.split("@")[0]}
                             </Badge>
@@ -636,7 +617,7 @@ export default function EmailReports() {
                           <Switch
                             // @ts-ignore
                             checked={Boolean(subscription.isActive)}
-                            onCheckedChange={() => toggleMutation.mutate({ id: subscription.id })}
+                            onCheckedChange={() => toggleMutation.mutate({ id: (subscription as any).id })}
                           />
                           {/* @ts-ignore */}
                           <span className={subscription.isActive ? "text-green-500" : "text-muted-foreground"}>

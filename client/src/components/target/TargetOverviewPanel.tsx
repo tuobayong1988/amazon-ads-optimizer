@@ -58,10 +58,8 @@ export default function TargetOverviewPanel({
     if (!performanceTrendData || performanceTrendData.length === 0) return null;
     
     const recent = performanceTrendData.slice(-7);
-    // @ts-ignore
-    const totalSpend = recent.reduce((sum: number, d: unknown) => sum + (d.spend || 0), 0);
-    // @ts-ignore
-    const totalSales = recent.reduce((sum: number, d: unknown) => sum + (d.sales || 0), 0);
+    const totalSpend = recent.reduce((sum: number, d: unknown) => sum + ((d as any).spend || 0), 0);
+    const totalSales = recent.reduce((sum: number, d: unknown) => sum + ((d as any).sales || 0), 0);
     const avgAcos = totalSales > 0 ? (totalSpend / totalSales * 100) : 0;
     const avgRoas = totalSpend > 0 ? (totalSales / totalSpend) : 0;
     
@@ -72,7 +70,6 @@ export default function TargetOverviewPanel({
       avgRoas,
       dataPoints: recent.length,
     };
-  // @ts-ignore
   }, [performanceTrendData]);
 
   // @ts-ignore
@@ -133,7 +130,7 @@ export default function TargetOverviewPanel({
               <span className="text-muted-foreground">状态</span>
               {/* @ts-ignore */}
               <Badge variant={group?.status === 'active' ? 'default' : 'secondary'}>
-                {(group as any).status === 'active' ? '运行中' : '已暂停'}
+                {(group as any)?.status === 'active' ? '运行中' : '已暂停'}
               </Badge>
             </div>
           </CardContent>

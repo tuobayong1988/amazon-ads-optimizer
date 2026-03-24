@@ -155,7 +155,7 @@ export default function IntelligentBudgetAllocation() {
               </SelectTrigger>
               <SelectContent>
                 {performanceGroups?.map((group: unknown) => (
-                  <SelectItem key={group.id} value={group.id.toString()}>
+                  <SelectItem key={(group as any).id} value={(group as any).id.toString()}>
                     {/* @ts-ignore */}
                     {group.name}
                   </SelectItem>
@@ -270,7 +270,7 @@ export default function IntelligentBudgetAllocation() {
                 <AlertDescription>
                   <ul className="list-disc list-inside mt-2">
                     {suggestionsData.warnings.map((warning: unknown, index: unknown) => (
-                      <li key={index}>{warning}</li>
+                      <li key={String(index)}>{String(warning)}</li>
                     ))}
                   </ul>
                 </AlertDescription>
@@ -322,11 +322,9 @@ export default function IntelligentBudgetAllocation() {
                           // @ts-ignore
                           key={suggestion.campaignId}
                           className={`p-4 border rounded-lg transition-colors ${
-                            // @ts-ignore
-                            selectedSuggestions.includes(suggestion.campaignId)
+                            selectedSuggestions.includes((suggestion as any).campaignId)
                               ? 'border-primary bg-primary/5'
                               : 'hover:border-muted-foreground/30'
-                          // @ts-ignore
                           }`}
                         >
                           <div className="flex items-start justify-between">
@@ -339,13 +337,9 @@ export default function IntelligentBudgetAllocation() {
                                 checked={selectedSuggestions.includes(suggestion.campaignId)}
                                 onChange={(e) => {
                                   if (e.target.checked) {
-                                    // @ts-ignore
-                                    setSelectedSuggestions([...selectedSuggestions, suggestion.campaignId]);
-                                  // @ts-ignore
+                                    setSelectedSuggestions([...selectedSuggestions, (suggestion as any).campaignId]);
                                   } else {
-                                    // @ts-ignore
-                                    setSelectedSuggestions(selectedSuggestions.filter(id => id !== suggestion.campaignId));
-                                  // @ts-ignore
+                                    setSelectedSuggestions(selectedSuggestions.filter(id => id !== (suggestion as any).campaignId));
                                   }
                                 }}
                                 className="mt-1"
@@ -406,8 +400,7 @@ export default function IntelligentBudgetAllocation() {
                                 className="mt-2"
                                 onClick={() => {
                                   setSelectedCampaign(suggestion);
-                                  // @ts-ignore
-                                  setSimulationBudget(suggestion.suggestedBudget);
+                                  setSimulationBudget((suggestion as any).suggestedBudget);
                                   setShowSimulationDialog(true);
                                 }}
                               >
@@ -506,15 +499,13 @@ export default function IntelligentBudgetAllocation() {
                         </thead>
                         <tbody>
                           {campaignPerformance?.map((campaign: unknown) => {
-                            // @ts-ignore
-                            const trend = campaign.roas7d > campaign.roas30d * 1.05 
+                            const trend = (campaign as any).roas7d > (campaign as any).roas30d * 1.05 
                               ? 'up' 
-                              // @ts-ignore
-                              : campaign.roas7d < campaign.roas30d * 0.95 
+                              : (campaign as any).roas7d < (campaign as any).roas30d * 0.95 
                                 ? 'down' 
                                 : 'stable';
                             return (
-                              <tr key={campaign.campaignId} className="border-b hover:bg-muted/50">
+                              <tr key={(campaign as any).campaignId} className="border-b hover:bg-muted/50">
                                 {/* @ts-ignore */}
                                 <td className="py-3 px-2 font-medium">{campaign.campaignName}</td>
                                 {/* @ts-ignore */}
@@ -545,7 +536,6 @@ export default function IntelligentBudgetAllocation() {
                                 </td>
                               </tr>
                             );
-                          // @ts-ignore
                           })}
                         </tbody>
                       </table>
@@ -568,7 +558,7 @@ export default function IntelligentBudgetAllocation() {
                   <CardContent>
                     <div className="space-y-6">
                       {suggestionsData?.suggestions.map((suggestion: unknown) => (
-                        <div key={suggestion.campaignId} className="p-4 border rounded-lg">
+                        <div key={(suggestion as any).campaignId} className="p-4 border rounded-lg">
                           <div className="flex items-center justify-between mb-4">
                             {/* @ts-ignore */}
                             {/* @ts-ignore */}
@@ -759,7 +749,6 @@ export default function IntelligentBudgetAllocation() {
                       type="number"
                       value={config?.minDailyBudget || 5}
                       onChange={(e) => {
-                        // @ts-ignore
                         if (selectedGroupId) {
                           updateConfigMutation.mutate({
                             performanceGroupId: selectedGroupId,
@@ -779,7 +768,6 @@ export default function IntelligentBudgetAllocation() {
                         if (selectedGroupId) {
                           updateConfigMutation.mutate({
                             performanceGroupId: selectedGroupId,
-                            // @ts-ignore
                             cooldownDays: Number(e.target.value)
                           });
                         }
@@ -795,7 +783,6 @@ export default function IntelligentBudgetAllocation() {
                       value={config?.newCampaignProtectionDays || 7}
                       onChange={(e) => {
                         if (selectedGroupId) {
-                          // @ts-ignore
                           updateConfigMutation.mutate({
                             performanceGroupId: selectedGroupId,
                             newCampaignProtectionDays: Number(e.target.value)
@@ -803,7 +790,6 @@ export default function IntelligentBudgetAllocation() {
                         }
                       }}
                       className="mt-1"
-                    // @ts-ignore
                     />
                   </div>
                 </div>
@@ -964,17 +950,14 @@ function ScenarioSimulation({
     
     // @ts-ignore
     const campaigns = suggestionsData.suggestions.map((s: unknown) => {
-      // @ts-ignore
-      const newBudget = s.currentBudget * multiplier;
+      const newBudget = (s as any).currentBudget * multiplier;
       // 基于边际效益递减模型计算预测效果
       const efficiencyFactor = multiplier > 1 
         ? 1 - 0.1 * Math.log(multiplier) 
         : 1 + 0.05 * Math.log(1 / multiplier);
       
-      // @ts-ignore
-      const predictedSpend = newBudget * (s.predictedSpend / s.currentBudget) * efficiencyFactor;
-      // @ts-ignore
-      const predictedSales = s.predictedSales * multiplier * efficiencyFactor;
+      const predictedSpend = newBudget * ((s as any).predictedSpend / (s as any).currentBudget) * efficiencyFactor;
+      const predictedSales = (s as any).predictedSales * multiplier * efficiencyFactor;
       const predictedROAS = predictedSpend > 0 ? predictedSales / predictedSpend : 0;
       const predictedACoS = predictedSales > 0 ? (predictedSpend / predictedSales) * 100 : 0;
       
@@ -986,21 +969,15 @@ function ScenarioSimulation({
         predictedSales,
         predictedROAS,
         predictedACoS,
-        // @ts-ignore
-        budgetChange: ((newBudget - s.currentBudget) / s.currentBudget) * 100,
+        budgetChange: ((newBudget - (s as any).currentBudget) / (s as any).currentBudget) * 100,
       };
-    // @ts-ignore
     });
     
     // 汇总数据
-    // @ts-ignore
-    const totalCurrentBudget = campaigns.reduce((sum: number, c: unknown) => sum + c.currentBudget, 0);
-    // @ts-ignore
-    const totalNewBudget = campaigns.reduce((sum: number, c: unknown) => sum + c.newBudget, 0);
-    // @ts-ignore
-    const totalPredictedSpend = campaigns.reduce((sum: number, c: unknown) => sum + c.predictedSpend, 0);
-    // @ts-ignore
-    const totalPredictedSales = campaigns.reduce((sum: number, c: unknown) => sum + c.predictedSales, 0);
+    const totalCurrentBudget = campaigns.reduce((sum: number, c: unknown) => sum + (c as any).currentBudget, 0);
+    const totalNewBudget = campaigns.reduce((sum: number, c: unknown) => sum + (c as any).newBudget, 0);
+    const totalPredictedSpend = campaigns.reduce((sum: number, c: unknown) => sum + (c as any).predictedSpend, 0);
+    const totalPredictedSales = campaigns.reduce((sum: number, c: unknown) => sum + (c as any).predictedSales, 0);
     const avgROAS = totalPredictedSpend > 0 ? totalPredictedSales / totalPredictedSpend : 0;
     const avgACoS = totalPredictedSales > 0 ? (totalPredictedSpend / totalPredictedSales) * 100 : 0;
     
@@ -1062,13 +1039,11 @@ function ScenarioSimulation({
           <Card 
             key={key}
             className={`cursor-pointer transition-all ${
-              // @ts-ignore
               scenarioType === key 
                 ? 'border-primary ring-2 ring-primary/20' 
-                // @ts-ignore
                 : 'hover:border-muted-foreground/30'
-            // @ts-ignore
             }`}
+            // @ts-ignore
             onClick={() => setScenarioType(key as unknown)}
           >
             <CardContent className="pt-6">
@@ -1149,10 +1124,11 @@ function ScenarioSimulation({
               
               {/* Y轴网格线 */}
               {[0, 0.25, 0.5, 0.75, 1].map((ratio: unknown, i: unknown) => (
-                <g key={i}>
+                <g key={String(i)}>
                   <line 
                     // @ts-ignore
                     x1="60" y1={220 - ratio * 200} 
+                    // @ts-ignore
                     x2="780" y2={220 - ratio * 200} 
                     stroke="hsl(var(--border))" 
                     strokeDasharray="4,4" 
@@ -1173,8 +1149,7 @@ function ScenarioSimulation({
                 d={`M ${curveData.map((d: unknown, i: unknown) => {
                   // @ts-ignore
                   const x = 60 + (i / (curveData.length - 1)) * 720;
-                  // @ts-ignore
-                  const y = 220 - (d.sales / maxSales) * 200;
+                  const y = 220 - ((d as any).sales / maxSales) * 200;
                   return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
                 }).join(' ')} L 780 220 L 60 220 Z`}
                 fill="url(#salesGradient)"
@@ -1185,8 +1160,7 @@ function ScenarioSimulation({
                 d={curveData.map((d: unknown, i: unknown) => {
                   // @ts-ignore
                   const x = 60 + (i / (curveData.length - 1)) * 720;
-                  // @ts-ignore
-                  const y = 220 - (d.sales / maxSales) * 200;
+                  const y = 220 - ((d as any).sales / maxSales) * 200;
                   return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
                 }).join(' ')}
                 fill="none"
@@ -1200,8 +1174,7 @@ function ScenarioSimulation({
                   // @ts-ignore
                   const x = 60 + (i / (curveData.length - 1)) * 720;
                   const maxROAS = Math.max(...curveData.map(c => c.roas));
-                  // @ts-ignore
-                  const y = 220 - (d.roas / maxROAS) * 200;
+                  const y = 220 - ((d as any).roas / maxROAS) * 200;
                   return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
                 }).join(' ')}
                 fill="none"
@@ -1226,17 +1199,14 @@ function ScenarioSimulation({
                     {/* @ts-ignore */}
                     </g>
                   );
-                // @ts-ignore
                 }
                 return null;
-              // @ts-ignore
               })()}
               
               {/* X轴标签 */}
               {curveData.filter((_: unknown, i: unknown) => (i as any) % 2 === 0).map((d: unknown, i: unknown) => {
                 // @ts-ignore
                 const x = 60 + ((i * 2) / (curveData.length - 1)) * 720;
-                // @ts-ignore
                 return (
                   <text 
                     // @ts-ignore
@@ -1317,7 +1287,7 @@ function ScenarioSimulation({
                 </thead>
                 <tbody>
                   {scenarioData.campaigns.map((campaign: unknown) => (
-                    <tr key={campaign.campaignId} className="border-b hover:bg-muted/50">
+                    <tr key={(campaign as any).campaignId} className="border-b hover:bg-muted/50">
                       {/* @ts-ignore */}
                       <td className="py-3 px-2 font-medium">{campaign.campaignName}</td>
                       {/* @ts-ignore */}
@@ -1325,10 +1295,8 @@ function ScenarioSimulation({
                       {/* @ts-ignore */}
                       <td className="text-right py-3 px-2">${campaign.newBudget.toFixed(2)}</td>
                       <td className={`text-right py-3 px-2 ${
-                        // @ts-ignore
-                        campaign.budgetChange > 0 ? 'text-green-500' : 
-                        // @ts-ignore
-                        campaign.budgetChange < 0 ? 'text-red-500' : ''
+                        (campaign as any).budgetChange > 0 ? 'text-green-500' : 
+                        (campaign as any).budgetChange < 0 ? 'text-red-500' : ''
                       }`}>
                         {(campaign as any).budgetChange > 0 ? '+' : ''}{(campaign as any).budgetChange.toFixed(1)}%
                       </td>

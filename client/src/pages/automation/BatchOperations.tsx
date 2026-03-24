@@ -226,9 +226,7 @@ export default function BatchOperations() {
       const items = lines.map((line: unknown, index: unknown) => {
         // @ts-expect-error - array method type inference
         const parts = line.split(',').map(p => p.trim());
-        // @ts-ignore
         return {
-          // @ts-ignore
           entityType: 'keyword' as const,
           // @ts-ignore
           entityId: index + 1, // Placeholder - would need real keyword ID
@@ -471,8 +469,8 @@ export default function BatchOperations() {
                         <TableRow 
                           // @ts-ignore
                           key={batch.id}
-                          className={selectedBatch === batch.id ? 'bg-muted/50' : ''}
-                          onClick={() => setSelectedBatch(batch.id)}
+                          className={selectedBatch === (batch as any).id ? 'bg-muted/50' : ''}
+                          onClick={() => setSelectedBatch((batch as any).id)}
                         >
                           {/* @ts-ignore */}
                           <TableCell className="font-medium">{batch.name}</TableCell>
@@ -505,10 +503,8 @@ export default function BatchOperations() {
                                 variant="ghost" 
                                 size="icon"
                                 onClick={(e) => {
-                                  // @ts-ignore
                                   e.stopPropagation();
-                                  // @ts-ignore
-                                  setSelectedBatch(batch.id);
+                                  setSelectedBatch((batch as any).id);
                                 }}
                               >
                                 <Eye className="h-4 w-4" />
@@ -522,21 +518,17 @@ export default function BatchOperations() {
                                     size="icon"
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      // @ts-ignore
-                                      approveMutation.mutate({ id: batch.id });
-                                    // @ts-ignore
+                                      approveMutation.mutate({ id: (batch as any).id });
                                     }}
                                   >
                                     <CheckCircle2 className="h-4 w-4 text-green-600" />
                                   </Button>
                                   <Button 
                                     variant="ghost" 
-                                    // @ts-ignore
                                     size="icon"
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      // @ts-ignore
-                                      cancelMutation.mutate({ id: batch.id });
+                                      cancelMutation.mutate({ id: (batch as any).id });
                                     }}
                                   >
                                     {/* @ts-ignore */}
@@ -548,39 +540,29 @@ export default function BatchOperations() {
                                 <Button 
                                   // @ts-ignore
                                   variant="ghost" 
-                                  // @ts-ignore
                                   size="icon"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    // @ts-ignore
-                                    const operationType = operationTypeConfig[batch.operationType as OperationType];
+                                    const operationType = operationTypeConfig[(batch as any).operationType as OperationType];
                                     showConfirm({
                                       operationType: 'batch_operation',
                                       title: '执行批量操作',
-                                      // @ts-ignore
-                                      description: `您即将执行“${batch.name}”批量操作`,
+                                      description: `您即将执行“${(batch as any).name}”批量操作`,
                                       changes: [{
-                                        // @ts-ignore
-                                        id: batch.id,
-                                        // @ts-ignore
-                                        name: batch.name,
+                                        id: (batch as any).id,
+                                        name: (batch as any).name,
                                         field: 'operation',
                                         fieldLabel: '操作类型',
-                                        // @ts-ignore
                                         oldValue: '待执行',
-                                        // @ts-ignore
-                                        newValue: operationType?.label || batch.operationType,
+                                        newValue: operationType?.label || (batch as any).operationType,
                                       }],
-                                      // @ts-ignore
-                                      affectedCount: batch.totalItems || 0,
-                                      // @ts-ignore
-                                      warningMessage: (batch.totalItems || 0) > 10 
+                                      affectedCount: (batch as any).totalItems || 0,
+                                      warningMessage: ((batch as any).totalItems || 0) > 10 
                                         // @ts-ignore
                                         ? `此操作将影响 ${batch.totalItems} 个项目，请谨慎确认` 
                                         : undefined,
                                       onConfirm: () => {
-                                        // @ts-ignore
-                                        executeMutation.mutate({ id: batch.id });
+                                        executeMutation.mutate({ id: (batch as any).id });
                                       },
                                     });
                                   }}
@@ -594,8 +576,7 @@ export default function BatchOperations() {
                                   size="icon"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    // @ts-ignore
-                                    rollbackMutation.mutate({ id: batch.id });
+                                    rollbackMutation.mutate({ id: (batch as any).id });
                                   }}
                                 >
                                   <RotateCcw className="h-4 w-4 text-orange-600" />
@@ -834,6 +815,7 @@ export default function BatchOperations() {
                     <Label>操作类型</Label>
                     <Select 
                       value={historyFilter.operationType || "all"}
+                      // @ts-ignore
                       onValueChange={(v) => setHistoryFilter(prev => ({ ...prev, operationType: v === "all" ? undefined : v as unknown }))}
                     >
                       <SelectTrigger>
@@ -852,6 +834,7 @@ export default function BatchOperations() {
                     <Label>状态</Label>
                     <Select 
                       value={historyFilter.status || "all"}
+                      // @ts-ignore
                       onValueChange={(v) => setHistoryFilter(prev => ({ ...prev, status: v === "all" ? undefined : v as unknown }))}
                     >
                       <SelectTrigger>
@@ -934,12 +917,10 @@ export default function BatchOperations() {
                       </TableHeader>
                       <TableBody>
                         {historyData.operations.map((op: unknown) => {
-                          // @ts-ignore
-                          const opType = operationTypeConfig[op.operationType as OperationType];
-                          // @ts-ignore
-                          const status = statusConfig[op.batchStatus as BatchStatus];
+                          const opType = operationTypeConfig[(op as any).operationType as OperationType];
+                          const status = statusConfig[(op as any).batchStatus as BatchStatus];
                           return (
-                            <TableRow key={op.id}>
+                            <TableRow key={(op as any).id}>
                               {/* @ts-ignore */}
                               <TableCell className="font-mono">#{op.id}</TableCell>
                               {/* @ts-ignore */}
@@ -973,8 +954,7 @@ export default function BatchOperations() {
                                   variant="ghost" 
                                   size="sm"
                                   onClick={() => {
-                                    // @ts-ignore
-                                    setSelectedHistoryId(op.id);
+                                    setSelectedHistoryId((op as any).id);
                                     setIsDetailDialogOpen(true);
                                   }}
                                 >
@@ -1137,7 +1117,7 @@ export default function BatchOperations() {
                         </TableHeader>
                         <TableBody>
                           {historyDetail.itemsByStatus.success.map((item: unknown) => (
-                            <TableRow key={item.id}>
+                            <TableRow key={(item as any).id}>
                               {/* @ts-ignore */}
                               <TableCell>{item.entityName || '-'}</TableCell>
                               {/* @ts-ignore */}
@@ -1183,7 +1163,7 @@ export default function BatchOperations() {
                         </TableHeader>
                         <TableBody>
                           {historyDetail.itemsByStatus.failed.map((item: unknown) => (
-                            <TableRow key={item.id}>
+                            <TableRow key={(item as any).id}>
                               {/* @ts-ignore */}
                               <TableCell>{item.entityName || '-'}</TableCell>
                               {/* @ts-ignore */}

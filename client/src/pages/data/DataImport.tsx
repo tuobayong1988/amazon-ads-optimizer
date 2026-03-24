@@ -352,7 +352,6 @@ export default function DataImport() {
                         // @ts-ignore
                         key={job.id} 
                         className="flex items-center justify-between p-4 rounded-lg border bg-card"
-                      // @ts-ignore
                       >
                         <div className="flex items-center gap-4">
                           {/* @ts-ignore */}

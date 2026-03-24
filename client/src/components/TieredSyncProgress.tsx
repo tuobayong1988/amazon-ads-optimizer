@@ -308,7 +308,7 @@ export function TieredSyncProgress({ accountId, accountName }: TieredSyncProgres
                 {/* @ts-ignore */}
                 </thead>
                 <tbody>
-                  {(tierConfig as Record<string, unknown> as any).map((tier: TierConfig) => (
+                  {(tierConfig as any)?.tiers?.map((tier: TierConfig) => (
                     <tr key={tier.name} className="border-b">
                       <td className="py-2 px-3">
                         <div className="flex items-center gap-2">

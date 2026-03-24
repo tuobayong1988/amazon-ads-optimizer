@@ -259,21 +259,14 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
     if (!searchQuery) return logsData.logs;
     
     const query = searchQuery.toLowerCase();
-    // @ts-ignore
     return logsData.logs.filter((log: unknown) => 
-      log.performanceGroupName?.toLowerCase().includes(query) ||
-      // @ts-ignore
-      log.campaignName?.toLowerCase().includes(query) ||
-      // @ts-ignore
-      log.userName?.toLowerCase().includes(query) ||
-      // @ts-ignore
-      log.actionDetail?.toLowerCase().includes(query) ||
-      // @ts-ignore
-      log.changeReason?.toLowerCase().includes(query) ||
-      // @ts-ignore
-      log.previousValue?.toLowerCase().includes(query) ||
-      // @ts-ignore
-      log.newValue?.toLowerCase().includes(query)
+      (log as any).performanceGroupName?.toLowerCase().includes(query) ||
+      (log as any).campaignName?.toLowerCase().includes(query) ||
+      (log as any).userName?.toLowerCase().includes(query) ||
+      (log as any).actionDetail?.toLowerCase().includes(query) ||
+      (log as any).changeReason?.toLowerCase().includes(query) ||
+      (log as any).previousValue?.toLowerCase().includes(query) ||
+      (log as any).newValue?.toLowerCase().includes(query)
     );
   }, [logsData?.logs, searchQuery]);
 
@@ -295,7 +288,6 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
   const parseActionDetail = (detail: string | null) => {
     if (!detail) return null;
     try {
-      // @ts-ignore
       return JSON.parse(detail);
     } catch {
       return { text: detail };
@@ -304,8 +296,7 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
 
   // 从actionDetail中提取关键词/目标名称
   const getTargetName = (log: unknown): { name: string; isProductTarget: boolean } | null => {
-    // @ts-ignore
-    const detail = parseActionDetail(log.actionDetail);
+    const detail = parseActionDetail((log as any).actionDetail);
     if (!detail) return null;
     
     // 出价调整日志
@@ -339,9 +330,7 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
     }
     
     // v135: 广告组状态变更 - 显示广告组名称
-    // @ts-ignore
     if (detail.entityType === 'adGroup' && detail.adGroupName) {
-      // @ts-ignore
       return { name: `广告组: ${detail.adGroupName}`, isProductTarget: false };
     }
     
@@ -634,25 +623,20 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
   // 渲染API同步状态徽章
   // v253: 修复 null 值处理 — 区分“功能上线前的历史记录”和“真正待同步”
   const renderApiSyncBadge = (log: unknown) => {
-    // @ts-ignore
-    let syncStatus = log.apiSyncStatus;
+    let syncStatus = (log as any).apiSyncStatus;
     if (!syncStatus) {
       // apiSyncStatus为null时，检查是否为API操作类型
-      // @ts-ignore
-      const isApiAction = log.logCategory === 'bid_adjustment' || log.logCategory === 'placement_adjustment';
+      const isApiAction = (log as any).logCategory === 'bid_adjustment' || (log as any).logCategory === 'placement_adjustment';
       if (!isApiAction) {
         syncStatus = 'not_applicable';
       } else {
         // v253: 检查日志创建时间 — 如果是24小时前的旧记录且无apiSyncStatus，说明是功能上线前的历史数据
-        // @ts-ignore
-        const logTime = log.createdAt ? new Date(log.createdAt).getTime() : 0;
+        const logTime = (log as any).createdAt ? new Date((log as any).createdAt).getTime() : 0;
         const hoursAgo24 = Date.now() - 24 * 3600000;
-        // @ts-ignore
         syncStatus = logTime < hoursAgo24 ? 'not_applicable' : 'pending';
       }
     }
     const config = API_SYNC_STATUS_CONFIG[syncStatus] || API_SYNC_STATUS_CONFIG.pending;
-    // @ts-ignore
     const SyncIcon = config.icon;
     
     return (
@@ -666,29 +650,24 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
   // 渲染执行链路
   // v253: 同样修复 null 值处理
   const renderExecutionPipeline = (log: unknown) => {
-    // @ts-ignore
-    let syncStatus = log.apiSyncStatus;
+    let syncStatus = (log as any).apiSyncStatus;
     if (!syncStatus) {
-      // @ts-ignore
-      const logTime = log.createdAt ? new Date(log.createdAt).getTime() : 0;
+      const logTime = (log as any).createdAt ? new Date((log as any).createdAt).getTime() : 0;
       const hoursAgo24 = Date.now() - 24 * 3600000;
       syncStatus = logTime < hoursAgo24 ? 'not_applicable' : 'pending';
     }
-    const isApiAction = ['bid_adjustment', 'placement_adjustment', 'optimization_settings'].includes(log.logCategory) ||
+    const isApiAction = ['bid_adjustment', 'placement_adjustment', 'optimization_settings'].includes((log as any).logCategory) ||
       ['bid_increase', 'bid_decrease', 'bid_set', 'bid_auto_adjust', 'placement_adjust', 'target_pause', 'target_enable',
-       // @ts-ignore
        'campaign_pause', 'campaign_enable', 'adgroup_pause', 'adgroup_enable', 'negative_keyword_add',
-       // @ts-ignore
-       'keyword_create', 'search_term_harvest', 'dayparting_bid', 'budget_adjustment'].includes(log.actionType);
+       'keyword_create', 'search_term_harvest', 'dayparting_bid', 'budget_adjustment'].includes((log as any).actionType);
     
     if (!isApiAction) return null;
     
     const steps = [
       { label: '优化决策', status: 'done', icon: Target },
-      { label: '本地更新', status: log.status === 'success' || log.status === 'failed' ? 'done' : 'pending', icon: Settings },
+      { label: '本地更新', status: (log as any).status === 'success' || (log as any).status === 'failed' ? 'done' : 'pending', icon: Settings },
       { label: 'Amazon API', status: syncStatus === 'synced' ? 'done' : syncStatus === 'partial' ? 'done' : syncStatus === 'failed' ? 'failed' : syncStatus === 'syncing' || syncStatus === 'retry' ? 'pending' : 'pending', icon: Cloud },
       { label: 'Amazon执行', status: syncStatus === 'synced' ? 'done' : syncStatus === 'partial' ? 'done' : syncStatus === 'failed' ? 'failed' : 'pending', icon: ExternalLink },
-    // @ts-ignore
     ];
     
     return (
@@ -698,24 +677,19 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
           let stepColor = 'text-gray-500';
           let dotColor = 'bg-gray-500';
           
-          // @ts-ignore
-          if (step.status === 'done') {
+          if ((step as any).status === 'done') {
             stepColor = 'text-green-400';
             dotColor = 'bg-green-400';
-          // @ts-ignore
-          } else if (step.status === 'failed') {
+          } else if ((step as any).status === 'failed') {
             stepColor = 'text-red-400';
-            // @ts-ignore
             dotColor = 'bg-red-400';
-          // @ts-ignore
-          } else if (step.status === 'pending') {
+          } else if ((step as any).status === 'pending') {
             stepColor = 'text-yellow-400';
             dotColor = 'bg-yellow-400';
-          // @ts-ignore
           }
           
           return (
-            <div key={idx} className="flex items-center gap-1">
+            <div key={String(idx)} className="flex items-center gap-1">
               <div className={`flex items-center gap-1 ${stepColor}`}>
                 {/* @ts-ignore */}
                 <div className={`w-2 h-2 rounded-full ${dotColor}`} />
@@ -734,29 +708,26 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
 
   // 渲染出价变化标签
   const renderBidChange = (log: unknown, compact: boolean = false) => {
-    // @ts-ignore
-    if (!log.previousValue && !log.newValue) return null;
+    if (!(log as any).previousValue && !(log as any).newValue) return null;
     
-    // @ts-ignore
-    const actionDetail = parseActionDetail(log.actionDetail);
+    const actionDetail = parseActionDetail((log as any).actionDetail);
     const changePercent = actionDetail?.changePercent;
     
     return (
       <div className={`flex items-center gap-1 ${compact ? 'text-xs' : 'text-sm'}`}>
         {/* @ts-ignore */}
         {log.previousValue && (
-          <span className="text-red-400 line-through font-mono">{log.previousValue}</span>
+          <span className="text-red-400 line-through font-mono">{(log as any).previousValue}</span>
         )}
         {(log as any).previousValue && (log as any).newValue && (
           <ArrowRight className={`${compact ? 'w-3 h-3' : 'w-3.5 h-3.5'} text-muted-foreground`} />
         )}
         {(log as any).newValue && (
-          <span className="text-green-400 font-medium font-mono">{log.newValue}</span>
+          <span className="text-green-400 font-medium font-mono">{(log as any).newValue}</span>
         )}
         {changePercent && (
           <span className={`${compact ? 'text-[10px]' : 'text-xs'} px-1 py-0.5 rounded ${
             parseFloat(changePercent) > 0 
-              // @ts-ignore
               ? 'bg-green-500/10 text-green-400' 
               : 'bg-red-500/10 text-red-400'
           }`}>
@@ -784,21 +755,16 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
 
   // 渲染单条日志
   const renderLogItem = (log: unknown) => {
-    // @ts-ignore
-    const isExpanded = expandedLogId === log.id;
-    // @ts-ignore
-    const categoryConfig = LOG_CATEGORIES[log.logCategory as keyof typeof LOG_CATEGORIES] || LOG_CATEGORIES.all;
-    // @ts-ignore
-    const actionConfig = ACTION_TYPE_LABELS[log.actionType] || { label: log.actionType || '系统操作', color: 'bg-gray-500/20 text-gray-400' };
-    // @ts-ignore
-    const statusConfig = STATUS_LABELS[log.status] || STATUS_LABELS.success;
+    const isExpanded = expandedLogId === (log as any).id;
+    const categoryConfig = LOG_CATEGORIES[(log as any).logCategory as keyof typeof LOG_CATEGORIES] || LOG_CATEGORIES.all;
+    const actionConfig = ACTION_TYPE_LABELS[(log as any).actionType] || { label: (log as any).actionType || '系统操作', color: 'bg-gray-500/20 text-gray-400' };
+    const statusConfig = STATUS_LABELS[(log as any).status] || STATUS_LABELS.success;
     const CategoryIcon = categoryConfig.icon;
     const StatusIcon = statusConfig.icon;
-    // @ts-ignore
-    const actionDetail = parseActionDetail(log.actionDetail);
+    const actionDetail = parseActionDetail((log as any).actionDetail);
 
     return (
-      <div key={log.id} className="border rounded-lg mb-2 overflow-hidden">
+      <div key={(log as any).id} className="border rounded-lg mb-2 overflow-hidden">
         {/* 日志头部 */}
         <div 
           className="p-3 cursor-pointer hover:bg-muted/50 transition-colors"
@@ -1120,8 +1086,7 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
                 {/* @ts-ignore */}
                 {log.apiSyncDetail && (() => {
                   try {
-                    // @ts-ignore
-                    const syncDetail = JSON.parse(log.apiSyncDetail);
+                    const syncDetail = JSON.parse((log as any).apiSyncDetail);
                     
                     // v140新格式: 单条同步状态 {status, error}
                     if (syncDetail.status && !syncDetail.totalSuccess && syncDetail.totalSuccess !== 0) {
@@ -1162,8 +1127,7 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
                       </div>
                     );
                   } catch {
-                    // @ts-ignore
-                    return <p className="text-xs text-muted-foreground">{log.apiSyncDetail}</p>;
+                    return <p className="text-xs text-muted-foreground">{(log as any).apiSyncDetail}</p>;
                   }
                 })()}
                 

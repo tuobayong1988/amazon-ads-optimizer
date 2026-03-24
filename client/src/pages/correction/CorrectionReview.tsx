@@ -230,7 +230,7 @@ const { data: sessions, isLoading: sessionsLoading, refetch: refetchSessions } =
                     </SelectTrigger>
                     <SelectContent>
                       {adAccounts?.map((account: unknown) => (
-                        <SelectItem key={account.id} value={account.id.toString()}>
+                        <SelectItem key={(account as any).id} value={(account as any).id.toString()}>
                           {/* @ts-ignore */}
                           {account.accountName}
                         </SelectItem>
@@ -303,12 +303,11 @@ const { data: sessions, isLoading: sessionsLoading, refetch: refetchSessions } =
                         // @ts-ignore
                         key={session.id}
                         className={`p-3 rounded-lg border cursor-pointer transition-colors ${
-                          // @ts-ignore
-                          selectedSession === session.id 
+                          selectedSession === (session as any).id 
                             ? 'border-primary bg-primary/5' 
                             : 'hover:bg-muted/50'
                         }`}
-                        onClick={() => setSelectedSession(session.id)}
+                        onClick={() => setSelectedSession((session as any).id)}
                       >
                         <div className="flex items-center justify-between mb-2">
                           <span className="font-medium text-sm">
@@ -451,7 +450,7 @@ const { data: sessions, isLoading: sessionsLoading, refetch: refetchSessions } =
                     <CardContent>
                       <ul className="space-y-2">
                         {recommendations.map((rec: unknown, index: unknown) => (
-                          <li key={index} className="flex items-start gap-2 text-sm">
+                          <li key={String(index)} className="flex items-start gap-2 text-sm">
                             <ArrowRight className="h-4 w-4 mt-0.5 text-primary flex-shrink-0" />
                             {/* @ts-ignore */}
                             <span>{rec}</span>
@@ -528,14 +527,14 @@ const { data: sessions, isLoading: sessionsLoading, refetch: refetchSessions } =
                         </TableHeader>
                         <TableBody>
                           {corrections.map((correction: unknown) => (
-                            <TableRow key={correction.id}>
+                            <TableRow key={(correction as any).id}>
                               <TableCell>
                                 {/* @ts-ignore */}
                                 {correction.wasIncorrect && (
                                   <Checkbox
                                     // @ts-ignore
                                     checked={selectedCorrections.includes(correction.id)}
-                                    onCheckedChange={() => handleToggleCorrection(correction.id)}
+                                    onCheckedChange={() => handleToggleCorrection((correction as any).id)}
                                   />
                                 )}
                               </TableCell>
@@ -578,19 +577,14 @@ const { data: sessions, isLoading: sessionsLoading, refetch: refetchSessions } =
                               </TableCell>
                               <TableCell>
                                 <Badge variant={
-                                  // @ts-ignore
-                                  correction.correctionStatus === 'applied' ? 'default' :
-                                  // @ts-ignore
-                                  correction.correctionStatus === 'dismissed' ? 'secondary' :
+                                  (correction as any).correctionStatus === 'applied' ? 'default' :
+                                  (correction as any).correctionStatus === 'dismissed' ? 'secondary' :
                                   'outline'
                                 }>
                                   {(correction as any).correctionStatus === 'pending_review' ? '待复盘' :
-                                   // @ts-ignore
-                                   correction.correctionStatus === 'approved' ? '已批准' :
-                                   // @ts-ignore
-                                   correction.correctionStatus === 'applied' ? '已应用' :
-                                   // @ts-ignore
-                                   correction.correctionStatus === 'dismissed' ? '已忽略' : correction.correctionStatus}
+                                   (correction as any).correctionStatus === 'approved' ? '已批准' :
+                                   (correction as any).correctionStatus === 'applied' ? '已应用' :
+                                   (correction as any).correctionStatus === 'dismissed' ? '已忽略' : (correction as any).correctionStatus}
                                 </Badge>
                               </TableCell>
                             </TableRow>

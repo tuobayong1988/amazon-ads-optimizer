@@ -53,22 +53,14 @@ export function IntelligentRecommendations({ accountId }: Props) {
     setCreatingGoal(true);
     createGoalMutation.mutate({
       accountId,
-      // @ts-ignore
-      name: prefillData.name,
-      // @ts-ignore
-      description: prefillData.description,
-      // @ts-ignore
-      optimizationGoal: prefillData.optimizationGoal,
-      // @ts-ignore
-      targetAcos: prefillData.targetAcos,
-      // @ts-ignore
-      targetRoas: prefillData.targetRoas,
-      // @ts-ignore
-      strategyTemplateId: prefillData.strategyTemplateId,
-      // @ts-ignore
-      strategyTemplateName: prefillData.strategyTemplateName,
-      // @ts-ignore
-      campaignIds: prefillData.campaignIds,
+      name: (prefillData as any).name,
+      description: (prefillData as any).description,
+      optimizationGoal: (prefillData as any).optimizationGoal,
+      targetAcos: (prefillData as any).targetAcos,
+      targetRoas: (prefillData as any).targetRoas,
+      strategyTemplateId: (prefillData as any).strategyTemplateId,
+      strategyTemplateName: (prefillData as any).strategyTemplateName,
+      campaignIds: (prefillData as any).campaignIds,
     });
   };
 
@@ -159,9 +151,7 @@ export function IntelligentRecommendations({ accountId }: Props) {
               <div className="flex flex-wrap gap-1">
                 {/* @ts-ignore */}
                 {rec.autoOptimizationActions
-                  // @ts-ignore
-                  .filter((a: unknown) => a.status === 'executed')
-                  // @ts-ignore
+                  .filter((a: unknown) => (a as any).status === 'executed')
                   .map((action: unknown, i: number) => (
                     <span key={i} className="inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded bg-green-500/10 text-green-400 border border-green-500/20">
                       <CheckCircle2 className="w-2.5 h-2.5" />
@@ -169,8 +159,7 @@ export function IntelligentRecommendations({ accountId }: Props) {
                     </span>
                   ))}
                 {(rec as any).autoOptimizationActions
-                  // @ts-ignore
-                  .filter((a: unknown) => a.status === 'skipped')
+                  .filter((a: unknown) => (a as any).status === 'skipped')
                   .map((action: unknown, i: number) => (
                     <span key={`s-${i}`} className="inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
                       {/* @ts-ignore */}
@@ -181,7 +170,7 @@ export function IntelligentRecommendations({ accountId }: Props) {
               {/* @ts-ignore */}
               {/* @ts-ignore */}
               {rec.autoOptimizationSummary && (
-                <p className="text-[10px] text-muted-foreground">{rec.autoOptimizationSummary}</p>
+                <p className="text-[10px] text-muted-foreground">{(rec as any).autoOptimizationSummary}</p>
               )}
             </div>
           )}

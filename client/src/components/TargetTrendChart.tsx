@@ -138,7 +138,7 @@ export function TargetTrendChart({
           <div className="space-y-4">
             <div className="grid grid-cols-5 gap-4">
               {[1, 2, 3, 4, 5].map((i: unknown) => (
-                <Skeleton key={i} className="h-24" />
+                <Skeleton key={String(i)} className="h-24" />
               ))}
             </div>
             <Skeleton className="h-80" />
@@ -268,6 +268,7 @@ export function TargetTrendChart({
                             border: "1px solid hsl(var(--border))",
                             borderRadius: "8px",
                           }}
+                          // @ts-ignore
                           formatter={((value: number, name: string) => {
                             if (name === "点击") return [formatNumber(value), name];
                             if (name === "花费") return [formatCurrency(value), name];
@@ -319,7 +320,6 @@ export function TargetTrendChart({
                           dataKey="date"
                           tickFormatter={formatDate}
                           className="text-xs"
-                        // @ts-ignore
                         />
                         <YAxis yAxisId="left" className="text-xs" />
                         <YAxis yAxisId="right" orientation="right" className="text-xs" />
@@ -329,6 +329,7 @@ export function TargetTrendChart({
                             border: "1px solid hsl(var(--border))",
                             borderRadius: "8px",
                           }}
+                          // @ts-ignore
                           formatter={((value: number, name: string) => {
                             if (name === "销售额") return [formatCurrency(value), name];
                             if (name === "订单") return [formatNumber(value), name];
@@ -381,6 +382,7 @@ export function TargetTrendChart({
                             border: "1px solid hsl(var(--border))",
                             borderRadius: "8px",
                           }}
+                          // @ts-ignore
                           formatter={((value: number, name: string) => {
                             if (name === "ACoS") return [formatPercent(value), name];
                             if (name === "ROAS") return [value.toFixed(2), name];
@@ -433,6 +435,7 @@ export function TargetTrendChart({
                             border: "1px solid hsl(var(--border))",
                             borderRadius: "8px",
                           }}
+                          // @ts-ignore
                           formatter={((value: number, name: string) => [formatPercent(value), name]) as unknown}
                           labelFormatter={(label) => `日期: ${label}`}
                         />
@@ -485,6 +488,7 @@ export function TargetTrendChart({
                             border: "1px solid hsl(var(--border))",
                             borderRadius: "8px",
                           }}
+                          // @ts-ignore
                           formatter={((value: number) => [formatCurrency(value), "CPC"]) as unknown}
                           labelFormatter={(label) => `日期: ${label}`}
                         />

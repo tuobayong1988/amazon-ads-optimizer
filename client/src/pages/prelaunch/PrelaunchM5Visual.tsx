@@ -17,7 +17,7 @@ export default function PrelaunchM5Visual() {
 
   const projectsQuery = trpc.prelaunch.listProjects.useQuery() as unknown;
   // @ts-ignore
-  const projects = (() => { const d = projectsQuery.data; return (d && 'data' in (d as unknown) ? (d as Record<string, unknown>).data : d) || []; })();
+  const projects = (() => { const d = (projectsQuery as any).data; return (d && 'data' in (d as unknown) ? (d as Record<string, unknown>).data : d) || []; })();
   if (!projectId && projects.length > 0) setProjectId(projects[0].id);
 
   const briefsQuery = trpc.prelaunch.getVisualBriefs.useQuery(
@@ -90,7 +90,7 @@ export default function PrelaunchM5Visual() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {briefsData.map((brief: unknown) => (
-              <Card key={brief.id} className="hover:border-pink-500/30 transition-colors overflow-hidden">
+              <Card key={(brief as any).id} className="hover:border-pink-500/30 transition-colors overflow-hidden">
                 {/* @ts-ignore */}
                 {brief.imageUrl ? (
                   <div className="aspect-square bg-muted/30 flex items-center justify-center overflow-hidden">

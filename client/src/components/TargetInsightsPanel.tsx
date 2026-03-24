@@ -70,14 +70,10 @@ export function TargetInsightsPanel({ groupId, accountId }: TargetInsightsPanelP
     if (!attribution?.results) return null;
     const results = attribution.results;
     const total = results.length;
-    // @ts-ignore
-    const excellent = results.filter((r: unknown) => r.effectRating === 'excellent').length;
-    // @ts-ignore
-    const good = results.filter((r: unknown) => r.effectRating === 'good').length;
-    // @ts-ignore
-    const poor = results.filter((r: unknown) => r.effectRating === 'poor' || r.effectRating === 'harmful').length;
-    // @ts-ignore
-    const avgScore = total > 0 ? results.reduce((sum: number, r: unknown) => sum + (r.effectScore || 0), 0) / total : 0;
+    const excellent = results.filter((r: unknown) => (r as any).effectRating === 'excellent').length;
+    const good = results.filter((r: unknown) => (r as any).effectRating === 'good').length;
+    const poor = results.filter((r: unknown) => (r as any).effectRating === 'poor' || (r as any).effectRating === 'harmful').length;
+    const avgScore = total > 0 ? results.reduce((sum: number, r: unknown) => sum + ((r as any).effectScore || 0), 0) / total : 0;
     return { total, excellent, good, poor, avgScore };
   }, [attribution]);
 
@@ -197,7 +193,7 @@ export function TargetInsightsPanel({ groupId, accountId }: TargetInsightsPanelP
                           <p className="text-xs text-muted-foreground mt-1">
                             出价: ${(item as any).previousBid} → ${(item as any).newBid}
                             {(item as any).bidChangePercent && (
-                              <span className={parseFloat(item.bidChangePercent) > 0 ? 'text-red-500' : 'text-green-500'}>
+                              <span className={parseFloat((item as any).bidChangePercent) > 0 ? 'text-red-500' : 'text-green-500'}>
                                 {' '}({parseFloat((item as any).bidChangePercent) > 0 ? '+' : ''}{parseFloat((item as any).bidChangePercent).toFixed(1)}%)
                               {/* @ts-ignore */}
                               </span>
@@ -211,7 +207,7 @@ export function TargetInsightsPanel({ groupId, accountId }: TargetInsightsPanelP
                           {/* @ts-ignore */}
                           {item.deltaRoas > 0 ? (
                             <ArrowUpRight className="w-4 h-4 text-green-500" />
-                          ) : item.deltaRoas < 0 ? (
+                          ) : (item as any).deltaRoas < 0 ? (
                             <ArrowDownRight className="w-4 h-4 text-red-500" />
                           ) : (
                             <Minus className="w-4 h-4 text-gray-400" />
@@ -259,16 +255,14 @@ export function TargetInsightsPanel({ groupId, accountId }: TargetInsightsPanelP
                         {/* @ts-ignore */}
                         {trend.direction === 'up' ? (
                           <TrendingUp className="w-4 h-4 text-green-500" />
-                        ) : trend.direction === 'down' ? (
+                        ) : (trend as any).direction === 'down' ? (
                           <TrendingDown className="w-4 h-4 text-red-500" />
                         ) : (
                           <Minus className="w-4 h-4 text-gray-400" />
                         )}
                         <span className={`text-sm font-medium ${
-                          // @ts-ignore
-                          trend.direction === 'up' ? 'text-green-600' : 
-                          // @ts-ignore
-                          trend.direction === 'down' ? 'text-red-600' : ''
+                          (trend as any).direction === 'up' ? 'text-green-600' : 
+                          (trend as any).direction === 'down' ? 'text-red-600' : ''
                         }`}>
                           {(trend as any).changePercent > 0 ? '+' : ''}{(trend as any).changePercent?.toFixed(1)}%
                         </span>
@@ -307,9 +301,7 @@ export function TargetInsightsPanel({ groupId, accountId }: TargetInsightsPanelP
                             data={trend.movingAverage}
                             type="monotone"
                             dataKey="value"
-                            // @ts-ignore
                             stroke="#ff7300"
-                            // @ts-ignore
                             name="移动平均"
                             strokeWidth={2}
                             dot={false}
@@ -344,10 +336,8 @@ export function TargetInsightsPanel({ groupId, accountId }: TargetInsightsPanelP
             <div className="space-y-3">
               {anomalies.map((anomaly: unknown, idx: number) => (
                 <Card key={idx} className={`border-l-4 ${
-                  // @ts-ignore
-                  anomaly.severity === 'critical' ? 'border-l-red-500' :
-                  // @ts-ignore
-                  anomaly.severity === 'warning' ? 'border-l-orange-500' :
+                  (anomaly as any).severity === 'critical' ? 'border-l-red-500' :
+                  (anomaly as any).severity === 'warning' ? 'border-l-orange-500' :
                   'border-l-yellow-500'
                 }`}>
                   <CardContent className="py-3 px-4">
@@ -355,10 +345,8 @@ export function TargetInsightsPanel({ groupId, accountId }: TargetInsightsPanelP
                       <div>
                         <div className="flex items-center gap-2 mb-1">
                           <AlertTriangle className={`w-4 h-4 ${
-                            // @ts-ignore
-                            anomaly.severity === 'critical' ? 'text-red-500' :
-                            // @ts-ignore
-                            anomaly.severity === 'warning' ? 'text-orange-500' :
+                            (anomaly as any).severity === 'critical' ? 'text-red-500' :
+                            (anomaly as any).severity === 'warning' ? 'text-orange-500' :
                             'text-yellow-500'
                           }`} />
                           {/* @ts-ignore */}
@@ -444,9 +432,7 @@ export function TargetInsightsPanel({ groupId, accountId }: TargetInsightsPanelP
                           <p className="text-sm font-medium">{strategy.strategyName}</p>
                           <p className="text-xs text-muted-foreground">
                             执行 {(strategy as any).totalEvents} 次 · 
-                            // @ts-ignore
                             成功 {(strategy as any).successEvents} 次 · 
-                            // @ts-ignore
                             失败 {(strategy as any).failedEvents} 次
                           </p>
                         </div>

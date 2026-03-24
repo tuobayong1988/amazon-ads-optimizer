@@ -55,9 +55,7 @@ export default function InviteCodeManagement() {
   const createBatchMutation = trpc.inviteCode.createBatch.useMutation({
     onSuccess: (data) => {
       if (data.success) {
-        // @ts-ignore
         toast.success(`成功创建 ${data.inviteCodes?.length || 0} 个邀请码`);
-        // @ts-ignore
         setBatchDialogOpen(false);
         // @ts-ignore
         inviteCodesQuery.refetch();
@@ -120,7 +118,6 @@ export default function InviteCodeManagement() {
   const handleBatchCreate = () => {
     createBatchMutation.mutate({
       count: batchCount,
-      // @ts-ignore
       inviteType: createForm.inviteType,
       maxUses: createForm.maxUses,
       expiresInDays: createForm.expiresInDays || undefined,
@@ -140,12 +137,9 @@ export default function InviteCodeManagement() {
       ...codes.map((code: unknown) => [
         // @ts-ignore
         code.code,
-        // @ts-ignore
-        code.inviteType === "external_user" ? "外部用户" : "团队成员",
-        // @ts-ignore
-        code.status === "active" ? "有效" : code.status === "disabled" ? "已禁用" : code.status === "used_up" ? "已用完" : "已过期",
-        // @ts-ignore
-        `${code.usedCount}/${code.maxUses || "无限"}`,
+        (code as any).inviteType === "external_user" ? "外部用户" : "团队成员",
+        (code as any).status === "active" ? "有效" : (code as any).status === "disabled" ? "已禁用" : (code as any).status === "used_up" ? "已用完" : "已过期",
+        `${(code as any).usedCount}/${(code as any).maxUses || "无限"}`,
         // @ts-ignore
         code.createdAt,
         // @ts-ignore
@@ -163,8 +157,7 @@ export default function InviteCodeManagement() {
     toast.success("邀请码列表已导出");
   };
 
-  // @ts-ignore
-  const stats = statsQuery.data || { total: 0, active: 0, used: 0, expired: 0 };
+  const stats = (statsQuery as any).data || { total: 0, active: 0, used: 0, expired: 0 };
   // @ts-ignore
   const inviteCodes = inviteCodesQuery.data || [];
 
@@ -212,6 +205,7 @@ export default function InviteCodeManagement() {
                   <Label className="text-gray-300">邀请类型</Label>
                   <Select
                     value={createForm.inviteType}
+                    // @ts-ignore
                     onValueChange={(v) => setCreateForm({ ...createForm, inviteType: v as unknown })}
                   >
                     <SelectTrigger className="bg-gray-700/50 border-gray-600 text-white">
@@ -252,6 +246,7 @@ export default function InviteCodeManagement() {
                   <Label className="text-gray-300">邀请类型</Label>
                   <Select
                     value={createForm.inviteType}
+                    // @ts-ignore
                     onValueChange={(v) => setCreateForm({ ...createForm, inviteType: v as unknown })}
                   >
                     <SelectTrigger className="bg-gray-700/50 border-gray-600 text-white">
@@ -419,23 +414,17 @@ export default function InviteCodeManagement() {
                         {/* @ts-ignore */}
                         <Badge 
                           variant={
-                            // @ts-ignore
-                            code.status === "active" ? "default" : 
-                            // @ts-ignore
-                            code.status === "disabled" ? "destructive" : "secondary"
+                            (code as any).status === "active" ? "default" : 
+                            (code as any).status === "disabled" ? "destructive" : "secondary"
                           }
                           className={
-                            // @ts-ignore
-                            code.status === "active" ? "bg-green-500/20 text-green-400" : 
-                            // @ts-ignore
-                            code.status === "used_up" ? "bg-orange-500/20 text-orange-400" : ""
+                            (code as any).status === "active" ? "bg-green-500/20 text-green-400" : 
+                            (code as any).status === "used_up" ? "bg-orange-500/20 text-orange-400" : ""
                           }
                         >
                           {(code as any).status === "active" ? "有效" : 
-                           // @ts-ignore
-                           code.status === "disabled" ? "已禁用" : 
-                           // @ts-ignore
-                           code.status === "used_up" ? "已用完" : "已过期"}
+                           (code as any).status === "disabled" ? "已禁用" : 
+                           (code as any).status === "used_up" ? "已用完" : "已过期"}
                         </Badge>
                       {/* @ts-ignore */}
                       </div>
@@ -472,7 +461,7 @@ export default function InviteCodeManagement() {
                             <XCircle className="h-4 w-4 mr-2" />
                             禁用
                           </DropdownMenuItem>
-                        ) : code.status === "disabled" ? (
+                        ) : (code as any).status === "disabled" ? (
                           <DropdownMenuItem
                             // @ts-ignore
                             onClick={() => enableMutation.mutate({ id: code.id })}

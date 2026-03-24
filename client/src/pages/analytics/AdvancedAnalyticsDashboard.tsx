@@ -107,7 +107,7 @@ export default function AdvancedAnalyticsDashboard() {
               <SelectContent>
                 <SelectItem value="all">全部账户</SelectItem>
                 {accounts?.map((acc: unknown) => (
-                  <SelectItem key={acc.id} value={String(acc.id)}>{acc.accountName || `账户 ${acc.id}`}</SelectItem>
+                  <SelectItem key={(acc as any).id} value={String((acc as any).id)}>{(acc as any).accountName || `账户 ${(acc as any).id}`}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -226,12 +226,9 @@ export default function AdvancedAnalyticsDashboard() {
                       <ResponsiveContainer width="100%" height="100%">
                         {/* @ts-ignore */}
                         <BarChart data={attribution.results.map((r: unknown) => ({
-                          // @ts-ignore
-                          name: r.keywordText?.slice(0, 15) || r.campaignName?.slice(0, 15) || `#${r.eventId}`,
-                          // @ts-ignore
-                          score: r.effectScore,
-                          // @ts-ignore
-                          deltaSales: r.deltaSales,
+                          name: (r as any).keywordText?.slice(0, 15) || (r as any).campaignName?.slice(0, 15) || `#${(r as any).eventId}`,
+                          score: (r as any).effectScore,
+                          deltaSales: (r as any).deltaSales,
                         }))}>
                           <CartesianGrid strokeDasharray="3 3" />
                           <XAxis dataKey="name" tick={{ fontSize: 11 }} />
@@ -243,7 +240,7 @@ export default function AdvancedAnalyticsDashboard() {
                           ]) as unknown} />
                           <Bar dataKey="score" name="效果评分">
                             {attribution.results.map((entry: unknown, index: number) => (
-                              <Cell key={index} fill={entry.effectScore >= 10 ? '#10b981' : entry.effectScore >= -10 ? '#6b7280' : '#ef4444'} />
+                              <Cell key={index} fill={(entry as any).effectScore >= 10 ? '#10b981' : (entry as any).effectScore >= -10 ? '#6b7280' : '#ef4444'} />
                             ))}
                           </Bar>
                         </BarChart>
@@ -269,12 +266,10 @@ export default function AdvancedAnalyticsDashboard() {
                         {/* @ts-ignore */}
                         <tbody>
                           {attribution.results.map((r: unknown) => {
-                            // @ts-ignore
-                            const config = effectRatingConfig[r.effectRating as keyof typeof effectRatingConfig];
+                            const config = effectRatingConfig[(r as any).effectRating as keyof typeof effectRatingConfig];
                             const Icon = config?.icon || Minus;
-                            // @ts-ignore
                             return (
-                              <tr key={r.eventId} className="border-b hover:bg-muted/30">
+                              <tr key={(r as any).eventId} className="border-b hover:bg-muted/30">
                                 <td className="p-2">
                                   {/* @ts-ignore */}
                                   <div className="font-medium text-xs">{r.keywordText || r.campaignName || `事件 #${r.eventId}`}</div>
@@ -288,7 +283,7 @@ export default function AdvancedAnalyticsDashboard() {
                                 <td className="p-2 text-center tabular-nums">
                                   {/* @ts-ignore */}
                                   {r.previousBid && r.newBid ? (
-                                    <span className={parseFloat(r.bidChangePercent || '0') > 0 ? 'text-red-600' : 'text-green-600'}>
+                                    <span className={parseFloat((r as any).bidChangePercent || '0') > 0 ? 'text-red-600' : 'text-green-600'}>
                                       ${(r as any).previousBid} → ${(r as any).newBid}
                                     </span>
                                   ) : '-'}
@@ -381,26 +376,23 @@ export default function AdvancedAnalyticsDashboard() {
                     {/* 趋势摘要卡片 */}
                     <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                       {trends.map((t: unknown) => (
-                        <div key={t.metric} className="p-3 rounded-lg border">
+                        <div key={(t as any).metric} className="p-3 rounded-lg border">
                           <div className="flex items-center justify-between mb-1">
                             {/* @ts-ignore */}
                             <span className="text-xs font-medium text-muted-foreground">{t.metricLabel}</span>
                             {/* @ts-ignore */}
                             {t.direction === 'up' ? (
-                              <ArrowUpRight className={`h-4 w-4 ${t.metric === 'acos' ? 'text-red-500' : 'text-green-500'}`} />
-                            ) : t.direction === 'down' ? (
-                              <ArrowDownRight className={`h-4 w-4 ${t.metric === 'acos' ? 'text-green-500' : 'text-red-500'}`} />
+                              <ArrowUpRight className={`h-4 w-4 ${(t as any).metric === 'acos' ? 'text-red-500' : 'text-green-500'}`} />
+                            ) : (t as any).direction === 'down' ? (
+                              <ArrowDownRight className={`h-4 w-4 ${(t as any).metric === 'acos' ? 'text-green-500' : 'text-red-500'}`} />
                             ) : (
                               <Minus className="h-4 w-4 text-gray-400" />
                             )}
                           </div>
                           <p className={`text-lg font-bold ${
-                            // @ts-ignore
-                            t.direction === 'stable' ? 'text-gray-600' :
-                            // @ts-ignore
-                            (t.metric === 'acos' ? (t.direction === 'down' ? 'text-green-600' : 'text-red-600') :
-                            // @ts-ignore
-                            (t.direction === 'up' ? 'text-green-600' : 'text-red-600'))
+                            (t as any).direction === 'stable' ? 'text-gray-600' :
+                            ((t as any).metric === 'acos' ? ((t as any).direction === 'down' ? 'text-green-600' : 'text-red-600') :
+                            ((t as any).direction === 'up' ? 'text-green-600' : 'text-red-600'))
                           }`}>
                             {(t as any).changePercent >= 0 ? '+' : ''}{(t as any).changePercent.toFixed(1)}%
                           </p>
@@ -413,7 +405,7 @@ export default function AdvancedAnalyticsDashboard() {
 
                     {/* 趋势图表 */}
                     {trends.map((t: unknown) => (
-                      <div key={t.metric} className="border rounded-lg p-4">
+                      <div key={(t as any).metric} className="border rounded-lg p-4">
                         <div className="flex items-center justify-between mb-3">
                           {/* @ts-ignore */}
                           <h4 className="font-medium text-sm">{t.metricLabel} 趋势</h4>
@@ -436,7 +428,7 @@ export default function AdvancedAnalyticsDashboard() {
                               <Area type="monotone" dataKey="value" name={t.metricLabel} fill="#3b82f620" stroke="#3b82f6" strokeWidth={1.5} />
                               {/* @ts-ignore */}
                               {t.movingAverage.length > 0 && (
-                                <Line type="monotone" data={t.movingAverage} dataKey="value" name="7日均线" stroke="#f97316" strokeWidth={2} dot={false} strokeDasharray="5 5" />
+                                <Line type="monotone" data={(t as any).movingAverage} dataKey="value" name="7日均线" stroke="#f97316" strokeWidth={2} dot={false} strokeDasharray="5 5" />
                               )}
                             </ComposedChart>
                           {/* @ts-ignore */}
@@ -480,11 +472,9 @@ export default function AdvancedAnalyticsDashboard() {
                 ) : anomalies && anomalies.length > 0 ? (
                   <div className="space-y-3">
                     {anomalies.map((a: unknown) => (
-                      <div key={a.id} className={`border rounded-lg p-4 ${
-                        // @ts-ignore
-                        a.severity === 'critical' ? 'border-red-200 bg-red-50/50' :
-                        // @ts-ignore
-                        a.severity === 'warning' ? 'border-amber-200 bg-amber-50/50' :
+                      <div key={(a as any).id} className={`border rounded-lg p-4 ${
+                        (a as any).severity === 'critical' ? 'border-red-200 bg-red-50/50' :
+                        (a as any).severity === 'warning' ? 'border-amber-200 bg-amber-50/50' :
                         'border-blue-200 bg-blue-50/50'
                       }`}>
                         <div className="flex items-start justify-between">
@@ -492,7 +482,7 @@ export default function AdvancedAnalyticsDashboard() {
                             {/* @ts-ignore */}
                             {a.severity === 'critical' ? (
                               <AlertCircle className="h-5 w-5 text-red-500 shrink-0" />
-                            ) : a.severity === 'warning' ? (
+                            ) : (a as any).severity === 'warning' ? (
                               <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0" />
                             ) : (
                               <Info className="h-5 w-5 text-blue-500 shrink-0" />
@@ -589,15 +579,10 @@ export default function AdvancedAnalyticsDashboard() {
                       <ResponsiveContainer width="100%" height="100%">
                         {/* @ts-ignore */}
                         <BarChart data={strategyROI.slice(0, 10).map((s: unknown) => ({
-                          // @ts-ignore
-                          name: s.strategyName.length > 12 ? s.strategyName.slice(0, 12) + '...' : s.strategyName,
-                          // @ts-ignore
-                          events: s.totalEvents,
-                          // @ts-ignore
-                          successRate: s.successRate,
-                          // @ts-ignore
-                          roi7D: s.roi7D || 0,
-                        // @ts-ignore
+                          name: (s as any).strategyName.length > 12 ? (s as any).strategyName.slice(0, 12) + '...' : (s as any).strategyName,
+                          events: (s as any).totalEvents,
+                          successRate: (s as any).successRate,
+                          roi7D: (s as any).roi7D || 0,
                         }))} layout="vertical">
                           <CartesianGrid strokeDasharray="3 3" />
                           <XAxis type="number" />

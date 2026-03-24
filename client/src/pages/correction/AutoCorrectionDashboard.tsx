@@ -60,10 +60,10 @@ export default function AutoCorrectionDashboard() {
   if (dashboard?.statusDistribution) {
     // @ts-ignore
     for (const s of dashboard.statusDistribution as unknown[]) {
-      // @ts-ignore
-      statusMap.set(s.api_sync_status, Number(s.count));
+      statusMap.set((s as any).api_sync_status, Number((s as any).count));
     }
   }
+  // @ts-ignore
   const totalEvents = Array.from(statusMap.values()).reduce((a: unknown, b: unknown) => a + b, 0);
   const syncedCount = statusMap.get('synced') || 0;
   const failedCount = statusMap.get('failed') || 0;
@@ -80,21 +80,15 @@ export default function AutoCorrectionDashboard() {
   if (dashboard?.actionTypeBreakdown) {
     // @ts-ignore
     for (const a of dashboard.actionTypeBreakdown as unknown[]) {
-      // @ts-ignore
-      const type = a.action_type;
+      const type = (a as any).action_type;
       if (!actionBreakdown.has(type)) actionBreakdown.set(type, { synced: 0, failed: 0, pending: 0, total: 0, notApplicable: 0 });
       const entry = actionBreakdown.get(type)!;
-      // @ts-ignore
-      const count = Number(a.count);
+      const count = Number((a as any).count);
       entry.total += count;
-      // @ts-ignore
-      if (a.api_sync_status === 'synced') entry.synced += count;
-      // @ts-ignore
-      else if (a.api_sync_status === 'failed') entry.failed += count;
-      // @ts-ignore
-      else if (a.api_sync_status === 'not_applicable' || a.api_sync_status === 'invalid_legacy') entry.notApplicable += count;
-      // @ts-ignore
-      else if (a.api_sync_status === 'pending') entry.pending += count;
+      if ((a as any).api_sync_status === 'synced') entry.synced += count;
+      else if ((a as any).api_sync_status === 'failed') entry.failed += count;
+      else if ((a as any).api_sync_status === 'not_applicable' || (a as any).api_sync_status === 'invalid_legacy') entry.notApplicable += count;
+      else if ((a as any).api_sync_status === 'pending') entry.pending += count;
     }
   }
   
@@ -106,7 +100,6 @@ export default function AutoCorrectionDashboard() {
     'budget_adjustment': '预算调整',
     'budget_increase': '预算提高',
     'budget_decrease': '预算降低',
-    // @ts-ignore
     'budget_set': '预算设定',
     'placement_adjust': '位置倾斜',
     'keyword_create': '关键词创建',
@@ -156,6 +149,7 @@ export default function AutoCorrectionDashboard() {
             <Button
               size="sm"
               onClick={() => runScanMutation.mutate({})}
+              // @ts-ignore
               disabled={runScanMutation.isPending || dashboard?.scanStatus?.isScanning}
               className="bg-blue-600 hover:bg-blue-700"
             >
@@ -241,7 +235,7 @@ export default function AutoCorrectionDashboard() {
                 <Clock className="h-10 w-10 text-blue-400 opacity-50" />
               </div>
               <p className="text-xs text-gray-500 mt-2">
-                {(dashboard as any).harvestRetryStats ? `搜索词收割待重试: ${((dashboard as any).harvestRetryStats as Record<string, unknown>).retryable || 0}` : '加载中...'}
+                {(dashboard as any)?.harvestRetryStats ? `搜索词收割待重试: ${((dashboard as any)?.harvestRetryStats as Record<string, unknown>).retryable || 0}` : '加载中...'}
               </p>
             </CardContent>
           </Card>
@@ -336,8 +330,7 @@ export default function AutoCorrectionDashboard() {
                         <div className="border-t border-gray-800 pt-3 mt-3 space-y-2">
                           <p className="text-xs text-gray-500 font-medium">分类详情</p>
                           {Object.entries(((dashboard as any).lastScan as any).details as any).map(([key, val]: [string, unknown]) => {
-                            // @ts-ignore
-                            if (val.found === 0) return null;
+                            if ((val as any).found === 0) return null;
                             const labels: Record<string, string> = {
                               bidRetries: '出价重试',
                               bidMismatches: '出价不一致',
@@ -395,6 +388,7 @@ export default function AutoCorrectionDashboard() {
                         <Badge variant="default" className="bg-blue-600">
                           <RefreshCw className="h-3 w-3 mr-1 animate-spin" />扫描中
                         </Badge>
+                      // @ts-ignore
                       ) : dashboard?.scanStatus?.lastScanTime ? (
                         <Badge variant="secondary" className="bg-green-500/20 text-green-400 border-green-500/30">
                           {/* @ts-ignore */}
@@ -520,12 +514,9 @@ export default function AutoCorrectionDashboard() {
                       </thead>
                       <tbody>
                         {((dashboard as any).trendData as unknown[]).map((t: unknown, i: number) => {
-                          // @ts-ignore
-                          const total = Number(t.corrections);
-                          // @ts-ignore
-                          const synced = Number(t.synced);
-                          // @ts-ignore
-                          const failed = Number(t.failed);
+                          const total = Number((t as any).corrections);
+                          const synced = Number((t as any).synced);
+                          const failed = Number((t as any).failed);
                           const rate = total > 0 ? (synced / total * 100) : 0;
                           return (
                             <tr key={i} className="border-b border-gray-800/50 hover:bg-gray-800/30">
@@ -579,8 +570,7 @@ export default function AutoCorrectionDashboard() {
                     </thead>
                     <tbody>
                       {Array.from(actionBreakdown.entries())
-                        // @ts-ignore
-                        .sort((a: unknown, b: unknown) => b[1].total - a[1].total)
+                        .sort((a: unknown, b: unknown) => (b as any)[1].total - (a as any)[1].total)
                         .map(([type, stats]) => {
                           const applicableTotal = stats.total - stats.notApplicable;
                           const rate = applicableTotal > 0 ? (stats.synced / applicableTotal * 100) : (stats.notApplicable > 0 ? 100 : 0);
@@ -635,14 +625,10 @@ export default function AutoCorrectionDashboard() {
                         <p className="text-2xl font-bold text-white">{Number(s.count).toLocaleString()}</p>
                         <p className="text-xs text-gray-400 mt-1">
                           {(s as any).api_sync_status === 'synced' ? '已同步' :
-                           // @ts-ignore
-                           s.api_sync_status === 'not_applicable' ? '不适用' :
-                           // @ts-ignore
-                           s.api_sync_status === 'failed' ? '失败' :
-                           // @ts-ignore
-                           s.api_sync_status === 'pending' ? '待处理' :
-                           // @ts-ignore
-                           s.api_sync_status}
+                           (s as any).api_sync_status === 'not_applicable' ? '不适用' :
+                           (s as any).api_sync_status === 'failed' ? '失败' :
+                           (s as any).api_sync_status === 'pending' ? '待处理' :
+                           (s as any).api_sync_status}
                         </p>
                       </div>
                     ))}
@@ -733,8 +719,7 @@ export default function AutoCorrectionDashboard() {
                   <div className="space-y-3">
                     {((dashboard as any).recentCorrections as unknown[]).map((c: unknown, i: number) => {
                       let detail: unknown = {};
-                      // @ts-ignore
-                      try { detail = typeof c.api_sync_detail === 'string' ? JSON.parse(c.api_sync_detail) : (c.api_sync_detail || {}); } catch { detail = {}; }
+                      try { detail = typeof (c as any).api_sync_detail === 'string' ? JSON.parse((c as any).api_sync_detail) : ((c as any).api_sync_detail || {}); } catch { detail = {}; }
                       
                       return (
                         <div key={i} className="flex items-start gap-3 p-3 bg-gray-800/50 rounded-lg">
@@ -766,7 +751,7 @@ export default function AutoCorrectionDashboard() {
                               </p>
                             )}
                             {(detail as any).reason && (
-                              <p className="text-xs text-gray-500 mt-0.5 truncate">{detail.reason}</p>
+                              <p className="text-xs text-gray-500 mt-0.5 truncate">{(detail as any).reason}</p>
                             )}
                           </div>
                         </div>

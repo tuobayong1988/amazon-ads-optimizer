@@ -80,36 +80,24 @@ export function SmartInsights({ campaignId, accountId, compact = false }: SmartI
     if (!decisions) return;
     
     const convertedInsights: Insight[] = (decisions.recommendations || []).map((decision: unknown) => ({
-      // @ts-ignore
-      id: decision.campaignId.toString(),
-      // @ts-ignore
-      type: decision.priority === 'high' ? InsightType.CRITICAL : 
-            // @ts-ignore
-            decision.priority === 'medium' ? InsightType.WARNING : InsightType.INFO,
-      // @ts-ignore
-      priority: decision.priority === 'high' ? InsightPriority.CRITICAL :
-                // @ts-ignore
-                decision.priority === 'medium' ? InsightPriority.HIGH : InsightPriority.MEDIUM,
-      // @ts-ignore
-      title: `${decision.campaignName}: ${decision.action}`,
-      // @ts-ignore
-      description: decision.reason,
+      id: (decision as any).campaignId.toString(),
+      type: (decision as any).priority === 'high' ? InsightType.CRITICAL : 
+            (decision as any).priority === 'medium' ? InsightType.WARNING : InsightType.INFO,
+      priority: (decision as any).priority === 'high' ? InsightPriority.CRITICAL :
+                (decision as any).priority === 'medium' ? InsightPriority.HIGH : InsightPriority.MEDIUM,
+      title: `${(decision as any).campaignName}: ${(decision as any).action}`,
+      description: (decision as any).reason,
       impact: {
-        // @ts-ignore
-        metric: decision.metrics.acos ? 'ACoS' : 'ROAS',
-        // @ts-ignore
-        value: decision.metrics.acos || decision.metrics.roas || 0,
-        // @ts-ignore
-        unit: decision.metrics.acos ? '%' : 'x',
+        metric: (decision as any).metrics.acos ? 'ACoS' : 'ROAS',
+        value: (decision as any).metrics.acos || (decision as any).metrics.roas || 0,
+        unit: (decision as any).metrics.acos ? '%' : 'x',
       },
       action: {
         label: '应用建议',
         onClick: () => {
-          // @ts-ignore
-          toast.info(`正在应用对 ${decision.campaignName} 的优化建议...`);
+          toast.info(`正在应用对 ${(decision as any).campaignName} 的优化建议...`);
         },
       },
-      // @ts-ignore
       dismissible: true,
     }));
     
@@ -121,8 +109,7 @@ export function SmartInsights({ campaignId, accountId, compact = false }: SmartI
 
   const visibleInsights = insights
     .filter(insight => !dismissedIds.has(insight.id))
-    // @ts-ignore
-    .sort((a: unknown, b: unknown) => b.priority - a.priority);
+    .sort((a: unknown, b: unknown) => (b as any).priority - (a as any).priority);
 
   const handleDismiss = (id: string) => {
     setDismissedIds(prev => new Set(prev).add(id));
@@ -152,23 +139,19 @@ export function SmartInsights({ campaignId, accountId, compact = false }: SmartI
       case InsightType.WARNING:
         return 'default';
       case InsightType.CRITICAL:
-        // @ts-ignore
         return 'destructive';
       case InsightType.INFO:
         return 'default';
-    // @ts-ignore
     }
   };
 
   if (compact) {
     // 紧凑模式: 只显示最高优先级的一个洞察
     const topInsight = visibleInsights[0] as unknown;
-    // @ts-ignore
     if (!topInsight) return null;
 
-    // @ts-ignore
     return (
-      <Alert variant={getVariant(topInsight.type)} className="mb-4">
+      <Alert variant={getVariant((topInsight as any).type)} className="mb-4">
         <div className="flex items-start justify-between">
           <div className="flex items-start gap-2">
             {/* @ts-ignore */}
@@ -193,7 +176,7 @@ export function SmartInsights({ campaignId, accountId, compact = false }: SmartI
           <div className="flex items-center gap-2">
             {/* @ts-ignore */}
             {topInsight.action && (
-              <Button size="sm" variant="outline" onClick={topInsight.action.onClick}>
+              <Button size="sm" variant="outline" onClick={(topInsight as any).action.onClick}>
                 {/* @ts-ignore */}
                 {topInsight.action.label}
               </Button>
@@ -202,8 +185,7 @@ export function SmartInsights({ campaignId, accountId, compact = false }: SmartI
               <Button
                 size="sm"
                 variant="ghost"
-                // @ts-ignore
-                onClick={() => handleDismiss(topInsight.id)}
+                onClick={() => handleDismiss((topInsight as any).id)}
               >
                 <X className="h-4 w-4" />
               </Button>

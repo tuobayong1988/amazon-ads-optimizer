@@ -127,8 +127,7 @@ export function AIChatBox({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Filter out system messages
-  // @ts-ignore
-  const displayMessages = messages.filter((msg: unknown) => msg.role !== "system");
+  const displayMessages = messages.filter((msg: unknown) => (msg as any).role !== "system");
 
   // Calculate min-height for last assistant message to push user message to top
   const [minHeightForLastMessage, setMinHeightForLastMessage] = useState(0);
@@ -213,6 +212,7 @@ export function AIChatBox({
                     <button
                       // @ts-ignore
                       key={index}
+                      // @ts-ignore
                       onClick={() => onSendMessage(prompt)}
                       disabled={isLoading}
                       className="rounded-lg border border-border bg-card px-4 py-2 text-sm transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
@@ -232,7 +232,6 @@ export function AIChatBox({
                 // Apply min-height to last message only if NOT loading (when loading, the loading indicator gets it)
                 const isLastMessage = index === displayMessages.length - 1;
                 const shouldApplyMinHeight =
-                  // @ts-ignore
                   isLastMessage && !isLoading && minHeightForLastMessage > 0;
 
                 return (
@@ -241,8 +240,7 @@ export function AIChatBox({
                     key={index}
                     className={cn(
                       "flex gap-3",
-                      // @ts-ignore
-                      message.role === "user"
+                      (message as any).role === "user"
                         ? "justify-end items-start"
                         : "justify-start items-start"
                     )}
@@ -264,11 +262,9 @@ export function AIChatBox({
                       // @ts-ignore
                       className={cn(
                         "max-w-[80%] rounded-lg px-4 py-2.5",
-                        // @ts-ignore
-                        message.role === "user"
+                        (message as any).role === "user"
                           ? "bg-primary text-primary-foreground"
                           : "bg-muted text-foreground"
-                      // @ts-ignore
                       )}
                     >
                       {/* @ts-ignore */}

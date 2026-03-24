@@ -385,7 +385,7 @@ export default function AdAutomation() {
               </SelectTrigger>
               <SelectContent>
                 {accounts?.map((account: unknown) => (
-                  <SelectItem key={account.id} value={account.id.toString()}>
+                  <SelectItem key={(account as any).id} value={(account as any).id.toString()}>
                     {/* @ts-ignore */}
                     {account.accountName}
                   </SelectItem>
@@ -715,10 +715,8 @@ export default function AdAutomation() {
                                     // @ts-ignore
                                     key={i} 
                                     className={`border-b border-border/30 ${
-                                      // @ts-ignore
-                                      campaign.campaignName === conflict.recommendation.winnerCampaign 
+                                      (campaign as any).campaignName === conflict.recommendation.winnerCampaign 
                                         ? 'bg-emerald-500/5' 
-                                        // @ts-ignore
                                         : ''
                                     }`}
                                   >
@@ -776,7 +774,7 @@ export default function AdAutomation() {
                                         ? { name: loser, negativeLevel: 'ad_group' as const }
                                         : loser;
                                       return (
-                                        <div key={i} className="flex items-center gap-2 text-sm">
+                                        <div key={String(i)} className="flex items-center gap-2 text-sm">
                                           <Ban className="w-3 h-3 text-red-400" />
                                           {/* @ts-ignore */}
                                           <span className="text-muted-foreground">{loserInfo.name}:</span>

@@ -17,7 +17,7 @@ export default function PrelaunchM3Persona() {
 
   const projectsQuery = trpc.prelaunch.listProjects.useQuery() as unknown;
   // @ts-ignore
-  const projects = (() => { const d = projectsQuery.data; return (d && 'data' in (d as unknown) ? (d as Record<string, unknown>).data : d) || []; })();
+  const projects = (() => { const d = (projectsQuery as any).data; return (d && 'data' in (d as unknown) ? (d as Record<string, unknown>).data : d) || []; })();
   if (!projectId && projects.length > 0) setProjectId(projects[0].id);
 
   const personasQuery = trpc.prelaunch.getPersonas.useQuery(
@@ -84,7 +84,7 @@ export default function PrelaunchM3Persona() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {personasData.map((persona: unknown) => (
-              <Card key={persona.id} className="hover:border-green-500/30 transition-colors overflow-hidden">
+              <Card key={(persona as any).id} className="hover:border-green-500/30 transition-colors overflow-hidden">
                 <div className="h-2 bg-gradient-to-r from-green-500 to-emerald-500" />
                 <CardHeader className="pb-3">
                   <div className="flex items-center gap-3">
@@ -106,7 +106,7 @@ export default function PrelaunchM3Persona() {
                 <CardContent className="space-y-4">
                   {/* @ts-ignore */}
                   {persona.description && (
-                    <p className="text-sm text-muted-foreground">{persona.description}</p>
+                    <p className="text-sm text-muted-foreground">{(persona as any).description}</p>
                   )}
 
                   {(persona as any).painPoints && (

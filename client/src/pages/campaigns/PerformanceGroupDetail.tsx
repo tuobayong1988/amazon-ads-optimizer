@@ -370,10 +370,8 @@ export default function PerformanceGroupDetail() {
     
     // 添加预测数据点
     const predictionData = trendPrediction.spend.prediction.map((pred: unknown, i: unknown) => ({
-      // @ts-ignore
-      date: pred.date,
-      // @ts-ignore
-      spend: pred.predicted,
+      date: (pred as any).date,
+      spend: (pred as any).predicted,
       // @ts-ignore
       sales: trendPrediction.sales.prediction[i]?.predicted || 0,
       acos: 0, // 预测的ACoS需要根据花费和销售额计算
@@ -439,55 +437,44 @@ export default function PerformanceGroupDetail() {
       // 搜索关键词筛选(支持模糊搜索)
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
-        // @ts-ignore
-        const name = c.campaignName?.toLowerCase() || '';
+        const name = (c as any).campaignName?.toLowerCase() || '';
         if (!name.includes(query)) return false;
-      // @ts-ignore
       }
       
       // 广告类型筛选
       if (filterCampaignType !== "all") {
-        // @ts-ignore
-        const type = c.campaignType?.toLowerCase() || '';
+        const type = (c as any).campaignType?.toLowerCase() || '';
         if (filterCampaignType === "sp" && !type.includes('sp')) return false;
         if (filterCampaignType === "sb" && !type.includes('sb')) return false;
-        // @ts-ignore
         if (filterCampaignType === "sd" && !type.includes('sd')) return false;
       }
       
       // 计费方式筛选
       if (filterBiddingStrategy !== "all") {
-        // @ts-ignore
-        const type = c.campaignType?.toLowerCase() || '';
-        // @ts-ignore
+        const type = (c as any).campaignType?.toLowerCase() || '';
         if (filterBiddingStrategy === "manual" && !type.includes('manual')) return false;
         if (filterBiddingStrategy === "auto" && !type.includes('auto')) return false;
       }
       
       // 运行状态筛选
-      // @ts-ignore
       if (filterState !== "all") {
-        // @ts-ignore
-        const state = c.state?.toLowerCase() || '';
+        const state = (c as any).state?.toLowerCase() || '';
         if (state !== filterState) return false;
       }
       
       // 花费范围筛选
-      // @ts-ignore
-      const spend = Number(c.spend || 0);
+      const spend = Number((c as any).spend || 0);
       if (filterMinSpend && spend < Number(filterMinSpend)) return false;
       if (filterMaxSpend && spend > Number(filterMaxSpend)) return false;
       
       // ACoS范围筛选
-      // @ts-ignore
-      const sales = Number(c.sales || 0);
+      const sales = Number((c as any).sales || 0);
       const acos = sales > 0 ? (spend / sales) * 100 : 0;
       if (filterMinAcos && acos < Number(filterMinAcos)) return false;
       if (filterMaxAcos && acos > Number(filterMaxAcos)) return false;
       
       // 订单数量筛选
-      // @ts-ignore
-      const orders = Number(c.orders || 0);
+      const orders = Number((c as any).orders || 0);
       if (filterMinOrders && orders < Number(filterMinOrders)) return false;
       if (filterMaxOrders && orders > Number(filterMaxOrders)) return false;
       
@@ -497,8 +484,7 @@ export default function PerformanceGroupDetail() {
       if (filterMaxRoas && roas > Number(filterMaxRoas)) return false;
       
       // 点击数筛选
-      // @ts-ignore
-      const clicks = Number(c.clicks || 0);
+      const clicks = Number((c as any).clicks || 0);
       if (filterMinClicks && clicks < Number(filterMinClicks)) return false;
       if (filterMaxClicks && clicks > Number(filterMaxClicks)) return false;
       
@@ -508,40 +494,29 @@ export default function PerformanceGroupDetail() {
       if (filterMaxCpc && cpc > Number(filterMaxCpc)) return false;
       
       // 曝光数筛选
-      // @ts-ignore
-      const impressions = Number(c.impressions || 0);
+      const impressions = Number((c as any).impressions || 0);
       if (filterMinImpressions && impressions < Number(filterMinImpressions)) return false;
       if (filterMaxImpressions && impressions > Number(filterMaxImpressions)) return false;
       
       // 日预算筛选
-      // @ts-ignore
-      const budget = Number(c.dailyBudget || 0);
-      // @ts-ignore
+      const budget = Number((c as any).dailyBudget || 0);
       if (filterMinBudget && budget < Number(filterMinBudget)) return false;
       if (filterMaxBudget && budget > Number(filterMaxBudget)) return false;
       
-      // @ts-ignore
       return true;
     });
   }, [availableCampaigns, searchQuery, filterCampaignType, filterBiddingStrategy, filterState, filterMinSpend, filterMaxSpend, filterMinAcos, filterMaxAcos, filterMinOrders, filterMaxOrders, filterMinRoas, filterMaxRoas, filterMinClicks, filterMaxClicks, filterMinCpc, filterMaxCpc, filterMinImpressions, filterMaxImpressions, filterMinBudget, filterMaxBudget]);
 
   // 计算广告活动的排序值
   const getCampaignSortValue = (campaign: unknown, field: DialogSortField): number | string => {
-    // @ts-ignore
-    const spend = Number(campaign.spend || 0);
-    // @ts-ignore
-    const sales = Number(campaign.sales || 0);
-    // @ts-ignore
-    const clicks = Number(campaign.clicks || 0);
-    // @ts-ignore
-    const impressions = Number(campaign.impressions || 0);
-    // @ts-ignore
-    const orders = Number(campaign.orders || 0);
+    const spend = Number((campaign as any).spend || 0);
+    const sales = Number((campaign as any).sales || 0);
+    const clicks = Number((campaign as any).clicks || 0);
+    const impressions = Number((campaign as any).impressions || 0);
+    const orders = Number((campaign as any).orders || 0);
     switch (field) {
-      // @ts-ignore
-      case 'campaignName': return (campaign.campaignName || '').toLowerCase();
-      // @ts-ignore
-      case 'campaignType': return campaign.campaignType || '';
+      case 'campaignName': return ((campaign as any).campaignName || '').toLowerCase();
+      case 'campaignType': return (campaign as any).campaignType || '';
       case 'impressions': return impressions;
       case 'clicks': return clicks;
       case 'spend': return spend;
@@ -552,8 +527,7 @@ export default function PerformanceGroupDetail() {
       case 'cpc': return clicks > 0 ? spend / clicks : 0;
       case 'ctr': return impressions > 0 ? (clicks / impressions) * 100 : 0;
       case 'cvr': return clicks > 0 ? (orders / clicks) * 100 : 0;
-      // @ts-ignore
-      case 'dailyBudget': return Number(campaign.dailyBudget || 0);
+      case 'dailyBudget': return Number((campaign as any).dailyBudget || 0);
       default: return 0;
     }
   };
@@ -568,27 +542,19 @@ export default function PerformanceGroupDetail() {
         return dialogSortDirection === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
       }
       return dialogSortDirection === 'asc' ? (aVal as number) - (bVal as number) : (bVal as number) - (aVal as number);
-    // @ts-ignore
     });
   }, [filteredAvailableCampaigns, dialogSortField, dialogSortDirection]);
 
   // 广告活动管理表格排序后的数据
-  // @ts-ignore
   const sortedGroupCampaigns = useMemo(() => {
     if (!groupCampaigns || !campaignSortField) return groupCampaigns || [];
-    // @ts-ignore
     return [...groupCampaigns].sort((a: unknown, b: unknown) => {
-      // @ts-ignore
       const aVal = getCampaignSortValue(a, campaignSortField);
-      // @ts-ignore
       const bVal = getCampaignSortValue(b, campaignSortField);
-      // @ts-ignore
       if (typeof aVal === 'string' && typeof bVal === 'string') {
-        // @ts-ignore
         return campaignSortDirection === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
       }
       return campaignSortDirection === 'asc' ? (aVal as number) - (bVal as number) : (bVal as number) - (aVal as number);
-    // @ts-ignore
     });
   }, [groupCampaigns, campaignSortField, campaignSortDirection]);
 
@@ -597,29 +563,20 @@ export default function PerformanceGroupDetail() {
     if (!sortedGroupCampaigns) return [];
     return sortedGroupCampaigns.filter((c: unknown) => {
       // 名称搜索
-      // @ts-ignore
-      if (mgSearchQuery && !c.campaignName?.toLowerCase().includes(mgSearchQuery.toLowerCase())) return false;
+      if (mgSearchQuery && !(c as any).campaignName?.toLowerCase().includes(mgSearchQuery.toLowerCase())) return false;
       // 状态筛选
-      // @ts-ignore
-      if (mgFilterStatus !== 'all' && c.campaignStatus !== mgFilterStatus) return false;
+      if (mgFilterStatus !== 'all' && (c as any).campaignStatus !== mgFilterStatus) return false;
       // 类型筛选
-      // @ts-ignore
-      if (mgFilterType !== 'all' && c.campaignType !== mgFilterType) return false;
+      if (mgFilterType !== 'all' && (c as any).campaignType !== mgFilterType) return false;
       // 数值范围筛选
-      // @ts-ignore
-      const spend = Number(c.spend || 0);
-      // @ts-ignore
-      const sales = Number(c.sales || 0);
-      // @ts-ignore
-      const clicks = Number(c.clicks || 0);
-      // @ts-ignore
-      const impressions = Number(c.impressions || 0);
-      // @ts-ignore
-      const orders = Number(c.orders || 0);
+      const spend = Number((c as any).spend || 0);
+      const sales = Number((c as any).sales || 0);
+      const clicks = Number((c as any).clicks || 0);
+      const impressions = Number((c as any).impressions || 0);
+      const orders = Number((c as any).orders || 0);
       const acos = sales > 0 ? (spend / sales) * 100 : 0;
       const roas = spend > 0 ? sales / spend : 0;
-      // @ts-ignore
-      const budget = Number(c.dailyBudget || 0);
+      const budget = Number((c as any).dailyBudget || 0);
       if (mgFilterMinImpressions && impressions < Number(mgFilterMinImpressions)) return false;
       if (mgFilterMaxImpressions && impressions > Number(mgFilterMaxImpressions)) return false;
       if (mgFilterMinClicks && clicks < Number(mgFilterMinClicks)) return false;
@@ -677,7 +634,6 @@ export default function PerformanceGroupDetail() {
 
   // 排序处理函数
   const handleDialogSort = (field: DialogSortField) => {
-    // @ts-ignore
     if (dialogSortField === field) {
       setDialogSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
     } else {
@@ -708,13 +664,11 @@ export default function PerformanceGroupDetail() {
 
   // 修复选中计数：只统计当前筛选结果中的选中项
   const visibleSelectedCount = useMemo(() => {
-    // @ts-ignore
-    const filteredIds = new Set(filteredAvailableCampaigns.map((c: unknown) => c.id));
+    const filteredIds = new Set(filteredAvailableCampaigns.map((c: unknown) => (c as any).id));
     return selectedCampaigns.filter(id => filteredIds.has(id)).length;
   }, [selectedCampaigns, filteredAvailableCampaigns]);
 
   // 处理添加广告活动
-  // @ts-ignore
   const handleAddCampaigns = () => {
     if (selectedCampaigns.length === 0) {
       toast.error("请选择要添加的广告活动");
@@ -746,8 +700,7 @@ export default function PerformanceGroupDetail() {
   // v153: 全选/取消全选（v154: 基于筛选结果）
   const toggleSelectAllManageCampaigns = () => {
     if (!groupCampaigns) return;
-    // @ts-ignore
-    const allIds = filteredGroupCampaigns.map((c: unknown) => c.id);
+    const allIds = filteredGroupCampaigns.map((c: unknown) => (c as any).id);
     if (selectedManageCampaigns.length === allIds.length) {
       setSelectedManageCampaigns([]);
     } else {
@@ -785,7 +738,6 @@ export default function PerformanceGroupDetail() {
   const handleBatchRemove = () => {
     if (selectedManageCampaigns.length === 0) return;
     setShowBatchRemoveConfirm(true);
-  // @ts-ignore
   };
 
   const confirmBatchRemove = () => {
@@ -1368,22 +1320,18 @@ export default function PerformanceGroupDetail() {
                             contentStyle={{ 
                               backgroundColor: 'hsl(var(--background))',
                               border: '1px solid hsl(var(--border))',
-                              // @ts-ignore
                               borderRadius: '6px'
-                            // @ts-ignore
                             }}
                           />
                           <Legend />
                           <Area 
                             yAxisId="left"
-                            // @ts-ignore
                             type="monotone" 
                             dataKey="spend" 
                             fill="#8b5cf6" 
                             stroke="#8b5cf6"
                             fillOpacity={0.6}
                             name="花费 ($)"
-                          // @ts-ignore
                           />
                           <Area 
                             // @ts-ignore
@@ -1409,21 +1357,26 @@ export default function PerformanceGroupDetail() {
                           <PieChart>
                             <Pie
                               data={[
+                                // @ts-ignore
                                 { name: '花费', value: performanceTrendData.reduce((sum: number, d: Record<string, unknown>) => sum + (d.spend || 0), 0), fill: '#8b5cf6' },
+                                // @ts-ignore
                                 { name: '销售额', value: performanceTrendData.reduce((sum: number, d: Record<string, unknown>) => sum + (d.sales || 0), 0), fill: '#10b981' },
                               ]}
                               cx="50%"
                               cy="50%"
                               labelLine={false}
+                              // @ts-ignore
                               label={({ name, percent }: unknown) => `${name}: ${((percent || 0) * 100).toFixed(1)}%`}
                               outerRadius={80}
                               dataKey="value"
                             >
                               {[
+                                // @ts-ignore
                                 { name: '花费', value: performanceTrendData.reduce((sum: number, d: Record<string, unknown>) => sum + (d.spend || 0), 0), fill: '#8b5cf6' },
+                                // @ts-ignore
                                 { name: '销售额', value: performanceTrendData.reduce((sum: number, d: Record<string, unknown>) => sum + (d.sales || 0), 0), fill: '#10b981' },
                               ].map((entry: unknown, index: unknown) => (
-                                <Cell key={`cell-${index}`} fill={entry.fill} />
+                                <Cell key={`cell-${index}`} fill={(entry as any).fill} />
                               ))}
                             </Pie>
                             <Tooltip 
@@ -1462,7 +1415,9 @@ export default function PerformanceGroupDetail() {
                             />
                             <Tooltip 
                               contentStyle={{ 
+                                // @ts-ignore
                                 backgroundColor: 'hsl(var(--background))',
+                                // @ts-ignore
                                 border: '1px solid hsl(var(--border))',
                                 borderRadius: '6px'
                               }}
@@ -1474,7 +1429,9 @@ export default function PerformanceGroupDetail() {
                           <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                           <XAxis 
                             dataKey="date" 
+                            // @ts-ignore
                             className="text-xs"
+                            // @ts-ignore
                             tick={{ fill: 'hsl(var(--muted-foreground))' }}
                           />
                           <YAxis 
@@ -1804,30 +1761,25 @@ export default function PerformanceGroupDetail() {
                       </thead>
                       <tbody>
                         {filteredGroupCampaigns.map((campaign: unknown) => {
-                          // @ts-ignore
-                          const spend = Number(campaign.spend || 0);
-                          // @ts-ignore
-                          const sales = Number(campaign.sales || 0);
-                          // @ts-ignore
-                          const clicks = Number(campaign.clicks || 0);
-                          // @ts-ignore
-                          const impressions = Number(campaign.impressions || 0);
-                          // @ts-ignore
-                          const orders = Number(campaign.orders || 0);
+                          const spend = Number((campaign as any).spend || 0);
+                          const sales = Number((campaign as any).sales || 0);
+                          const clicks = Number((campaign as any).clicks || 0);
+                          const impressions = Number((campaign as any).impressions || 0);
+                          const orders = Number((campaign as any).orders || 0);
                           const acos = sales > 0 ? (spend / sales) * 100 : 0;
                           const roas = spend > 0 ? sales / spend : 0;
                           const ctr = impressions > 0 ? (clicks / impressions) * 100 : 0;
                           const cvr = clicks > 0 ? (orders / clicks) * 100 : 0;
                           const cpc = clicks > 0 ? spend / clicks : 0;
                           return (
-                            <tr key={campaign.id} className={`border-b hover:bg-muted/30 transition-colors ${selectedManageCampaigns.includes(campaign.id) ? 'bg-primary/5' : ''}`}>
+                            <tr key={(campaign as any).id} className={`border-b hover:bg-muted/30 transition-colors ${selectedManageCampaigns.includes((campaign as any).id) ? 'bg-primary/5' : ''}`}>
                               {/* @ts-ignore */}
                               <td className="p-3">
                                 {/* @ts-ignore */}
                                 <Checkbox
                                   // @ts-ignore
                                   checked={selectedManageCampaigns.includes(campaign.id)}
-                                  onCheckedChange={() => toggleManageCampaignSelection(campaign.id)}
+                                  onCheckedChange={() => toggleManageCampaignSelection((campaign as any).id)}
                                 />
                               </td>
                               {/* @ts-ignore */}
@@ -1981,15 +1933,15 @@ export default function PerformanceGroupDetail() {
               // 计算历史平均指标
               const totalDays = data.length;
               // @ts-ignore
-              const totalSpend = data.reduce((s: unknown, d: unknown) => s + (Number(d.spend) || 0), 0);
+              const totalSpend = data.reduce((s: unknown, d: unknown) => s + (Number((d as any).spend) || 0), 0);
               // @ts-ignore
-              const totalSales = data.reduce((s: unknown, d: unknown) => s + (Number(d.sales) || 0), 0);
+              const totalSales = data.reduce((s: unknown, d: unknown) => s + (Number((d as any).sales) || 0), 0);
               // @ts-ignore
-              const totalClicks = data.reduce((s: unknown, d: unknown) => s + (Number(d.clicks) || 0), 0);
+              const totalClicks = data.reduce((s: unknown, d: unknown) => s + (Number((d as any).clicks) || 0), 0);
               // @ts-ignore
-              const totalImpressions = data.reduce((s: unknown, d: unknown) => s + (Number(d.impressions) || 0), 0);
+              const totalImpressions = data.reduce((s: unknown, d: unknown) => s + (Number((d as any).impressions) || 0), 0);
               // @ts-ignore
-              const totalOrders = data.reduce((s: unknown, d: unknown) => s + (Number(d.orders) || 0), 0);
+              const totalOrders = data.reduce((s: unknown, d: unknown) => s + (Number((d as any).orders) || 0), 0);
               
               // @ts-ignore
               const avgDailySpend = totalSpend / totalDays;
@@ -2010,15 +1962,15 @@ export default function PerformanceGroupDetail() {
               const recentDays = Math.min(14, data.length);
               const recentData = data.slice(-recentDays);
               // @ts-ignore
-              const recentSpend = recentData.reduce((s: unknown, d: unknown) => s + (Number(d.spend) || 0), 0);
+              const recentSpend = recentData.reduce((s: unknown, d: unknown) => s + (Number((d as any).spend) || 0), 0);
               // @ts-ignore
-              const recentSales = recentData.reduce((s: unknown, d: unknown) => s + (Number(d.sales) || 0), 0);
+              const recentSales = recentData.reduce((s: unknown, d: unknown) => s + (Number((d as any).sales) || 0), 0);
               // @ts-ignore
-              const recentClicks = recentData.reduce((s: unknown, d: unknown) => s + (Number(d.clicks) || 0), 0);
+              const recentClicks = recentData.reduce((s: unknown, d: unknown) => s + (Number((d as any).clicks) || 0), 0);
               // @ts-ignore
-              const recentOrders = recentData.reduce((s: unknown, d: unknown) => s + (Number(d.orders) || 0), 0);
+              const recentOrders = recentData.reduce((s: unknown, d: unknown) => s + (Number((d as any).orders) || 0), 0);
               // @ts-ignore
-              const recentImpressions = recentData.reduce((s: unknown, d: unknown) => s + (Number(d.impressions) || 0), 0);
+              const recentImpressions = recentData.reduce((s: unknown, d: unknown) => s + (Number((d as any).impressions) || 0), 0);
               
               // @ts-ignore
               const recentAvgDailySpend = recentSpend / recentDays;
@@ -2051,7 +2003,6 @@ export default function PerformanceGroupDetail() {
                 // 使用平均客单价 × 预估订单数来计算销售额（避免ACoS反推导致的数值溢出）
                 const estSales = estOrders * wOrderValue;
                 const estACoS = estSales > 0 ? (monthlySpend / estSales) * 100 : 0;
-                // @ts-ignore
                 const estROAS = monthlySpend > 0 ? estSales / monthlySpend : 0;
                 const estImpressions = wCTR > 0 ? estClicks / (wCTR / 100) : 0;
                 
@@ -2149,6 +2100,7 @@ export default function PerformanceGroupDetail() {
                               <YAxis yAxisId="right" orientation="right" tick={{ fill: '#999', fontSize: 12 }} />
                               <Tooltip 
                                 contentStyle={{ backgroundColor: '#1a1a2e', border: '1px solid #333', borderRadius: 8 }}
+                                // @ts-ignore
                                 formatter={((value: number, name: string) => {
                                   if (name === '预测销售额' || name === '月花费') return [`$${value.toFixed(0)}`, name];
                                   if (name === '预测ACoS') return [`${value.toFixed(1)}%`, name];
@@ -2183,7 +2135,7 @@ export default function PerformanceGroupDetail() {
                             </thead>
                             <tbody>
                               {scenarios.map((s: unknown, i: unknown) => (
-                                <tr key={i} className={`border-b border-muted/50 ${s.multiplier === 1.0 ? 'bg-primary/10 font-medium' : 'hover:bg-muted/20'}`}>
+                                <tr key={String(i)} className={`border-b border-muted/50 ${(s as any).multiplier === 1.0 ? 'bg-primary/10 font-medium' : 'hover:bg-muted/20'}`}>
                                   <td className="py-2 px-3">
                                     {/* @ts-ignore */}
                                     {s.label}
@@ -2423,15 +2375,12 @@ export default function PerformanceGroupDetail() {
                       onClick={() => {
                         setFilterMinSpend(""); setFilterMaxSpend("");
                         setFilterMinAcos(""); setFilterMaxAcos("");
-                        // @ts-ignore
                         setFilterMinOrders(""); setFilterMaxOrders("");
                         setFilterMinRoas(""); setFilterMaxRoas("");
                         setFilterMinClicks(""); setFilterMaxClicks("");
                         setFilterMinCpc(""); setFilterMaxCpc("");
-                        // @ts-ignore
                         setFilterMinImpressions(""); setFilterMaxImpressions("");
                         setFilterMinBudget(""); setFilterMaxBudget("");
-                      // @ts-ignore
                       }}
                     >
                       <X className="w-3 h-3" />
@@ -2461,8 +2410,7 @@ export default function PerformanceGroupDetail() {
                           onCheckedChange={(checked) => {
                             if (checked) {
                               // 全选：只选择当前筛选可见的广告活动
-                              // @ts-ignore
-                              const allFilteredIds = filteredAvailableCampaigns.map((c: unknown) => c.id);
+                              const allFilteredIds = filteredAvailableCampaigns.map((c: unknown) => (c as any).id);
                               setSelectedCampaigns(allFilteredIds);
                             } else {
                               // 取消全选：清空所有选中
@@ -2516,23 +2464,17 @@ export default function PerformanceGroupDetail() {
                   </thead>
                   <tbody>
                     {sortedFilteredAvailableCampaigns.map((campaign: unknown) => {
-                        // @ts-ignore
-                        const spend = Number(campaign.spend || 0);
-                        // @ts-ignore
-                        const sales = Number(campaign.sales || 0);
-                        // @ts-ignore
-                        const clicks = Number(campaign.clicks || 0);
-                        // @ts-ignore
-                        const impressions = Number(campaign.impressions || 0);
-                        // @ts-ignore
-                        const orders = Number(campaign.orders || 0);
+                        const spend = Number((campaign as any).spend || 0);
+                        const sales = Number((campaign as any).sales || 0);
+                        const clicks = Number((campaign as any).clicks || 0);
+                        const impressions = Number((campaign as any).impressions || 0);
+                        const orders = Number((campaign as any).orders || 0);
                         const acos = sales > 0 ? (spend / sales) * 100 : 0;
                         const roas = spend > 0 ? sales / spend : 0;
                         const cpc = clicks > 0 ? spend / clicks : 0;
                         const ctr = impressions > 0 ? (clicks / impressions) * 100 : 0;
                         const cvr = clicks > 0 ? (orders / clicks) * 100 : 0;
-                        // @ts-ignore
-                        const isSelected = selectedCampaigns.includes(campaign.id);
+                        const isSelected = selectedCampaigns.includes((campaign as any).id);
                       return (
                         <tr 
                           // @ts-ignore
@@ -2540,11 +2482,9 @@ export default function PerformanceGroupDetail() {
                           className={`border-b hover:bg-muted/30 cursor-pointer transition-colors ${isSelected ? 'bg-primary/10' : ''}`}
                           onClick={() => {
                             if (isSelected) {
-                              // @ts-ignore
-                              setSelectedCampaigns(prev => prev.filter(id => id !== campaign.id));
+                              setSelectedCampaigns(prev => prev.filter(id => id !== (campaign as any).id));
                             } else {
-                              // @ts-ignore
-                              setSelectedCampaigns(prev => [...prev, campaign.id]);
+                              setSelectedCampaigns(prev => [...prev, (campaign as any).id]);
                             }
                           }}
                         >
@@ -2553,11 +2493,9 @@ export default function PerformanceGroupDetail() {
                               checked={isSelected}
                               onCheckedChange={(checked) => {
                                 if (checked) {
-                                  // @ts-ignore
-                                  setSelectedCampaigns(prev => [...prev, campaign.id]);
+                                  setSelectedCampaigns(prev => [...prev, (campaign as any).id]);
                                 } else {
-                                  // @ts-ignore
-                                  setSelectedCampaigns(prev => prev.filter(id => id !== campaign.id));
+                                  setSelectedCampaigns(prev => prev.filter(id => id !== (campaign as any).id));
                                 }
                               }}
                             />

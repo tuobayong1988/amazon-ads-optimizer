@@ -303,17 +303,16 @@ export default function AccountsSummary() {
                         <Pie
                           data={marketplaceChartData}
                           cx="50%"
-                          // @ts-ignore
                           cy="50%"
                           labelLine={false}
+                          // @ts-ignore
                           label={({ name, percent }: unknown) => `${name} ${((percent || 0) * 100).toFixed(0)}%`}
                           outerRadius={100}
                           fill="#8884d8"
-                          // @ts-ignore
                           dataKey="value"
                         >
                           {marketplaceChartData.map((entry: unknown, index: unknown) => (
-                            <Cell key={`cell-${index}`} fill={entry.color} />
+                            <Cell key={`cell-${index}`} fill={(entry as any).color} />
                           ))}
                         </Pie>
                         <Tooltip
@@ -409,7 +408,6 @@ export default function AccountsSummary() {
                           }
                           if (selectedMetric === 'roas') {
                             return v.toFixed(1);
-                          // @ts-ignore
                           }
                           return formatNumber(v);
                         }}
@@ -435,7 +433,7 @@ export default function AccountsSummary() {
                         radius={[4, 4, 0, 0]}
                       >
                         {accountChartData.map((entry: unknown, index: unknown) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
+                          <Cell key={`cell-${index}`} fill={(entry as any).color} />
                         ))}
                       </Bar>
                     </BarChart>
@@ -452,7 +450,7 @@ export default function AccountsSummary() {
             <div className="grid gap-4 md:grid-cols-2">
               {/* 市场统计卡片 */}
               {marketplaceChartData.map((market: unknown, index: unknown) => (
-                <Card key={market.name}>
+                <Card key={(market as any).name}>
                   <CardHeader className="pb-2">
                     <div className="flex items-center justify-between">
                       {/* @ts-ignore */}
@@ -510,7 +508,7 @@ export default function AccountsSummary() {
                     {/* @ts-ignore */}
                     <TableBody>
                       {summary?.accountsData?.map((account: unknown) => (
-                        <TableRow key={account.id}>
+                        <TableRow key={(account as any).id}>
                           <TableCell>
                             {/* @ts-ignore */}
                             <div className="flex items-center gap-2">
@@ -576,18 +574,15 @@ export default function AccountsSummary() {
                               // @ts-ignore
                               variant={account.connectionStatus === 'connected' ? 'default' : 'secondary'}
                               className={
-                                // @ts-ignore
-                                account.connectionStatus === 'connected'
+                                (account as any).connectionStatus === 'connected'
                                   ? 'bg-green-500/20 text-green-500'
-                                  // @ts-ignore
-                                  : account.connectionStatus === 'error'
+                                  : (account as any).connectionStatus === 'error'
                                   ? 'bg-red-500/20 text-red-500'
                                   : ''
                               }
                             >
                               {(account as any).connectionStatus === 'connected' ? '已连接' :
-                               // @ts-ignore
-                               account.connectionStatus === 'error' ? '错误' : '待配置'}
+                               (account as any).connectionStatus === 'error' ? '错误' : '待配置'}
                             </Badge>
                           </TableCell>
                         </TableRow>

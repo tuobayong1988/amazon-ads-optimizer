@@ -404,10 +404,9 @@ export default function TeamManagement() {
             {/* @ts-ignore */}
             <div className="space-y-4 py-4 max-h-96 overflow-y-auto">
               {accounts?.map((account: unknown) => {
-                // @ts-ignore
-                const existingPerm = permissions.find(p => p.accountId === account.id);
+                const existingPerm = permissions.find(p => p.accountId === (account as any).id);
                 return (
-                  <div key={account.id} className="flex items-center justify-between p-4 border rounded-lg">
+                  <div key={(account as any).id} className="flex items-center justify-between p-4 border rounded-lg">
                     <div className="flex items-center gap-3">
                       <Checkbox
                         // @ts-ignore
@@ -415,13 +414,11 @@ export default function TeamManagement() {
                         onCheckedChange={(checked) => {
                           if (checked) {
                             setPermissions([...permissions, {
-                              // @ts-ignore
-                              accountId: account.id,
+                              accountId: (account as any).id,
                               permissionLevel: "view",
                             }]);
                           } else {
-                            // @ts-ignore
-                            setPermissions(permissions.filter(p => p.accountId !== account.id));
+                            setPermissions(permissions.filter(p => p.accountId !== (account as any).id));
                           }
                         }}
                       />
@@ -437,7 +434,7 @@ export default function TeamManagement() {
                         value={existingPerm.permissionLevel}
                         onValueChange={(value: "full" | "edit" | "view") => {
                           setPermissions(permissions.map(p => 
-                            p.accountId === account.id ? { ...p, permissionLevel: value } : p
+                            p.accountId === (account as any).id ? { ...p, permissionLevel: value } : p
                           ));
                         }}
                       >
@@ -535,7 +532,7 @@ function MemberTable({
       {/* @ts-ignore */}
       <TableBody>
         {members.map((member: unknown) => (
-          <TableRow key={member.id}>
+          <TableRow key={(member as any).id}>
             <TableCell>
               <div className="flex items-center gap-3">
                 <div className="h-10 w-10 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-white font-medium">
@@ -589,7 +586,7 @@ function MemberTable({
                     </DropdownMenuItem>
                     {/* @ts-ignore */}
                     {member.status === "pending" && (
-                      <DropdownMenuItem onClick={() => onResendInvite(member.id)}>
+                      <DropdownMenuItem onClick={() => onResendInvite((member as any).id)}>
                         <RefreshCw className="mr-2 h-4 w-4" />
                         重新发送邀请
                       </DropdownMenuItem>

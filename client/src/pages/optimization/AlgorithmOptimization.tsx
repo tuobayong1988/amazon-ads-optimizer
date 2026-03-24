@@ -291,10 +291,9 @@ export default function AlgorithmOptimization() {
             ) : (
               <div className="space-y-4">
                 {suggestions?.map((suggestion: unknown) => {
-                  // @ts-ignore
-                  const CategoryIcon = categoryIcons[suggestion.category] || Lightbulb;
+                  const CategoryIcon = categoryIcons[(suggestion as any).category] || Lightbulb;
                   return (
-                    <Card key={suggestion.id} className={`border-l-4 ${priorityColors[suggestion.priority]}`}>
+                    <Card key={(suggestion as any).id} className={`border-l-4 ${priorityColors[(suggestion as any).priority]}`}>
                       {/* @ts-ignore */}
                       <CardContent className="pt-4">
                         {/* @ts-ignore */}
@@ -314,10 +313,8 @@ export default function AlgorithmOptimization() {
                               <Badge className={priorityColors[suggestion.priority]}>
                                 {/* @ts-ignore */}
                                 {suggestion.priority === 'critical' ? '紧急' :
-                                 // @ts-ignore
-                                 suggestion.priority === 'high' ? '高' :
-                                 // @ts-ignore
-                                 suggestion.priority === 'medium' ? '中' : '低'}
+                                 (suggestion as any).priority === 'high' ? '高' :
+                                 (suggestion as any).priority === 'medium' ? '中' : '低'}
                               </Badge>
                               {/* @ts-ignore */}
                               <TooltipProvider>
@@ -401,7 +398,7 @@ export default function AlgorithmOptimization() {
                   ) : (
                     <div className="space-y-4">
                       {byType?.map((item: unknown) => (
-                        <div key={item.value} className="space-y-2">
+                        <div key={(item as any).value} className="space-y-2">
                           <div className="flex items-center justify-between">
                             {/* @ts-ignore */}
                             <span className="text-sm font-medium">{item.value}</span>
@@ -448,7 +445,7 @@ export default function AlgorithmOptimization() {
                   ) : (
                     <div className="space-y-4">
                       {byRange?.map((item: unknown) => (
-                        <div key={item.value} className="space-y-2">
+                        <div key={(item as any).value} className="space-y-2">
                           <div className="flex items-center justify-between">
                             {/* @ts-ignore */}
                             <span className="text-sm font-medium">{item.value}</span>

@@ -160,7 +160,7 @@ const [createDialogOpen, setCreateDialogOpen] = useState(false);
               </SelectTrigger>
               <SelectContent>
                 {accounts?.map((account: unknown) => (
-                  <SelectItem key={account.id} value={account.id.toString()}>
+                  <SelectItem key={(account as any).id} value={(account as any).id.toString()}>
                     {/* @ts-ignore */}
                     {account.accountName}
                   </SelectItem>
@@ -228,7 +228,7 @@ const [createDialogOpen, setCreateDialogOpen] = useState(false);
                         {/* @ts-ignore */}
                         <SelectContent>
                           {dayOfWeekLabels.map((label: unknown, index: unknown) => (
-                            <SelectItem key={index} value={index.toString()}>{label}</SelectItem>
+                            <SelectItem key={String(index)} value={(index as any).toString()}>{String(label)}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
@@ -328,7 +328,7 @@ const [createDialogOpen, setCreateDialogOpen] = useState(false);
               </Card>
             )}
             {configs?.map((config: unknown) => (
-              <Card key={config.id}>
+              <Card key={(config as any).id}>
                 <CardHeader>
                   {/* @ts-ignore */}
                   <div className="flex items-center justify-between">
@@ -351,7 +351,7 @@ const [createDialogOpen, setCreateDialogOpen] = useState(false);
                         // @ts-ignore
                         checked={config.isEnabled === 1}
                         onCheckedChange={(checked) => 
-                          updateConfigMutation.mutate({ configId: config.id, isEnabled: checked })
+                          updateConfigMutation.mutate({ configId: (config as any).id, isEnabled: checked })
                         }
                       />
                       {/* @ts-ignore */}
@@ -447,7 +447,7 @@ const [createDialogOpen, setCreateDialogOpen] = useState(false);
                       </TableRow>
                     )}
                     {history?.map((execution: unknown) => (
-                      <TableRow key={execution.id}>
+                      <TableRow key={(execution as any).id}>
                         <TableCell>
                           {(execution as any).executionStartAt ? safeToLocaleString((execution as any).executionStartAt) : '-'}
                         </TableCell>
@@ -459,7 +459,6 @@ const [createDialogOpen, setCreateDialogOpen] = useState(false);
                         <TableCell>{execution.campaignsAdjusted}</TableCell>
                         <TableCell>
                           ${parseFloat((execution as any).totalBudgetBefore || '0').toFixed(2)} → 
-                          // @ts-ignore
                           ${parseFloat((execution as any).totalBudgetAfter || '0').toFixed(2)}
                         </TableCell>
                         <TableCell>
@@ -479,8 +478,7 @@ const [createDialogOpen, setCreateDialogOpen] = useState(false);
                                 <Button
                                   size="sm"
                                   onClick={() => approveExecutionMutation.mutate({ 
-                                    // @ts-ignore
-                                    executionId: execution.id, 
+                                    executionId: (execution as any).id, 
                                     approve: true 
                                   })}
                                 >
@@ -490,8 +488,7 @@ const [createDialogOpen, setCreateDialogOpen] = useState(false);
                                   size="sm"
                                   variant="destructive"
                                   onClick={() => approveExecutionMutation.mutate({ 
-                                    // @ts-ignore
-                                    executionId: execution.id, 
+                                    executionId: (execution as any).id, 
                                     approve: false 
                                   })}
                                 >
@@ -560,7 +557,7 @@ const [createDialogOpen, setCreateDialogOpen] = useState(false);
                       </TableHeader>
                       <TableBody>
                         {executionDetails.details.map((detail: unknown) => (
-                          <TableRow key={detail.id}>
+                          <TableRow key={(detail as any).id}>
                             {/* @ts-ignore */}
                             <TableCell className="font-medium">{detail.campaignName}</TableCell>
                             {/* @ts-ignore */}
@@ -576,14 +573,11 @@ const [createDialogOpen, setCreateDialogOpen] = useState(false);
                             </TableCell>
                             <TableCell>
                               <Badge variant={
-                                // @ts-ignore
-                                detail.status === 'applied' ? 'default' :
-                                // @ts-ignore
-                                detail.status === 'error' ? 'destructive' : 'secondary'
+                                (detail as any).status === 'applied' ? 'default' :
+                                (detail as any).status === 'error' ? 'destructive' : 'secondary'
                               }>
                                 {(detail as any).status === 'applied' ? '已应用' :
-                                 // @ts-ignore
-                                 detail.status === 'error' ? '错误' : '已跳过'}
+                                 (detail as any).status === 'error' ? '错误' : '已跳过'}
                               </Badge>
                             </TableCell>
                           </TableRow>

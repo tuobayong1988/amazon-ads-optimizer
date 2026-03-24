@@ -25,16 +25,17 @@ export default function PrelaunchM2Competitors() {
 
   const projectsQuery = trpc.prelaunch.listProjects.useQuery() as unknown;
   const projects = (() => {
-    // @ts-ignore
-    const d = projectsQuery.data;
+    const d = (projectsQuery as any).data;
     // @ts-ignore
     return (d && 'data' in (d as unknown) ? (d as Record<string, unknown>).data : d) || [];
   })();
   if (!projectId && projects.length > 0) setProjectId(projects[0].id);
 
   const competitorsQuery = trpc.prelaunch.getCompetitors.useQuery(
+    // @ts-ignore
     { projectId: projectId!, tier: tierFilter as unknown || undefined, page, pageSize: 20 },
     { enabled: !!projectId }
+  // @ts-ignore
   );
 
   const scenarioMatrixQuery = trpc.prelaunch.getCompetitorScenarioMatrix.useQuery(
@@ -44,9 +45,7 @@ export default function PrelaunchM2Competitors() {
 
   const runM2 = trpc.prelaunch.runM2Pipeline.useMutation({
     onSuccess: () => { toast.success("M2竞品库引擎已启动"); competitorsQuery.refetch(); },
-    // @ts-ignore
     onError: (err) => toast.error("启动失败: " + err.message),
-  // @ts-ignore
   });
 
   // @ts-ignore
@@ -112,8 +111,7 @@ export default function PrelaunchM2Competitors() {
               <p className="text-xs text-muted-foreground">平均TRS评分</p>
               <p className="text-2xl font-bold">
                 {competitorsData.length > 0
-                  // @ts-ignore
-                  ? (competitorsData.reduce((s: number, c: unknown) => s + Number(c.trsScore || 0), 0) / competitorsData.length).toFixed(1)
+                  ? (competitorsData.reduce((s: number, c: unknown) => s + Number((c as any).trsScore || 0), 0) / competitorsData.length).toFixed(1)
                   : '-'}
               </p>
             </CardContent>
@@ -138,7 +136,7 @@ export default function PrelaunchM2Competitors() {
           <TabsContent value="competitors" className="space-y-4">
             <div className="flex items-center gap-2">
               {tiers.map((t: unknown) => (
-                <Button key={t.key} variant={tierFilter === t.key ? "default" : "outline"} size="sm" className="h-7 text-xs"
+                <Button key={(t as any).key} variant={tierFilter === (t as any).key ? "default" : "outline"} size="sm" className="h-7 text-xs"
                   // @ts-ignore
                   onClick={() => { setTierFilter(t.key); setPage(1); }}>
                   {/* @ts-ignore */}
@@ -179,7 +177,7 @@ export default function PrelaunchM2Competitors() {
                       </thead>
                       <tbody>
                         {competitorsData.map((comp: unknown) => (
-                          <tr key={comp.id} className="border-b border-border/30 hover:bg-muted/20 transition-colors">
+                          <tr key={(comp as any).id} className="border-b border-border/30 hover:bg-muted/20 transition-colors">
                             <td className="px-4 py-2.5">
                               {/* @ts-ignore */}
                               {/* @ts-ignore */}
@@ -197,10 +195,8 @@ export default function PrelaunchM2Competitors() {
                             <td className="px-3 py-2.5 text-center">
                               {/* @ts-ignore */}
                               <Badge variant="outline" className={`text-xs ${
-                                // @ts-ignore
-                                comp.tier === 'tier1' ? 'border-red-500/50 text-red-400' :
-                                // @ts-ignore
-                                comp.tier === 'tier2' ? 'border-amber-500/50 text-amber-400' :
+                                (comp as any).tier === 'tier1' ? 'border-red-500/50 text-red-400' :
+                                (comp as any).tier === 'tier2' ? 'border-amber-500/50 text-amber-400' :
                                 'border-gray-500/50 text-gray-400'
                               }`}>
                                 {/* @ts-ignore */}
@@ -267,7 +263,7 @@ export default function PrelaunchM2Competitors() {
                     <CardContent>
                       <div className="flex flex-wrap gap-1">
                         {((item as any).competitors || (item as any).asins || []).slice(0, 5).map((c: unknown, j: number) => (
-                          <Badge key={j} variant="outline" className="text-xs">{typeof c === 'string' ? c : c.asin}</Badge>
+                          <Badge key={j} variant="outline" className="text-xs">{typeof c === 'string' ? c : (c as any).asin}</Badge>
                         ))}
                       </div>
                     </CardContent>

@@ -199,7 +199,7 @@ function GroupOptimalBidCard({ groupId, accountId, onApplySuccess }: {
             <div className="max-h-48 overflow-y-auto space-y-2">
               <p className="text-xs text-muted-foreground font-medium">广告活动明细</p>
               {campaigns.map((campaign: unknown) => (
-                <div key={campaign.campaignId} className="flex items-center justify-between text-xs p-2 bg-muted/20 rounded">
+                <div key={(campaign as any).campaignId} className="flex items-center justify-between text-xs p-2 bg-muted/20 rounded">
                   {/* @ts-ignore */}
                   <span className="truncate max-w-[200px]" title={campaign.campaignName}>{campaign.campaignName}</span>
                   {/* @ts-ignore */}
@@ -275,7 +275,6 @@ const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   );
 
   // 计算统计数据
-  // @ts-ignore
   const stats = useMemo(() => {
     const totalGroups = performanceGroups?.length || 0;
     const activeGroups = performanceGroups?.filter(g => g.status === 'active').length || 0;
@@ -373,6 +372,7 @@ const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
             <DialogContent className="sm:max-w-[500px]">
               <CreatePerformanceGroupForm
                 accountId={accountId!}
+                // @ts-ignore
                 onSubmit={(data) => createGroup.mutate(data)}
                 isLoading={createGroup.isPending}
               />
@@ -449,12 +449,10 @@ const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
         ) : performanceGroups && performanceGroups.length > 0 ? (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
             {performanceGroups.map((group: unknown) => (
-              <Card key={group.id} className="relative overflow-hidden">
+              <Card key={(group as any).id} className="relative overflow-hidden">
                 <div className={`absolute top-0 left-0 right-0 h-1 ${
-                  // @ts-ignore
-                  group.status === 'active' ? 'bg-success' : 
-                  // @ts-ignore
-                  group.status === 'paused' ? 'bg-warning' : 'bg-muted'
+                  (group as any).status === 'active' ? 'bg-success' : 
+                  (group as any).status === 'paused' ? 'bg-warning' : 'bg-muted'
                 }`} />
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between">
@@ -601,7 +599,7 @@ const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
                       size="sm"
                       // @ts-ignore
                       onClick={() => handleRunOptimization(group.id, false)}
-                      disabled={isOptimizing === group.id}
+                      disabled={isOptimizing === (group as any).id}
                     >
                       {/* @ts-ignore */}
                       {isOptimizing === group.id ? (
@@ -616,8 +614,7 @@ const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
                       variant="ghost"
                       onClick={() => {
                         if (confirm('确定要删除此绩效组吗？')) {
-                          // @ts-ignore
-                          deleteGroup.mutate({ id: group.id });
+                          deleteGroup.mutate({ id: (group as any).id });
                         }
                       }}
                     >

@@ -126,13 +126,10 @@ export default function StrategyCenter() {
   // 这确保从任何路由入口进入都能正确加载数据
   useEffect(() => {
     if (accounts && accounts.length > 0 && !currentStore) {
-      // @ts-ignore
       const firstAccount = accounts[0] as unknown;
-      // @ts-ignore
-      const storeName = (firstAccount.storeName || firstAccount.accountName || '').trim();
+      const storeName = ((firstAccount as any).storeName || (firstAccount as any).accountName || '').trim();
       if (storeName) {
-        // @ts-ignore
-        setCurrentSelection(storeName, firstAccount.marketplace || null);
+        setCurrentSelection(storeName, (firstAccount as any).marketplace || null);
       }
     }
   }, [accounts, currentStore]);
@@ -151,8 +148,7 @@ export default function StrategyCenter() {
       toast.success("状态更新成功");
     },
     onError: (error: unknown) => {
-      // @ts-ignore
-      toast.error(`更新失败: ${error.message}`);
+      toast.error(`更新失败: ${(error as any).message}`);
     }
   });
 
@@ -164,8 +160,7 @@ export default function StrategyCenter() {
       toast.success("删除成功");
     },
     onError: (error: unknown) => {
-      // @ts-ignore
-      toast.error(`删除失败: ${error.message}`);
+      toast.error(`删除失败: ${(error as any).message}`);
     }
   });
 
@@ -214,10 +209,8 @@ export default function StrategyCenter() {
   };
 
   const groups = performanceGroupsQuery.data || [];
-  // @ts-ignore
-  const activeGroups = groups.filter((g: unknown) => g.status === 'active');
-  // @ts-ignore
-  const totalCampaigns = groups.reduce((sum: number, g: unknown) => sum + (g.campaignCount || 0), 0);
+  const activeGroups = groups.filter((g: unknown) => (g as any).status === 'active');
+  const totalCampaigns = groups.reduce((sum: number, g: unknown) => sum + ((g as any).campaignCount || 0), 0);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -391,15 +384,11 @@ export default function StrategyCenter() {
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
               {groups.map((group: unknown) => {
-                // @ts-ignore
-                const goalLabel = OPTIMIZATION_GOAL_LABELS[group.optimizationGoal] || '未设置';
-                // @ts-ignore
-                const templateInfo = group.strategyTemplateName 
-                  // @ts-ignore
-                  ? STRATEGY_TEMPLATE_LABELS[group.strategyTemplateName] || { name: group.strategyTemplateName, color: "text-blue-400 bg-blue-500/20", icon: "📋" }
+                const goalLabel = OPTIMIZATION_GOAL_LABELS[(group as any).optimizationGoal] || '未设置';
+                const templateInfo = (group as any).strategyTemplateName 
+                  ? STRATEGY_TEMPLATE_LABELS[(group as any).strategyTemplateName] || { name: (group as any).strategyTemplateName, color: "text-blue-400 bg-blue-500/20", icon: "📋" }
                   : null;
                 
-                // @ts-ignore
                 return (
                   <Card 
                     // @ts-ignore
@@ -448,7 +437,7 @@ export default function StrategyCenter() {
                             {/* @ts-ignore */}
                             <p className="font-semibold text-lg">{group.targetAcos || '-'}%</p>
                           </div>
-                        ) : group.optimizationGoal === 'target_roas' || group.targetRoas ? (
+                        ) : (group as any).optimizationGoal === 'target_roas' || (group as any).targetRoas ? (
                           <div>
                             <p className="text-muted-foreground text-xs">目标ROAS</p>
                             {/* @ts-ignore */}
@@ -515,80 +504,60 @@ export default function StrategyCenter() {
                               {/* @ts-ignore */}
                               {group.goalProgressDetail?.level && (
                                 <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
-                                  // @ts-ignore
-                                  group.goalProgressDetail.level === 'excellent' ? 'bg-green-500/20 text-green-400' :
-                                  // @ts-ignore
-                                  group.goalProgressDetail.level === 'good' ? 'bg-blue-500/20 text-blue-400' :
-                                  // @ts-ignore
-                                  group.goalProgressDetail.level === 'fair' ? 'bg-yellow-500/20 text-yellow-400' :
-                                  // @ts-ignore
+                                  (group as any).goalProgressDetail.level === 'excellent' ? 'bg-green-500/20 text-green-400' :
+                                  (group as any).goalProgressDetail.level === 'good' ? 'bg-blue-500/20 text-blue-400' :
+                                  (group as any).goalProgressDetail.level === 'fair' ? 'bg-yellow-500/20 text-yellow-400' :
                                   'bg-red-500/20 text-red-400'
                                 }`}>
                                   {/* @ts-ignore */}
                                   {group.goalProgressDetail.level === 'excellent' ? '优秀' :
-                                   // @ts-ignore
-                                   group.goalProgressDetail.level === 'good' ? '良好' :
-                                   // @ts-ignore
-                                   group.goalProgressDetail.level === 'fair' ? '一般' : '待改善'}
+                                   (group as any).goalProgressDetail.level === 'good' ? '良好' :
+                                   (group as any).goalProgressDetail.level === 'fair' ? '一般' : '待改善'}
                                 </span>
                               )}
                               <span className={`text-sm font-bold ${
-                                // @ts-ignore
-                                group.goalProgress >= 85 ? 'text-green-400' :
-                                // @ts-ignore
-                                group.goalProgress >= 65 ? 'text-blue-400' :
-                                // @ts-ignore
-                                group.goalProgress >= 40 ? 'text-yellow-400' :
+                                (group as any).goalProgress >= 85 ? 'text-green-400' :
+                                (group as any).goalProgress >= 65 ? 'text-blue-400' :
+                                (group as any).goalProgress >= 40 ? 'text-yellow-400' :
                                 'text-red-400'
-                              // @ts-ignore
-                              }`}>{Math.round(group.goalProgress)}分</span>
+                              }`}>{Math.round((group as any).goalProgress)}分</span>
                             </div>
                           </div>
                           <div className="w-full h-2.5 bg-muted/50 rounded-full overflow-hidden">
                             <div 
                               className={`h-full rounded-full transition-all duration-700 ${
-                                // @ts-ignore
-                                group.goalProgress >= 85 ? 'bg-gradient-to-r from-green-500 to-emerald-400' :
-                                // @ts-ignore
-                                group.goalProgress >= 65 ? 'bg-gradient-to-r from-blue-500 to-cyan-400' :
-                                // @ts-ignore
-                                group.goalProgress >= 40 ? 'bg-gradient-to-r from-yellow-500 to-amber-400' :
+                                (group as any).goalProgress >= 85 ? 'bg-gradient-to-r from-green-500 to-emerald-400' :
+                                (group as any).goalProgress >= 65 ? 'bg-gradient-to-r from-blue-500 to-cyan-400' :
+                                (group as any).goalProgress >= 40 ? 'bg-gradient-to-r from-yellow-500 to-amber-400' :
                                 'bg-gradient-to-r from-red-500 to-orange-400'
                               }`}
-                              style={{ width: `${Math.min(100, Math.max(0, group.goalProgress))}%` }}
+                              style={{ width: `${Math.min(100, Math.max(0, (group as any).goalProgress))}%` }}
                             />
                           </div>
 
                           {/* v164: 五维度得分明细 */}
                           {/* @ts-ignore */}
                           {group.goalProgressDetail?.dimensions && group.goalProgressDetail.dimensions.length > 0 && (
-                            <div className={`grid gap-1 mt-2 ${group.goalProgressDetail.dimensions.length >= 5 ? 'grid-cols-5' : 'grid-cols-4'}`}>
+                            <div className={`grid gap-1 mt-2 ${(group as any).goalProgressDetail.dimensions.length >= 5 ? 'grid-cols-5' : 'grid-cols-4'}`}>
                               {(group as any).goalProgressDetail.dimensions.map((dim: unknown) => (
-                                <div key={dim.name} className="text-center" title={dim.detail}>
+                                <div key={(dim as any).name} className="text-center" title={(dim as any).detail}>
                                   {/* @ts-ignore */}
                                   <div className="text-[10px] text-muted-foreground truncate">{dim.nameZh}</div>
                                   <div className={`text-xs font-semibold ${
-                                    // @ts-ignore
-                                    dim.score >= 80 ? 'text-green-400' :
-                                    // @ts-ignore
-                                    dim.score >= 60 ? 'text-blue-400' :
-                                    // @ts-ignore
-                                    dim.score >= 40 ? 'text-yellow-400' :
+                                    (dim as any).score >= 80 ? 'text-green-400' :
+                                    (dim as any).score >= 60 ? 'text-blue-400' :
+                                    (dim as any).score >= 40 ? 'text-yellow-400' :
                                     'text-red-400'
-                                  // @ts-ignore
-                                  }`}>{dim.score}</div>
+                                  }`}>{(dim as any).score}</div>
                                   <div className="w-full h-1 bg-muted/40 rounded-full overflow-hidden mt-0.5">
                                     <div 
                                       className={`h-full rounded-full transition-all duration-500 ${
-                                        // @ts-ignore
-                                        dim.score >= 80 ? 'bg-green-500' :
-                                        // @ts-ignore
-                                        dim.score >= 60 ? 'bg-blue-500' :
-                                        // @ts-ignore
-                                        dim.score >= 40 ? 'bg-yellow-500' :
+                                        (dim as any).score >= 80 ? 'bg-green-500' :
+                                        (dim as any).score >= 60 ? 'bg-blue-500' :
+                                        (dim as any).score >= 40 ? 'bg-yellow-500' :
                                         'bg-red-500'
                                       }`}
-                                      style={{ width: `${Math.min(100, Math.max(0, dim.score))}%` }}
+                                      style={{ width: `${Math.min(100, Math.max(0, (dim as any).score))}%` }}
                                     />
                                   </div>
                                   {/* @ts-ignore */}
@@ -650,8 +619,7 @@ export default function StrategyCenter() {
                           className="flex-1"
                           onClick={(e) => {
                             e.stopPropagation();
-                            // @ts-ignore
-                            handleGoToDetail(group.id);
+                            handleGoToDetail((group as any).id);
                           }}
                         >
                           <Eye className="h-4 w-4 mr-1" />
@@ -663,10 +631,9 @@ export default function StrategyCenter() {
                           size="sm"
                           onClick={(e) => {
                             e.stopPropagation();
-                            // @ts-ignore
-                            handleToggleStatus(group.id, group.status);
+                            handleToggleStatus((group as any).id, (group as any).status);
                           }}
-                          disabled={group.status === 'archived'}
+                          disabled={(group as any).status === 'archived'}
                         >
                           {/* @ts-ignore */}
                           {group.status === 'active' ? (
@@ -681,8 +648,7 @@ export default function StrategyCenter() {
                           className="text-destructive hover:text-destructive"
                           onClick={(e) => {
                             e.stopPropagation();
-                            // @ts-ignore
-                            handleDeleteGroup(group.id, group.name);
+                            handleDeleteGroup((group as any).id, (group as any).name);
                           }}
                         >
                           <Trash2 className="h-4 w-4" />

@@ -191,7 +191,9 @@ function ModuleProgressBar({ moduleStats }: { moduleStats?: Record<string, numbe
           <div
             // @ts-ignore
             key={m}
+            // @ts-ignore
             className={`w-3 h-1.5 rounded-full ${(moduleStats[m] || 0) > 0 ? 'bg-green-400' : 'bg-muted/50'}`}
+            // @ts-ignore
             title={`${m}: ${moduleStats[m] || 0} 条`}
           />
         ))}
@@ -215,25 +217,24 @@ function PipelineFlowVisualization({ pipelineStatus, modules, onModuleClick }: {
       <div className="flex items-center gap-0 min-w-[900px] px-4 py-6">
         {MODULE_CONFIG.map((mod: unknown, idx: unknown) => {
           // @ts-ignore
-          const moduleStatus = psData?.data?.modules?.[mod.key]?.status || 'pending';
+          const moduleStatus = psData?.data?.modules?.[(mod as any).key]?.status || 'pending';
           // @ts-ignore
-          const isActive = psData?.data?.currentModule === mod.key;
+          const isActive = psData?.data?.currentModule === (mod as any).key;
           // @ts-ignore
-          const count = modules?.[mod.key]?.count ?? 0;
+          const count = modules?.[(mod as any).key]?.count ?? 0;
 
-          // @ts-ignore
           const bgColor = moduleStatus === 'completed' ? 'bg-green-500/10 border-green-500/40' :
             moduleStatus === 'running' ? 'bg-blue-500/10 border-blue-500/40 ring-2 ring-blue-500/20' :
             moduleStatus === 'failed' ? 'bg-red-500/10 border-red-500/40' :
             'bg-muted/30 border-border/50';
 
           return (
-            <div key={mod.key} className="flex items-center">
+            <div key={(mod as any).key} className="flex items-center">
               {/* @ts-ignore */}
               <div
                 className={`relative flex flex-col items-center p-3 rounded-xl border cursor-pointer transition-all hover:scale-105 ${bgColor}`}
                 style={{ minWidth: '100px' }}
-                onClick={() => onModuleClick(mod.route)}
+                onClick={() => onModuleClick((mod as any).route)}
               >
                 {/* @ts-ignore */}
                 {/* @ts-ignore */}
@@ -262,11 +263,9 @@ function PipelineFlowVisualization({ pipelineStatus, modules, onModuleClick }: {
     {/* @ts-ignore */}
     </div>
   );
-// @ts-ignore
 }
 
 // ==================== 项目卡片组件 ====================
-// @ts-ignore
 function ProjectCard({ project, isSelected, onSelect, onEdit, onDelete }: {
   project: unknown;
   isSelected: boolean;
@@ -274,18 +273,12 @@ function ProjectCard({ project, isSelected, onSelect, onEdit, onDelete }: {
   onEdit: () => void;
   onDelete: () => void;
 }) {
-  // @ts-ignore
-  const marketplace = MARKETPLACE_LABELS[project.marketplace] || { label: project.marketplace, flag: '' };
-  // @ts-ignore
-  const statusConfig = STATUS_CONFIG[project.status] || STATUS_CONFIG.draft;
-  // @ts-ignore
-  const seedKeywords = Array.isArray(project.seedKeywords)
-    // @ts-ignore
-    ? project.seedKeywords
-    // @ts-ignore
-    : (typeof project.seedKeywords === 'string' ? (() => { try { return JSON.parse(project.seedKeywords); } catch { return []; } })() : []);
-  // @ts-ignore
-  const moduleStats = project.moduleStats || {};
+  const marketplace = MARKETPLACE_LABELS[(project as any).marketplace] || { label: (project as any).marketplace, flag: '' };
+  const statusConfig = STATUS_CONFIG[(project as any).status] || STATUS_CONFIG.draft;
+  const seedKeywords = Array.isArray((project as any).seedKeywords)
+    ? (project as any).seedKeywords
+    : (typeof (project as any).seedKeywords === 'string' ? (() => { try { return JSON.parse((project as any).seedKeywords); } catch { return []; } })() : []);
+  const moduleStats = (project as any).moduleStats || {};
   const totalModuleData = Object.values(moduleStats).reduce((sum: number, v: unknown) => sum + (Number(v) || 0), 0);
 
   return (
@@ -353,7 +346,7 @@ function ProjectCard({ project, isSelected, onSelect, onEdit, onDelete }: {
             </span>
           )}
           {(project as any).category && (
-            <span className="truncate">{project.category}</span>
+            <span className="truncate">{(project as any).category}</span>
           )}
         </div>
 
@@ -395,17 +388,11 @@ function ProjectCard({ project, isSelected, onSelect, onEdit, onDelete }: {
 
 // ==================== 项目详情/编辑弹窗 ====================
 function ProjectDetailDialog({ project, open, onClose, onSaved }: {
-  // @ts-ignore
   project: unknown;
-  // @ts-ignore
   open: boolean;
-  // @ts-ignore
   onClose: () => void;
-  // @ts-ignore
   onSaved: () => void;
-// @ts-ignore
 }) {
-  // @ts-ignore
   const [isEditing, setIsEditing] = useState(false);
   // @ts-ignore
   const [editName, setEditName] = useState(project?.projectName || '');
@@ -428,8 +415,7 @@ function ProjectDetailDialog({ project, open, onClose, onSaved }: {
       // @ts-ignore
       onClose(); // 保存成功后关闭弹窗，下次打开时使用最新数据
     },
-    // @ts-ignore
-    onError: (err: unknown) => toast.error("更新失败: " + err.message),
+    onError: (err: unknown) => toast.error("更新失败: " + (err as any).message),
   // @ts-ignore
   });
 
@@ -455,15 +441,13 @@ function ProjectDetailDialog({ project, open, onClose, onSaved }: {
       setEditKeywords(kws.join('\n'));
       // @ts-ignore
       setEditStatus(project.status || 'draft');
-    // @ts-ignore
     }
   }, [project]);
 
   const handleSave = useCallback(() => {
     if (!editName.trim()) { toast.error("项目名称不能为空"); return; }
     updateProject.mutate({
-      // @ts-ignore
-      projectId: project.id,
+      projectId: (project as any).id,
       projectName: editName.trim(),
       asin: editAsin.trim() || undefined,
       category: editCategory.trim() || undefined,
@@ -640,10 +624,9 @@ function ProjectDetailDialog({ project, open, onClose, onSaved }: {
               </h4>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {MODULE_CONFIG.map((mod: unknown) => {
-                  // @ts-ignore
-                  const count = moduleStats[mod.key] || 0;
+                  const count = moduleStats[(mod as any).key] || 0;
                   return (
-                    <div key={mod.key} className={`flex items-center gap-2 p-2 rounded-lg border ${count > 0 ? 'border-green-500/20 bg-green-500/5' : 'border-border/30'}`}>
+                    <div key={(mod as any).key} className={`flex items-center gap-2 p-2 rounded-lg border ${count > 0 ? 'border-green-500/20 bg-green-500/5' : 'border-border/30'}`}>
                       {/* @ts-ignore */}
                       <mod.icon className={`w-4 h-4 ${count > 0 ? mod.iconColor : 'text-muted-foreground'}`} />
                       <div>
@@ -653,7 +636,6 @@ function ProjectDetailDialog({ project, open, onClose, onSaved }: {
                       </div>
                     </div>
                   );
-                // @ts-ignore
                 })}
               </div>
             </div>
@@ -664,7 +646,6 @@ function ProjectDetailDialog({ project, open, onClose, onSaved }: {
     {/* @ts-ignore */}
     </Dialog>
   );
-// @ts-ignore
 }
 
 // ==================== 新建项目分步向导 ====================
@@ -683,11 +664,9 @@ function CreateProjectWizard({ onClose, onCreated }: {
   const createProject = trpc.prelaunch.createProject.useMutation({
     onSuccess: (data: unknown) => {
       toast.success(`项目 "${projectName}" 创建成功`);
-      // @ts-ignore
-      onCreated(data.projectId || data.id);
+      onCreated((data as any).projectId || (data as any).id);
     },
-    // @ts-ignore
-    onError: (err: unknown) => toast.error("创建失败: " + err.message),
+    onError: (err: unknown) => toast.error("创建失败: " + (err as any).message),
   });
 
   const toggleModule = useCallback((key: string) => {
@@ -718,14 +697,14 @@ function CreateProjectWizard({ onClose, onCreated }: {
           {/* @ts-ignore */}
           <div className="flex items-center gap-2">
             {[1, 2, 3, 4].map((s: unknown) => (
-              <div key={s} className={`flex items-center gap-1 ${s <= step ? 'text-blue-400' : 'text-muted-foreground'}`}>
+              // @ts-ignore
+              <div key={String(s)} className={`flex items-center gap-1 ${s <= step ? 'text-blue-400' : 'text-muted-foreground'}`}>
                 {/* @ts-ignore */}
                 <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold border ${
                   s === step ? 'bg-blue-500/20 border-blue-500' :
                   // @ts-ignore
                   s < step ? 'bg-green-500/20 border-green-500 text-green-400' :
                   'border-border'
-                // @ts-ignore
                 }`}>
                   {Number(s) < step ? <CheckCircle className="w-3 h-3" /> : String(s)}
                 </div>
@@ -782,17 +761,14 @@ function CreateProjectWizard({ onClose, onCreated }: {
                   // @ts-ignore
                   key={mod.key}
                   className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-                    // @ts-ignore
-                    selectedModules.includes(mod.key)
-                      // @ts-ignore
-                      ? `bg-gradient-to-br ${mod.color}`
+                    selectedModules.includes((mod as any).key)
+                      ? `bg-gradient-to-br ${(mod as any).color}`
                       : 'border-border/50 hover:border-border'
                   }`}
-                  onClick={() => toggleModule(mod.key)}
+                  onClick={() => toggleModule((mod as any).key)}
                 >
                   <div className={`w-5 h-5 rounded border flex items-center justify-center ${
-                    // @ts-ignore
-                    selectedModules.includes(mod.key) ? 'bg-blue-500 border-blue-500' : 'border-border'
+                    selectedModules.includes((mod as any).key) ? 'bg-blue-500 border-blue-500' : 'border-border'
                   }`}>
                     {/* @ts-ignore */}
                     {selectedModules.includes(mod.key) && <CheckCircle className="w-3 h-3 text-white" />}
@@ -842,7 +818,7 @@ function CreateProjectWizard({ onClose, onCreated }: {
                   {selectedModules.map((key: unknown) => {
                     const mod = MODULE_CONFIG.find(m => m.key === key);
                     return mod ? (
-                      <Badge key={key} variant="secondary" className="text-xs">{mod.key}: {mod.name}</Badge>
+                      <Badge key={String(key)} variant="secondary" className="text-xs">{mod.key}: {mod.name}</Badge>
                     ) : null;
                   })}
                 </div>
@@ -853,7 +829,7 @@ function CreateProjectWizard({ onClose, onCreated }: {
                 <p className="text-xs text-muted-foreground mb-1">种子关键词:</p>
                 <div className="flex flex-wrap gap-1">
                   {seedKeywords.split(/[,，\n]/).map(s => s.trim()).filter(Boolean).map((kw: unknown, i: unknown) => (
-                    <Badge key={i} variant="outline" className="text-xs">{kw}</Badge>
+                    <Badge key={String(i)} variant="outline" className="text-xs">{String(kw)}</Badge>
                   ))}
                 </div>
               </div>
@@ -868,7 +844,6 @@ function CreateProjectWizard({ onClose, onCreated }: {
           </Button>
           {step < 4 ? (
             <Button onClick={() => {
-              // @ts-ignore
               if (step === 1 && !projectName.trim()) { toast.error("请输入项目名称"); return; }
               if (step === 2 && selectedModules.length === 0) { toast.error("请至少选择一个模块"); return; }
               setStep(s => s + 1);
@@ -894,7 +869,6 @@ export default function PrelaunchDashboard() {
   const [activeTab, setActiveTab] = useState("overview");
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
   const [showCreateWizard, setShowCreateWizard] = useState(false);
-  // @ts-ignore
   const [projectSearch, setProjectSearch] = useState("");
   const [projectStatusFilter, setProjectStatusFilter] = useState<string>("all");
   const [detailProject, setDetailProject] = useState<unknown>(null);
@@ -924,8 +898,7 @@ export default function PrelaunchDashboard() {
       toast.success("流水线已启动！正在依次执行M1→M7...");
       pipelineStatusQuery.refetch();
     },
-    // @ts-ignore
-    onError: (err: unknown) => toast.error("启动失败: " + err.message),
+    onError: (err: unknown) => toast.error("启动失败: " + (err as any).message),
   });
 
   const deleteProjectMutation = trpc.prelaunch.deleteProject.useMutation({
@@ -940,8 +913,7 @@ export default function PrelaunchDashboard() {
       projectsQuery.refetch();
       dashboardQuery.refetch();
     },
-    // @ts-ignore
-    onError: (err: unknown) => toast.error("删除失败: " + err.message),
+    onError: (err: unknown) => toast.error("删除失败: " + (err as any).message),
   });
 
   const dashboard = dashboardQuery.data;
@@ -957,14 +929,10 @@ export default function PrelaunchDashboard() {
     const all = Array.isArray(projects) ? projects : [];
     return {
       total: all.length,
-      // @ts-ignore
-      draft: all.filter((p: unknown) => p.status === 'draft').length,
-      // @ts-ignore
-      running: all.filter((p: unknown) => p.status === 'running').length,
-      // @ts-ignore
-      completed: all.filter((p: unknown) => p.status === 'completed').length,
-      // @ts-ignore
-      archived: all.filter((p: unknown) => p.status === 'archived').length,
+      draft: all.filter((p: unknown) => (p as any).status === 'draft').length,
+      running: all.filter((p: unknown) => (p as any).status === 'running').length,
+      completed: all.filter((p: unknown) => (p as any).status === 'completed').length,
+      archived: all.filter((p: unknown) => (p as any).status === 'archived').length,
     };
   }, [projects]);
 
@@ -975,14 +943,12 @@ export default function PrelaunchDashboard() {
       seedKeywords: [],
       marketplace: 'US',
     });
-  // @ts-ignore
   }, [selectedProjectId, runPipeline]);
 
   const handleDeleteProject = useCallback(() => {
     if (deleteProject) {
       // @ts-ignore
       deleteProjectMutation.mutate({ projectId: deleteProject.id });
-    // @ts-ignore
     }
   }, [deleteProject, deleteProjectMutation]);
 
@@ -1067,7 +1033,7 @@ export default function PrelaunchDashboard() {
                   <Button
                     // @ts-ignore
                     key={f.key}
-                    variant={projectStatusFilter === f.key ? "default" : "ghost"}
+                    variant={projectStatusFilter === (f as any).key ? "default" : "ghost"}
                     size="sm"
                     className="h-7 text-xs px-2"
                     // @ts-ignore
@@ -1108,11 +1074,9 @@ export default function PrelaunchDashboard() {
                     // @ts-ignore
                     key={p.id}
                     project={p}
-                    isSelected={selectedProjectId === p.id}
+                    isSelected={selectedProjectId === (p as any).id}
                     onSelect={() => {
-                      // @ts-ignore
-                      setSelectedProjectId(p.id);
-                      // @ts-ignore
+                      setSelectedProjectId((p as any).id);
                       setDetailProject(p);
                       setShowDetailDialog(true);
                     }}
@@ -1149,8 +1113,7 @@ export default function PrelaunchDashboard() {
 
         {/* 当前选中项目的快速信息栏 */}
         {selectedProjectId && (() => {
-          // @ts-ignore
-          const selectedProject = Array.isArray(projects) ? projects.find((p: unknown) => p.id === selectedProjectId) : null;
+          const selectedProject = Array.isArray(projects) ? projects.find((p: unknown) => (p as any).id === selectedProjectId) : null;
           if (!selectedProject) return null;
           return (
             <div className="flex items-center gap-3 px-4 py-2.5 rounded-lg bg-blue-500/5 border border-blue-500/20">
@@ -1189,20 +1152,18 @@ export default function PrelaunchDashboard() {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {MODULE_CONFIG.map((mod: unknown) => {
-                  // @ts-ignore
-                  const moduleData = modules[mod.key];
+                  const moduleData = modules[(mod as any).key];
                   const count = moduleData?.count ?? 0;
-                  // @ts-ignore
                   const psData = pipelineStatus as unknown;
                   // @ts-ignore
-                  const pipelineModuleStatus = psData?.data?.modules?.[mod.key]?.status;
+                  const pipelineModuleStatus = psData?.data?.modules?.[(mod as any).key]?.status;
 
                   return (
                     <Card
                       // @ts-ignore
                       key={mod.key}
-                      className={`bg-gradient-to-br ${mod.color} cursor-pointer hover:scale-[1.02] ${mod.hoverBorder} transition-all group`}
-                      onClick={() => setLocation(mod.route)}
+                      className={`bg-gradient-to-br ${(mod as any).color} cursor-pointer hover:scale-[1.02] ${(mod as any).hoverBorder} transition-all group`}
+                      onClick={() => setLocation((mod as any).route)}
                     >
                       <CardHeader className="pb-2">
                         {/* @ts-ignore */}
@@ -1301,10 +1262,10 @@ export default function PrelaunchDashboard() {
                     {MODULE_CONFIG.map((mod: unknown) => {
                       const psData = pipelineStatus as unknown;
                       // @ts-ignore
-                      const moduleStatus = psData?.data?.modules?.[mod.key];
+                      const moduleStatus = psData?.data?.modules?.[(mod as any).key];
                       const status = moduleStatus?.status || 'pending';
                       // @ts-ignore
-                      const isActive = psData?.data?.currentModule === mod.key;
+                      const isActive = psData?.data?.currentModule === (mod as any).key;
                       return (
                         <div
                           // @ts-ignore
@@ -1312,7 +1273,7 @@ export default function PrelaunchDashboard() {
                           className={`flex items-center gap-4 p-3 rounded-lg border transition-colors cursor-pointer hover:bg-muted/20 ${
                             isActive ? 'border-blue-500/50 bg-blue-500/10' : 'border-border/50'
                           }`}
-                          onClick={() => setLocation(mod.route)}
+                          onClick={() => setLocation((mod as any).route)}
                         >
                           <div className={`p-2 rounded-lg ${isActive ? 'bg-blue-500/20' : 'bg-muted/50'}`}>
                             {/* @ts-ignore */}
@@ -1334,7 +1295,6 @@ export default function PrelaunchDashboard() {
                         {/* @ts-ignore */}
                         </div>
                       );
-                    // @ts-ignore
                     })}
                   </div>
                 </CardContent>
@@ -1403,20 +1363,17 @@ function AdFrameworkPreview({ projectId }: { projectId: number }) {
   const frameworksQuery = trpc.prelaunch.getAdFrameworks.useQuery({ projectId }) as unknown;
   const deployMutation = trpc.prelaunch.deployAdFramework.useMutation({
     onSuccess: (data: unknown) => {
-      // @ts-ignore
-      if (data.dryRun) {
-        // @ts-ignore
-        toast.success(`验证通过！预计 ${data.validation?.estimatedApiCalls} 次API调用`);
+      if ((data as any).dryRun) {
+        toast.success(`验证通过！预计 ${(data as any).validation?.estimatedApiCalls} 次API调用`);
       } else {
         toast.success("广告框架已部署到Amazon！");
       }
     },
-    // @ts-ignore
-    onError: (err: unknown) => toast.error("部署失败: " + err.message),
+    onError: (err: unknown) => toast.error("部署失败: " + (err as any).message),
   });
 
   // @ts-ignore
-  const frameworks = (frameworksQuery.data as unknown)?.data || [];
+  const frameworks = ((frameworksQuery as any).data as unknown)?.data || [];
 
   if (frameworks.length === 0) {
     return (
@@ -1438,10 +1395,9 @@ function AdFrameworkPreview({ projectId }: { projectId: number }) {
   return (
     <div className="space-y-3">
       {frameworks.map((fw: unknown) => {
-        // @ts-ignore
-        const typeInfo = AD_TYPE_LABELS[fw.frameworkType] || { label: fw.frameworkType, color: 'bg-gray-500/20' };
+        const typeInfo = AD_TYPE_LABELS[(fw as any).frameworkType] || { label: (fw as any).frameworkType, color: 'bg-gray-500/20' };
         return (
-          <div key={fw.id} className="flex items-center justify-between p-3 rounded-lg border border-border/50 hover:border-border transition-colors">
+          <div key={(fw as any).id} className="flex items-center justify-between p-3 rounded-lg border border-border/50 hover:border-border transition-colors">
             <div className="flex items-center gap-3">
               <Badge className={typeInfo.color}>{typeInfo.label}</Badge>
               <div>
@@ -1464,7 +1420,7 @@ function AdFrameworkPreview({ projectId }: { projectId: number }) {
               </Button>
               <Button size="sm"
                 onClick={() => toast.info("即将部署到Amazon Ads API，请确认...")}
-                disabled={fw.status === 'deployed'}
+                disabled={(fw as any).status === 'deployed'}
                 className="bg-gradient-to-r from-indigo-600 to-blue-600">
                 <Upload className="w-3 h-3 mr-1" />部署
               </Button>

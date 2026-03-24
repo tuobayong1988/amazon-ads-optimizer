@@ -79,8 +79,7 @@ const [activeTab, setActiveTab] = useState("recommendations");
       summaryQuery.refetch();
     },
     onError: (err: unknown) => {
-      // @ts-ignore
-      toast.error(`执行失败: ${err.message}`);
+      toast.error(`执行失败: ${(err as any).message}`);
     }
   });
 
@@ -129,10 +128,8 @@ const [activeTab, setActiveTab] = useState("recommendations");
   // 批量执行高置信度建议
   // @ts-ignore
   const handleBatchExecute = async () => {
-    // @ts-ignore
-    const highConfidenceIds = recommendations?.filter((r: unknown) => r.confidence >= 0.8 && r.status === 'pending')
-      // @ts-ignore
-      .map((r: unknown) => r.id) || [];
+    const highConfidenceIds = recommendations?.filter((r: unknown) => (r as any).confidence >= 0.8 && (r as any).status === 'pending')
+      .map((r: unknown) => (r as any).id) || [];
     
     if (highConfidenceIds.length === 0) {
       toast.info("没有可执行的高置信度建议");
@@ -151,14 +148,10 @@ const [activeTab, setActiveTab] = useState("recommendations");
   };
 
   // 计算优化摘要
-  // @ts-ignore
   const optimizationSummary = useMemo(() => {
-    // @ts-ignore
     const recs = recommendations || [];
-    // @ts-ignore
-    const pending = recs.filter((r: unknown) => r.status === 'pending').length;
-    // @ts-ignore
-    const highConfidence = recs.filter((r: unknown) => r.confidence >= 0.8 && r.status === 'pending').length;
+    const pending = recs.filter((r: unknown) => (r as any).status === 'pending').length;
+    const highConfidence = recs.filter((r: unknown) => (r as any).confidence >= 0.8 && (r as any).status === 'pending').length;
     // @ts-ignore
     const executed = (summaryQuery.data as unknown)?.executedCount || 0;
 
@@ -229,7 +222,7 @@ const [activeTab, setActiveTab] = useState("recommendations");
               </SelectTrigger>
               <SelectContent>
                 {accounts?.map((account: unknown) => (
-                  <SelectItem key={account.id} value={account.id.toString()}>
+                  <SelectItem key={(account as any).id} value={(account as any).id.toString()}>
                     {/* @ts-ignore */}
                     {account.accountName}
                   </SelectItem>
@@ -372,7 +365,7 @@ const [activeTab, setActiveTab] = useState("recommendations");
           {/* 优化建议Tab */}
           <TabsContent value="recommendations" className="space-y-4">
             {recommendations?.filter((r: unknown) => (r as any).status === 'pending').map((rec: unknown) => (
-              <Card key={rec.id} className="hover:border-primary/50 transition-colors">
+              <Card key={(rec as any).id} className="hover:border-primary/50 transition-colors">
                 <CardContent className="py-4">
                   {/* @ts-ignore */}
                   <div className="flex items-center justify-between">
@@ -443,7 +436,7 @@ const [activeTab, setActiveTab] = useState("recommendations");
           <TabsContent value="history" className="space-y-4">
             {/* @ts-ignore */}
             {((summaryQuery.data as unknown)?.recentExecutions || []).map((history: unknown) => (
-              <Card key={history.id}>
+              <Card key={(history as any).id}>
                 <CardContent className="py-4">
                   {/* @ts-ignore */}
                   <div className="flex items-center justify-between">

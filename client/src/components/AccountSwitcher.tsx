@@ -464,20 +464,16 @@ export default function AccountSwitcher({ compact = false, showStatus = true }: 
               没有符合筛选条件的账号
             </div>
           ) : (
-            // @ts-ignore
             filteredAccounts.map((account: unknown, index: unknown) => {
-              // @ts-ignore
-              const isSelected = account.id === currentAccountId;
-              // @ts-ignore
-              const flag = MARKETPLACE_FLAGS[account.marketplace] || '🌐';
+              const isSelected = (account as any).id === currentAccountId;
+              const flag = MARKETPLACE_FLAGS[(account as any).marketplace] || '🌐';
               
-              // @ts-ignore
               return (
                 <DropdownMenuItem
                   // @ts-ignore
                   key={account.id}
                   className={`flex items-center gap-3 py-2.5 cursor-pointer ${isSelected ? 'bg-accent' : ''}`}
-                  onClick={() => handleSwitchAccount(account.id)}
+                  onClick={() => handleSwitchAccount((account as any).id)}
                 >
                   <div
                     className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-sm font-bold shrink-0"
@@ -511,7 +507,7 @@ export default function AccountSwitcher({ compact = false, showStatus = true }: 
                   </div>
                   {isSelected && <Check className="h-4 w-4 text-primary shrink-0" />}
                   {(index as any) < 9 && (
-                    <DropdownMenuShortcut>Alt+{index + 1}</DropdownMenuShortcut>
+                    <DropdownMenuShortcut>Alt+{(index as any) + 1}</DropdownMenuShortcut>
                   )}
                 </DropdownMenuItem>
               );

@@ -69,7 +69,7 @@ export default function CampaignManagementPanel({
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       result = result.filter((c: unknown) => 
-        (c.campaignName || '').toLowerCase().includes(term)
+        ((c as any).campaignName || '').toLowerCase().includes(term)
       );
     }
 
@@ -77,17 +77,14 @@ export default function CampaignManagementPanel({
     result.sort((a: unknown, b: unknown) => {
       let aVal: unknown, bVal: unknown;
       switch (sortField) {
-        // @ts-ignore
         case 'campaignName':
-          // @ts-ignore
-          aVal = (a.campaignName || '').toLowerCase();
+          aVal = ((a as any).campaignName || '').toLowerCase();
           // @ts-ignore
           bVal = (b.campaignName || '').toLowerCase();
           // @ts-ignore
           break;
         default:
-          // @ts-ignore
-          aVal = Number(a[sortField] || 0);
+          aVal = Number((a as any)[sortField] || 0);
           // @ts-ignore
           bVal = Number(b[sortField] || 0);
       // @ts-ignore
@@ -97,6 +94,7 @@ export default function CampaignManagementPanel({
         // @ts-ignore
         return aVal > bVal ? 1 : -1;
       }
+      // @ts-ignore
       return aVal < bVal ? 1 : -1;
     });
 
@@ -195,7 +193,7 @@ export default function CampaignManagementPanel({
                 </TableRow>
               ) : (
                 filteredCampaigns.map((campaign: unknown) => (
-                  <TableRow key={campaign.id || campaign.campaignId}>
+                  <TableRow key={(campaign as any).id || (campaign as any).campaignId}>
                     <TableCell className="font-medium max-w-[200px] truncate">
                       {/* @ts-ignore */}
                       {campaign.campaignName || `Campaign ${campaign.campaignId}`}

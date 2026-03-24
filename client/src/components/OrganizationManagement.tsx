@@ -203,7 +203,7 @@ export function OrganizationManagement() {
             <TableBody>
               {members && members.length > 0 ? (
                 members.map((member: unknown) => (
-                  <TableRow key={member.id}>
+                  <TableRow key={(member as any).id}>
                     <TableCell>
                       <div>
                         {/* @ts-ignore */}
@@ -218,8 +218,7 @@ export function OrganizationManagement() {
                       {/* @ts-ignore */}
                       <Badge variant={member.role === 'owner' ? 'default' : 'secondary'}>
                         {(member as any).role === 'owner' ? '所有者' :
-                         // @ts-ignore
-                         member.role === 'admin' ? '管理员' : '成员'}
+                         (member as any).role === 'admin' ? '管理员' : '成员'}
                       </Badge>
                     {/* @ts-ignore */}
                     </TableCell>

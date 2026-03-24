@@ -95,7 +95,6 @@ export function BidResponseCurve({
       const bidRatio = bid / currentBid;
       
       // 展示量与出价的对数关系（边际效益递减）
-      // @ts-ignore
       const impressionMultiplier = Math.log(1 + bidRatio * 2) / Math.log(3);
       // @ts-ignore
       const predictedImpressions = baseImpressions * impressionMultiplier;
@@ -172,7 +171,7 @@ export function BidResponseCurve({
     // 如果没找到，选择利润最大的点
     if (minDiff > 10) {
       // @ts-ignore
-      optimal = curveData.reduce((max: unknown, p: unknown) => p.profit > max.profit ? p : max, curveData[0]);
+      optimal = curveData.reduce((max: unknown, p: unknown) => (p as any).profit > (max as any).profit ? p : max, curveData[0]);
     }
     
     return optimal;
@@ -340,6 +339,7 @@ export function BidResponseCurve({
                         border: "1px solid hsl(var(--border))",
                         borderRadius: "8px",
                       }}
+                      // @ts-ignore
                       formatter={((value: number, name: string) => {
                         if (name === "销售额") return [formatCurrency(value), name];
                         if (name === "ROAS") return [value.toFixed(2), name];
@@ -436,6 +436,7 @@ export function BidResponseCurve({
                         border: "1px solid hsl(var(--border))",
                         borderRadius: "8px",
                       }}
+                      // @ts-ignore
                       formatter={((value: number, name: string) => [formatCurrency(value), name]) as unknown}
                       labelFormatter={(label) => `出价: $${label}`}
                     />
@@ -504,6 +505,7 @@ export function BidResponseCurve({
                         border: "1px solid hsl(var(--border))",
                         borderRadius: "8px",
                       }}
+                      // @ts-ignore
                       formatter={((value: number) => [formatCurrency(value), "利润"]) as unknown}
                       labelFormatter={(label) => `出价: $${label}`}
                     />

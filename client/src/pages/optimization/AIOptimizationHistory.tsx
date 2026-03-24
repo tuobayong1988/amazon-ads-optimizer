@@ -141,7 +141,7 @@ export default function AIOptimizationHistory() {
             ) : (
               <div className="space-y-4">
                 {executions.map((execution: unknown) => (
-                  <div key={execution.id} className="border rounded-lg overflow-hidden">
+                  <div key={(execution as any).id} className="border rounded-lg overflow-hidden">
                     {/* 执行摘要行 */}
                     <div 
                       className="p-4 bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors"
@@ -167,10 +167,8 @@ export default function AIOptimizationHistory() {
                           </Badge>
                           <Badge variant="outline">
                             {(execution as any).executionType === "bid_adjustment" ? "出价调整" :
-                             // @ts-ignore
-                             execution.executionType === "status_change" ? "状态变更" :
-                             // @ts-ignore
-                             execution.executionType === "negative_keyword" ? "否定词" : "混合操作"}
+                             (execution as any).executionType === "status_change" ? "状态变更" :
+                             (execution as any).executionType === "negative_keyword" ? "否定词" : "混合操作"}
                           </Badge>
                         </div>
                         <div className="flex items-center gap-4 text-sm text-muted-foreground">
@@ -293,14 +291,14 @@ export default function AIOptimizationHistory() {
                 <TabsContent value="actions" className="mt-4">
                   <div className="space-y-2 max-h-[400px] overflow-y-auto">
                     {executionDetail.actions.map((action: unknown) => (
-                      <div key={action.id} className="p-3 border rounded-lg">
+                      <div key={(action as any).id} className="p-3 border rounded-lg">
                         {/* @ts-ignore */}
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             {/* @ts-ignore */}
                             {action.status === "success" ? (
                               <CheckCircle2 className="h-4 w-4 text-green-500" />
-                            ) : action.status === "failed" ? (
+                            ) : (action as any).status === "failed" ? (
                               <XCircle className="h-4 w-4 text-red-500" />
                             ) : (
                               <AlertCircle className="h-4 w-4 text-yellow-500" />
@@ -309,18 +307,12 @@ export default function AIOptimizationHistory() {
                           </div>
                           <Badge variant="outline">
                             {(action as any).actionType === "bid_increase" ? "提高出价" :
-                             // @ts-ignore
-                             action.actionType === "bid_decrease" ? "降低出价" :
-                             // @ts-ignore
-                             action.actionType === "bid_set" ? "设置出价" :
-                             // @ts-ignore
-                             action.actionType === "enable_target" ? "启用" :
-                             // @ts-ignore
-                             action.actionType === "pause_target" ? "暂停" :
-                             // @ts-ignore
-                             action.actionType === "add_negative_phrase" ? "词组否定" :
-                             // @ts-ignore
-                             action.actionType === "add_negative_exact" ? "精准否定" : action.actionType}
+                             (action as any).actionType === "bid_decrease" ? "降低出价" :
+                             (action as any).actionType === "bid_set" ? "设置出价" :
+                             (action as any).actionType === "enable_target" ? "启用" :
+                             (action as any).actionType === "pause_target" ? "暂停" :
+                             (action as any).actionType === "add_negative_phrase" ? "词组否定" :
+                             (action as any).actionType === "add_negative_exact" ? "精准否定" : (action as any).actionType}
                           </Badge>
                         {/* @ts-ignore */}
                         </div>
@@ -337,7 +329,7 @@ export default function AIOptimizationHistory() {
                           </div>
                         )}
                         {(action as any).errorMessage && (
-                          <p className="text-sm text-red-500 mt-1">{action.errorMessage}</p>
+                          <p className="text-sm text-red-500 mt-1">{(action as any).errorMessage}</p>
                         )}
                       </div>
                     ))}
@@ -350,12 +342,11 @@ export default function AIOptimizationHistory() {
                   {/* @ts-ignore */}
                   <div className="grid grid-cols-3 gap-4">
                     {executionDetail.predictions.map((pred: unknown) => (
-                      <Card key={pred.id}>
+                      <Card key={(pred as any).id}>
                         <CardHeader className="pb-2">
                           <CardTitle className="text-base">
                             {(pred as any).predictionPeriod === "7_days" ? "7天预测" :
-                             // @ts-ignore
-                             pred.predictionPeriod === "14_days" ? "14天预测" : "30天预测"}
+                             (pred as any).predictionPeriod === "14_days" ? "14天预测" : "30天预测"}
                           </CardTitle>
                         {/* @ts-ignore */}
                         </CardHeader>
@@ -438,13 +429,12 @@ export default function AIOptimizationHistory() {
                   ) : (
                     <div className="space-y-4">
                       {executionDetail.reviews.map((review: unknown) => (
-                        <Card key={review.id}>
+                        <Card key={(review as any).id}>
                           <CardHeader className="pb-2">
                             <div className="flex items-center justify-between">
                               <CardTitle className="text-base flex items-center gap-2">
                                 {(review as any).reviewPeriod === "7_days" ? "7天复盘" :
-                                 // @ts-ignore
-                                 review.reviewPeriod === "14_days" ? "14天复盘" : "30天复盘"}
+                                 (review as any).reviewPeriod === "14_days" ? "14天复盘" : "30天复盘"}
                                 <span className={reviewStatusLabels[(review as any).status]?.color || ""}>
                                   ({reviewStatusLabels[(review as any).status]?.label || (review as any).status})
                                 </span>

@@ -177,7 +177,7 @@ const [activeTab, setActiveTab] = useState("overview");
               </SelectTrigger>
               <SelectContent>
                 {accounts?.map((account: unknown) => (
-                  <SelectItem key={account.id} value={account.id.toString()}>
+                  <SelectItem key={(account as any).id} value={(account as any).id.toString()}>
                     {/* @ts-ignore */}
                     {account.accountName}
                   </SelectItem>
@@ -275,13 +275,10 @@ const [activeTab, setActiveTab] = useState("overview");
                 {/* @ts-ignore */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   {optimizationTypes.map((type: unknown) => {
-                    // @ts-ignore
-                    const stats = summary?.byType?.[type.key as keyof typeof summary.byType];
-                    // @ts-ignore
-                    const Icon = type.icon;
-                    // @ts-ignore
+                    const stats = summary?.byType?.[(type as any).key as keyof typeof summary.byType];
+                    const Icon = (type as any).icon;
                     return (
-                      <div key={type.key} className="p-4 rounded-lg border bg-card">
+                      <div key={(type as any).key} className="p-4 rounded-lg border bg-card">
                         <div className="flex items-center gap-2 mb-2">
                           {/* @ts-ignore */}
                           <Icon className={`w-4 h-4 ${type.color}`} />
@@ -339,7 +336,7 @@ const [activeTab, setActiveTab] = useState("overview");
                     {/* @ts-ignore */}
                     <TableBody>
                       {summary.recentDecisions.map((decision: unknown) => (
-                        <TableRow key={decision.id}>
+                        <TableRow key={(decision as any).id}>
                           <TableCell>
                             {/* @ts-ignore */}
                             <Badge variant="outline">{decision.type}</Badge>
@@ -467,11 +464,8 @@ const [activeTab, setActiveTab] = useState("overview");
                         // @ts-ignore
                         key={mode.value}
                         className={`p-4 rounded-lg border cursor-pointer transition-colors ${
-                          // @ts-ignore
-                          mode.value === 'semi_auto' 
-                            // @ts-ignore
+                          (mode as any).value === 'semi_auto' 
                             ? 'border-primary bg-primary/5' 
-                            // @ts-ignore
                             : 'hover:border-primary/50'
                         }`}
                       >
@@ -489,10 +483,9 @@ const [activeTab, setActiveTab] = useState("overview");
                   <h4 className="font-medium mb-3">优化类型开关</h4>
                   <div className="space-y-3">
                     {optimizationTypes.map((type: unknown) => {
-                      // @ts-ignore
-                      const Icon = type.icon;
+                      const Icon = (type as any).icon;
                       return (
-                        <div key={type.key} className="flex items-center justify-between p-3 rounded-lg border">
+                        <div key={(type as any).key} className="flex items-center justify-between p-3 rounded-lg border">
                           <div className="flex items-center gap-3">
                             {/* @ts-ignore */}
                             <Icon className={`w-5 h-5 ${type.color}`} />

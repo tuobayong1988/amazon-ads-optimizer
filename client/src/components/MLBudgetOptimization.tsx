@@ -164,14 +164,11 @@ export function MLBudgetOptimization({ accountId }: MLBudgetOptimizationProps) {
                 </TableHeader>
                 <TableBody>
                   {(allocation.allocations || []).map((item: unknown) => {
-                    // @ts-ignore
-                    const change = item.allocatedBudget - item.currentBudget;
-                    // @ts-ignore
-                    const changePercent = (change / item.currentBudget) * 100;
+                    const change = (item as any).allocatedBudget - (item as any).currentBudget;
+                    const changePercent = (change / (item as any).currentBudget) * 100;
 
-                    // @ts-ignore
                     return (
-                      <TableRow key={item.campaignId}>
+                      <TableRow key={(item as any).campaignId}>
                         {/* @ts-ignore */}
                         <TableCell className="font-medium">
                           {/* @ts-ignore */}

@@ -302,7 +302,7 @@ const [activeTab, setActiveTab] = useState("tiered");
             <SelectContent>
               <SelectItem value="all">全部账号</SelectItem>
               {accounts?.map((account: unknown) => (
-                <SelectItem key={account.id} value={account.id.toString()}>
+                <SelectItem key={(account as any).id} value={(account as any).id.toString()}>
                   {/* @ts-ignore */}
                   {account.accountName}
                 </SelectItem>
@@ -513,7 +513,6 @@ const [activeTab, setActiveTab] = useState("tiered");
                       // @ts-ignore
                       key={job.id}
                       className="border rounded-lg p-4 hover:bg-accent/50 transition-colors"
-                    // @ts-ignore
                     >
                       {/* @ts-ignore */}
                       <div className="flex items-center justify-between mb-3">
@@ -834,7 +833,7 @@ const [activeTab, setActiveTab] = useState("tiered");
               ) : (
                 <div className="space-y-4">
                   {(schedules as unknown[]).map((schedule: unknown) => (
-                    <div key={schedule.id} className="border rounded-lg p-4">
+                    <div key={(schedule as any).id} className="border rounded-lg p-4">
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-3">
                           {/* @ts-ignore */}
@@ -873,7 +872,6 @@ const [activeTab, setActiveTab] = useState("tiered");
                           </Button>
                           <Button
                             size="sm"
-                            // @ts-ignore
                             variant="outline"
                             // @ts-ignore
                             onClick={() => triggerWithRetryMutation.mutate({ scheduleId: schedule.id })}

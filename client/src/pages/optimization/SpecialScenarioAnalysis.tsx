@@ -215,7 +215,7 @@ const [activeTab, setActiveTab] = useState("overview");
               </SelectTrigger>
               <SelectContent>
                 {accounts?.map((account: unknown) => (
-                  <SelectItem key={account.id} value={account.id.toString()}>
+                  <SelectItem key={(account as any).id} value={(account as any).id.toString()}>
                     {/* @ts-ignore */}
                     {account.accountName}
                   </SelectItem>
@@ -251,7 +251,7 @@ const [activeTab, setActiveTab] = useState("overview");
                   {analysisResult.summary.criticalIssues.length > 0 ? (
                     <ul className="space-y-2">
                       {analysisResult.summary.criticalIssues.map((issue: unknown, idx: unknown) => (
-                        <li key={idx} className="flex items-start gap-2 text-sm">
+                        <li key={String(idx)} className="flex items-start gap-2 text-sm">
                           <XCircle className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
                           {/* @ts-ignore */}
                           <span>{issue}</span>
@@ -274,7 +274,7 @@ const [activeTab, setActiveTab] = useState("overview");
                   {analysisResult.summary.recommendations.length > 0 ? (
                     <ul className="space-y-2">
                       {analysisResult.summary.recommendations.slice(0, 4).map((rec: unknown, idx: unknown) => (
-                        <li key={idx} className="flex items-start gap-2 text-sm">
+                        <li key={String(idx)} className="flex items-start gap-2 text-sm">
                           <ChevronRight className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" />
                           {/* @ts-ignore */}
                           <span>{rec}</span>
@@ -426,7 +426,7 @@ const [activeTab, setActiveTab] = useState("overview");
                 <CardContent>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     {upcomingEvents.slice(0, 3).map((event: unknown, idx: unknown) => (
-                      <div key={idx} className="p-4 rounded-lg border bg-card">
+                      <div key={String(idx)} className="p-4 rounded-lg border bg-card">
                         <div className="flex items-center justify-between mb-2">
                           {/* @ts-ignore */}
                           <span className="font-semibold">{event.event.name}</span>
@@ -481,7 +481,7 @@ const [activeTab, setActiveTab] = useState("overview");
                     </TableHeader>
                     <TableBody>
                       {budgetRisks.map((risk: unknown) => (
-                        <TableRow key={risk.campaignId}>
+                        <TableRow key={(risk as any).campaignId}>
                           {/* @ts-ignore */}
                           <TableCell className="font-medium">{risk.campaignName}</TableCell>
                           {/* @ts-ignore */}
@@ -506,8 +506,7 @@ const [activeTab, setActiveTab] = useState("overview");
                           <TableCell>
                             {/* @ts-ignore */}
                             {risk.predictedDepletionHour !== null 
-                              // @ts-ignore
-                              ? `${risk.predictedDepletionHour}:00`
+                              ? `${(risk as any).predictedDepletionHour}:00`
                               : '不会耗尽'}
                           </TableCell>
                           {/* @ts-ignore */}
@@ -554,7 +553,6 @@ const [activeTab, setActiveTab] = useState("overview");
                       {/* @ts-ignore */}
                       <p className="text-sm text-muted-foreground mt-1">
                         Amazon广告的转化归因窗口为7-14天。第1天数据约70%完成归因，第3天约90%，第7天接近100%。
-                        // @ts-ignore
                         系统自动调整近期数据，帮助您做出更准确的决策。
                       </p>
                     {/* @ts-ignore */}
@@ -585,7 +583,7 @@ const [activeTab, setActiveTab] = useState("overview");
                     </TableHeader>
                     <TableBody>
                       {(attributionData as any).map((day: unknown) => (
-                        <TableRow key={day.date}>
+                        <TableRow key={(day as any).date}>
                           {/* @ts-ignore */}
                           <TableCell className="font-medium">{day.date}</TableCell>
                           {/* @ts-ignore */}
@@ -734,11 +732,9 @@ const [activeTab, setActiveTab] = useState("overview");
                             checked={selectedKeywords.length === bidEfficiency.topOverbidding.filter(k => k.isOverbidding).length}
                             onCheckedChange={(checked) => {
                               if (checked) {
-                                // @ts-ignore
                                 handleSelectAllOverbidding();
                               } else {
                                 setSelectedKeywords([]);
-                              // @ts-ignore
                               }
                             }}
                           />
@@ -761,7 +757,7 @@ const [activeTab, setActiveTab] = useState("overview");
                     {/* @ts-ignore */}
                     <TableBody>
                       {bidEfficiency.topOverbidding.map((item: unknown) => (
-                        <TableRow key={item.targetId}>
+                        <TableRow key={(item as any).targetId}>
                           <TableCell>
                             {/* @ts-ignore */}
                             <Checkbox
@@ -769,14 +765,12 @@ const [activeTab, setActiveTab] = useState("overview");
                               checked={selectedKeywords.includes(item.targetId)}
                               onCheckedChange={(checked) => {
                                 if (checked) {
-                                  // @ts-ignore
-                                  setSelectedKeywords([...selectedKeywords, item.targetId]);
+                                  setSelectedKeywords([...selectedKeywords, (item as any).targetId]);
                                 } else {
-                                  // @ts-ignore
-                                  setSelectedKeywords(selectedKeywords.filter(id => id !== item.targetId));
+                                  setSelectedKeywords(selectedKeywords.filter(id => id !== (item as any).targetId));
                                 }
                               }}
-                              disabled={!item.isOverbidding}
+                              disabled={!(item as any).isOverbidding}
                             />
                           </TableCell>
                           {/* @ts-ignore */}
@@ -817,7 +811,8 @@ const [activeTab, setActiveTab] = useState("overview");
                             {item.overbiddingReasons.length > 0 ? (
                               <ul className="text-xs text-muted-foreground">
                                 {(item as any).overbiddingReasons.slice(0, 2).map((reason: unknown, idx: unknown) => (
-                                  <li key={idx}>• {reason}</li>
+                                  // @ts-ignore
+                                  <li key={String(idx)}>• {reason}</li>
                                 ))}
                               </ul>
                             ) : (
@@ -897,7 +892,7 @@ const [activeTab, setActiveTab] = useState("overview");
                 {upcomingEvents && upcomingEvents.length > 0 ? (
                   <div className="space-y-4">
                     {upcomingEvents.map((event: unknown, idx: unknown) => (
-                      <div key={idx} className="p-4 rounded-lg border bg-card">
+                      <div key={String(idx)} className="p-4 rounded-lg border bg-card">
                         <div className="flex items-center justify-between mb-2">
                           <div className="flex items-center gap-3">
                             <div className="p-2 rounded-lg bg-purple-500/10">
@@ -909,7 +904,6 @@ const [activeTab, setActiveTab] = useState("overview");
                               <p className="text-sm text-muted-foreground">
                                 {/* @ts-ignore */}
                                 {safeToLocaleDateString(event.event.date, 'zh-CN', {
-                                  // @ts-ignore
                                   year: 'numeric',
                                   month: 'long',
                                   day: 'numeric'
