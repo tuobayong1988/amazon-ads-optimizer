@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 507;  // v507: 修复否定词回填ID类型不匹配 - Map key从Number改为String，优先用Amazon Campaign ID查找
+export const SYSTEM_VERSION = 508;  // v508: 修复api_sync_status ENUM→VARCHAR(32) + 回写not_applicable/empty/invalid_legacy历史数据 + 前端同步健康度面板修正

@@ -3729,7 +3729,8 @@ export const optimizationEvents = mysqlTable("optimization_events", {
   errorMessage: text("error_message"),
   
   // === Amazon API 同步状态 ===
-  apiSyncStatus: mysqlEnum("api_sync_status", ['pending', 'synced', 'failed', 'not_applicable']).default('pending'),
+  // v508: 从 ENUM 改为 VARCHAR(32) 以支持扩展状态值 (permanently_failed, superseded, invalid_legacy 等)
+  apiSyncStatus: varchar("api_sync_status", { length: 32 }).default('pending'),
   apiSyncDetail: text("api_sync_detail"),
   apiResponseId: varchar("api_response_id", { length: 128 }),
   apiSyncedAt: datetime("api_synced_at", { mode: 'string' }),

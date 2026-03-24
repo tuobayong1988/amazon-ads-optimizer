@@ -239,7 +239,7 @@ export async function recordExecutionLog(result: OptimizationExecutionResult): P
           newValue: `${detail.adjustedBid?.toFixed(2) || '0.00'}`,
           changeReason: detail.reason || `分时竞价: ${detail.hour}:00 乘数${detail.bidMultiplier}x`,
           status: detail.apiSyncStatus === 'synced' ? 'success' : detail.apiSyncStatus === 'failed' ? 'failed' : 'success',
-          apiSyncStatus: detail.apiSyncStatus || 'not_applicable',
+          apiSyncStatus: detail.apiSyncStatus || 'pending',  // v508: 分时竞价需要同步到Amazon，默认应为pending
           apiSyncDetail: detail.apiSyncDetail || null,
           apiSyncedAt: detail.apiSyncStatus === 'synced' ? now : null,
           createdAt: now,

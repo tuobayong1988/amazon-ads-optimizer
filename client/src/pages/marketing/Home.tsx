@@ -997,20 +997,32 @@ function DashboardContent() {
     return { healthy, warning, critical, total: accountsData.length };
   }, [accountsData]);
   
-  // v235: 同步状态统计 — 修复同步成功率计算
-  // 根因: not_applicable 和 invalid_legacy 是不需要同步到Amazon的内部事件（如keyword_create失败记录），
-  // 不应计入同步成功率的分母。纠错监控页面已正确排除，首页需要对齐。
+  // v508: 同步状态统计 — 彻底修复同步健康度面板
+  // 核心原则: 只统计“活跃同步状态”，即当前仍需要关注的事件。
+  // 活跃状态: synced(已同步), pending(待同步), failed(同步失败)
+  // 非活跃状态(排除): not_applicable(不适用), invalid_legacy(历史遗留),
+  //   permanently_failed(永久失败), superseded(已过时), 空字符串(历史异常)
   const syncStats = useMemo(() => {
-    if (!correctionDashboard?.statusDistribution) return { synced: 0, pending: 0, failed: 0, total: 0, notApplicable: 0 };
+    if (!correctionDashboard?.statusDistribution) return { synced: 0, pending: 0, failed: 0, total: 0, notApplicable: 0, inactive: 0 };
     const dist = correctionDashboard.statusDistribution as unknown[];
-    const synced = Number(dist.find((d: unknown) => d.api_sync_status === 'synced')?.count || 0);
-    const pending = Number(dist.find((d: unknown) => d.api_sync_status === 'pending_sync' || d.api_sync_status === 'pending')?.count || 0);
-    const failed = Number(dist.find((d: unknown) => d.api_sync_status === 'failed')?.count || 0);
-    const notApplicable = Number(dist.find((d: unknown) => d.api_sync_status === 'not_applicable')?.count || 0)
-      + Number(dist.find((d: unknown) => d.api_sync_status === 'invalid_legacy')?.count || 0);
-    // v235: total只统计需要同步的事件（synced + pending + failed），排除not_applicable和invalid_legacy
+    const getCount = (status: string) => Number(dist.find((d: unknown) => d.api_sync_status === status)?.count || 0);
+    
+    // 活跃同步状态
+    const synced = getCount('synced');
+    const pending = getCount('pending_sync') + getCount('pending');
+    const failed = getCount('failed');
+    
+    // 非活跃状态 - 合并计算
+    const notApplicable = getCount('not_applicable');
+    const invalidLegacy = getCount('invalid_legacy');
+    const permanentlyFailed = getCount('permanently_failed');
+    const superseded = getCount('superseded');
+    const emptyStatus = getCount('');  // 历史空字符串记录
+    const inactive = notApplicable + invalidLegacy + permanentlyFailed + superseded + emptyStatus;
+    
+    // total只统计活跃同步事件
     const syncableTotal = synced + pending + failed;
-    return { synced, pending, failed, total: syncableTotal, notApplicable };
+    return { synced, pending, failed, total: syncableTotal, notApplicable: inactive, inactive };
   }, [correctionDashboard]);
   
   // v233: 算法使用统计
@@ -1493,11 +1505,11 @@ function DashboardContent() {
                                 <span className="text-muted-foreground">同步失败</span>
                                 <span className={`font-semibold ${syncStats.failed > 0 ? 'text-red-500' : 'text-muted-foreground'}`}>{syncStats.failed.toLocaleString()}</span>
                               </div>
-                              {/* v235: 不适用事件数（内部操作，不需要同步到Amazon） */}
-                              {syncStats.notApplicable > 0 && (
-                                <div className="flex items-center justify-between text-sm">
-                                  <span className="text-muted-foreground">不适用</span>
-                                  <span className="font-semibold text-muted-foreground">{syncStats.notApplicable.toLocaleString()}</span>
+                              {/* v508: 非活跃事件数（包含不适用、历史遗留、已过时、永久失败） */}
+                              {syncStats.inactive > 0 && (
+                                <div className="flex items-center justify-between text-sm" title="包含不需要同步的内部操作、历史迁移数据、已过时的分时竞价、以及关键词已删除的永久失败记录">
+                                  <span className="text-muted-foreground">历史/非活跃</span>
+                                  <span className="font-semibold text-muted-foreground">{syncStats.inactive.toLocaleString()}</span>
                                 </div>
                               )}
                               {syncStats.total > 0 && (

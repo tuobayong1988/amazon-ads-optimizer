@@ -397,7 +397,7 @@ export const autoCorrectionRouter = router({
       dbInstance.execute(
         sql`SELECT DATE(api_synced_at) as date, COUNT(*) as corrections,
                SUM(CASE WHEN api_sync_status = 'synced' THEN 1 ELSE 0 END) as synced,
-               SUM(CASE WHEN api_sync_status IN ('failed', 'not_applicable', 'invalid_legacy') THEN 1 ELSE 0 END) as failed
+               SUM(CASE WHEN api_sync_status = 'failed' THEN 1 ELSE 0 END) as failed
             FROM optimization_events 
             WHERE ${accountFilter} AND api_synced_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
             GROUP BY DATE(api_synced_at)

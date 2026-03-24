@@ -853,7 +853,182 @@ export async function runAutoDbMigration(): Promise<{ success: boolean; results:
 
     log.info(`v452: 多租户基础表迁移完成`);
 
-    log.info(`v452: 数据库自动迁移完成, 结果: ${results.join('; ')}`);
+    // ========== v508: 将 optimization_events.api_sync_status 从 ENUM 改为 VARCHAR(32) ==========
+    // 根因: 代码中使用了 'permanently_failed', 'superseded', 'invalid_legacy' 等扩展状态值,
+    // 但 ENUM 只有 4 个值 ('pending','synced','failed','not_applicable'),
+    // MySQL 将非法 ENUM 值写为空字符串 '', 导致 21,067 条记录状态丢失。
+    // 修复: 改为 VARCHAR(32) 以支持所有状态值, 并回填空字符串记录。
+    log.info('v508: 开始修复 optimization_events.api_sync_status 列类型...');
+    try {
+      await database.execute(sql.raw(`
+        ALTER TABLE optimization_events 
+        MODIFY COLUMN api_sync_status VARCHAR(32) DEFAULT 'pending'
+      `));
+      results.push('optimization_events: api_sync_status 已从 ENUM 改为 VARCHAR(32)');
+      log.info('v508: optimization_events.api_sync_status 已改为 VARCHAR(32)');
+    } catch (e: unknown) {
+      const msg = (e as Error).message;
+      // 如果已经是VARCHAR则忽略
+      if (!msg.includes('already') && !msg.includes('Duplicate')) {
+        log.warn('v508: ALTER TABLE optimization_events 失败: ' + msg);
+      }
+      results.push('optimization_events: api_sync_status 类型变更跳过 - ' + msg);
+    }
+
+    // v508: 同时修复 optimization_logs.api_sync_status (也是ENUM)
+    try {
+      await database.execute(sql.raw(`
+        ALTER TABLE optimization_logs 
+        MODIFY COLUMN api_sync_status VARCHAR(32) DEFAULT 'pending'
+      `));
+      results.push('optimization_logs: api_sync_status 已从 ENUM 改为 VARCHAR(32)');
+      log.info('v508: optimization_logs.api_sync_status 已改为 VARCHAR(32)');
+    } catch (e: unknown) {
+      log.warn('v508: ALTER TABLE optimization_logs 失败: ' + (e as Error).message);
+    }
+
+    // v508: 回填空字符串记录 - 根据 error_message 内容推断正确状态
+    try {
+      // 1. 包含 'superseded' 或 '过时' 的记录 → superseded
+      const [supersededResult] = await database.execute(sql.raw(`
+        UPDATE optimization_events 
+        SET api_sync_status = 'superseded'
+        WHERE (api_sync_status = '' OR api_sync_status IS NULL)
+          AND (error_message LIKE '%superseded%' OR error_message LIKE '%过时%')
+      `)) as unknown[];
+      const supersededCount = (supersededResult as Record<string, unknown>).affectedRows || 0;
+      log.info(`v508: 回填 superseded 状态: ${supersededCount} 条`);
+
+      // 2. 包含 'permanently_failed' 或 '永久失败' 的记录 → permanently_failed
+      const [permFailResult] = await database.execute(sql.raw(`
+        UPDATE optimization_events 
+        SET api_sync_status = 'permanently_failed'
+        WHERE (api_sync_status = '' OR api_sync_status IS NULL)
+          AND (error_message LIKE '%permanently_failed%' OR error_message LIKE '%永久%')
+      `)) as unknown[];
+      const permFailCount = (permFailResult as Record<string, unknown>).affectedRows || 0;
+      log.info(`v508: 回填 permanently_failed 状态: ${permFailCount} 条`);
+
+      // 3. action_type = 'dayparting_bid' 且超过24小时的空字符串 → superseded
+      const [daypartResult] = await database.execute(sql.raw(`
+        UPDATE optimization_events 
+        SET api_sync_status = 'superseded',
+            error_message = CONCAT(COALESCE(error_message, ''), ' | v508: 分时竞价历史记录，标记为superseded')
+        WHERE (api_sync_status = '' OR api_sync_status IS NULL)
+          AND action_type = 'dayparting_bid'
+          AND created_at < DATE_SUB(NOW(), INTERVAL 24 HOUR)
+      `)) as unknown[];
+      const daypartCount = (daypartResult as Record<string, unknown>).affectedRows || 0;
+      log.info(`v508: 回填 dayparting_bid superseded: ${daypartCount} 条`);
+
+      // 4. 剩余的空字符串 → permanently_failed (历史遗留无法重试)
+      const [remainResult] = await database.execute(sql.raw(`
+        UPDATE optimization_events 
+        SET api_sync_status = 'permanently_failed',
+            error_message = CONCAT(COALESCE(error_message, ''), ' | v508: 历史遗留空状态，标记为permanently_failed')
+        WHERE api_sync_status = '' OR api_sync_status IS NULL
+      `)) as unknown[];
+      const remainCount = (remainResult as Record<string, unknown>).affectedRows || 0;
+      log.info(`v508: 回填剩余空状态: ${remainCount} 条`);
+
+      results.push(`v508: 空字符串回填完成 - superseded=${supersededCount + daypartCount}, permanently_failed=${permFailCount + remainCount}`);
+    } catch (e: unknown) {
+      log.warn('v508: 空字符串回填失败: ' + (e as Error).message);
+    }
+
+    // v508: 清理超过7天的 failed 出价记录 - 检查关键词是否仍然活跃
+    try {
+      // 对于关键词已不存在的失败记录，标记为 permanently_failed
+      const [cleanupResult] = await database.execute(sql.raw(`
+        UPDATE optimization_events oe
+        LEFT JOIN keywords k ON oe.keyword_id = k.id
+        SET oe.api_sync_status = 'permanently_failed',
+            oe.error_message = CONCAT(COALESCE(oe.error_message, ''), ' | v508: 关键词已不存在或已归档')
+        WHERE oe.api_sync_status = 'failed'
+          AND oe.action_type IN ('bid_increase', 'bid_decrease', 'dayparting_bid')
+          AND oe.created_at < DATE_SUB(NOW(), INTERVAL 7 DAY)
+          AND (k.id IS NULL OR k.status IN ('archived', 'deleted', 'paused'))
+      `)) as unknown[];
+      const cleanupCount = (cleanupResult as Record<string, unknown>).affectedRows || 0;
+      log.info(`v508: 清理过期失败记录: ${cleanupCount} 条 (关键词已不存在或已归档)`);
+      results.push(`v508: 清理过期失败记录: ${cleanupCount} 条`);
+    } catch (e: unknown) {
+      log.warn('v508: 清理过期失败记录失败: ' + (e as Error).message);
+    }
+
+    // v508: 回写 not_applicable 的出价事件 - 通过 optimization_tasks 匹配真实同步状态
+    try {
+      // 1. 30天内的 not_applicable 出价事件：通过 keyword_id 匹配 optimization_tasks 回写
+      const [syncedBackfill] = await database.execute(sql.raw(`
+        UPDATE optimization_events oe
+        INNER JOIN optimization_tasks ot 
+          ON oe.keyword_id = ot.target_entity_id 
+          AND ot.task_type = 'bid_adjustment'
+          AND ot.status = 'synced'
+          AND ABS(TIMESTAMPDIFF(MINUTE, oe.created_at, ot.created_at)) < 60
+        SET oe.api_sync_status = 'synced',
+            oe.error_message = CONCAT(COALESCE(oe.error_message, ''), ' | v508: 通过optimization_tasks回写synced')
+        WHERE oe.api_sync_status = 'not_applicable'
+          AND oe.action_type IN ('bid_increase', 'bid_decrease')
+          AND oe.created_at > DATE_SUB(NOW(), INTERVAL 30 DAY)
+      `)) as unknown[];
+      const syncedBackfillCount = (syncedBackfill as Record<string, unknown>).affectedRows || 0;
+      log.info(`v508: 回写 not_applicable → synced: ${syncedBackfillCount} 条`);
+
+      // 2. 超过30天的 not_applicable 出价事件 → permanently_failed (历史遗留)
+      const [oldNaResult] = await database.execute(sql.raw(`
+        UPDATE optimization_events 
+        SET api_sync_status = 'permanently_failed',
+            error_message = CONCAT(COALESCE(error_message, ''), ' | v508: 历史遗留not_applicable，无法追溯同步状态')
+        WHERE api_sync_status = 'not_applicable'
+          AND action_type IN ('bid_increase', 'bid_decrease')
+          AND created_at < DATE_SUB(NOW(), INTERVAL 30 DAY)
+      `)) as unknown[];
+      const oldNaCount = (oldNaResult as Record<string, unknown>).affectedRows || 0;
+      log.info(`v508: 回写 old not_applicable → permanently_failed: ${oldNaCount} 条`);
+
+      // 3. 30天内仍然匹配不到 tasks 的 not_applicable 出价事件 → pending (等待下次纠错扫描)
+      const [recentNaResult] = await database.execute(sql.raw(`
+        UPDATE optimization_events 
+        SET api_sync_status = 'pending',
+            error_message = CONCAT(COALESCE(error_message, ''), ' | v508: 重置为pending等待重新同步')
+        WHERE api_sync_status = 'not_applicable'
+          AND action_type IN ('bid_increase', 'bid_decrease')
+          AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+      `)) as unknown[];
+      const recentNaCount = (recentNaResult as Record<string, unknown>).affectedRows || 0;
+      log.info(`v508: 回写 recent not_applicable → pending: ${recentNaCount} 条`);
+
+      // 4. invalid_legacy 的 settings_update → permanently_failed (历史遗留)
+      const [legacyResult] = await database.execute(sql.raw(`
+        UPDATE optimization_events 
+        SET api_sync_status = 'permanently_failed',
+            error_message = CONCAT(COALESCE(error_message, ''), ' | v508: invalid_legacy历史数据归档')
+        WHERE api_sync_status = 'invalid_legacy'
+      `)) as unknown[];
+      const legacyCount = (legacyResult as Record<string, unknown>).affectedRows || 0;
+      log.info(`v508: 回写 invalid_legacy → permanently_failed: ${legacyCount} 条`);
+
+      // 5. 非出价类型的 not_applicable 事件（如 budget_adjustment, keyword_create）
+      // 这些类型的 not_applicable 可能是合理的（如纯记录型事件），但也可能是历史遗留
+      // 对于超过30天的，标记为 permanently_failed
+      const [otherNaResult] = await database.execute(sql.raw(`
+        UPDATE optimization_events 
+        SET api_sync_status = 'permanently_failed',
+            error_message = CONCAT(COALESCE(error_message, ''), ' | v508: 非出价类型历史not_applicable归档')
+        WHERE api_sync_status = 'not_applicable'
+          AND action_type NOT IN ('bid_increase', 'bid_decrease', 'safety_summary', 'safety_pause', 'auto_correction')
+          AND created_at < DATE_SUB(NOW(), INTERVAL 30 DAY)
+      `)) as unknown[];
+      const otherNaCount = (otherNaResult as Record<string, unknown>).affectedRows || 0;
+      log.info(`v508: 回写 other not_applicable → permanently_failed: ${otherNaCount} 条`);
+
+      results.push(`v508: not_applicable回写完成 - synced=${syncedBackfillCount}, permanently_failed=${oldNaCount + legacyCount + otherNaCount}, pending=${recentNaCount}`);
+    } catch (e: unknown) {
+      log.warn('v508: not_applicable回写失败: ' + (e as Error).message);
+    }
+
+    log.info(`v508: 数据库自动迁移完成, 结果: ${results.join('; ')}`);
     return { success: true, results };
 
   } catch (error: unknown) {

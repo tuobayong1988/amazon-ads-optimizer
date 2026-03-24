@@ -77,6 +77,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 508,
+    description: 'v508: [api_sync_status数据完整性修复] — (1)P0-ENUM→VARCHAR(32): optimization_events.api_sync_status从4值ENUM改为VARCHAR(32)，支持permanently_failed/superseded/invalid_legacy等扩展状态 (2)P0-空字符串回写: 21067条空字符串记录根据error_message内容回写正确状态 (3)P0-not_applicable出价事件回写: 23774条被错误标记的bid_increase/bid_decrease事件通过optimization_tasks匹配回写真实状态 (4)P0-invalid_legacy归档: 51574条历史遗留记录统一标记为permanently_failed (5)P1-前端同步健康度修正: 只统计活跃状态(synced/pending/failed)，排除历史/非活跃状态',
+    affectedModules: ['optimization'],
+    correctionActions: ['rerun_optimization'],
+  },
+  {
     version: 507,
     description: 'v507: [否定词回填ID类型不匹配修复] — (1)P0-backfillNegativeKeywordIds中Map key类型不匹配: negative_keywords.campaignId存储的是Amazon Campaign ID(varchar)，但回填代码用Number()转换后作为Map key，而查找时用原始campaignId(string)做Map.get()，严格相等导致永远不匹配 (2)P0-查找顺序优化: 从eq(campaigns.id, localId)优先改为eq(campaigns.campaignId, rawIdStr)优先，因为否定词表中存储的是Amazon ID而非本地自增ID (3)P1-日志改进: 更新所有回填日志为v507前缀，明确区分Amazon ID匹配和本地ID匹配路径',
     affectedModules: ['optimization', 'sync'],
