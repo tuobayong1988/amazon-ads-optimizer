@@ -839,7 +839,7 @@ export async function executeOptimization(
             previousValue: '',
             newValue: `跳过: ${negCampaignType}类型不支持SP否定词API`,
             reason: `v395: SB/SD campaign不支持通过SP否定词API同步`,
-            apiSyncStatus: 'not_applicable',
+            apiSyncStatus: 'internal',  // v513: 不需要API同步的内部事件
           });
           break;
         }

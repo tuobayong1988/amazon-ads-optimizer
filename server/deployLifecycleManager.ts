@@ -400,7 +400,7 @@ async function persistShutdownState(): Promise<void> {
         changeReason: `系统优雅关闭 v${SYSTEM_VERSION} (${shutdownState.shutdownReason})`,
         algorithmVersion: `v${SYSTEM_VERSION}`,
         status: 'success',
-        apiSyncStatus: 'not_applicable',
+        apiSyncStatus: 'internal',  // v513: 内部系统事件
       });
       log.debug('[LifecycleManager]   ✓ 已记录关闭事件');
     } catch (e: unknown) {
@@ -538,7 +538,7 @@ async function writeHeartbeat(shutdownType: string): Promise<void> {
        'system_heartbeat',
        ${`v${SYSTEM_VERSION}`},
        'success',
-       'not_applicable',
+       'internal',
        NOW())
     ON DUPLICATE KEY UPDATE
       action_detail = VALUES(action_detail),
@@ -698,7 +698,7 @@ export async function recoverInterruptedTasks(): Promise<number> {
         changeReason: `v${SYSTEM_VERSION} 启动恢复: 重置 ${recovered} 个被中断的任务`,
         algorithmVersion: `v${SYSTEM_VERSION}`,
         status: 'success',
-        apiSyncStatus: 'not_applicable',
+        apiSyncStatus: 'internal',  // v513: 内部系统事件
       });
     }
     
@@ -875,7 +875,7 @@ export async function orchestrateStartup(server: unknown): Promise<void> {
           // @ts-ignore
           INSERT INTO optimization_events (account_id, event_category, action_type, action_detail, change_reason, algorithm_version, status, api_sync_status) 
           // @ts-ignore
-          VALUES (0, 'settings_change', 'auto_correction', ${detail}, ${`v${SYSTEM_VERSION} 启动恢复: 清理${staleCleaned}个卡死同步任务, ${staleAccounts.length}个账户同步滞后`}, ${`v${SYSTEM_VERSION}`}, 'success', 'not_applicable')
+          VALUES (0, 'settings_change', 'auto_correction', ${detail}, ${`v${SYSTEM_VERSION} 启动恢复: 清理${staleCleaned}个卡死同步任务, ${staleAccounts.length}个账户同步滞后`}, ${`v${SYSTEM_VERSION}`}, 'success', 'internal')
         // @ts-ignore
         `);
       // @ts-ignore
@@ -913,7 +913,7 @@ export async function orchestrateStartup(server: unknown): Promise<void> {
           await database.execute(sql`
             INSERT INTO optimization_events (account_id, event_category, action_type, action_detail, change_reason, algorithm_version, status, api_sync_status) 
             // @ts-ignore
-            VALUES (0, 'settings_change', 'auto_correction', ${syncDetail}, ${`v${SYSTEM_VERSION} 部署后完整同步完成: ${(syncResult as any).successfulAccounts}/${(syncResult as any).totalAccounts}成功`}, ${`v${SYSTEM_VERSION}`}, 'success', 'not_applicable')
+            VALUES (0, 'settings_change', 'auto_correction', ${syncDetail}, ${`v${SYSTEM_VERSION} 部署后完整同步完成: ${(syncResult as any).successfulAccounts}/${(syncResult as any).totalAccounts}成功`}, ${`v${SYSTEM_VERSION}`}, 'success', 'internal')
           `);
         } catch (syncErr: unknown) {
           log.warn(`[LifecycleManager] v405: 部署后轻量级同步失败: ${(syncErr as Error).message}`);
@@ -990,7 +990,7 @@ export async function orchestrateStartup(server: unknown): Promise<void> {
               const reason = `v${SYSTEM_VERSION} 纠错后二次验证: ${newIssues === 0 ? '通过' : `发现${newIssues}个残余不一致`}`;
               const algVer = `v${SYSTEM_VERSION}`;
               const status = newIssues === 0 ? 'success' : 'pending';
-              await database.execute(sql`INSERT INTO optimization_events (account_id, event_category, action_type, action_detail, change_reason, algorithm_version, status, api_sync_status) VALUES (0, 'settings_change', 'auto_correction', ${detail}, ${reason}, ${algVer}, ${status}, 'not_applicable')`);
+              await database.execute(sql`INSERT INTO optimization_events (account_id, event_category, action_type, action_detail, change_reason, algorithm_version, status, api_sync_status) VALUES (0, 'settings_change', 'auto_correction', ${detail}, ${reason}, ${algVer}, ${status}, 'internal')`);
             }
           } catch (logErr: unknown) {
             log.warn(`[LifecycleManager] v491: 记录验证结果失败（不影响系统运行）: ${(logErr as Error).message}`);
@@ -1048,7 +1048,7 @@ export async function orchestrateStartup(server: unknown): Promise<void> {
             });
             const reason = `v${SYSTEM_VERSION} crash恢复完成`;
             const algVer = `v${SYSTEM_VERSION}`;
-            await database.execute(sql`INSERT INTO optimization_events (account_id, event_category, action_type, action_detail, change_reason, algorithm_version, status, api_sync_status) VALUES (0, 'settings_change', 'auto_correction', ${detail}, ${reason}, ${algVer}, 'success', 'not_applicable')`);
+            await database.execute(sql`INSERT INTO optimization_events (account_id, event_category, action_type, action_detail, change_reason, algorithm_version, status, api_sync_status) VALUES (0, 'settings_change', 'auto_correction', ${detail}, ${reason}, ${algVer}, 'success', 'internal')`);
           }
         } catch (crashLogErr: unknown) {
           log.warn(`[LifecycleManager] v491: 记录crash恢复事件失败（不影响系统运行）: ${(crashLogErr as Error).message}`);

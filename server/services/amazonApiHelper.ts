@@ -190,9 +190,10 @@ export async function syncBidAdjustmentsToAmazon(
     const kwIdMap = new Map<number, { amazonId: string; campaignId: string; adGroupId: string; campaignType: string }>();
     const amazonDeletedKwIds = new Set<number>();
     for (const kw of kwResults) {
-      if (kw.keywordStatus === 'amazon_deleted' || kw.keywordStatus === 'archived') {
+      // v513: 增强预检机制 — 扩展实体状态过滤范围
+      const kwStatus = String(kw.keywordStatus || '');
+      if (kwStatus === 'amazon_deleted' || kwStatus === 'archived' || kwStatus === 'amazon_archived') {
         amazonDeletedKwIds.add(kw.id);
-        // @ts-ignore
         continue;
       }
       if (kw.keywordId && kw.keywordId !== '0' && kw.keywordId !== '') {
@@ -294,7 +295,9 @@ export async function syncBidAdjustmentsToAmazon(
     const ptIdMap = new Map<number, { amazonId: string; campaignType: string }>();
     const amazonDeletedPtIds = new Set<number>();
     for (const pt of ptResults) {
-      if (pt.targetStatus === 'amazon_deleted' || pt.targetStatus === 'archived') {
+      // v513: 增强预检机制 — 扩展实体状态过滤范围
+      const ptStatus = String(pt.targetStatus || '');
+      if (ptStatus === 'amazon_deleted' || ptStatus === 'archived' || ptStatus === 'amazon_archived') {
         amazonDeletedPtIds.add(pt.id);
         continue;
       }

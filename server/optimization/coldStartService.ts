@@ -780,7 +780,7 @@ async function recordColdStartEvent(accountId: number, result: ColdStartResult):
       INSERT INTO optimization_events 
         (account_id, event_category, action_type, action_detail, change_reason, algorithm_version, status, api_sync_status) 
       VALUES 
-        (${accountId}, 'settings_change', 'auto_correction', ${detail}, ${changeReason}, ${`v${SYSTEM_VERSION}`}, ${result.status === 'completed' ? 'success' : 'failed'}, 'not_applicable')
+        (${accountId}, 'settings_change', 'auto_correction', ${detail}, ${changeReason}, ${`v${SYSTEM_VERSION}`}, ${result.status === 'completed' ? 'success' : 'failed'}, 'internal')  -- v513: 内部事件使用 internal 状态
     `);
   } catch (err: unknown) {
     log.warn(`[ColdStart] 记录冷启动事件失败: ${(err as Error).message}`);

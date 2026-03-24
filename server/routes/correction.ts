@@ -401,15 +401,16 @@ export const autoCorrectionRouter = router({
       // @ts-ignore
       [recentCorrections],
     ] = await Promise.all([
-      // 2. 获取事件状态统计
+      // 2. v513: 获取事件状态统计 — 排除内部系统事件，只统计真正需要Amazon API同步的操作
       dbInstance.execute(
-        sql`SELECT api_sync_status, COUNT(*) as count FROM optimization_events WHERE ${accountFilter} GROUP BY api_sync_status`
+        sql`SELECT api_sync_status, COUNT(*) as count FROM optimization_events WHERE ${accountFilter} AND action_type NOT IN ('settings_update', 'auto_correction', 'algorithm_config', 'strategy_update', 'system_config', 'system_deploy', 'target_reoptimized') GROUP BY api_sync_status`
       ) as unknown,
-      // 3. 获取按操作类型的统计
+      // 3. v513: 获取按操作类型的统计 — 排除内部系统事件
       dbInstance.execute(
         sql`SELECT action_type, api_sync_status, COUNT(*) as count 
             FROM optimization_events 
             WHERE ${accountFilter}
+              AND action_type NOT IN ('settings_update', 'auto_correction', 'algorithm_config', 'strategy_update', 'system_config', 'system_deploy', 'target_reoptimized')
             GROUP BY action_type, api_sync_status 
             ORDER BY action_type, api_sync_status`
       ) as unknown,

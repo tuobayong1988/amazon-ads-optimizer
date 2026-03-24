@@ -418,8 +418,20 @@ export async function harvestSearchTermAtomic(
       isIntradayAdjustment: 0,
     });
 
-    // v357: 增强optimization_events记录，包含Amazon ID用于追踪
+    // v513: 修复搜索词收割的同步闭环 — 通过标准链路记录同步状态
+    // 关键改进: 
+    // 1. 记录完整的 api_sync_detail 包含 Amazon 响应信息
+    // 2. 设置 api_synced_at 时间戳
+    // 3. 确保 keyword_id 字段正确引用本地 ID，使纠错器不会误判为未同步
     try {
+      const syncDetail = JSON.stringify({
+        syncedBy: 'searchTermHarvester-v513',
+        amazonKeywordId: amazonKeywordId,
+        amazonCampaignId: candidate.targetAmazonCampaignId,
+        amazonAdGroupId: candidate.targetAmazonAdGroupId,
+        syncedAt: new Date().toISOString(),
+        syncMethod: 'direct_api_call',
+      });
       await db.insertOptimizationEvent({
         accountId,
         eventCategory: 'search_term_action',
@@ -435,9 +447,17 @@ export async function harvestSearchTermAtomic(
         changeReason: `[搜索词收割] ${candidate.reason} | amazonKeywordId=${amazonKeywordId} | targetCampaign=${candidate.targetAmazonCampaignId}`,
         status: 'success',
         apiSyncStatus: 'synced',
+        apiSyncDetail: syncDetail,
         sourceTable: 'search_term_harvester',
       });
       // 同时记录否定词操作
+      const negSyncDetail = JSON.stringify({
+        syncedBy: 'searchTermHarvester-v513',
+        amazonNegKeywordId: result.createdNegativeKeywordId || null,
+        amazonCampaignId: candidate.sourceAmazonCampaignId,
+        syncedAt: new Date().toISOString(),
+        syncMethod: 'direct_api_call',
+      });
       await db.insertOptimizationEvent({
         accountId,
         // @ts-ignore
@@ -450,10 +470,11 @@ export async function harvestSearchTermAtomic(
         changeReason: `[搜索词收割-否定] 源广告组添加否定词 | amazonNegKeywordId=${result.createdNegativeKeywordId || 'N/A'} | sourceCampaign=${candidate.sourceAmazonCampaignId}`,
         status: 'success',
         apiSyncStatus: 'synced',
+        apiSyncDetail: negSyncDetail,
         sourceTable: 'search_term_harvester',
       });
     } catch (eventErr: unknown) {
-      log.warn(`v357: 记录optimization_events失败: ${(eventErr as Error).message}`);
+      log.warn(`v513: 记录optimization_events失败: ${(eventErr as Error).message}`);
     }
 
     result.stage = 'db_logged';

@@ -890,7 +890,7 @@ export async function runEvolutionCycle(targetId: number): Promise<EvolutionRepo
         newValue: JSON.stringify(newConfig),
         // @ts-ignore
         status: 'success',
-        apiSyncStatus: 'not_applicable',
+        apiSyncStatus: 'internal',  // v513: 内部系统事件，不需要Amazon API同步
         performanceData: JSON.stringify({
           // @ts-ignore
           type: 'algorithm_evolution',

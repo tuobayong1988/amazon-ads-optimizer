@@ -56,7 +56,12 @@ type AffectedModule =
   | 'multidim'      // 多维度分析算法变更
   | 'coordination'  // 竞价协调算法变更
   | 'sync'          // API同步链路变更
+  | 'optimization'  // 优化引擎变更
+  | 'automation'    // 自动化执行变更
   | 'product_target' // 商品定向管理变更
+  | 'correction'    // 纠错服务变更
+  | 'logging'       // 日志系统变更
+  | 'reporting'     // 报告系统变更
   | 'all';          // 全部模块
 
 type CorrectionAction =
@@ -73,9 +78,22 @@ type CorrectionAction =
   | 'audit_synced_commands'        // v310: 回溯审计已执行指令的正确性
   | 'retry_product_target_sync'   // v310: 重试商品定向同步
   | 'resync_data'                  // v344: 触发全量数据重新同步
-  | 'cold_start';                  // v344: 触发冷启动流程
+  | 'cold_start'                   // v344: 触发冷启动流程
+  | 'rerun_correction_scan';       // v513: 重新运行纠错扫描
 
 const VERSION_CHANGELOG: VersionChange[] = [
+  {
+    version: 513,
+    description: 'v513: [同步健康度底层重构] — (1)P0-事件状态机重构: 严格区分内部系统事件与Amazon API交互事件,settings_update/auto_correction/system_heartbeat等内部事件使用internal状态不再干扰同步率统计 (2)P0-出价预检机制(Pre-flight Check): 在发起出价调整前强制校验本地实体状态与Amazon实时状态,已归档/已删除实体直接标记permanently_failed不再重试,从源头切断enityNotFoundError (3)P0-搜索词收割闭环修复: 通过标准API Helper链路记录同步状态,增加完整的api_sync_detail和apiSyncedAt时间戳,确保纠错器不会误判为未同步',
+    affectedModules: ['sync', 'optimization', 'automation'],
+    correctionActions: ['rerun_optimization'],
+  },
+  {
+    version: 512,
+    description: 'v512: [SD受众定向优化+TypeScript编译修复+前端注释泄漏修复] — (1)P0-SD受众定向优化循环: bidOptimizationExecutor新增SD受众优化循环+amazonApiHelper新增updateSdTargetBids API同步路由 (2)P0-TypeScript编译修复: 从12334个错误降至0,修复377个文件 (3)P0-JSX @ts-ignore注释泄漏修复: 修复70个文件中1920处前端注释文本泄漏 (4)P0-SB/SD验证路由修复: postOptimizationVerifier支持通过campaignType正确路由',
+    affectedModules: ['bid', 'sync', 'optimization'],
+    correctionActions: ['rerun_optimization'],
+  },
   {
     version: 511,
     description: 'v511: [冷启动智能出价引擎升级] — (1)P0-多级动态锚点冷启动出价: 重写suggestedBidColdStartEngine实现四级出价策略(AdGroup优质词CPC→Campaign优质词CPC→贝叶斯平滑→动态系数探索),支持匹配类型/广告类型动态系数调整 (2)P0-同活动优质词CPC参考: 优先参考同AdGroup/Campaign内已出单且投产较好的投放词的实际CPC作为出价锚点 (3)P0-贝叶斯平滑活动级先验: bayesianBidSmoothingEngine升级支持Campaign级先验构建,优先使用同活动数据而非账户级数据 (4)P1-RL数据记录器升级: actionSource新增cold_start类型,实现冷启动出价的完整强化学习闭环追踪',
@@ -943,35 +961,30 @@ const VERSION_CHANGELOG: VersionChange[] = [
   {
     version: 355,
     description: 'v355: [pending重试SQL修复 + searchTermHarvester ID修复 + 内存优化] — (1)P0-pending重试SQL列名修复: campaigns表查询中campaign_id(下划线)改为campaignId(驼峰),修复SELECT和结果引用三处错误,解决pending keyword_create重试时无法查找Amazon Campaign ID导致重试失败 (2)P1-searchTermHarvester ID混用修复: getSearchTermsByCampaignId传入sourceCampaign.id(本地ID)改为sourceCampaign.campaignId(Amazon ID),解决搜索词收割无法查询到search_terms数据导致收割候选为空 (3)P2-内存优化-bundle瘦身: build-server.js排除vite/rollup/babel/tailwindcss等构建时依赖+开启minify压缩,bundle体14.59MB降至4.23MB(减少71%) (4)P2-内存优化-heapUtilization修复: 使用heapUsed/max-old-space-size(1400MB)替代heapUsed/heapTotal,消除V8动态收缩heapTotal导致的虚假高内存使用率告警(97%→实际约7-15%)',
-    // @ts-expect-error - runtime type mismatch
     affectedModules: ['optimization', 'sync'],
     correctionActions: ['rerun_optimization'],
   },
   {
     version: 354,
     description: 'v354: [budget_adjustment修复 + placement_adjust激活 + SB/SBV前置过滤] — (1)P0-budget_adjustment ID不匹配修复: aggregatePerformanceData传入campaign.id(本地自增ID)改为campaign.campaignId(Amazon ID),解决daily_performance查询永远匹配不到数据导致模块完全休眠 (2)P0-CampaignPerformanceData/BudgetAllocationSuggestion增加amazonCampaignId字段,修复整个ID链路(campaigns.find匹配+db.updateCampaign+scheduleBudgetVerification) (3)P1-placement_adjust阈值修复: generatePlacementSuggestions过滤阈值从>5降低为>0,解决confidence=0.6时maxDeltaPercent=5但严格大于5导致中等置信度建议永远被过滤 (4)P1-analyzePlacementOptimization中的needsAdjustment和adjustedCount阈值同步修复 (5)P2-v310 pending重试路径增加SB/SD campaignType前置过滤,解决V351过滤被绕过导致244条SB pending记录反复重试失败 (6)P2-V351 SB/SD过滤增加optimization_logs记录(skipped_unsupported_campaign_type),避免静默跳过无法追踪',
-    // @ts-expect-error - runtime type mismatch
     affectedModules: ['optimization'],
     correctionActions: ['rerun_optimization'],
   },
   {
     version: 353,
     description: 'v353: [搜索词收割优化 + 休眠模块诊断 + search_terms去重修复] — (1)P0-search_terms去重key修复: existingMap从buildExistingKey使用本地campaign.id改为Amazon campaignId,解决去重失效导致重复INSERT (2)P0-品牌词前置过滤: 在CREATE_KEYWORD决策后立即检查品牌词,避免品牌词通过API创建被拒绝导致反复重试 (3)P0-PT广告组前置检查: 在campaign循环开头预加载PT状态,避免在API同步阶段才发现skipped_pt_adgroup (4)P1-去重窗口从7天扩展到30天: 进一步消除already_exists重复创建 (5)P1-action_type映射修复: brand_protect_skip/exploration_protect_skip等不再被错误归类为keyword_create (6)P1-去重查询覆盖新action_type: 包含search_term_brand_protect等新类型 (7)P2-placement诊断日志增强: 追踪建议生成和过滤原因 (8)P2-budget诊断日志增强: 追踪建议生成和应用统计',
-    // @ts-expect-error - runtime type mismatch
     affectedModules: ['optimization', 'sync'],
     correctionActions: ['rerun_optimization'],
   },
   {
     version: 352,
     description: 'v352: [数据同步架构重构 - 精细化分账户/分广告类型/分步骤串行化] — (1)P0-报告请求串行化: SP→SB→SD从并行Promise.all改为串行执行,每种广告类型间加3秒延迟,大幅降低API限流风险 (2)P0-智能账户交错排序: 同一品牌(userId)不同站点账户分散到不同批次,避免共享API凭证的账户同时发起请求 (3)P0-账户间串行+5秒延迟: 替代旧的并行批次执行,确保单个账户完成后再开始下一个 (4)P1-并发控制降级: MAX_CONCURRENT_ACCOUNTS从3降为2 (5)P1-优化指令同步增强: 账号间3秒延迟+任务类型间1秒延迟 (6)P1-syncAll步骤间1秒延迟: 降低API调用密度',
-    // @ts-expect-error - runtime type mismatch
     affectedModules: ['sync', 'optimization'],
     correctionActions: ['resync_data'],
   },
   {
     version: 351,
     description: 'v351: [P1分时竞价灵敏度重写 + bidding_logs修复 + 永久失败标记增强 + SB/SD数据保留期处理] — (1)P1-分时竞价算法灵敏度彻底重写: 三层级联放大(3x偏差放大+最小偏差保证±0.05+时段特征增强),解决95.6%规则为1.00的根因 (2)P1-分时规则24h自动重算: 替换旧算法生成的无效规则 (3)P1-分时执行阈值降低: $0.01→$0.005+2%双重判断 (4)P1-dayparting recordModuleExecution修复: dayparting_adjustment使用executeAllEnabledTargets但遗漏recordModuleExecution调用 (5)P1-bidding_logs原生SQL列名修复: snake_case→camelCase匹配Drizzle schema (6)P1-SB/SD关键词创建过滤: 阻止对SB/SD广告活动的无效API调用 (7)P1-permanently_failed标记增强: 移除localKeywordId前提条件,覆盖所有失败记录 (8)P1-SB/SD数据保留期自动处理: startDate自动clamp到保留期范围内 (9)P2-placement诊断日志增强',
-    // @ts-expect-error - runtime type mismatch
     affectedModules: ['dayparting', 'bid', 'sync', 'optimization'],
     // @ts-ignore
     correctionActions: ['reset_dayparting_rules', 'rerun_optimization'],
@@ -1018,24 +1031,19 @@ const VERSION_CHANGELOG: VersionChange[] = [
   {
     version: 428,
     description: 'v428: [综合优化修复] — (1)P0-SB出价API端点修复: updateSbKeywordBids从PUT /sb/v4/keywords改为PUT /sb/keywords(v3端点),解决7261个403错误 (2)P1-updateLocalStatus列名映射修复: keywords→keywordStatus,campaigns→campaignStatus,ad_groups→adGroupStatus,product_targets→targetStatus (3)P2-SB否定词: 使用SB专用API(POST /sb/negativeKeywords) (4)P2-Amazon ID前置校验 (5)P2-僵尸任务清理: processing超过30分钟自动重置 (6)P2-SD定向报告: 跳过空targetingText记录',
-    // @ts-expect-error - runtime type mismatch
     affectedModules: ['sync', 'optimization'],
-    // @ts-ignore
     correctionActions: ['rerun_correction_scan'],
   },
   {
     version: 474,
     description: 'v474: [日志系统全面修复+产品定向bid格式安全+报告错误详情] — (1)P0-createModuleLogger重构: Error对象自动序列化到message字段,一次性修复全系统160+处空错误日志 (2)P0-SD/SB/SP产品定向bid格式安全处理: 当API返回对象型式bid时提取amount数值,修复"Cannot convert object to primitive value"错误 (3)P1-报告提交失败日志增强: 记录完整HTTP响应体,便于调试SB/SD报告400错误 (4)P1-Assets API/NotificationService/ContextualFeatureService错误日志修复',
-    // @ts-expect-error - runtime type mismatch
     affectedModules: ['logging', 'sync', 'reporting'],
     correctionActions: [],
   },
   {
     version: 425,
     description: 'v425: [同步失败全面修复+同步锁机制重构+手动同步最高优先级] — (1)P0-同步锁机制重构: 手动同步最高优先级,任何时候触发都能立即执行,不被自动同步阻塞 (2)P0-syncIdempotencyService新增forceAcquireSyncLock强制获取锁 (3)P0-unifiedSyncEngine同层级/full层锁冲突时手动同步强制释放 (4)P0-dataSyncScheduler.triggerManualSync添加幂等锁保护 (5)P1-纠错服务增强: retryFailedBidAdjustments修复成功判断逻辑(itemResults逐条判断) (6)P1-新增cleanupExpiredDaypartingBids: 超过24h的dayparting_bid失败标记为superseded (7)P1-超过7天的失败事件标记为permanently_failed (8)P1-daypartingExecutor重试增强: 从1次增加到3次指数退避 (9)P1-amazonApiHelper Amazon ID缺失容错: 区分可重试和不可重试,不可重试标记为not_applicable (10)P1-riskActionEngine同步健康度优化: 排除superseded/permanently_failed,失败率>5%才触发P0告警',
-    // @ts-expect-error - runtime type mismatch
     affectedModules: ['sync', 'optimization', 'correction'],
-    // @ts-ignore
     correctionActions: ['rerun_correction_scan'],
   },
   {

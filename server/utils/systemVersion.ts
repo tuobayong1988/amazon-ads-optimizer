@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 511;  // v511: 冷启动智能出价引擎升级 — (1)多级动态锚点冷启动出价 (2)同活动优质词CPC参考 (3)贝叶斯平滑活动级先验 (4)RL数据记录器cold_start追踪
+export const SYSTEM_VERSION = 513;  // v513: 同步健康度底层重构 — (1)事件状态机重构:严格区分内部系统事件与API交互事件 (2)出价预检机制:发起调整前校验实体状态,从源头切断entityNotFoundError (3)搜索词收割闭环:通过标准API Helper链路记录同步状态

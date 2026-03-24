@@ -1125,7 +1125,23 @@ export async function runAutoDbMigration(): Promise<{ success: boolean; results:
       log.warn('v509: event_id状态回写失败: ' + (e as Error).message);
     }
 
-    log.info(`v509: 数据库自动迁移完成, 结果: ${results.join('; ')}`);
+    // ========== v513: 历史内部事件重分类 — 将内部系统事件的 api_sync_status 从 not_applicable/pending/failed 统一改为 internal ==========
+    try {
+      log.info('v513: 开始历史内部事件重分类...');
+      const [internalResult] = await database.execute(sql.raw(`
+        UPDATE optimization_events 
+        SET api_sync_status = 'internal'
+        WHERE action_type IN ('settings_update', 'auto_correction', 'algorithm_config', 'strategy_update', 'system_config', 'system_deploy', 'target_reoptimized', 'system_heartbeat')
+          AND api_sync_status != 'internal'
+      `)) as unknown[];
+      const internalCount = (internalResult as Record<string, unknown>).affectedRows || 0;
+      log.info(`v513: 历史内部事件重分类完成: ${internalCount}条记录已更新为 internal`);
+      results.push(`v513: 内部事件重分类 ${internalCount}条`);
+    } catch (e: unknown) {
+      log.warn('v513: 历史内部事件重分类失败: ' + (e as Error).message);
+    }
+
+    log.info(`v513: 数据库自动迁移完成, 结果: ${results.join('; ')}`);
     return { success: true, results };
 
   } catch (error: unknown) {

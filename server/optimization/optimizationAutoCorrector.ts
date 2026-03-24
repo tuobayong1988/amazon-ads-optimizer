@@ -103,6 +103,39 @@ const CURRENCY_TO_USD_RATE: Record<string, number> = {
   'TRY': 27.0,     // 土耳其里拉
 };
 
+// ==================== v513: 事件状态机 — 内部事件 vs API交互事件 ====================
+/**
+ * v513: 内部系统事件类型列表
+ * 
+ * 这些 action_type 代表系统内部操作（如算法配置变更、部署事件、自动纠错记录），
+ * 它们不需要同步到 Amazon API，因此不应计入 api_sync_status 的同步率统计。
+ * 
+ * 设计原则：
+ * - 只有真正需要通过 Amazon Ads API 执行的操作才计入同步率
+ * - 内部事件在创建时应直接标记为 'internal'（新状态），而非 'not_applicable'
+ * - 纠错器不应尝试重试内部事件
+ */
+const INTERNAL_ACTION_TYPES = new Set([
+  'settings_update',      // 系统设置变更（算法参数、策略配置等）
+  'auto_correction',      // 自动纠错记录本身
+  'algorithm_config',     // 算法配置变更
+  'strategy_update',      // 策略更新
+  'system_config',        // 系统配置
+  'system_deploy',        // 部署事件
+  'target_reoptimized',   // 重优化标记
+]);
+
+/**
+ * v513: 判断一个 action_type 是否为内部系统事件
+ * 内部事件不需要 Amazon API 同步，不应计入同步率统计
+ */
+function isInternalEvent(actionType: string, eventCategory?: string): boolean {
+  if (INTERNAL_ACTION_TYPES.has(actionType)) return true;
+  // settings_change 类别中的大部分都是内部事件
+  if (eventCategory === 'settings_change' && !actionType.includes('budget') && !actionType.includes('placement')) return true;
+  return false;
+}
+
 /** v204: 账户货币缓存，避免每次纠错都查询数据库 */
 const accountCurrencyCache = new Map<number, { currencyCode: string; fetchedAt: number }>();
 const CURRENCY_CACHE_TTL_MS = 60 * 60 * 1000; // 1小时缓存
@@ -519,9 +552,63 @@ async function retryFailedBidAdjustments(database: unknown, accountId: number): 
       }
     }
     
-    // 批量重试
+    // v513: 预检机制 (Pre-flight Check) — 在发起重试前校验实体状态
+    // 批量查询所有相关keyword的当前状态，过滤已归档/已删除的实体
+    const kwIds = Array.from(latestByKeyword.keys());
+    const invalidKwIds = new Set<number>();
+    if (kwIds.length > 0) {
+      try {
+        // @ts-ignore
+        const kwStatusRows = await database
+          .select({ id: keywords.id, keywordStatus: keywords.keywordStatus })
+          .from(keywords)
+          .where(inArray(keywords.id, kwIds));
+        
+        for (const row of kwStatusRows) {
+          if (row.keywordStatus === 'amazon_deleted' || row.keywordStatus === 'archived' || row.keywordStatus === 'amazon_archived') {
+            invalidKwIds.add(row.id);
+          }
+        }
+        
+        if (invalidKwIds.size > 0) {
+          log.info(`v513: 账户${accountId} 预检发现${invalidKwIds.size}个已归档/已删除的关键词，标记为 permanently_failed`);
+          
+          // 批量将无效实体的事件标记为 permanently_failed
+          const invalidEventIds = failedEvents
+            .filter((e: any) => e.keywordId && invalidKwIds.has(e.keywordId))
+            .map((e: any) => e.id);
+          if (invalidEventIds.length > 0) {
+            // @ts-ignore
+            await database.execute(sql`
+              UPDATE optimization_events 
+              SET api_sync_status = 'permanently_failed',
+                  error_message = CONCAT(COALESCE(error_message, ''), ' | v513: 实体已在Amazon端归档/删除，不再重试'),
+                  api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.v513_preflight', 'entity_archived_or_deleted')
+              WHERE id IN (${safeInClause(invalidEventIds)})
+            `);
+          }
+          
+          for (const event of failedEvents.filter((e: any) => e.keywordId && invalidKwIds.has(e.keywordId))) {
+            results.push({
+              type: 'bid_retry',
+              accountId,
+              targetId: event.keywordId || 0,
+              targetType: 'keyword',
+              previousValue: String(event.previousBid || ''),
+              correctedValue: 'permanently_failed',
+              reason: `v513: 预检发现实体已归档/删除，标记为 permanently_failed`,
+              success: true,
+            });
+          }
+        }
+      } catch (preflightErr: unknown) {
+        log.warn(`v513: 账户${accountId} 出价预检失败: ${(preflightErr as Error).message}，继续正常重试流程`);
+      }
+    }
+    
+    // 批量重试（排除已归档/删除的实体）
     const retryItems = Array.from(latestByKeyword.values())
-      .filter(e => e.keywordId && e.newBid)
+      .filter(e => e.keywordId && e.newBid && !invalidKwIds.has(e.keywordId!))
       .map(e => ({
         keywordId: e.keywordId!,
         newBid: parseFloat(String(e.newBid)),
@@ -529,7 +616,10 @@ async function retryFailedBidAdjustments(database: unknown, accountId: number): 
         reason: `[自动纠错] 重试之前失败的出价调整 (原事件ID: ${e.id})`,
       }));
     
-    if (retryItems.length === 0) return results;
+    if (retryItems.length === 0) {
+      log.info(`v513: 账户${accountId} 所有失败的出价调整均为无效实体，已全部标记为 permanently_failed`);
+      return results;
+    }
     
     try {
       const syncResult: unknown = await amazonApiHelper.syncBidAdjustmentsToAmazon(
@@ -1491,8 +1581,59 @@ async function retryFailedSettingsChanges(database: unknown, accountId: number):
     
     log.warn(`v178: 账户${accountId} 发现${failedEvents.length}条失败的设置变更需要重试`);
     
-    // 设置变更类型多样，需要根据actionType分别处理
+    // v513: 预检机制 — 先批量将内部事件标记为 'internal'，避免无效重试
+    const internalEvents: typeof failedEvents = [];
+    const apiEvents: typeof failedEvents = [];
     for (const event of failedEvents) {
+      const actionType = event.actionType || '';
+      const detail = event.actionDetail ? (() => { try { return JSON.parse(event.actionDetail || '{}'); } catch { return {}; } })() : {};
+      const detailType = detail.type || '';
+      // v513: 判断是否为内部事件
+      if (isInternalEvent(actionType, 'settings_change') || ['system_deploy', 'target_reoptimized', 'algorithm_config', 'strategy_update', 'system_config'].includes(detailType)) {
+        internalEvents.push(event);
+      } else {
+        apiEvents.push(event);
+      }
+    }
+    
+    // v513: 批量将内部事件标记为 'internal'，不再尝试重试
+    if (internalEvents.length > 0) {
+      const internalIds = internalEvents.map((e: any) => e.id);
+      try {
+        // @ts-ignore
+        await database.execute(sql`
+          UPDATE optimization_events 
+          SET api_sync_status = 'internal',
+              api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.v513_reclassified', true, '$.reason', 'v513: 内部系统事件，不需要Amazon API同步')
+          WHERE id IN (${safeInClause(internalIds)})
+        `);
+        log.info(`v513: 账户${accountId} 将${internalEvents.length}条内部事件从 failed 重分类为 internal`);
+      } catch (reclassErr: unknown) {
+        log.warn(`v513: 批量重分类内部事件失败: ${(reclassErr as Error).message}`);
+      }
+      for (const event of internalEvents) {
+        results.push({
+          type: 'settings_retry',
+          accountId,
+          targetId: event.campaignId || 0,
+          targetType: 'campaign',
+          previousValue: String(event.previousValue || ''),
+          correctedValue: 'internal',
+          reason: `v513: 内部事件重分类 (${event.actionType})`,
+          success: true,
+        });
+      }
+    }
+    
+    if (apiEvents.length === 0) {
+      log.info(`v513: 账户${accountId} 所有失败的设置变更均为内部事件，已全部重分类`);
+      return results;
+    }
+    
+    log.info(`v513: 账户${accountId} ${internalEvents.length}条内部事件已重分类，剩余${apiEvents.length}条真正的API事件需要重试`);
+    
+    // 设置变更类型多样，需要根据 actionType分别处理
+    for (const event of apiEvents) {
       try {
         let success = false;
         const actionType = event.actionType || '';
@@ -1545,15 +1686,15 @@ async function retryFailedSettingsChanges(database: unknown, accountId: number):
             success = !!syncResult;
           }
         }
-        // 4. v267: 内部设置变更(system_deploy等)标记为not_applicable
+        // 4. v513: 内部设置变更标记为 'internal'（替代旧的 not_applicable）
         else if (['system_deploy', 'target_reoptimized', 'algorithm_config', 'strategy_update', 'system_config'].includes(detailType)) {
           // 这些是内部事件，不需要Amazon API同步
           // @ts-ignore
           await database
             .update(optimizationEvents)
             .set({ 
-              apiSyncStatus: 'not_applicable',
-              apiSyncDetail: JSON.stringify({ reason: 'v267: 内部设置变更自动标记', fixedAt: new Date().toISOString() }),
+              apiSyncStatus: 'internal',
+              apiSyncDetail: JSON.stringify({ reason: 'v513: 内部系统事件，不需要Amazon API同步', fixedAt: new Date().toISOString() }),
             })
             .where(eq(optimizationEvents.id, event.id));
           success = true; // 标记为处理成功
@@ -2351,8 +2492,10 @@ let latestHealthReport: SyncHealthReport | null = null;
  */
 async function evaluateSyncHealth(database: unknown, scanResult: CorrectionScanResult): Promise<void> {
   try {
-    // 1. v230: 查询最近7天的同步状态统计
-    // v230: 排除not_applicable状态，避免将不需要同步的操作计入失真
+    // 1. v513: 查询最近7天的同步状态统计
+    // v513: 排除内部系统事件和历史状态，只统计真正需要Amazon API同步的操作
+    // 排除的类型: legacy_unsynced, invalid_legacy, not_applicable, internal, superseded, permanently_failed
+    // 排除的action_type: settings_update, auto_correction, algorithm_config, strategy_update, system_config, system_deploy, target_reoptimized
     // @ts-expect-error - Drizzle raw SQL execution
     const [syncStats] = await database.execute(sql`
       SELECT 
@@ -2362,10 +2505,11 @@ async function evaluateSyncHealth(database: unknown, scanResult: CorrectionScanR
         SUM(CASE WHEN api_sync_status = 'pending' THEN 1 ELSE 0 END) as pending
       FROM optimization_events 
       WHERE created_at > DATE_SUB(NOW(), INTERVAL 7 DAY)
-        AND api_sync_status NOT IN ('legacy_unsynced', 'invalid_legacy', 'not_applicable')
+        AND api_sync_status NOT IN ('legacy_unsynced', 'invalid_legacy', 'not_applicable', 'internal', 'superseded', 'permanently_failed')
+        AND action_type NOT IN ('settings_update', 'auto_correction', 'algorithm_config', 'strategy_update', 'system_config', 'system_deploy', 'target_reoptimized')
     `) as unknown;
     
-    // 2. v230: 按操作类型统计同步率，排除not_applicable
+    // 2. v513: 按操作类型统计同步率，排除内部事件类型
     // @ts-expect-error - Drizzle raw SQL execution
     const [typeStats] = await database.execute(sql`
       SELECT 
@@ -2374,7 +2518,8 @@ async function evaluateSyncHealth(database: unknown, scanResult: CorrectionScanR
         SUM(CASE WHEN api_sync_status = 'synced' THEN 1 ELSE 0 END) as synced
       FROM optimization_events 
       WHERE created_at > DATE_SUB(NOW(), INTERVAL 7 DAY)
-        AND api_sync_status NOT IN ('legacy_unsynced', 'invalid_legacy', 'not_applicable')
+        AND api_sync_status NOT IN ('legacy_unsynced', 'invalid_legacy', 'not_applicable', 'internal', 'superseded', 'permanently_failed')
+        AND action_type NOT IN ('settings_update', 'auto_correction', 'algorithm_config', 'strategy_update', 'system_config', 'system_deploy', 'target_reoptimized')
       GROUP BY action_type
     `) as unknown;
     
