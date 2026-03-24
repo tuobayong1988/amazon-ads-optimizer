@@ -179,11 +179,11 @@ export const dashboardRecommendationRouter = router({
           return { data: (result as unknown[][])[0] };
         }
         if (queryType === 'by_campaign') {
-          // 按广告活动汇总（整个时间段）
+          // 按广告活动汇总（整个时间段）- v502.4: 修正列名为camelCase
           const result = await db_.execute(sql`
             SELECT 
               dp.campaignId,
-              c.name as campaign_name,
+              c.campaignName as campaign_name,
               c.campaignType as campaign_type,
               c.campaignStatus as campaign_status,
               c.targetingType as targeting_type,
@@ -200,7 +200,7 @@ export const dashboardRecommendationRouter = router({
             WHERE dp.accountId = ${accountId}
               AND dp.date >= ${startDate}
               AND dp.date < DATE_ADD(${endDate}, INTERVAL 1 DAY)
-            GROUP BY dp.campaignId, c.name, c.campaignType, c.campaignStatus, c.targetingType
+            GROUP BY dp.campaignId, c.campaignName, c.campaignType, c.campaignStatus, c.targetingType
             ORDER BY SUM(dp.spend) DESC
             LIMIT ${limit}
           `);
@@ -224,7 +224,7 @@ export const dashboardRecommendationRouter = router({
           return { data: (result as unknown[][])[0] };
         }
         if (queryType === 'by_keyword') {
-          // 按投放词汇总 - 花费最高的投放词
+          // v502.4: 按投放词汇总 - 使用keywords表自身的累计数据
           const result = await db_.execute(sql`
             SELECT 
               k.id as keyword_id,
@@ -233,34 +233,19 @@ export const dashboardRecommendationRouter = router({
               k.matchType as match_type,
               k.bid as current_bid,
               k.keywordStatus as keyword_status,
-              c.name as campaign_name,
+              c.campaignName as campaign_name,
               c.campaignType as campaign_type,
-              ag.name as ad_group_name,
-              COALESCE(perf.total_spend, 0) as total_spend,
-              COALESCE(perf.total_sales, 0) as total_sales,
-              COALESCE(perf.total_orders, 0) as total_orders,
-              COALESCE(perf.total_clicks, 0) as total_clicks,
-              COALESCE(perf.total_impressions, 0) as total_impressions,
-              CASE WHEN COALESCE(perf.total_sales, 0) > 0 THEN ROUND(perf.total_spend/perf.total_sales*100, 2) ELSE NULL END as acos
+              k.spend as total_spend,
+              k.sales as total_sales,
+              k.orders as total_orders,
+              k.clicks as total_clicks,
+              k.impressions as total_impressions,
+              CASE WHEN k.sales > 0 THEN ROUND(k.spend/k.sales*100, 2) ELSE NULL END as acos
             FROM keywords k
             JOIN campaigns c ON k.campaignId = c.campaignId AND c.accountId = ${accountId}
-            JOIN ad_groups ag ON k.adGroupId = ag.adGroupId AND ag.accountId = ${accountId}
-            LEFT JOIN (
-              SELECT 
-                keywordId,
-                SUM(spend) as total_spend,
-                SUM(sales) as total_sales,
-                SUM(orders) as total_orders,
-                SUM(clicks) as total_clicks,
-                SUM(impressions) as total_impressions
-              FROM keyword_daily_metrics
-              WHERE accountId = ${accountId}
-                AND date >= ${startDate}
-                AND date < DATE_ADD(${endDate}, INTERVAL 1 DAY)
-              GROUP BY keywordId
-            ) perf ON k.keywordId = perf.keywordId
             WHERE k.accountId = ${accountId}
-            ORDER BY COALESCE(perf.total_spend, 0) DESC
+              AND k.keywordStatus != 'amazon_deleted'
+            ORDER BY k.spend DESC
             LIMIT ${limit}
           `);
           return { data: (result as unknown[][])[0] };
@@ -271,29 +256,31 @@ export const dashboardRecommendationRouter = router({
             SELECT 
               st.searchTerm as search_term,
               st.campaignId,
-              c.name as campaign_name,
+              c.campaignName as campaign_name,
               c.campaignType as campaign_type,
-              SUM(st.impressions) as impressions,
-              SUM(st.clicks) as clicks,
-              SUM(st.spend) as spend,
-              SUM(st.sales) as sales,
-              SUM(st.orders) as orders,
-              CASE WHEN SUM(st.sales) > 0 THEN ROUND(SUM(st.spend)/SUM(st.sales)*100, 2) ELSE NULL END as acos,
-              CASE WHEN SUM(st.clicks) > 0 THEN ROUND(SUM(st.spend)/SUM(st.clicks), 2) ELSE NULL END as cpc
+              SUM(st.searchTermImpressions) as impressions,
+              SUM(st.searchTermClicks) as clicks,
+              SUM(st.searchTermSpend) as spend,
+              SUM(st.searchTermSales) as sales,
+              SUM(st.searchTermOrders) as orders,
+              CASE WHEN SUM(st.searchTermSales) > 0 THEN ROUND(SUM(st.searchTermSpend)/SUM(st.searchTermSales)*100, 2) ELSE NULL END as acos,
+              CASE WHEN SUM(st.searchTermClicks) > 0 THEN ROUND(SUM(st.searchTermSpend)/SUM(st.searchTermClicks), 2) ELSE NULL END as cpc
             FROM search_terms st
             LEFT JOIN campaigns c ON st.campaignId = c.campaignId AND c.accountId = ${accountId}
             WHERE st.accountId = ${accountId}
-              AND st.date >= ${startDate}
-              AND st.date < DATE_ADD(${endDate}, INTERVAL 1 DAY)
-            GROUP BY st.searchTerm, st.campaignId, c.name, c.campaignType
-            ORDER BY SUM(st.spend) DESC
+              AND st.reportStartDate >= ${startDate}
+              AND st.reportStartDate < DATE_ADD(${endDate}, INTERVAL 1 DAY)
+            GROUP BY st.searchTerm, st.campaignId, c.campaignName, c.campaignType
+            ORDER BY SUM(st.searchTermSpend) DESC
             LIMIT ${limit}
           `);
           return { data: (result as unknown[][])[0] };
         }
         return { data: [], error: 'Unknown queryType' };
       } catch (e: unknown) {
-        return { data: [], error: (e as Error).message };
+        const errMsg = (e as Error).message || String(e);
+        const sqlInfo = (e as {sql?: string}).sql || '';
+        return { data: [], error: `Failed query: ${sqlInfo}\nparams: ${accountId},${startDate},${endDate},${limit}` };
       }
     }),
 });
