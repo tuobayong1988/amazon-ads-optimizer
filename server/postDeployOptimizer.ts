@@ -83,6 +83,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 514,
+    description: 'v514: [冷启动精准锚点激活+指数退避重试] — (1)P0-修复Campaign锚点SQL查询Bug: suggestedBidColdStartEngine中campaigns.amazonCampaignId字段不存在导致SQL畸形,改为直接使用campaigns.campaignId,彻底激活Level 1(AdGroup锚点)和Level 2(Campaign锚点)精准出价策略 (2)P0-统一指数退避重试机制: withRetry函数对所有可重试错误(429限流/网络超时ETIMEDOUT/ECONNRESET/ECONNABORTED/服务器500+)统一使用指数退避+随机抖动,出价同步maxRetries从3提升至5、baseDelayMs从3000提升至5000,彻底消除网络瞬时故障导致的残余失败',
+    affectedModules: ['optimization', 'sync'],
+    correctionActions: ['rerun_optimization'],
+  },
+  {
     version: 513,
     description: 'v513: [同步健康度底层重构] — (1)P0-事件状态机重构: 严格区分内部系统事件与Amazon API交互事件,settings_update/auto_correction/system_heartbeat等内部事件使用internal状态不再干扰同步率统计 (2)P0-出价预检机制(Pre-flight Check): 在发起出价调整前强制校验本地实体状态与Amazon实时状态,已归档/已删除实体直接标记permanently_failed不再重试,从源头切断enityNotFoundError (3)P0-搜索词收割闭环修复: 通过标准API Helper链路记录同步状态,增加完整的api_sync_detail和apiSyncedAt时间戳,确保纠错器不会误判为未同步',
     affectedModules: ['sync', 'optimization', 'automation'],

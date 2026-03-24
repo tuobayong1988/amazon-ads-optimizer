@@ -42,7 +42,7 @@
  */
 
 import { getDb } from '../db';
-import { keywords, productTargets, adGroups, campaigns } from '../../drizzle/schema';
+import { keywords, productTargets, adGroups } from '../../drizzle/schema';
 import { eq, and, gt, gte, sql, isNotNull } from 'drizzle-orm';
 import { createModuleLogger } from '../utils/logger';
 import { estimateBid, type BayesianBidEstimate } from './bayesianBidSmoothingEngine';
@@ -431,21 +431,9 @@ async function getCampaignAnchorCpc(
     
     const maxAcos = targetAcos * COLD_START_CONFIG.QUALITY_ACOS_MULTIPLIER;
     
-    // 首先通过amazonCampaignId找到内部campaignId
-    const [campaign] = await db.select({
-      campaignId: campaigns.campaignId,
-    })
-    .from(campaigns)
-    .where(and(
-      eq(campaigns.accountId, accountId),
-      // @ts-ignore
-      eq(campaigns.amazonCampaignId, sql`${amazonCampaignId}`),
-    ))
-    .limit(1);
-    
-    if (!campaign) return null;
-    
-    const campaignIdStr = campaign.campaignId;
+    // 直接使用amazonCampaignId作为campaigns表的campaignId进行查询
+    // campaigns表中的campaignId字段存储的就是Amazon的campaign ID
+    const campaignIdStr = String(amazonCampaignId);
     
     if (entityType === 'keyword') {
       const [stats] = await db.select({

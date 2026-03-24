@@ -25,12 +25,12 @@ export async function getAmazonSyncService(accountId: number): Promise<AmazonSyn
 
 const log = createModuleLogger('ApiHelper');
 
-// v189+v369: 统一的API调用重试工具函数
+// v189+v369+v514: 统一的API调用重试工具函数（指数退避）
 async function withRetry<T>(
   fn: () => Promise<T>,
   options: { maxRetries?: number; baseDelayMs?: number; label?: string; accountId?: number } = {}
 ): Promise<T> {
-  const { maxRetries = 5, baseDelayMs = 10000, label = 'API', accountId = 0 } = options;  // v476: 大幅增加重试间隔和次数，优先保证100%成功率
+  const { maxRetries = 5, baseDelayMs = 10000, label = 'API', accountId = 0 } = options;
   let lastError: Error | null = null;
   // v360: 真正集成限流服务 - 在每次API调用前获取令牌
   const endpointType = classifyEndpoint(label);
@@ -48,7 +48,13 @@ async function withRetry<T>(
       const isThrottle = (error as unknown as Record<string, unknown>).response?.status === 429 || (error as Error).message?.includes('请求过于频繁') || (error as Error).message?.includes('Too Many Requests');
       // @ts-expect-error - Axios error response access
       const isServerError = (error as Error & { response?: unknown }).response?.status >= 500;
-      const isRetryable = isThrottle || isServerError || (error as Error & { code?: string }).code === 'ECONNRESET' || (error as Error & { code?: string }).code === 'ETIMEDOUT';
+      const isNetworkError = (error as Error & { code?: string }).code === 'ECONNRESET' || 
+        (error as Error & { code?: string }).code === 'ETIMEDOUT' ||
+        (error as Error & { code?: string }).code === 'ECONNABORTED' ||
+        (error as Error & { code?: string }).code === 'EPIPE' ||
+        (error as Error).message?.includes('socket hang up') ||
+        (error as Error).message?.includes('network timeout');
+      const isRetryable = isThrottle || isServerError || isNetworkError;
       
       // v360+v369: 通知分端点限流服务，触发自适应降速，使用真实accountId
       if (isThrottle) {
@@ -61,10 +67,14 @@ async function withRetry<T>(
         throw error;
       }
       
-      const delay = isThrottle 
-        ? Math.min(baseDelayMs * Math.pow(2, attempt), 60000)  // v476: 最大退避60s，完全避免429限流
-        : baseDelayMs * (attempt + 1);
-      log.warn(`[AmazonApiHelper] ${label} 第${attempt + 1}次重试，等待${delay}ms... (${(error as Error).message?.substring(0, 80)})`);
+      // v514: 所有可重试错误统一使用指数退避策略
+      // 429限流: baseDelay * 2^attempt, 最大60s
+      // 网络超时/服务器错误: baseDelay * 2^attempt, 最大30s
+      const maxDelay = isThrottle ? 60000 : 30000;
+      const jitter = Math.random() * 1000; // 添加随机抖动避免重试风暴
+      const delay = Math.min(baseDelayMs * Math.pow(2, attempt), maxDelay) + jitter;
+      log.warn(`[AmazonApiHelper] ${label} 第${attempt + 1}/${maxRetries}次重试(指数退避)，等待${Math.round(delay)}ms... ` +
+        `(${isThrottle ? '限流' : isNetworkError ? '网络异常' : '服务器错误'}: ${(error as Error).message?.substring(0, 80)})`);
       await new Promise(resolve => setTimeout(resolve, delay));
     }
   }
@@ -392,7 +402,7 @@ export async function syncBidAdjustmentsToAmazon(
           spKeywordBids.map(r => ({ keywordId: r.keywordId, bid: r.bid }))
         ),
         // @ts-ignore
-        { maxRetries: 3, baseDelayMs: 3000, label: `batchUpdateSpKeywordBids-${spKeywordBids.length}`, accountId }
+        { maxRetries: 5, baseDelayMs: 5000, label: `batchUpdateSpKeywordBids-${spKeywordBids.length}`, accountId }
       // @ts-ignore
       );
       
@@ -488,7 +498,7 @@ export async function syncBidAdjustmentsToAmazon(
         const apiResult: unknown = await withRetry(
           // @ts-ignore
           () => (syncService as unknown as Record<string, unknown>).client.updateSbKeywordBids(sbUpdates),
-          { maxRetries: 3, baseDelayMs: 3000, label: `batchUpdateSbKeywordBids-${sbUpdates.length}`, accountId }
+          { maxRetries: 5, baseDelayMs: 5000, label: `batchUpdateSbKeywordBids-${sbUpdates.length}`, accountId }
         );
         
         const sbFailedIds = new Map<string, string>();
@@ -558,7 +568,7 @@ export async function syncBidAdjustmentsToAmazon(
           // @ts-ignore
           sdKeywordBids.map(r => ({ keywordId: r.keywordId, bid: r.bid }))
         ),
-        { maxRetries: 3, baseDelayMs: 3000, label: `batchUpdateSdKeywordBids-${sdKeywordBids.length}`, accountId }
+        { maxRetries: 5, baseDelayMs: 5000, label: `batchUpdateSdKeywordBids-${sdKeywordBids.length}`, accountId }
       );
       
       // @ts-ignore
@@ -617,7 +627,7 @@ export async function syncBidAdjustmentsToAmazon(
         () => (syncService as unknown as Record<string, unknown>).client.updateProductTargetBids(
           spTargetBids.map(r => ({ targetId: r.targetId, bid: r.bid }))
         ),
-        { maxRetries: 3, baseDelayMs: 3000, label: `batchUpdateSpProductTargetBids-${spTargetBids.length}`, accountId }
+        { maxRetries: 5, baseDelayMs: 5000, label: `batchUpdateSpProductTargetBids-${spTargetBids.length}`, accountId }
       );
       
       // @ts-ignore
@@ -693,7 +703,7 @@ export async function syncBidAdjustmentsToAmazon(
         () => sbApiMethod.call((syncService as unknown as Record<string, unknown>).client,
           sbTargetBids.map(r => ({ targetId: r.targetId, bid: r.bid }))
         ),
-        { maxRetries: 3, baseDelayMs: 3000, label: `batchUpdateSbProductTargetBids-${sbTargetBids.length}`, accountId }
+        { maxRetries: 5, baseDelayMs: 5000, label: `batchUpdateSbProductTargetBids-${sbTargetBids.length}`, accountId }
       );
       
       // @ts-ignore
@@ -736,7 +746,7 @@ export async function syncBidAdjustmentsToAmazon(
         () => sdApiMethod.call((syncService as unknown as Record<string, unknown>).client,
           sdTargetBids.map(r => ({ targetId: r.targetId, bid: r.bid }))
         ),
-        { maxRetries: 3, baseDelayMs: 3000, label: `batchUpdateSdProductTargetBids-${sdTargetBids.length}`, accountId }
+        { maxRetries: 5, baseDelayMs: 5000, label: `batchUpdateSdProductTargetBids-${sdTargetBids.length}`, accountId }
       );
       
       // @ts-ignore
@@ -807,7 +817,7 @@ export async function syncBidAdjustmentsToAmazon(
           () => (syncService as unknown as Record<string, unknown>).client.updateSdTargetBids(
             sdAudBids.map(r => ({ targetId: r.targetId, bid: r.bid }))
           ),
-          { maxRetries: 3, baseDelayMs: 3000, label: `batchUpdateSdAudienceBids-${sdAudBids.length}`, accountId }
+          { maxRetries: 5, baseDelayMs: 5000, label: `batchUpdateSdAudienceBids-${sdAudBids.length}`, accountId }
         );
         
         // 处理结果

@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 513;  // v513: 同步健康度底层重构 — (1)事件状态机重构:严格区分内部系统事件与API交互事件 (2)出价预检机制:发起调整前校验实体状态,从源头切断entityNotFoundError (3)搜索词收割闭环:通过标准API Helper链路记录同步状态
+export const SYSTEM_VERSION = 514;  // v514: (1)修复冷启动引擎Campaign锚点SQL查询Bug,激活Level 1/2精准锚点策略 (2)统一指数退避重试机制,覆盖所有网络超时/服务器错误场景,出价同步maxRetries提升至5次
