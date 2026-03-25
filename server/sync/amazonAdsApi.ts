@@ -5539,7 +5539,12 @@ export class AmazonAdsApiClient {
         keywords,
       });
       const rawRecs = response.data?.recommendations || response.data || [];
-      log.debug(`[SB] 获取到 ${rawRecs.length} 个关键词建议竞价 (campaignId=${campaignId})`);
+      // v520: 增强日志 — 记录API响应结构，帮助诊断空返回问题
+      if (rawRecs.length === 0) {
+        log.warn(`[SB] v520: 关键词建议竞价API返回空结果 (campaignId=${campaignId}, keywords=${keywords.length}), response.data keys: ${Object.keys(response.data || {}).join(', ')}, status: ${response.status}`);
+      } else {
+        log.info(`[SB] 获取到 ${rawRecs.length} 个关键词建议竞价 (campaignId=${campaignId})`);
+      }
       return rawRecs.map((rec: unknown) => ({
         // @ts-ignore
         keyword: rec.keyword || '',
@@ -5553,7 +5558,11 @@ export class AmazonAdsApiClient {
         rangeEnd: Number(rec.rangeEnd || rec.bidRangeHigh || rec.rangeHigh) || 0,
       }));
     } catch (error: unknown) {
-      log.warn(`[SB] 获取关键词建议竞价失败 (campaignId=${campaignId}): ${(error as Error).message}`);
+      // @ts-ignore
+      const statusCode = (error as Record<string, unknown>)?.response?.status;
+      // @ts-ignore
+      const responseData = JSON.stringify((error as Record<string, unknown>)?.response?.data || {}).substring(0, 300);
+      log.warn(`[SB] v520: 获取关键词建议竞价失败 (campaignId=${campaignId}, status=${statusCode}): ${(error as Error).message}, response: ${responseData}`);
       return [];
     }
   }
@@ -5572,7 +5581,12 @@ export class AmazonAdsApiClient {
         targets,
       });
       const rawRecs = response.data?.recommendations || response.data || [];
-      log.debug(`[SB] 获取到 ${rawRecs.length} 个商品定位建议竞价 (campaignId=${campaignId})`);
+      // v520: 增强日志
+      if (rawRecs.length === 0) {
+        log.warn(`[SB] v520: 商品定位建议竞价API返回空结果 (campaignId=${campaignId}, targets=${targets.length}), response.data keys: ${Object.keys(response.data || {}).join(', ')}, status: ${response.status}`);
+      } else {
+        log.info(`[SB] 获取到 ${rawRecs.length} 个商品定位建议竞价 (campaignId=${campaignId})`);
+      }
       return rawRecs.map((rec: unknown) => ({
         // @ts-ignore
         suggestedBid: Number(rec.suggestedBid || rec.bid) || 0,
@@ -5582,7 +5596,9 @@ export class AmazonAdsApiClient {
         rangeEnd: Number(rec.rangeEnd || rec.bidRangeHigh || rec.rangeHigh) || 0,
       }));
     } catch (error: unknown) {
-      log.warn(`[SB] 获取商品定位建议竞价失败 (campaignId=${campaignId}): ${(error as Error).message}`);
+      // @ts-ignore
+      const statusCode = (error as Record<string, unknown>)?.response?.status;
+      log.warn(`[SB] v520: 获取商品定位建议竞价失败 (campaignId=${campaignId}, status=${statusCode}): ${(error as Error).message}`);
       return [];
     }
   }

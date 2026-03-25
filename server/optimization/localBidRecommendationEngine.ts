@@ -67,7 +67,11 @@ export async function getLocalKeywordBidRecommendation(
   campaignType: string = 'sponsoredProducts',
   targetAcos: number = 0.30,
 ): Promise<LocalBidRecommendation> {
-  const db = getDb();
+  const db = await getDb();
+  if (!db) {
+    log.warn('[v520] getDb() returned null, returning minimum_default');
+    return { suggestedBid: 0.75, rangeStart: 0.30, rangeEnd: 1.50, confidence: 0.10, source: 'minimum_default', sampleSize: 0, reasoning: '数据库不可用' };
+  }
 
   // ========== 策略1: 同AdGroup级别 ==========
   try {
@@ -238,7 +242,11 @@ export async function getLocalTargetBidRecommendation(
   targetAcos: number = 0.30,
 // @ts-ignore
 ): Promise<LocalBidRecommendation> {
-  const db = getDb();
+  const db = await getDb();
+  if (!db) {
+    log.warn('[v520] getDb() returned null for target recommendation, returning minimum_default');
+    return { suggestedBid: 0.75, rangeStart: 0.30, rangeEnd: 1.50, confidence: 0.10, source: 'minimum_default', sampleSize: 0, reasoning: '数据库不可用' };
+  }
 
   // ========== 策略1: 同AdGroup级别 ==========
   try {
