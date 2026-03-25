@@ -1072,12 +1072,15 @@ const engineStatus: EngineStatus = {
 const MAX_CONCURRENT_ACCOUNTS = parseInt(process.env.MAX_CONCURRENT_ACCOUNTS || '15', 10);
 const activeSyncs = new Map<string, { tier: SyncTier; startTime: Date; timeoutMs: number }>();
 
-// v518: 动态超时常量 - 根据账户广告活动数量自动调整
-const DEFAULT_SYNC_TIMEOUT_MS = 45 * 60 * 1000; // 默认45分钟
+// v519: 动态超时常量 - 根据账户广告活动数量自动调整
+// v519修复: 默认从45分钟提升到60分钟，因为36步全量同步即使小账户也可能需要50+分钟
+// (v518的45分钟导致账户90021在步骤23/36被超时终止，建议竞价步骤被跳过)
+const DEFAULT_SYNC_TIMEOUT_MS = 60 * 60 * 1000; // v519: 默认60分钟（原45分钟不够）
 const LARGE_ACCOUNT_TIMEOUT_TIERS = [
   { threshold: 5000, timeoutMs: 90 * 60 * 1000 },  // 5000+广告活动: 90分钟
   { threshold: 3000, timeoutMs: 75 * 60 * 1000 },  // 3000-5000: 75分钟
   { threshold: 1000, timeoutMs: 60 * 60 * 1000 },  // 1000-3000: 60分钟
+  // v519: 小账户也使用60分钟默认值，不再需要额外tier
 ];
 const NIGHTLY_SYNC_TIMEOUT_MS = 4 * 60 * 60 * 1000; // nightly层级: 4小时
 
