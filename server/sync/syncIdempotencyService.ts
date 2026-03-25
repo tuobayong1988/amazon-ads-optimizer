@@ -49,13 +49,14 @@ interface SyncLock {
 const syncLocks = new Map<string, SyncLock>();
 // v518: 动态锁超时 - 默认45分钟，大账户通过参数传入更长超时
 // 与unifiedSyncEngine的动态超时机制保持一致
-const DEFAULT_LOCK_TIMEOUT_MS = 45 * 60 * 1000;
+const DEFAULT_LOCK_TIMEOUT_MS = 60 * 60 * 1000; // v519b: 默认60分钟（与unifiedSyncEngine一致）
 // v518: 导出动态超时计算函数，供unifiedSyncEngine调用
+// v519b: 超时值与unifiedSyncEngine的LARGE_ACCOUNT_TIMEOUT_TIERS保持一致
 export function getDynamicLockTimeout(campaignCount: number, tier: string): number {
   if (tier === 'nightly') return 4 * 60 * 60 * 1000; // nightly: 4小时
-  if (campaignCount >= 5000) return 90 * 60 * 1000;
-  if (campaignCount >= 3000) return 75 * 60 * 1000;
-  if (campaignCount >= 1000) return 60 * 60 * 1000;
+  if (campaignCount >= 5000) return 120 * 60 * 1000; // v519b: 120分钟
+  if (campaignCount >= 3000) return 105 * 60 * 1000; // v519b: 105分钟
+  if (campaignCount >= 1000) return 90 * 60 * 1000;  // v519b: 90分钟
   return DEFAULT_LOCK_TIMEOUT_MS;
 }
 
