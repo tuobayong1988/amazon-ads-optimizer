@@ -490,20 +490,19 @@ export async function acquireLock(
   if (!db) return false;
 
   try {
-    const expiresAt = new Date(Date.now() + ttlMs);
-    const expiresAtStr = expiresAt.toISOString().slice(0, 19).replace('T', ' ');
-    const nowStr = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    // v518: 修复时区不匹配问题 - 使用MySQL服务器本地时间而不是UTC
+    // 数据库时区为US/Pacific，Node.js的toISOString()返回UTC时间
+    // 直接用SQL函数DATE_ADD(NOW(), INTERVAL ...)确保时区一致
+    const ttlSeconds = Math.ceil(ttlMs / 1000);
 
-    // 先清理过期的锁
+    // 先清理过期的锁（使用MySQL NOW()确保时区一致）
     await db.delete(syncLocks)
-      .where(lte(syncLocks.expiresAt, nowStr));
+      .where(lte(syncLocks.expiresAt, sql`NOW()`));
 
     // 尝试插入锁记录（利用UNIQUE约束实现原子性）
-    await db.insert(syncLocks).values({
-      lockKey,
-      holderId,
-      expiresAt: expiresAtStr,
-    });
+    // 使用DATE_ADD(NOW(), INTERVAL)让MySQL自己计算过期时间，避免时区问题
+    await db.execute(sql`INSERT INTO sync_locks (lock_key, holder_id, acquired_at, expires_at) VALUES (${lockKey}, ${holderId}, NOW(), DATE_ADD(NOW(), INTERVAL ${sql.raw(String(ttlSeconds))} SECOND))`);
+    log.info(`[v518] 锁超时设置: ${lockKey}, TTL=${Math.round(ttlMs/60000)}分钟`);
 
     log.debug(`[v358] 获取锁成功: ${lockKey} by ${holderId}`);
     return true;
@@ -552,15 +551,9 @@ export async function renewLock(
   if (!db) return false;
 
   try {
-    const expiresAt = new Date(Date.now() + ttlMs);
-    const expiresAtStr = expiresAt.toISOString().slice(0, 19).replace('T', ' ');
-
-    const result = await db.update(syncLocks)
-      .set({ expiresAt: expiresAtStr })
-      .where(and(
-        eq(syncLocks.lockKey, lockKey),
-        eq(syncLocks.holderId, holderId)
-      ));
+    // v518: 修复时区不匹配问题 - 使用MySQL NOW()而不是Node.js UTC时间
+    const ttlSeconds = Math.ceil(ttlMs / 1000);
+    await db.execute(sql`UPDATE sync_locks SET expires_at = DATE_ADD(NOW(), INTERVAL ${sql.raw(String(ttlSeconds))} SECOND) WHERE lock_key = ${lockKey} AND holder_id = ${holderId}`);
 
     return true;
   } catch (error: unknown) {

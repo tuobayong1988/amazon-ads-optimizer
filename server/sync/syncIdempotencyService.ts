@@ -120,8 +120,9 @@ function isMemoryLocked(accountId: number, syncType: string = 'all'): boolean {
 /**
  * 尝试获取同步锁（v358: 支持分布式锁）
  */
-export async function acquireSyncLock(accountId: number, syncType: string = 'all'): Promise<string | null> {
+export async function acquireSyncLock(accountId: number, syncType: string = 'all', dynamicTimeoutMs?: number): Promise<string | null> {
   const lockKey = getLockKey(accountId, syncType);
+  const timeoutMs = dynamicTimeoutMs || DEFAULT_LOCK_TIMEOUT_MS;
   
   if (currentLockMode === 'memory') {
     return acquireMemoryLock(accountId, syncType);
@@ -130,7 +131,7 @@ export async function acquireSyncLock(accountId: number, syncType: string = 'all
   // auto或distributed模式：优先尝试分布式锁
   try {
     const holderId = `${PROCESS_ID}:${lockKey}`;
-    const acquired = await acquireLock(lockKey, holderId, DEFAULT_LOCK_TIMEOUT_MS);
+    const acquired = await acquireLock(lockKey, holderId, timeoutMs);
     
     if (acquired) {
       log.info(`[v358] 分布式锁已获取: ${lockKey}`);
