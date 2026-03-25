@@ -83,6 +83,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 519,
+    description: 'v519: [SD建议竞价同步+SD受众建议竞价+锁TTL动态超时修复] — (1)P0-SD建议竞价同步增强: syncSdBidRecommendations添加本地推荐引擎回退(与V515 SB修复一致),解决844个SD定位suggestedBid 100%为NULL的问题 (2)P0-SD受众建议竞价新增: sd_audiences表新增suggested_bid/suggested_bid_low/suggested_bid_high三列,新增syncSdAudienceBidRecommendations函数基于本地推荐引擎为13个受众提供建议竞价 (3)P1-锁TTL动态超时修复: shardSyncOrchestrator账户级锁TTL从硬编45分钟改为动态计算(与unifiedSyncEngine V518一致),每个shard执行后同时续期账户级锁和全局锁,防止同步过程中锁过期导致多个同步实例并行运行 (4)P1-同步步骤扩展: unifiedSyncEngine新增sd_audience_bid_recommendations步骤,amazonSyncService Layer 6从3个并行扩展到4个',
+    affectedModules: ['sync', 'db', 'optimization'],
+    correctionActions: ['rerun_correction_scan'],
+  },
+  {
     version: 515,
     description: 'v515: [修复RLDataRecorder参数传递] — (1)P0-修复冷启动出价动作的RL训练样本丢失: nextGenBidOrchestrator中3处recordBidAction调用的campaignId和adGroupId参数类型不匹配导致传入空字符串,现统一通过String()/Number()转换确保类型正确 (2)P1-bidOptimizationExecutor补传internalAdGroupId: 为keyword/product_target/SD受众三种目标类型的target对象添加internalAdGroupId字段,供冷启动引擎Level 1锚点查询和RL数据记录使用',
     affectedModules: ['optimization'],

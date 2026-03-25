@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 515;  // v515: 修复RLDataRecorder参数传递 — 确保cold_start出价动作的campaignId和internalAdGroupId正确传入rl_training_logs，使强化学习训练样本完整收集
+export const SYSTEM_VERSION = 519;  // v519: SD建议竞价同步增强+SD受众建议竞价+锁TTL动态超时修复

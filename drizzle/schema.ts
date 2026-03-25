@@ -2592,6 +2592,10 @@ export const sdAudiences = mysqlTable("sd_audiences", {
 	/** v500: Amazon侧受众ID */
 	amazonAudienceId: varchar("amazon_audience_id", { length: 64 }),
 	bid: decimal({ precision: 10, scale: 2 }),
+	/** v519: SD受众建议竞价 */
+	suggestedBid: decimal("suggested_bid", { precision: 10, scale: 2 }),
+	suggestedBidLow: decimal("suggested_bid_low", { precision: 10, scale: 2 }),
+	suggestedBidHigh: decimal("suggested_bid_high", { precision: 10, scale: 2 }),
 	state: mysqlEnum(['enabled','paused','archived']).default('enabled'),
 	impressions: int().default(0),
 	viewableImpressions: int("viewable_impressions").default(0),

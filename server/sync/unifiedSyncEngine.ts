@@ -951,6 +951,23 @@ const SYNC_STEPS: SyncStep[] = [
       }
     },
   },
+  // v519: SD受众定向建议竞价
+  {
+    id: 'sd_audience_bid_recommendations',
+    name: 'SD受众建议竞价',
+    // @ts-ignore
+    tier: 'full',
+    execute: async (service, ctx) => {
+      try {
+        // @ts-ignore
+        const result = await service.syncSdAudienceBidRecommendations();
+        const synced = typeof result === 'number' ? result : (result as Record<string, unknown>).synced || 0;
+        return { success: true, synced, errors: [] };
+      } catch (e: unknown) {
+        return { success: false, synced: 0, errors: [(e as Error).message] };
+      }
+    },
+  },
   {
     // @ts-ignore
     id: 'sp_budget_rules',

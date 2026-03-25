@@ -33,6 +33,7 @@ import {
   getRecentlyOptimizedKeywordIds,
   getRecentlyOptimizedCampaignIds,
 } from './syncHelpers';
+import { getLocalKeywordBidRecommendation, getLocalTargetBidRecommendation } from '../optimization/localBidRecommendationEngine';
 
 const log = createModuleLogger('syncSd');
 
@@ -789,10 +790,16 @@ AmazonSyncService.prototype.syncSdNegativeTargets = async function(this: AmazonS
 };
 
 /**
- * v417: 同步SD投放对象的建议竞价
+ * v519: 同步SD投放对象的建议竞价（增强版）
  * 
  * SD广告的建议竞价通过 POST /sd/targets/bid/recommendations 获取
  * 传入 targetingClauses（targetId + adGroupId），最多100个
+ * 
+ * v519增强:
+ * - 添加本地推荐引擎回退（与V515 SB修复一致）
+ * - 增强API响应日志记录
+ * - 按adGroup分组进行本地推荐回退
+ * - 支持跨类型数据回退（SD → SP/SB账户级数据）
  * 
  * 建议竞价写入 productTargets.suggestedBid
  */
@@ -802,19 +809,21 @@ AmazonSyncService.prototype.syncSdBidRecommendations = async function(this: Amaz
   if (!db) return { synced: 0, skipped: 0 };
 
   let targetBidsUpdated = 0;
+  let localEngineBidsUpdated = 0;
   let errors = 0;
 
   try {
-    log.info('[v417] ========== 开始同步SD投放对象建议竞价 ==========');
+    log.info('[v519] ========== 开始同步SD投放对象建议竞价 ==========');
 
-    // 查询所有SD投放对象（enabled状态）
+    // v519: 查询所有SD投放对象（enabled状态），同时获取Amazon adGroupId用于本地推荐回退
     const sdTargetRows = await db.select({
       id: productTargets.id,
       targetId: productTargets.targetId,
       adGroupId: productTargets.internalAdGroupId,
+      amazonAdGroupId: adGroups.adGroupId,
       campaignId: productTargets.campaignId,
     }).from(productTargets)
-      .innerJoin(adGroups, eq(productTargets.internalAdGroupId, adGroups.id))  // v420: 修复 - 两者都是int类型，无需CAST
+      .innerJoin(adGroups, eq(productTargets.internalAdGroupId, adGroups.id))
       .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.campaignId))
       .where(and(
         eq(productTargets.accountId, this.accountId),
@@ -822,22 +831,30 @@ AmazonSyncService.prototype.syncSdBidRecommendations = async function(this: Amaz
         eq(productTargets.targetStatus, 'enabled'),
       ));
 
-    log.info(`[v417] 查询到 ${sdTargetRows.length} 个SD投放对象需要获取建议竞价`);
+    log.info(`[v519] 查询到 ${sdTargetRows.length} 个SD投放对象需要获取建议竞价`);
 
     if (sdTargetRows.length === 0) {
       return { synced: 0, skipped: 0 };
     }
 
-    // 查询adGroup的Amazon adGroupId映射 (v422: 修复Map key类型不匹配 - 统一使用number类型)
+    // 查询adGroup的Amazon adGroupId映射
     const internalAdGroupIds = [...new Set(sdTargetRows.map(r => Number(r.adGroupId) || 0).filter(id => id > 0))];
     const adGroupMappingRows = internalAdGroupIds.length > 0
       ? await db.select({ id: adGroups.id, adGroupId: adGroups.adGroupId }).from(adGroups)
           .where(and(eq(adGroups.accountId, this.accountId), inArray(adGroups.id, internalAdGroupIds)))
       : [];
-    // v422: 统一使用number类型作为Map key
     const internalToAmazonAdGroupId = new Map(adGroupMappingRows.map(r => [r.id, r.adGroupId]));
 
+    // v519: 按adGroup分组，便于本地推荐引擎回退
+    const targetsByAdGroup = new Map<number, Array<typeof sdTargetRows[0]>>();
+    for (const row of sdTargetRows) {
+      const agId = Number(row.adGroupId) || 0;
+      if (!targetsByAdGroup.has(agId)) targetsByAdGroup.set(agId, []);
+      targetsByAdGroup.get(agId)!.push(row);
+    }
+
     // 按批次请求建议竞价（每批最多100个）
+    let apiSucceeded = false;
     const batchSize = 100;
     for (let i = 0; i < sdTargetRows.length; i += batchSize) {
       const batch = sdTargetRows.slice(i, i + batchSize);
@@ -849,7 +866,6 @@ AmazonSyncService.prototype.syncSdBidRecommendations = async function(this: Amaz
 
         for (const tgt of batch) {
           if (!tgt.targetId) continue;
-          // v422: 使用number类型key查找，与Map的key类型一致
           const amazonAdGroupId = internalToAmazonAdGroupId.get(Number(tgt.adGroupId) || 0);
           if (!amazonAdGroupId) continue;
 
@@ -864,7 +880,9 @@ AmazonSyncService.prototype.syncSdBidRecommendations = async function(this: Amaz
 
         const recommendations = await this.client.getSdTargetBidRecommendations(targetingClauses);
 
-        // v436: 更新建议竞价（包含low/median/high）
+        // v519: 增强日志 — 记录API返回的原始数据量
+        log.info(`[v519] SD建议竞价API返回: 请求=${targetingClauses.length}, 返回=${recommendations?.length || 0}`);
+
         if (recommendations && recommendations.length > 0) {
           // 尝试按targetId匹配
           const recByTargetId = new Map<string, { suggestedBid: number; bidRangeLow: number; bidRangeHigh: number }>();
@@ -878,6 +896,7 @@ AmazonSyncService.prototype.syncSdBidRecommendations = async function(this: Amaz
             }
           }
 
+          let batchUpdated = 0;
           for (const tgt of batch) {
             if (!tgt.targetId) continue;
             const bidData = recByTargetId.get(tgt.targetId);
@@ -890,11 +909,12 @@ AmazonSyncService.prototype.syncSdBidRecommendations = async function(this: Amaz
                 })
                 .where(eq(productTargets.id, tgt.id));
               targetBidsUpdated++;
+              batchUpdated++;
             }
           }
 
           // 如果按targetId匹配不到，尝试按顺序匹配
-          if (targetBidsUpdated === 0 && recommendations.length > 0) {
+          if (batchUpdated === 0 && recommendations.length > 0) {
             const orderedTargets = [...clauseToTarget.entries()].sort((a, b) => a[0] - b[0]);
             for (let j = 0; j < Math.min(recommendations.length, orderedTargets.length); j++) {
               const rec = recommendations[j];
@@ -908,22 +928,61 @@ AmazonSyncService.prototype.syncSdBidRecommendations = async function(this: Amaz
                   })
                   .where(eq(productTargets.id, tgt.id));
                 targetBidsUpdated++;
-              // @ts-ignore
+                batchUpdated++;
               }
             }
           }
+
+          if (batchUpdated > 0) apiSucceeded = true;
         }
       } catch (err: unknown) {
         errors++;
-        log.warn(`[v417] SD投放对象建议竞价批次获取失败: ${(err as Error).message}`);
+        log.warn(`[v519] SD投放对象建议竞价批次获取失败: ${(err as Error).message}`);
       }
     }
 
-    log.info(`[v417] ========== SD建议竞价同步总结: 定位=${targetBidsUpdated}, 错误=${errors} ==========`);
-    return { synced: targetBidsUpdated, skipped: errors };
+    // v519: Amazon API失败或返回空时，使用本地历史数据推荐引擎为SD targets提供建议竞价
+    // 按adGroup分组进行本地推荐回退
+    if (!apiSucceeded && sdTargetRows.length > 0) {
+      log.info(`[v519] SD API未返回有效建议竞价，启动本地推荐引擎回退 (${targetsByAdGroup.size}个广告组)`);
+
+      for (const [internalAgId, targets] of targetsByAdGroup) {
+        try {
+          const amazonAdGroupId = internalToAmazonAdGroupId.get(internalAgId);
+          if (!amazonAdGroupId) continue;
+
+          const refCampaignId = targets[0]?.campaignId || '';
+          const localRec = await getLocalTargetBidRecommendation(
+            this.accountId, amazonAdGroupId, refCampaignId, 'sd', 0.30
+          );
+
+          if (localRec.source !== 'minimum_default' && localRec.suggestedBid > 0) {
+            for (const tgt of targets) {
+              await db.update(productTargets)
+                .set({
+                  suggestedBid: String(localRec.suggestedBid),
+                  suggestedBidLow: String(localRec.rangeStart),
+                  suggestedBidHigh: String(localRec.rangeEnd),
+                })
+                .where(eq(productTargets.id, tgt.id));
+              localEngineBidsUpdated++;
+            }
+            log.info(`[v519] 本地推荐引擎为SD adGroup ${amazonAdGroupId} 的 ${targets.length} 个定位提供建议竞价 $${localRec.suggestedBid.toFixed(2)} (${localRec.source})`);
+          } else {
+            log.debug(`[v519] 本地推荐引擎对SD adGroup ${amazonAdGroupId} 无足够数据 (source=${localRec.source})`);
+          }
+        } catch (localErr: unknown) {
+          log.debug(`[v519] SD定位本地推荐引擎异常: ${(localErr as Error).message}`);
+        }
+      }
+    }
+
+    const totalUpdated = targetBidsUpdated + localEngineBidsUpdated;
+    log.info(`[v519] ========== SD建议竞价同步总结: API=${targetBidsUpdated}, 本地引擎=${localEngineBidsUpdated}, 总计=${totalUpdated}, 错误=${errors} ==========`);
+    return { synced: totalUpdated, skipped: errors };
   } catch (error: any) {
-    log.warn(`[v417] Error syncing SD bid recommendations: ${(error as Error).message || JSON.stringify(error)}`);
-    return { synced: targetBidsUpdated, skipped: errors };
+    log.warn(`[v519] Error syncing SD bid recommendations: ${(error as Error).message || JSON.stringify(error)}`);
+    return { synced: targetBidsUpdated + localEngineBidsUpdated, skipped: errors };
   }
 };
 
@@ -1123,5 +1182,99 @@ AmazonSyncService.prototype.syncSdAudiences = async function(this: AmazonSyncSer
       log.warn('[v500] SD audiences API返回403，Profile缺少SD权限，跳过');
     }
     return { synced: 0, skipped: 0 };
+  }
+};
+
+/**
+ * v519: 同步SD受众定向的建议竞价
+ * 
+ * SD受众定向（sd_audiences表）之前没有suggestedBid列，
+ * v519新增了suggested_bid/suggested_bid_low/suggested_bid_high三列。
+ * 
+ * SD受众定向的建议竞价获取策略：
+ * 1. 尝试通过Amazon SD API获取（如果API支持受众级别的竞价建议）
+ * 2. 回退到本地推荐引擎：使用同广告组/同广告活动/同账户的历史数据
+ * 
+ * 注：Amazon SD API目前不提供受众级别的竞价建议端点，
+ * 因此主要依赖本地推荐引擎基于历史表现数据计算建议竞价。
+ */
+// @ts-ignore
+AmazonSyncService.prototype.syncSdAudienceBidRecommendations = async function(this: AmazonSyncService): Promise<{ synced: number; skipped: number }> {
+  const db = await getDb();
+  if (!db) return { synced: 0, skipped: 0 };
+
+  let audienceBidsUpdated = 0;
+  let errors = 0;
+
+  try {
+    log.info('[v519] ========== 开始同步SD受众定向建议竞价 ==========');
+
+    // 查询所有SD受众定向（enabled状态），同时获取adGroup和campaign信息
+    const sdAudienceRows = await db.select({
+      id: sdAudiences.id,
+      internalAdGroupId: sdAudiences.internalAdGroupId,
+      audienceId: sdAudiences.audienceId,
+      audienceType: sdAudiences.audienceType,
+      bid: sdAudiences.bid,
+      amazonAdGroupId: adGroups.adGroupId,
+      campaignId: adGroups.campaignId,
+    }).from(sdAudiences)
+      .innerJoin(adGroups, eq(sdAudiences.internalAdGroupId, adGroups.id))
+      .where(and(
+        eq(sdAudiences.accountId, this.accountId),
+        eq(sdAudiences.state, 'enabled'),
+      ));
+
+    log.info(`[v519] 查询到 ${sdAudienceRows.length} 个SD受众定向需要获取建议竞价`);
+
+    if (sdAudienceRows.length === 0) {
+      return { synced: 0, skipped: 0 };
+    }
+
+    // 按adGroup分组
+    const audiencesByAdGroup = new Map<string, Array<typeof sdAudienceRows[0]>>();
+    for (const row of sdAudienceRows) {
+      const agId = row.amazonAdGroupId || '';
+      if (!audiencesByAdGroup.has(agId)) audiencesByAdGroup.set(agId, []);
+      audiencesByAdGroup.get(agId)!.push(row);
+    }
+
+    // 使用本地推荐引擎为每个adGroup的受众提供建议竞价
+    for (const [amazonAdGroupId, audiences] of audiencesByAdGroup) {
+      if (!amazonAdGroupId) continue;
+
+      try {
+        const refCampaignId = audiences[0]?.campaignId || '';
+        // 使用Target级别的本地推荐（SD受众和Target共用同一个广告组的历史数据）
+        const localRec = await getLocalTargetBidRecommendation(
+          this.accountId, amazonAdGroupId, refCampaignId, 'sd', 0.30
+        );
+
+        if (localRec.source !== 'minimum_default' && localRec.suggestedBid > 0) {
+          for (const aud of audiences) {
+            await db.update(sdAudiences)
+              .set({
+                suggestedBid: String(localRec.suggestedBid),
+                suggestedBidLow: String(localRec.rangeStart),
+                suggestedBidHigh: String(localRec.rangeEnd),
+              })
+              .where(eq(sdAudiences.id, aud.id));
+            audienceBidsUpdated++;
+          }
+          log.info(`[v519] 本地推荐引擎为SD adGroup ${amazonAdGroupId} 的 ${audiences.length} 个受众提供建议竞价 $${localRec.suggestedBid.toFixed(2)} (${localRec.source}, confidence=${localRec.confidence.toFixed(2)})`);
+        } else {
+          log.debug(`[v519] 本地推荐引擎对SD adGroup ${amazonAdGroupId} 无足够数据 (source=${localRec.source})`);
+        }
+      } catch (localErr: unknown) {
+        errors++;
+        log.debug(`[v519] SD受众本地推荐引擎异常: ${(localErr as Error).message}`);
+      }
+    }
+
+    log.info(`[v519] ========== SD受众建议竞价同步总结: 更新=${audienceBidsUpdated}, 错误=${errors} ==========`);
+    return { synced: audienceBidsUpdated, skipped: errors };
+  } catch (error: any) {
+    log.warn(`[v519] Error syncing SD audience bid recommendations: ${(error as Error).message || JSON.stringify(error)}`);
+    return { synced: audienceBidsUpdated, skipped: errors };
   }
 };

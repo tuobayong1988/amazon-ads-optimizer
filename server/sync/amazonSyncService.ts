@@ -608,7 +608,7 @@ export class AmazonSyncService {
     // v420: P0修复 - 将建议竞价同步纳入常规同步流程
     // 建议竞价对冷启动阶段的竞价优化有非常强的参考价值
     await runLayer(6, '建议竞价同步', async () => {
-    log.info(`[syncAll] v420: Layer 6 - 建议竞价同步 (3个并行)`);
+    log.info(`[syncAll] v519: Layer 6 - 建议竞价同步 (4个并行，含SD受众)`);
     await Promise.allSettled([
       // @ts-expect-error - runStep type inference
       runStep('SP建议竞价', () => this.syncSpBidRecommendations()),
@@ -616,6 +616,8 @@ export class AmazonSyncService {
       runStep('SB建议竞价', () => this.syncSbBidRecommendations()),
       // @ts-expect-error - runStep type inference
       runStep('SD建议竞价', () => this.syncSdBidRecommendations()),
+      // @ts-expect-error - runStep type inference
+      runStep('SD受众建议竞价', () => this.syncSdAudienceBidRecommendations()),
     ]);
     }); // end Layer 6
 

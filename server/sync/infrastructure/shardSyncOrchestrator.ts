@@ -11,6 +11,11 @@
  * - 保持syncAllAccounts的接口不变
  * - 内部使用shardManager管理状态
  * - 分布式锁替代内存锁
+ * 
+ * v519: 修复锁TTL动态超时问题
+ * - 账户级锁TTL从硬编码45分钟改为动态计算（与unifiedSyncEngine V518一致）
+ * - 每个shard执行后同时续期账户级锁和全局锁
+ * - 根据账户广告活动数量动态调整锁TTL
  */
 import { createModuleLogger } from '../../utils/logger';
 import {
@@ -30,11 +35,56 @@ import {
 } from './shardManager';
 import { discoverSyncableAccounts, getStepsForTier, syncAccount } from '../unifiedSyncEngine';
 import { randomUUID } from 'crypto';
+import { getDb } from '../../db';
+import { campaigns as campaignsTable } from '../../../drizzle/schema';
+import { eq, sql } from 'drizzle-orm';
 
 const log = createModuleLogger('shardSyncOrchestrator');
 
 // 进程实例ID（用于分布式锁）
 const INSTANCE_ID = `worker-${randomUUID().slice(0, 8)}`;
+
+// v519: 动态超时常量 — 与unifiedSyncEngine V518保持一致
+const DEFAULT_ACCOUNT_LOCK_TTL_MS = 45 * 60 * 1000;  // 默认45分钟
+const GLOBAL_LOCK_TTL_MS = 60 * 60 * 1000;            // 全局锁1小时
+const NIGHTLY_LOCK_TTL_MS = 4 * 60 * 60 * 1000;       // nightly层级4小时
+const LARGE_ACCOUNT_THRESHOLD = 1000;
+const LARGE_ACCOUNT_TIMEOUT_TIERS = [
+  { threshold: 5000, timeoutMs: 90 * 60 * 1000 },  // 5000+广告活动: 90分钟
+  { threshold: 3000, timeoutMs: 75 * 60 * 1000 },  // 3000-5000: 75分钟
+  { threshold: 1000, timeoutMs: 60 * 60 * 1000 },  // 1000-3000: 60分钟
+];
+
+/**
+ * v519: 根据账户广告活动数量计算动态锁TTL
+ */
+async function getDynamicLockTtl(accountId: number, tier: SyncTier): Promise<number> {
+  if (tier === 'nightly') return NIGHTLY_LOCK_TTL_MS;
+
+  try {
+    const db = await getDb();
+    if (!db) return DEFAULT_ACCOUNT_LOCK_TTL_MS;
+
+    const countResult = await db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(campaignsTable)
+      .where(eq(campaignsTable.accountId, accountId));
+    const campaignCount = countResult[0]?.count || 0;
+
+    if (campaignCount >= LARGE_ACCOUNT_THRESHOLD) {
+      for (const t of LARGE_ACCOUNT_TIMEOUT_TIERS) {
+        if (campaignCount >= t.threshold) {
+          log.info(`[v519] 账户${accountId}拥有${campaignCount}个广告活动，动态锁TTL=${Math.round(t.timeoutMs / 60000)}分钟`);
+          return t.timeoutMs;
+        }
+      }
+    }
+  } catch (e: unknown) {
+    log.debug(`[v519] 查询账户${accountId}广告活动数失败: ${(e as Error).message}`);
+  }
+
+  return DEFAULT_ACCOUNT_LOCK_TTL_MS;
+}
 
 /**
  * v358: 基于Shard的syncAllAccounts
@@ -66,7 +116,8 @@ export async function shardBasedSyncAll(
 
   // Step 1: 获取全局锁（防止同一层级的多个实例同时执行）
   const globalLockKey = `sync:global:${tier}`;
-  const lockAcquired = await acquireLock(globalLockKey, INSTANCE_ID, 60 * 60 * 1000); // 1小时TTL
+  const globalLockTtl = tier === 'nightly' ? NIGHTLY_LOCK_TTL_MS : GLOBAL_LOCK_TTL_MS;
+  const lockAcquired = await acquireLock(globalLockKey, INSTANCE_ID, globalLockTtl);
   if (!lockAcquired) {
     log.info(`[v358] ${tier}层同步已有其他实例在执行，跳过`);
     return result;
@@ -124,9 +175,10 @@ export async function shardBasedSyncAll(
     }
 
     for (const [accountId, accountShards] of accountGroups) {
-      // 获取账户级锁
+      // v519: 获取账户级锁 — 使用动态TTL替代硬编码45分钟
       const accountLockKey = `sync:account:${accountId}:${tier}`;
-      const accountLockAcquired = await acquireLock(accountLockKey, INSTANCE_ID, 45 * 60 * 1000); // 45分钟TTL
+      const accountLockTtl = await getDynamicLockTtl(accountId, tier);
+      const accountLockAcquired = await acquireLock(accountLockKey, INSTANCE_ID, accountLockTtl);
       
       if (!accountLockAcquired) {
         log.warn(`[v358] 账户${accountId}的${tier}层同步被锁定，跳过该账户的所有分片`);
@@ -198,8 +250,9 @@ export async function shardBasedSyncAll(
           // 步骤间延迟
           await new Promise(resolve => setTimeout(resolve, 1000));
           
-          // 定期续期全局锁
-          await renewLock(globalLockKey, INSTANCE_ID, 60 * 60 * 1000);
+          // v519: 定期续期全局锁和账户级锁（使用动态TTL）
+          await renewLock(globalLockKey, INSTANCE_ID, globalLockTtl);
+          await renewLock(accountLockKey, INSTANCE_ID, accountLockTtl);
         }
       } finally {
         // 释放账户级锁
@@ -264,43 +317,49 @@ export async function retryFailedShards(): Promise<{
         continue;
       }
 
-      // 获取步骤对应的tier
-      const allSteps = getStepsForTier('full');
-      const step = allSteps.find(s => s.id === shard.stepId);
-      if (!step) {
-        await markShardFailed(shard.shardId, `步骤${shard.stepId}不存在`, 'STEP_NOT_FOUND');
+      // v519: 获取动态锁TTL
+      const accountLockTtl = await getDynamicLockTtl(shard.accountId, shard.tier as SyncTier);
+      const accountLockKey = `sync:account:${shard.accountId}:${shard.tier}`;
+      const lockAcquired = await acquireLock(accountLockKey, INSTANCE_ID, accountLockTtl);
+      
+      if (!lockAcquired) {
+        await markShardFailed(shard.shardId, '账户锁定: 重试时另一个同步进程正在处理', 'ACCOUNT_LOCKED');
         result.failed++;
         continue;
       }
 
-      const shardStartTime = Date.now();
-      const accountResult = await syncAccount(account, step.tier, {
-        specificSteps: [shard.stepId],
-      });
-
-      const stepResult = accountResult.stepResults[shard.stepId];
-      const durationMs = Date.now() - shardStartTime;
-
-      if (stepResult?.success) {
-        await markShardCompleted(shard.shardId, {
-          shardId: shard.shardId,
-          status: 'completed',
-          recordsSynced: stepResult.synced || 0,
-          durationMs,
+      try {
+        const accountResult = await syncAccount(account, shard.tier as SyncTier, {
+          specificSteps: [shard.stepId],
         });
-        result.succeeded++;
-      } else {
-        const errorMsg = stepResult?.errors?.join('; ') || '重试失败';
-        await markShardFailed(shard.shardId, errorMsg, 'RETRY_FAILED');
-        result.failed++;
+
+        const stepResult = accountResult.stepResults[shard.stepId];
+        if (stepResult?.success) {
+          await markShardCompleted(shard.shardId, {
+            shardId: shard.shardId,
+            status: 'completed',
+            recordsSynced: stepResult.synced || 0,
+          });
+          result.succeeded++;
+        } else {
+          const errorMsg = stepResult?.errors?.join('; ') || '重试失败';
+          await markShardFailed(shard.shardId, errorMsg, 'RETRY_FAILED');
+          result.failed++;
+        }
+      } finally {
+        await releaseLock(accountLockKey, INSTANCE_ID);
       }
+
     } catch (error: unknown) {
-      log.warn(`[v358] 重试shard ${shard.shardId} 异常: ${(error as Error).message}`);
-      await markShardFailed(shard.shardId, (error as Error).message, 'RETRY_EXCEPTION');
+      log.warn(`[v358] 重试分片 ${shard.shardId} 异常: ${(error as Error).message}`);
+      await markShardFailed(shard.shardId, (error as Error).message, 'RETRY_ERROR');
       result.failed++;
     }
+
+    // 重试间延迟
+    await new Promise(resolve => setTimeout(resolve, 2000));
   }
 
-  log.info(`[v358] 分片重试完成: 重试=${result.retried}, 成功=${result.succeeded}, 失败=${result.failed}`);
+  log.info(`[v358] 重试完成: 重试=${result.retried}, 成功=${result.succeeded}, 失败=${result.failed}`);
   return result;
 }
