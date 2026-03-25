@@ -304,4 +304,91 @@ export const dashboardRecommendationRouter = router({
         return { data: [], error: `Failed query: ${sqlInfo}\nparams: ${accountId},${startDate},${endDate},${limit}` };
       }
     }),
+
+  /**
+   * 临时诊断端点 - v502修复效果监控
+   */
+  v502Diagnostics: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      queryType: z.enum([
+        'sb_sync_status_24h',
+        'sb_sync_failed_details',
+        'sb_keyword_amazon_deleted_count',
+        'sb_keyword_bid_changes',
+        'sb_optimization_events_summary'
+      ]),
+    }))
+    // @ts-ignore
+    .query(async ({ input }: unknown) => {
+      // @ts-ignore
+      const db_ = await getDb();
+      const { accountId, queryType } = input;
+      try {
+        if (queryType === 'sb_sync_status_24h') {
+          // @ts-ignore
+          const result = await db_.execute(sql`
+            SELECT api_sync_status, COUNT(*) as count,
+              MIN(created_at) as earliest, MAX(created_at) as latest
+            FROM optimization_events
+            WHERE account_id = ${accountId} AND campaign_type = 'sb'
+              AND created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+            GROUP BY api_sync_status ORDER BY count DESC
+          `);
+          return { data: (result as unknown[][])[0] };
+        }
+        if (queryType === 'sb_sync_failed_details') {
+          // @ts-ignore
+          const result = await db_.execute(sql`
+            SELECT id, campaign_id, event_type, api_sync_status, error_message, created_at
+            FROM optimization_events
+            WHERE account_id = ${accountId} AND campaign_type = 'sb'
+              AND api_sync_status = 'failed'
+              AND created_at >= DATE_SUB(NOW(), INTERVAL 72 HOUR)
+            ORDER BY created_at DESC LIMIT 50
+          `);
+          return { data: (result as unknown[][])[0] };
+        }
+        if (queryType === 'sb_keyword_amazon_deleted_count') {
+          // @ts-ignore
+          const result = await db_.execute(sql`
+            SELECT k.keywordStatus, COUNT(*) as count
+            FROM keywords k
+            JOIN campaigns c ON k.campaignId = c.campaignId AND c.accountId = ${accountId}
+            WHERE k.accountId = ${accountId} AND c.campaignType = 'sb'
+            GROUP BY k.keywordStatus ORDER BY count DESC
+          `);
+          return { data: (result as unknown[][])[0] };
+        }
+        if (queryType === 'sb_keyword_bid_changes') {
+          // @ts-ignore
+          const result = await db_.execute(sql`
+            SELECT oe.id, oe.campaign_id, oe.event_type, oe.old_value, oe.new_value,
+              oe.api_sync_status, oe.created_at, c.campaignName
+            FROM optimization_events oe
+            JOIN campaigns c ON oe.campaign_id = c.id AND c.accountId = ${accountId}
+            WHERE oe.account_id = ${accountId} AND oe.campaign_type = 'sb'
+              AND oe.event_type LIKE '%bid%'
+              AND oe.created_at >= DATE_SUB(NOW(), INTERVAL 72 HOUR)
+            ORDER BY oe.created_at DESC LIMIT 100
+          `);
+          return { data: (result as unknown[][])[0] };
+        }
+        if (queryType === 'sb_optimization_events_summary') {
+          // @ts-ignore
+          const result = await db_.execute(sql`
+            SELECT event_type, api_sync_status, COUNT(*) as count, MAX(created_at) as latest
+            FROM optimization_events
+            WHERE account_id = ${accountId} AND campaign_type = 'sb'
+              AND created_at >= DATE_SUB(NOW(), INTERVAL 72 HOUR)
+            GROUP BY event_type, api_sync_status ORDER BY count DESC
+          `);
+          return { data: (result as unknown[][])[0] };
+        }
+        return { data: [], error: 'Unknown queryType' };
+      } catch (e: unknown) {
+        const errMsg = (e as Error).message || String(e);
+        return { data: [], error: `Diagnostics query failed: ${errMsg}` };
+      }
+    }),
 });
