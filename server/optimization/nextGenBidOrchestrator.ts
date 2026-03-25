@@ -1224,16 +1224,16 @@ export async function calculateNextGenBid(
     if ((isAdvancedAlgorithm || isUcbExploration) && hasValidBid) {
       const safeBid = safetyValidate(target.currentBid, metaDecision.recommendedBid, safetyConfig, maxBidLimit);
       
-      // v252: 异步记录RL数据（修复: 传递campaignId确保captureStateSnapshot获取正确粒度的数据）
+      // v515: 修复RL数据记录参数传递 — 确保campaignId(string)和adGroupId(number)正确传入
+      const advRlCampaignId = String((target as Record<string, unknown>).amazonCampaignId || (target as Record<string, unknown>).campaignId || '');
+      const advRlAdGroupId = Number((target as Record<string, unknown>).internalAdGroupId || (target as Record<string, unknown>).adGroupId || 0);
       recordBidAction({
         accountId,
         // @ts-ignore
         keywordId,
         targetId,
-        // @ts-ignore
-        campaignId: (target as Record<string, unknown>).amazonCampaignId || undefined,
-        // @ts-ignore
-        adGroupId: (target as Record<string, unknown>).internalAdGroupId || undefined,
+        campaignId: advRlCampaignId || undefined,
+        adGroupId: advRlAdGroupId || undefined,
         bidBefore: target.currentBid,
         bidAfter: safeBid,
         actionSource: metaDecision.selectedAlgorithm === 'linucb' ? 'linucb' :
@@ -1338,12 +1338,13 @@ export async function calculateNextGenBid(
       // 记录RL数据
       const keywordId = target.type === 'keyword' ? target.id : undefined;
       const targetId = target.type === 'product_target' ? target.id : undefined;
+      // v515: 修复RLDataRecorder参数传递 — 确保campaignId(string)和adGroupId(number)正确传入
+      const rlCampaignId = String((target as Record<string, unknown>).amazonCampaignId || (target as Record<string, unknown>).campaignId || '');
+      const rlAdGroupId = Number((target as Record<string, unknown>).internalAdGroupId || (target as Record<string, unknown>).adGroupId || 0);
       recordBidAction({
         accountId, keywordId, targetId,
-        // @ts-ignore
-        campaignId: (target as Record<string, unknown>).amazonCampaignId || undefined,
-        // @ts-ignore
-        adGroupId: (target as Record<string, unknown>).internalAdGroupId || undefined,
+        campaignId: rlCampaignId || undefined,
+        adGroupId: rlAdGroupId || undefined,
         bidBefore: target.currentBid,
         bidAfter: safeBid,
         actionSource: 'cold_start',
@@ -1527,14 +1528,15 @@ export async function calculateNextGenBid(
     // v252: 规则引擎也记录RL数据（修复: 传递campaignId确保正确粒度）
     const keywordId = target.type === 'keyword' ? target.id : undefined;
     const targetId = target.type === 'product_target' ? target.id : undefined;
+    // v515: 修复RL数据记录参数传递 — 确保campaignId(string)和adGroupId(number)正确传入
+    const ruleRlCampaignId = String((target as Record<string, unknown>).amazonCampaignId || (target as Record<string, unknown>).campaignId || '');
+    const ruleRlAdGroupId = Number((target as Record<string, unknown>).internalAdGroupId || (target as Record<string, unknown>).adGroupId || 0);
     recordBidAction({
       accountId,
       keywordId,
       targetId,
-      // @ts-ignore
-      campaignId: (target as Record<string, unknown>).amazonCampaignId || undefined,
-      // @ts-ignore
-      adGroupId: (target as Record<string, unknown>).internalAdGroupId || undefined,
+      campaignId: ruleRlCampaignId || undefined,
+      adGroupId: ruleRlAdGroupId || undefined,
       bidBefore: target.currentBid,
       bidAfter: safeBid,
       actionSource: 'rule_based',

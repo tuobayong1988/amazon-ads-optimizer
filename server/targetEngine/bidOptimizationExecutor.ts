@@ -545,6 +545,8 @@ export async function executeBidOptimization(
         suggestedBidRangeStart: keyword.suggestedBidLow ? parseFloat(String(keyword.suggestedBidLow)) : undefined,
         suggestedBidRangeEnd: keyword.suggestedBidHigh ? parseFloat(String(keyword.suggestedBidHigh)) : undefined,
         keywordText: keyword.keywordText,
+        // v515: 传入internalAdGroupId供RLDataRecorder和冷启动引擎使用
+        internalAdGroupId: keyword.internalAdGroupId,
       });
     }
     
@@ -698,6 +700,8 @@ export async function executeBidOptimization(
         suggestedBid: target.suggestedBid ? parseFloat(String(target.suggestedBid)) : undefined,
         suggestedBidRangeStart: target.suggestedBidLow ? parseFloat(String(target.suggestedBidLow)) : undefined,
         suggestedBidRangeEnd: target.suggestedBidHigh ? parseFloat(String(target.suggestedBidHigh)) : undefined,
+        // v515: 传入internalAdGroupId供RLDataRecorder和冷启动引擎使用
+        internalAdGroupId: target.internalAdGroupId,
       });
     }
     
@@ -739,6 +743,8 @@ export async function executeBidOptimization(
               marketplace: config.marketplace,
               localCampaignId: campaignLocalId,
               amazonCampaignId: campaignAmazonId,
+              // v515: 传入internalAdGroupId供RLDataRecorder使用
+              internalAdGroupId: audience.internalAdGroupId,
             });
           } else {
             allSdAudiences.push(audience);
@@ -759,6 +765,8 @@ export async function executeBidOptimization(
               marketplace: config.marketplace,
               localCampaignId: campaignLocalId,
               amazonCampaignId: campaignAmazonId,
+              // v515: 传入internalAdGroupId供RLDataRecorder使用
+              internalAdGroupId: audience.internalAdGroupId,
             });
           }
         }

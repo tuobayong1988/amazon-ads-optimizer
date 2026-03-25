@@ -83,6 +83,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 515,
+    description: 'v515: [修复RLDataRecorder参数传递] — (1)P0-修复冷启动出价动作的RL训练样本丢失: nextGenBidOrchestrator中3处recordBidAction调用的campaignId和adGroupId参数类型不匹配导致传入空字符串,现统一通过String()/Number()转换确保类型正确 (2)P1-bidOptimizationExecutor补传internalAdGroupId: 为keyword/product_target/SD受众三种目标类型的target对象添加internalAdGroupId字段,供冷启动引擎Level 1锚点查询和RL数据记录使用',
+    affectedModules: ['optimization'],
+    correctionActions: ['rerun_optimization'],
+  },
+  {
     version: 514,
     description: 'v514: [冷启动精准锚点激活+指数退避重试] — (1)P0-修复Campaign锚点SQL查询Bug: suggestedBidColdStartEngine中campaigns.amazonCampaignId字段不存在导致SQL畸形,改为直接使用campaigns.campaignId,彻底激活Level 1(AdGroup锚点)和Level 2(Campaign锚点)精准出价策略 (2)P0-统一指数退避重试机制: withRetry函数对所有可重试错误(429限流/网络超时ETIMEDOUT/ECONNRESET/ECONNABORTED/服务器500+)统一使用指数退避+随机抖动,出价同步maxRetries从3提升至5、baseDelayMs从3000提升至5000,彻底消除网络瞬时故障导致的残余失败',
     affectedModules: ['optimization', 'sync'],

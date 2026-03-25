@@ -32,6 +32,7 @@ import {
   getRecentlyOptimizedKeywordIds,
   getRecentlyOptimizedCampaignIds,
 } from './syncHelpers';
+import { getLocalKeywordBidRecommendation, getLocalTargetBidRecommendation } from '../optimization/localBidRecommendationEngine';
 
 const log = createModuleLogger('syncSb');
 
@@ -1532,11 +1533,12 @@ AmazonSyncService.prototype.syncSbBidRecommendations = async function(this: Amaz
     // ========== 第一部分：SB关键词建议竞价 ==========
     log.info('[v417] ========== 开始同步SB关键词建议竞价 ==========');
 
-    // 查询所有SB关键词（enabled状态），按campaign分组
+    // v515: 查询所有SB关键词（enabled状态），按campaign分组，同时获取Amazon adGroupId用于本地推荐回退
     const sbKeywordRows = await db.select({
       id: keywords.id,
       campaignId: keywords.campaignId,
-      adGroupId: keywords.internalAdGroupId,
+      internalAdGroupId: keywords.internalAdGroupId,
+      amazonAdGroupId: adGroups.adGroupId,
       keywordText: keywords.keywordText,
       matchType: keywords.matchType,
     }).from(keywords)
@@ -1548,14 +1550,14 @@ AmazonSyncService.prototype.syncSbBidRecommendations = async function(this: Amaz
         eq(keywords.keywordStatus, 'enabled'),
       ));
 
-    log.info(`[v417] 查询到 ${sbKeywordRows.length} 个SB关键词需要获取建议竞价`);
+    log.info(`[v515] 查询到 ${sbKeywordRows.length} 个SB关键词需要获取建议竞价`);
 
     // 按campaignId分组（SB API使用campaignId而非adGroupId）
-    const kwByCampaign = new Map<string, Array<{ id: number; keywordText: string; matchType: string }>>();
+    const kwByCampaign = new Map<string, Array<{ id: number; keywordText: string; matchType: string; amazonAdGroupId: string }>>();
     for (const row of sbKeywordRows) {
       const cId = row.campaignId || '';
       if (!kwByCampaign.has(cId)) kwByCampaign.set(cId, []);
-      kwByCampaign.get(cId)!.push({ id: row.id, keywordText: row.keywordText, matchType: row.matchType });
+      kwByCampaign.get(cId)!.push({ id: row.id, keywordText: row.keywordText, matchType: row.matchType, amazonAdGroupId: row.amazonAdGroupId || '' });
     }
 
     // 查询campaign的Amazon campaignId映射
@@ -1570,10 +1572,11 @@ AmazonSyncService.prototype.syncSbBidRecommendations = async function(this: Amaz
     for (const [campaignId, kwList] of kwByCampaign) {
       const amazonCampaignId = campaignIdMap.get(campaignId);
       if (!amazonCampaignId) {
-        log.debug(`[v417] campaign ${campaignId} 无映射，跳过`);
+        log.debug(`[v515] campaign ${campaignId} 无映射，跳过`);
         continue;
       }
 
+      let apiSucceeded = false;
       try {
         // 每批最多100个关键词
         const batchSize = 100;
@@ -1586,7 +1589,11 @@ AmazonSyncService.prototype.syncSbBidRecommendations = async function(this: Amaz
 
           const recommendations = await this.client.getSbBidRecommendations(amazonCampaignId, apiKeywords);
 
+          // v515: 增强日志 — 记录API返回的原始数据量，帮助诊断空返回问题
+          log.info(`[v515] SB关键词建议竞价API返回: campaignId=${amazonCampaignId}, 请求=${batch.length}, 返回=${recommendations?.length || 0}`);
+
           if (recommendations && recommendations.length > 0) {
+            apiSucceeded = true;
             // v436: 升级为包含bid range的对象
             const recMap = new Map<string, { suggestedBid: number; rangeLow: number; rangeHigh: number }>();
             for (const rec of recommendations) {
@@ -1619,7 +1626,38 @@ AmazonSyncService.prototype.syncSbBidRecommendations = async function(this: Amaz
         }
       } catch (err: unknown) {
         errors++;
-        log.warn(`[v417] campaign ${campaignId} SB关键词建议竞价获取失败: ${(err as Error).message}`);
+        const errMsg = (err as Error).message || JSON.stringify(err);
+        log.warn(`[v515] campaign ${campaignId} SB关键词建议竞价API获取失败: ${errMsg}`);
+      }
+
+      // v515: Amazon API失败或返回空时，使用本地历史数据推荐引擎为该campaign的关键词提供建议竞价
+      if (!apiSucceeded && kwList.length > 0) {
+        try {
+          // 使用第一个关键词的adGroupId作为本地推荐的参考
+          const refAdGroupId = kwList[0].amazonAdGroupId;
+          if (refAdGroupId) {
+            const localRec = await getLocalKeywordBidRecommendation(
+              this.accountId, refAdGroupId, amazonCampaignId, 'sb', 0.30
+            );
+            if (localRec.source !== 'minimum_default' && localRec.suggestedBid > 0) {
+              for (const kw of kwList) {
+                await db.update(keywords)
+                  .set({
+                    suggestedBid: String(localRec.suggestedBid),
+                    suggestedBidLow: String(localRec.rangeStart),
+                    suggestedBidHigh: String(localRec.rangeEnd),
+                  })
+                  .where(eq(keywords.id, kw.id));
+                keywordBidsUpdated++;
+              }
+              log.info(`[v515] 本地推荐引擎为SB campaign ${campaignId} 的 ${kwList.length} 个关键词提供建议竞价 $${localRec.suggestedBid.toFixed(2)} (${localRec.source})`);
+            } else {
+              log.warn(`[v515] 本地推荐引擎对SB campaign ${campaignId} 无足够数据，${kwList.length}个关键词建议竞价未更新`);
+            }
+          }
+        } catch (localErr: unknown) {
+          log.debug(`[v515] SB关键词本地推荐引擎异常: ${(localErr as Error).message}`);
+        }
       }
     }
 
@@ -1628,10 +1666,12 @@ AmazonSyncService.prototype.syncSbBidRecommendations = async function(this: Amaz
     // ========== 第二部分：SB商品定位建议竞价 ==========
     log.info('[v417] ========== 开始同步SB商品定位建议竞价 ==========');
 
+    // v515: 查询SB商品定位，同时获取Amazon adGroupId用于本地推荐回退
     const sbTargetRows = await db.select({
       id: productTargets.id,
       campaignId: productTargets.campaignId,
-      adGroupId: productTargets.internalAdGroupId,
+      internalAdGroupId: productTargets.internalAdGroupId,
+      amazonAdGroupId: adGroups.adGroupId,
       targetExpression: productTargets.targetExpression,
       targetType: productTargets.targetType,
       targetValue: productTargets.targetValue,
@@ -1644,10 +1684,10 @@ AmazonSyncService.prototype.syncSbBidRecommendations = async function(this: Amaz
         eq(productTargets.targetStatus, 'enabled'),
       ));
 
-    log.info(`[v417] 查询到 ${sbTargetRows.length} 个SB商品定位需要获取建议竞价`);
+    log.info(`[v515] 查询到 ${sbTargetRows.length} 个SB商品定位需要获取建议竞价`);
 
     // 按campaignId分组
-    const tgtByCampaign = new Map<string, Array<{ id: number; targetExpression: string | null; targetType: string; targetValue: string }>>();
+    const tgtByCampaign = new Map<string, Array<{ id: number; targetExpression: string | null; targetType: string; targetValue: string; amazonAdGroupId: string }>>();
     for (const row of sbTargetRows) {
       const cId = row.campaignId || '';
       if (!tgtByCampaign.has(cId)) tgtByCampaign.set(cId, []);
@@ -1656,6 +1696,7 @@ AmazonSyncService.prototype.syncSbBidRecommendations = async function(this: Amaz
         targetExpression: row.targetExpression,
         targetType: row.targetType,
         targetValue: row.targetValue,
+        amazonAdGroupId: row.amazonAdGroupId || '',
       });
     }
 
@@ -1663,6 +1704,7 @@ AmazonSyncService.prototype.syncSbBidRecommendations = async function(this: Amaz
       const amazonCampaignId = campaignIdMap.get(campaignId);
       if (!amazonCampaignId) continue;
 
+      let tgtApiSucceeded = false;
       try {
         const batchSize = 100;
         for (let i = 0; i < tgtList.length; i += batchSize) {
@@ -1696,8 +1738,12 @@ AmazonSyncService.prototype.syncSbBidRecommendations = async function(this: Amaz
 
           const recommendations = await this.client.getSbTargetBidRecommendations(amazonCampaignId, targets);
 
+          // v515: 增强日志
+          log.info(`[v515] SB商品定位建议竞价API返回: campaignId=${amazonCampaignId}, 请求=${targets.length}, 返回=${recommendations?.length || 0}`);
+
           // v436: 更新建议竞价（包含low/median/high）
           if (recommendations && recommendations.length > 0) {
+            tgtApiSucceeded = true;
             for (let j = 0; j < Math.min(recommendations.length, batch.length); j++) {
               const rec = recommendations[j];
               if (rec && rec.suggestedBid && rec.suggestedBid > 0) {
@@ -1715,12 +1761,42 @@ AmazonSyncService.prototype.syncSbBidRecommendations = async function(this: Amaz
         }
       } catch (err: unknown) {
         errors++;
-        log.warn(`[v436] campaign ${campaignId} SB商品定位建议竞价获取失败: ${(err as Error).message}`);
+        const errMsg = (err as Error).message || JSON.stringify(err);
+        log.warn(`[v515] campaign ${campaignId} SB商品定位建议竞价API获取失败: ${errMsg}`);
+      }
+
+      // v515: Amazon API失败或返回空时，使用本地历史数据推荐引擎
+      if (!tgtApiSucceeded && tgtList.length > 0) {
+        try {
+          const refAdGroupId = tgtList[0].amazonAdGroupId;
+          if (refAdGroupId) {
+            const localRec = await getLocalTargetBidRecommendation(
+              this.accountId, refAdGroupId, amazonCampaignId, 'sb', 0.30
+            );
+            if (localRec.source !== 'minimum_default' && localRec.suggestedBid > 0) {
+              for (const tgt of tgtList) {
+                await db.update(productTargets)
+                  .set({
+                    suggestedBid: String(localRec.suggestedBid),
+                    suggestedBidLow: String(localRec.rangeStart),
+                    suggestedBidHigh: String(localRec.rangeEnd),
+                  })
+                  .where(eq(productTargets.id, tgt.id));
+                targetBidsUpdated++;
+              }
+              log.info(`[v515] 本地推荐引擎为SB campaign ${campaignId} 的 ${tgtList.length} 个商品定位提供建议竞价 $${localRec.suggestedBid.toFixed(2)} (${localRec.source})`);
+            } else {
+              log.warn(`[v515] 本地推荐引擎对SB campaign ${campaignId} 无足够数据，${tgtList.length}个商品定位建议竞价未更新`);
+            }
+          }
+        } catch (localErr: unknown) {
+          log.debug(`[v515] SB商品定位本地推荐引擎异常: ${(localErr as Error).message}`);
+        }
       }
     }
 
-    log.info(`[v436] SB商品定位建议竞价同步完成: ${targetBidsUpdated} 个定位已更新`);
-    log.info(`[v436] ========== SB建议竞价同步总结: 关键词=${keywordBidsUpdated}, 定位=${targetBidsUpdated}, 错误=${errors} ==========`);
+    log.info(`[v515] SB商品定位建议竞价同步完成: ${targetBidsUpdated} 个定位已更新`);
+    log.info(`[v515] ========== SB建议竞价同步总结: 关键词=${keywordBidsUpdated}, 定位=${targetBidsUpdated}, 错误=${errors} ==========`);
 
     return { synced: keywordBidsUpdated + targetBidsUpdated, skipped: errors };
   } catch (error: any) {

@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 514;  // v514: (1)修复冷启动引擎Campaign锚点SQL查询Bug,激活Level 1/2精准锚点策略 (2)统一指数退避重试机制,覆盖所有网络超时/服务器错误场景,出价同步maxRetries提升至5次
+export const SYSTEM_VERSION = 515;  // v515: 修复RLDataRecorder参数传递 — 确保cold_start出价动作的campaignId和internalAdGroupId正确传入rl_training_logs，使强化学习训练样本完整收集

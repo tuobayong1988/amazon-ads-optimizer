@@ -173,8 +173,49 @@ export async function getLocalKeywordBidRecommendation(
     log.debug(`[v457] Account级查询失败: ${(err as Error).message}`);
   }
 
+  // ========== v515: 策略3.5: 跨类型回退 — 当SB/SD自身无数据时，使用SP同账号关键词数据作为参考 ==========
+  if (campaignType !== 'sp_manual' && campaignType !== 'sp_auto' && campaignType !== 'sponsoredProducts') {
+    try {
+      // @ts-ignore
+      const crossTypePerf = await db.select({
+        totalClicks: sql<number>`COALESCE(SUM(${keywordsTable.clicks}), 0)`,
+        totalSpend: sql<number>`COALESCE(SUM(CAST(${keywordsTable.spend} AS DECIMAL(12,2))), 0)`,
+        totalSales: sql<number>`COALESCE(SUM(CAST(${keywordsTable.sales} AS DECIMAL(12,2))), 0)`,
+        totalOrders: sql<number>`COALESCE(SUM(${keywordsTable.orders}), 0)`,
+        totalImpressions: sql<number>`COALESCE(SUM(${keywordsTable.impressions}), 0)`,
+        sampleCount: sql<number>`COUNT(*)`,
+        avgBid: sql<number>`COALESCE(AVG(CAST(${keywordsTable.bid} AS DECIMAL(10,2))), 0)`,
+      })
+      .from(keywordsTable)
+      .innerJoin(campaignsTable, eq(keywordsTable.campaignId, campaignsTable.campaignId))
+      .where(
+        and(
+          eq(keywordsTable.accountId, accountId),
+          // 使用SP关键词数据作为跨类型参考
+          sql`${campaignsTable.campaignType} IN ('sp_manual', 'sp_auto')`,
+          eq(keywordsTable.keywordStatus, 'enabled'),
+          gt(keywordsTable.clicks, 0),
+        )
+      );
+
+      const perf = crossTypePerf[0];
+      if (perf && perf.totalClicks >= 3) {
+        const rec = calculateBidFromPerformance(perf, targetAcos, 'account');
+        log.info(`[v515] 关键词本地推荐(跨类型SP回退): accountId=${accountId}, type=${campaignType}, bid=$${rec.suggestedBid.toFixed(2)}, confidence=${(rec.confidence * 0.7).toFixed(2)}`);
+        // 跨类型回退置信度降低30%
+        return {
+          ...rec,
+          confidence: Math.round(rec.confidence * 0.70 * 100) / 100,
+          reasoning: `跨类型回退(SP→${campaignType}): ${rec.reasoning}`,
+        };
+      }
+    } catch (err: any) {
+      log.debug(`[v515] 关键词跨类型回退查询失败: ${(err as Error).message}`);
+    }
+  }
+
   // ========== 兜底: 返回最低默认值 ==========
-  log.warn(`[v457] 所有本地推荐策略均无足够数据, accountId=${accountId}, adGroupId=${adGroupId}, 返回最低默认值`);
+  log.warn(`[v515] 所有本地推荐策略均无足够数据, accountId=${accountId}, adGroupId=${adGroupId}, type=${campaignType}, 返回最低默认值`);
   return {
     suggestedBid: 0.75,
     rangeStart: 0.30,
@@ -334,8 +375,60 @@ export async function getLocalTargetBidRecommendation(
     log.debug(`[v457] Target Account级查询失败: ${(err as Error).message}`);
   }
 
+  // ========== v515: 策略3.5: 跨类型回退 — 当SB/SD自身无数据时，使用SP同账号数据作为参考 ==========
+  if (campaignType !== 'sp_manual' && campaignType !== 'sp_auto' && campaignType !== 'sponsoredProducts') {
+    try {
+      // @ts-ignore
+      const crossTypePerf = await db.select({
+        totalClicks: sql<number>`COALESCE(SUM(${productTargetsTable.clicks}), 0)`,
+        totalSpend: sql<number>`COALESCE(SUM(CAST(${productTargetsTable.spend} AS DECIMAL(12,2))), 0)`,
+        totalSales: sql<number>`COALESCE(SUM(CAST(${productTargetsTable.sales} AS DECIMAL(12,2))), 0)`,
+        totalOrders: sql<number>`COALESCE(SUM(${productTargetsTable.orders}), 0)`,
+        totalImpressions: sql<number>`COALESCE(SUM(${productTargetsTable.impressions}), 0)`,
+        sampleCount: sql<number>`COUNT(*)`,
+        avgBid: sql<number>`COALESCE(AVG(CAST(${productTargetsTable.bid} AS DECIMAL(10,2))), 0)`,
+      })
+      // @ts-ignore
+      .from(productTargetsTable)
+      // @ts-ignore
+      .innerJoin(campaignsTable, eq(productTargetsTable.campaignId, campaignsTable.campaignId))
+      .where(
+        and(
+          eq(productTargetsTable.accountId, accountId),
+          // 使用SP数据作为跨类型参考
+          sql`${campaignsTable.campaignType} IN ('sp_manual', 'sp_auto')`,
+          or(
+            eq(productTargetsTable.targetStatus, 'enabled'),
+            isNull(productTargetsTable.targetStatus),
+          ),
+          gt(productTargetsTable.clicks, 0),
+          or(
+            // @ts-ignore
+            eq(productTargetsTable.amazonDeleted, 0),
+            // @ts-ignore
+            isNull(productTargetsTable.amazonDeleted),
+          ),
+        )
+      );
+
+      const perf = crossTypePerf[0];
+      if (perf && perf.totalClicks >= 3) {
+        const rec = calculateBidFromPerformance(perf, targetAcos, 'account');
+        log.info(`[v515] Target本地推荐(跨类型SP回退): accountId=${accountId}, type=${campaignType}, bid=$${rec.suggestedBid.toFixed(2)}, confidence=${(rec.confidence * 0.7).toFixed(2)}`);
+        // 跨类型回退置信度降低30%
+        return {
+          ...rec,
+          confidence: Math.round(rec.confidence * 0.70 * 100) / 100,
+          reasoning: `跨类型回退(SP→${campaignType}): ${rec.reasoning}`,
+        };
+      }
+    } catch (err: any) {
+      log.debug(`[v515] Target跨类型回退查询失败: ${(err as Error).message}`);
+    }
+  }
+
   // ========== 兜底 ==========
-  log.warn(`[v457] Target所有本地推荐策略均无足够数据, accountId=${accountId}, adGroupId=${adGroupId}`);
+  log.warn(`[v515] Target所有本地推荐策略均无足够数据, accountId=${accountId}, adGroupId=${adGroupId}, type=${campaignType}`);
   return {
     suggestedBid: 0.75,
     rangeStart: 0.30,
