@@ -331,7 +331,7 @@ export const dashboardRecommendationRouter = router({
             SELECT oe.api_sync_status, COUNT(*) as count,
               MIN(oe.created_at) as earliest, MAX(oe.created_at) as latest
             FROM optimization_events oe
-            JOIN campaigns c ON oe.campaign_id = c.campaignId AND c.accountId = ${accountId}
+            JOIN campaigns c ON oe.campaign_id = c.id AND c.accountId = ${accountId}
             WHERE oe.account_id = ${accountId} AND c.campaignType = 'sb'
               AND oe.created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
             GROUP BY oe.api_sync_status ORDER BY count DESC
@@ -343,7 +343,7 @@ export const dashboardRecommendationRouter = router({
           const result = await db_.execute(sql`
             SELECT oe.id, oe.campaign_id, oe.action_type, oe.api_sync_status, oe.error_message, oe.created_at, c.campaignName
             FROM optimization_events oe
-            JOIN campaigns c ON oe.campaign_id = c.campaignId AND c.accountId = ${accountId}
+            JOIN campaigns c ON oe.campaign_id = c.id AND c.accountId = ${accountId}
             WHERE oe.account_id = ${accountId} AND c.campaignType = 'sb'
               AND oe.api_sync_status = 'failed'
               AND oe.created_at >= DATE_SUB(NOW(), INTERVAL 72 HOUR)
@@ -368,7 +368,7 @@ export const dashboardRecommendationRouter = router({
             SELECT oe.id, oe.campaign_id, oe.action_type, oe.previous_bid, oe.new_bid,
               oe.api_sync_status, oe.created_at, c.campaignName
             FROM optimization_events oe
-            JOIN campaigns c ON oe.campaign_id = c.campaignId AND c.accountId = ${accountId}
+            JOIN campaigns c ON oe.campaign_id = c.id AND c.accountId = ${accountId}
             WHERE oe.account_id = ${accountId} AND c.campaignType = 'sb'
               AND oe.event_category = 'bid_adjustment'
               AND oe.created_at >= DATE_SUB(NOW(), INTERVAL 72 HOUR)
@@ -381,7 +381,7 @@ export const dashboardRecommendationRouter = router({
           const result = await db_.execute(sql`
             SELECT oe.event_category, oe.action_type, oe.api_sync_status, COUNT(*) as count, MAX(oe.created_at) as latest
             FROM optimization_events oe
-            JOIN campaigns c ON oe.campaign_id = c.campaignId AND c.accountId = ${accountId}
+            JOIN campaigns c ON oe.campaign_id = c.id AND c.accountId = ${accountId}
             WHERE oe.account_id = ${accountId} AND c.campaignType = 'sb'
               AND oe.created_at >= DATE_SUB(NOW(), INTERVAL 72 HOUR)
             GROUP BY oe.event_category, oe.action_type, oe.api_sync_status ORDER BY count DESC
