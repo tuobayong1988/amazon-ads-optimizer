@@ -1434,17 +1434,14 @@ export async function runNGramAnalysisTask(accountId: number): Promise<{
               // v195: 回写amazon_negative_keyword_id
               if (amazonNegKeywordId && database) {
                 await database.execute(sql`
-                  UPDATE negative_keywords 
-                  // @ts-ignore
-                  SET amazon_negative_keyword_id = ${amazonNegKeywordId},
-                      // @ts-ignore
-                      negativeSource = 'ngram_analysis'
-                  // @ts-ignore
-                  WHERE campaignId = ${(campaign as any).campaignId}
-                    AND negativeText = ${suggestion.token}
-                    AND amazon_negative_keyword_id IS NULL
-                  LIMIT 1
-                `);
+ UPDATE negative_keywords 
+ SET amazon_negative_keyword_id = ${amazonNegKeywordId},
+ negativeSource = 'ngram_analysis'
+ WHERE campaignId = ${(campaign as any).campaignId}
+ AND negativeText = ${suggestion.token}
+ AND amazon_negative_keyword_id IS NULL
+ LIMIT 1
+ `);
               }
               
               appliedNegatives++;

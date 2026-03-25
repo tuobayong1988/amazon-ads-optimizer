@@ -87,15 +87,13 @@ export async function runV372ExtendedIndexes(db: unknown): Promise<void> {
   try {
     // @ts-ignore
     await db.execute(sql`
-      CREATE TABLE IF NOT EXISTS rate_limit_buckets (
-        bucket_key VARCHAR(255) PRIMARY KEY,
-        tokens DECIMAL(10,4) NOT NULL DEFAULT 0,
-        last_refill_time BIGINT NOT NULL,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-      // @ts-ignore
-      ) ENGINE=InnoDB
-    // @ts-ignore
-    `);
+ CREATE TABLE IF NOT EXISTS rate_limit_buckets (
+ bucket_key VARCHAR(255) PRIMARY KEY,
+ tokens DECIMAL(10,4) NOT NULL DEFAULT 0,
+ last_refill_time BIGINT NOT NULL,
+ updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+ ) ENGINE=InnoDB
+ `);
     log.info('[v372] rate_limit_buckets 表创建成功');
   } catch (error: unknown) {
     // @ts-ignore
@@ -108,17 +106,15 @@ export async function runV372ExtendedIndexes(db: unknown): Promise<void> {
   try {
     // @ts-ignore
     await db.execute(sql`
-      CREATE TABLE IF NOT EXISTS rate_limit_counters (
-        counter_key VARCHAR(255) NOT NULL,
-        window_start BIGINT NOT NULL,
-        window_ms BIGINT NOT NULL,
-        // @ts-ignore
-        count INT NOT NULL DEFAULT 0,
-        // @ts-ignore
-        PRIMARY KEY (counter_key, window_start),
-        INDEX idx_rlc_window_start (window_start)
-      ) ENGINE=InnoDB
-    `);
+ CREATE TABLE IF NOT EXISTS rate_limit_counters (
+ counter_key VARCHAR(255) NOT NULL,
+ window_start BIGINT NOT NULL,
+ window_ms BIGINT NOT NULL,
+ count INT NOT NULL DEFAULT 0,
+ PRIMARY KEY (counter_key, window_start),
+ INDEX idx_rlc_window_start (window_start)
+ ) ENGINE=InnoDB
+ `);
     log.info('[v372] rate_limit_counters 表创建成功');
   } catch (error: unknown) {
     // @ts-ignore

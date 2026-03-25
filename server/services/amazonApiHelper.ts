@@ -2080,10 +2080,9 @@ export async function syncCampaignStatusToAmazon(
         if (dbInstance) {
           const { sql } = await import('drizzle-orm');
           await dbInstance.execute(sql`
-            // @ts-ignore
-            INSERT INTO sync_failures (entity_type, entity_id, amazon_id, operation, error_message, account_id, created_at) 
-            VALUES ('campaign', ${change.campaignId || 0}, ${change.amazonCampaignId}, ${'status_change_' + change.newStatus}, ${((error as Error).message || '').substring(0, 1000)}, ${accountId}, NOW())
-          `);
+ INSERT INTO sync_failures (entity_type, entity_id, amazon_id, operation, error_message, account_id, created_at) 
+ VALUES ('campaign', ${change.campaignId || 0}, ${change.amazonCampaignId}, ${'status_change_' + change.newStatus}, ${((error as Error).message || '').substring(0, 1000)}, ${accountId}, NOW())
+ `);
         }
       } catch (logError: unknown) {
         log.warn(`[AmazonApiHelper] 无法记录同步失败日志: ${(logError as Error).message}`);

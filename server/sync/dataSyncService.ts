@@ -517,10 +517,9 @@ export async function getSyncScheduleById(id: number, userId: number): Promise<S
   const db = await getDb();
   if (!db) return null;
   const result = await db.execute(sql`
-    // @ts-ignore
-    SELECT id, user_id as userId, account_id as accountId, sync_type as syncType, frequency, hour, day_of_week as dayOfWeek, day_of_month as dayOfMonth, is_enabled as isEnabled, last_run_at as lastRunAt, next_run_at as nextRunAt
-    FROM sync_schedules WHERE id = ${id} AND user_id = ${userId}
-  `);
+ SELECT id, user_id as userId, account_id as accountId, sync_type as syncType, frequency, hour, day_of_week as dayOfWeek, day_of_month as dayOfMonth, is_enabled as isEnabled, last_run_at as lastRunAt, next_run_at as nextRunAt
+ FROM sync_schedules WHERE id = ${id} AND user_id = ${userId}
+ `);
   // @ts-ignore
   const rows = (result as Record<string, unknown>[][])[0];
   // @ts-expect-error - runtime type mismatch
@@ -849,11 +848,10 @@ async function logScheduleExecution(
     // 如果有jobId，更新job记录
     if (jobId) {
       await db.execute(sql`
-        // @ts-ignore
-        UPDATE data_sync_jobs 
-        SET retry_count = ${retryCount}
-        WHERE id = ${jobId}
-      `);
+ UPDATE data_sync_jobs 
+ SET retry_count = ${retryCount}
+ WHERE id = ${jobId}
+ `);
     }
 
     // 记录到日志表

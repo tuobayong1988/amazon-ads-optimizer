@@ -431,24 +431,23 @@ export async function applyOptimization(
 
   // 创建应用记录
   const insertResult = await db.execute(sql`
-    INSERT INTO marginal_benefit_applications (
-      account_id, campaign_id, user_id, optimization_goal,
-      application_status, before_top_of_search, before_product_page,
-      after_top_of_search, after_product_page,
-      expected_sales_change, expected_spend_change,
-      expected_roas_change, expected_acos_change,
-      application_note
-    ) VALUES (
-      ${request.accountId}, ${request.campaignId}, ${request.userId},
-      // @ts-ignore
-      ${request.optimizationGoal}, 'pending',
-      ${beforeTopOfSearch}, ${beforeProductPage},
-      ${request.suggestedTopOfSearch}, ${request.suggestedProductPage},
-      ${request.expectedSalesChange}, ${request.expectedSpendChange},
-      ${request.expectedROASChange}, ${request.expectedACoSChange},
-      ${request.note || null}
-    )
-  `);
+ INSERT INTO marginal_benefit_applications (
+ account_id, campaign_id, user_id, optimization_goal,
+ application_status, before_top_of_search, before_product_page,
+ after_top_of_search, after_product_page,
+ expected_sales_change, expected_spend_change,
+ expected_roas_change, expected_acos_change,
+ application_note
+ ) VALUES (
+ ${request.accountId}, ${request.campaignId}, ${request.userId},
+ ${request.optimizationGoal}, 'pending',
+ ${beforeTopOfSearch}, ${beforeProductPage},
+ ${request.suggestedTopOfSearch}, ${request.suggestedProductPage},
+ ${request.expectedSalesChange}, ${request.expectedSpendChange},
+ ${request.expectedROASChange}, ${request.expectedACoSChange},
+ ${request.note || null}
+ )
+ `);
 
   // @ts-ignore
   const applicationId = (insertResult as Record<string, unknown>[])[0].insertId;
@@ -716,12 +715,11 @@ export async function getBatchAnalysisHistory(
   }
 
   const result = await db.execute(sql`
-    SELECT * FROM batch_marginal_benefit_analysis
-    WHERE account_id = ${accountId}
-    ORDER BY created_at DESC
-    // @ts-ignore
-    LIMIT ${sql.raw(String(limit))}
-  `);
+ SELECT * FROM batch_marginal_benefit_analysis
+ WHERE account_id = ${accountId}
+ ORDER BY created_at DESC
+ LIMIT ${sql.raw(String(limit))}
+ `);
 
   // @ts-ignore
   return ((result as Record<string, unknown>[][])[0] as unknown[]) || [];
@@ -746,11 +744,9 @@ export async function getBatchAnalysisDetail(
 
   // @ts-ignore
   const result = await db.execute(sql`
-    // @ts-ignore
-    SELECT * FROM batch_marginal_benefit_analysis
-    // @ts-ignore
-    WHERE id = ${analysisId}
-  `);
+ SELECT * FROM batch_marginal_benefit_analysis
+ WHERE id = ${analysisId}
+ `);
 
   // @ts-ignore
   const record = ((result as Record<string, unknown>[][])[0] as unknown[])[0];

@@ -702,10 +702,9 @@ export function createDefaultSelfHealingScheduler(): SelfHealingScheduler {
         
         // 检查 2: keyword_placement_hourly_performance 中是否有短 campaignId
         const [kphShortIds] = await database.execute(sql`
-          SELECT COUNT(*) as cnt FROM keyword_placement_hourly_performance 
-          WHERE campaign_id IS NOT NULL AND LENGTH(campaign_id) < 8
-        // @ts-ignore
-        `);
+ SELECT COUNT(*) as cnt FROM keyword_placement_hourly_performance 
+ WHERE campaign_id IS NOT NULL AND LENGTH(campaign_id) < 8
+ `);
         // @ts-ignore
         const kphCount = Number((kphShortIds as unknown)?.[0]?.cnt || 0);
         if (kphCount > 0) {
@@ -715,10 +714,9 @@ export function createDefaultSelfHealingScheduler(): SelfHealingScheduler {
         
         // 检查 3: campaigns 表中是否有短 campaignId
         const [campShortIds] = await database.execute(sql`
-          SELECT COUNT(*) as cnt FROM campaigns 
-          // @ts-ignore
-          WHERE campaign_id IS NOT NULL AND LENGTH(campaign_id) < 8
-        `);
+ SELECT COUNT(*) as cnt FROM campaigns 
+ WHERE campaign_id IS NOT NULL AND LENGTH(campaign_id) < 8
+ `);
         // @ts-ignore
         const campCount = Number((campShortIds as unknown)?.[0]?.cnt || 0);
         if (campCount > 0) {
@@ -728,10 +726,9 @@ export function createDefaultSelfHealingScheduler(): SelfHealingScheduler {
         
         // 检查 4: ad_groups 表中是否有短 adGroupId
         const [agShortIds] = await database.execute(sql`
-          // @ts-ignore
-          SELECT COUNT(*) as cnt FROM ad_groups 
-          WHERE ad_group_id IS NOT NULL AND LENGTH(ad_group_id) < 8
-        `);
+ SELECT COUNT(*) as cnt FROM ad_groups 
+ WHERE ad_group_id IS NOT NULL AND LENGTH(ad_group_id) < 8
+ `);
         // @ts-ignore
         const agCount = Number((agShortIds as unknown)?.[0]?.cnt || 0);
         if (agCount > 0) {

@@ -591,24 +591,22 @@ async function checkProactiveRiskWarning(
         // @ts-expect-error - Drizzle raw SQL execution
         const [recentResult] = await db.execute(
           sql`SELECT 
-                SUM(CAST(spend AS DECIMAL(10,2))) as total_spend,
-                SUM(CAST(sales AS DECIMAL(10,2))) as total_sales
-              FROM daily_performance 
-              // @ts-ignore
-              WHERE accountId = ${(account as any).id}
-                AND date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)`
+ SUM(CAST(spend AS DECIMAL(10,2))) as total_spend,
+ SUM(CAST(sales AS DECIMAL(10,2))) as total_sales
+ FROM daily_performance 
+ WHERE accountId = ${(account as any).id}
+ AND date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)`
         ) as unknown;
         
         // @ts-expect-error - Drizzle raw SQL execution
         const [prevResult] = await db.execute(
           sql`SELECT 
-                SUM(CAST(spend AS DECIMAL(10,2))) as total_spend,
-                SUM(CAST(sales AS DECIMAL(10,2))) as total_sales
-              FROM daily_performance 
-              // @ts-ignore
-              WHERE accountId = ${(account as any).id}
-                AND date >= DATE_SUB(CURDATE(), INTERVAL 21 DAY)
-                AND date < DATE_SUB(CURDATE(), INTERVAL 7 DAY)`
+ SUM(CAST(spend AS DECIMAL(10,2))) as total_spend,
+ SUM(CAST(sales AS DECIMAL(10,2))) as total_sales
+ FROM daily_performance 
+ WHERE accountId = ${(account as any).id}
+ AND date >= DATE_SUB(CURDATE(), INTERVAL 21 DAY)
+ AND date < DATE_SUB(CURDATE(), INTERVAL 7 DAY)`
         ) as unknown;
 
         const recentData = recentResult?.[0] || recentResult;

@@ -138,16 +138,15 @@ export async function getSLOMetrics(): Promise<SLOMetrics> {
     // 2. 数据覆盖率
     try {
       const coverageStats = await database.execute(sql`
-        SELECT 
-          a.id as account_id,
-          COUNT(DISTINCT DATE(dp.date)) as data_days
-        FROM ad_accounts a
-        LEFT JOIN daily_performance dp ON a.id = dp.accountId 
-          // @ts-ignore
-          AND DATE(dp.date) >= DATE_SUB(CURDATE(), INTERVAL 14 DAY)
-        WHERE a.status = 'active' OR a.connectionStatus = 'connected'
-        GROUP BY a.id
-      `);
+ SELECT 
+ a.id as account_id,
+ COUNT(DISTINCT DATE(dp.date)) as data_days
+ FROM ad_accounts a
+ LEFT JOIN daily_performance dp ON a.id = dp.accountId 
+ AND DATE(dp.date) >= DATE_SUB(CURDATE(), INTERVAL 14 DAY)
+ WHERE a.status = 'active' OR a.connectionStatus = 'connected'
+ GROUP BY a.id
+ `);
       // @ts-ignore
       const coverageRows = (coverageStats as Record<string, unknown>[])?.[0] || coverageStats;
       if (Array.isArray(coverageRows) && coverageRows.length > 0) {
@@ -173,11 +172,10 @@ export async function getSLOMetrics(): Promise<SLOMetrics> {
     try {
       // @ts-ignore
       const freshnessResult = await database.execute(sql`
-        // @ts-ignore
-        SELECT MAX(created_at) as latest_sync 
-        FROM daily_performance
-        WHERE created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
-      `);
+ SELECT MAX(created_at) as latest_sync 
+ FROM daily_performance
+ WHERE created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+ `);
       // @ts-ignore
       const freshness = ((freshnessResult as Record<string, unknown>[])?.[0] || freshnessResult)?.[0];
       // @ts-ignore
@@ -227,16 +225,14 @@ export async function getSLOMetrics(): Promise<SLOMetrics> {
     // @ts-ignore
     try {
       const shardStats = await database.execute(sql`
-        SELECT 
-          // @ts-ignore
-          status,
-          // @ts-ignore
-          COUNT(*) as cnt,
-          SUM(CASE WHEN status = 'running' AND started_at < DATE_SUB(NOW(), INTERVAL 1 HOUR) THEN 1 ELSE 0 END) as stuck
-        FROM sync_shards
-        WHERE created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
-        GROUP BY status
-      `);
+ SELECT 
+ status,
+ COUNT(*) as cnt,
+ SUM(CASE WHEN status = 'running' AND started_at < DATE_SUB(NOW(), INTERVAL 1 HOUR) THEN 1 ELSE 0 END) as stuck
+ FROM sync_shards
+ WHERE created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+ GROUP BY status
+ `);
       // @ts-ignore
       const shardRows = (shardStats as Record<string, unknown>[])?.[0] || shardStats;
       if (Array.isArray(shardRows)) {
@@ -356,19 +352,16 @@ export async function getSLOTrend(days: number = 7): Promise<Array<{
 
     // @ts-ignore
     const trendData = await database.execute(sql`
-      SELECT 
-        DATE(created_at) as trend_date,
-        // @ts-ignore
-        COUNT(*) as total_shards,
-        // @ts-ignore
-        SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed_shards,
-        AVG(CASE WHEN status = 'completed' THEN duration_ms ELSE NULL END) as avg_duration
-      FROM sync_shards
-      // @ts-ignore
-      WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL ${sql.raw(String(days))} DAY)
-      GROUP BY DATE(created_at)
-      ORDER BY DATE(created_at)
-    `);
+ SELECT 
+ DATE(created_at) as trend_date,
+ COUNT(*) as total_shards,
+ SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed_shards,
+ AVG(CASE WHEN status = 'completed' THEN duration_ms ELSE NULL END) as avg_duration
+ FROM sync_shards
+ WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL ${sql.raw(String(days))} DAY)
+ GROUP BY DATE(created_at)
+ ORDER BY DATE(created_at)
+ `);
 
     // @ts-ignore
     const rows = (trendData as Record<string, unknown>[])?.[0] || trendData;

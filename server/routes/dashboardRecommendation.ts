@@ -147,127 +147,122 @@ export const dashboardRecommendationRouter = router({
           // 逐天整体广告表现
           // @ts-ignore
           const result = await db_.execute(sql`
-            SELECT 
-              DATE(date) as report_date,
-              SUM(impressions) as impressions,
-              SUM(clicks) as clicks,
-              SUM(spend) as spend,
-              SUM(sales) as sales,
-              SUM(orders) as orders,
-              CASE WHEN SUM(sales) > 0 THEN ROUND(SUM(spend)/SUM(sales)*100, 2) ELSE NULL END as acos,
-              CASE WHEN SUM(clicks) > 0 THEN ROUND(SUM(spend)/SUM(clicks), 2) ELSE NULL END as cpc,
-              CASE WHEN SUM(impressions) > 0 THEN ROUND(SUM(clicks)/SUM(impressions)*100, 4) ELSE NULL END as ctr,
-              CASE WHEN SUM(clicks) > 0 THEN ROUND(SUM(orders)/SUM(clicks)*100, 4) ELSE NULL END as cvr
-            FROM daily_performance
-            WHERE accountId = ${accountId}
-              AND date >= ${startDate}
-              AND date < DATE_ADD(${endDate}, INTERVAL 1 DAY)
-            GROUP BY DATE(date)
-            // @ts-ignore
-            ORDER BY report_date
-          `);
+ SELECT 
+ DATE(date) as report_date,
+ SUM(impressions) as impressions,
+ SUM(clicks) as clicks,
+ SUM(spend) as spend,
+ SUM(sales) as sales,
+ SUM(orders) as orders,
+ CASE WHEN SUM(sales) > 0 THEN ROUND(SUM(spend)/SUM(sales)*100, 2) ELSE NULL END as acos,
+ CASE WHEN SUM(clicks) > 0 THEN ROUND(SUM(spend)/SUM(clicks), 2) ELSE NULL END as cpc,
+ CASE WHEN SUM(impressions) > 0 THEN ROUND(SUM(clicks)/SUM(impressions)*100, 4) ELSE NULL END as ctr,
+ CASE WHEN SUM(clicks) > 0 THEN ROUND(SUM(orders)/SUM(clicks)*100, 4) ELSE NULL END as cvr
+ FROM daily_performance
+ WHERE accountId = ${accountId}
+ AND date >= ${startDate}
+ AND date < DATE_ADD(${endDate}, INTERVAL 1 DAY)
+ GROUP BY DATE(date)
+ ORDER BY report_date
+ `);
           return { data: (result as unknown[][])[0] };
         }
         if (queryType === 'by_campaign_type') {
           // 按广告类型(SP/SB/SD)逐天分解
           // @ts-ignore
           const result = await db_.execute(sql`
-            SELECT 
-              DATE(dp.date) as report_date,
-              COALESCE(dp.ad_type, c.campaignType) as campaign_type,
-              SUM(dp.impressions) as impressions,
-              SUM(dp.clicks) as clicks,
-              SUM(dp.spend) as spend,
-              SUM(dp.sales) as sales,
-              SUM(dp.orders) as orders,
-              CASE WHEN SUM(dp.sales) > 0 THEN ROUND(SUM(dp.spend)/SUM(dp.sales)*100, 2) ELSE NULL END as acos
-            FROM daily_performance dp
-            LEFT JOIN campaigns c ON dp.campaignId = c.campaignId AND c.accountId = ${accountId}
-            WHERE dp.accountId = ${accountId}
-              AND dp.date >= ${startDate}
-              AND dp.date < DATE_ADD(${endDate}, INTERVAL 1 DAY)
-            // @ts-ignore
-            GROUP BY DATE(dp.date), COALESCE(dp.ad_type, c.campaignType)
-            ORDER BY report_date, campaign_type
-          `);
+ SELECT 
+ DATE(dp.date) as report_date,
+ COALESCE(dp.ad_type, c.campaignType) as campaign_type,
+ SUM(dp.impressions) as impressions,
+ SUM(dp.clicks) as clicks,
+ SUM(dp.spend) as spend,
+ SUM(dp.sales) as sales,
+ SUM(dp.orders) as orders,
+ CASE WHEN SUM(dp.sales) > 0 THEN ROUND(SUM(dp.spend)/SUM(dp.sales)*100, 2) ELSE NULL END as acos
+ FROM daily_performance dp
+ LEFT JOIN campaigns c ON dp.campaignId = c.campaignId AND c.accountId = ${accountId}
+ WHERE dp.accountId = ${accountId}
+ AND dp.date >= ${startDate}
+ AND dp.date < DATE_ADD(${endDate}, INTERVAL 1 DAY)
+ GROUP BY DATE(dp.date), COALESCE(dp.ad_type, c.campaignType)
+ ORDER BY report_date, campaign_type
+ `);
           return { data: (result as unknown[][])[0] };
         }
         if (queryType === 'by_campaign') {
           // 按广告活动汇总（整个时间段）- v502.4: 修正列名为camelCase
           // @ts-ignore
           const result = await db_.execute(sql`
-            SELECT 
-              dp.campaignId,
-              c.campaignName as campaign_name,
-              c.campaignType as campaign_type,
-              c.campaignStatus as campaign_status,
-              c.targetingType as targeting_type,
-              SUM(dp.impressions) as impressions,
-              SUM(dp.clicks) as clicks,
-              SUM(dp.spend) as spend,
-              SUM(dp.sales) as sales,
-              SUM(dp.orders) as orders,
-              CASE WHEN SUM(dp.sales) > 0 THEN ROUND(SUM(dp.spend)/SUM(dp.sales)*100, 2) ELSE NULL END as acos,
-              CASE WHEN SUM(dp.clicks) > 0 THEN ROUND(SUM(dp.spend)/SUM(dp.clicks), 2) ELSE NULL END as cpc,
-              COUNT(DISTINCT DATE(dp.date)) as active_days
-            FROM daily_performance dp
-            LEFT JOIN campaigns c ON dp.campaignId = c.campaignId AND c.accountId = ${accountId}
-            WHERE dp.accountId = ${accountId}
-              AND dp.date >= ${startDate}
-              AND dp.date < DATE_ADD(${endDate}, INTERVAL 1 DAY)
-            // @ts-ignore
-            GROUP BY dp.campaignId, c.campaignName, c.campaignType, c.campaignStatus, c.targetingType
-            ORDER BY SUM(dp.spend) DESC
-            LIMIT ${limit}
-          `);
+ SELECT 
+ dp.campaignId,
+ c.campaignName as campaign_name,
+ c.campaignType as campaign_type,
+ c.campaignStatus as campaign_status,
+ c.targetingType as targeting_type,
+ SUM(dp.impressions) as impressions,
+ SUM(dp.clicks) as clicks,
+ SUM(dp.spend) as spend,
+ SUM(dp.sales) as sales,
+ SUM(dp.orders) as orders,
+ CASE WHEN SUM(dp.sales) > 0 THEN ROUND(SUM(dp.spend)/SUM(dp.sales)*100, 2) ELSE NULL END as acos,
+ CASE WHEN SUM(dp.clicks) > 0 THEN ROUND(SUM(dp.spend)/SUM(dp.clicks), 2) ELSE NULL END as cpc,
+ COUNT(DISTINCT DATE(dp.date)) as active_days
+ FROM daily_performance dp
+ LEFT JOIN campaigns c ON dp.campaignId = c.campaignId AND c.accountId = ${accountId}
+ WHERE dp.accountId = ${accountId}
+ AND dp.date >= ${startDate}
+ AND dp.date < DATE_ADD(${endDate}, INTERVAL 1 DAY)
+ GROUP BY dp.campaignId, c.campaignName, c.campaignType, c.campaignStatus, c.targetingType
+ ORDER BY SUM(dp.spend) DESC
+ LIMIT ${limit}
+ `);
           return { data: (result as unknown[][])[0] };
         }
         if (queryType === 'campaign_details') {
           // 单个广告活动的逐天表现
           // @ts-ignore
           const result = await db_.execute(sql`
-            SELECT 
-              DATE(date) as report_date,
-              impressions, clicks, spend, sales, orders,
-              CASE WHEN sales > 0 THEN ROUND(spend/sales*100, 2) ELSE NULL END as acos,
-              CASE WHEN clicks > 0 THEN ROUND(spend/clicks, 2) ELSE NULL END as cpc
-            FROM daily_performance
-            WHERE accountId = ${accountId}
-              // @ts-ignore
-              AND campaignId = ${input.campaignId}
-              AND date >= ${startDate}
-              AND date < DATE_ADD(${endDate}, INTERVAL 1 DAY)
-            ORDER BY report_date
-          `);
+ SELECT 
+ DATE(date) as report_date,
+ impressions, clicks, spend, sales, orders,
+ CASE WHEN sales > 0 THEN ROUND(spend/sales*100, 2) ELSE NULL END as acos,
+ CASE WHEN clicks > 0 THEN ROUND(spend/clicks, 2) ELSE NULL END as cpc
+ FROM daily_performance
+ WHERE accountId = ${accountId}
+ AND campaignId = ${input.campaignId}
+ AND date >= ${startDate}
+ AND date < DATE_ADD(${endDate}, INTERVAL 1 DAY)
+ ORDER BY report_date
+ `);
           return { data: (result as unknown[][])[0] };
         }
         if (queryType === 'by_keyword') {
           // v502.4: 按投放词汇总 - 使用keywords表自身的累计数据
           // @ts-ignore
           const result = await db_.execute(sql`
-            SELECT 
-              k.id as keyword_id,
-              k.keywordId as amazon_keyword_id,
-              k.keywordText as keyword_text,
-              k.matchType as match_type,
-              k.bid as current_bid,
-              k.keywordStatus as keyword_status,
-              c.campaignName as campaign_name,
-              c.campaignType as campaign_type,
-              k.spend as total_spend,
-              k.sales as total_sales,
-              k.orders as total_orders,
-              k.clicks as total_clicks,
-              k.impressions as total_impressions,
-              CASE WHEN k.sales > 0 THEN ROUND(k.spend/k.sales*100, 2) ELSE NULL END as acos
-            FROM keywords k
-            // @ts-ignore
-            JOIN campaigns c ON k.campaignId = c.campaignId AND c.accountId = ${accountId}
-            WHERE k.accountId = ${accountId}
-              AND k.keywordStatus != 'amazon_deleted'
-            ORDER BY k.spend DESC
-            LIMIT ${limit}
-          `);
+ SELECT 
+ k.id as keyword_id,
+ k.keywordId as amazon_keyword_id,
+ k.keywordText as keyword_text,
+ k.matchType as match_type,
+ k.bid as current_bid,
+ k.keywordStatus as keyword_status,
+ c.campaignName as campaign_name,
+ c.campaignType as campaign_type,
+ k.spend as total_spend,
+ k.sales as total_sales,
+ k.orders as total_orders,
+ k.clicks as total_clicks,
+ k.impressions as total_impressions,
+ CASE WHEN k.sales > 0 THEN ROUND(k.spend/k.sales*100, 2) ELSE NULL END as acos
+ FROM keywords k
+ JOIN campaigns c ON k.campaignId = c.campaignId AND c.accountId = ${accountId}
+ WHERE k.accountId = ${accountId}
+ AND k.keywordStatus != 'amazon_deleted'
+ ORDER BY k.spend DESC
+ LIMIT ${limit}
+ `);
           return { data: (result as unknown[][])[0] };
         }
         if (queryType === 'by_search_term') {

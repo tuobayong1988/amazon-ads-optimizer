@@ -716,17 +716,16 @@ export async function getRealtimeSpendForGuard(
     if (!result) {
       // @ts-expect-error - Drizzle raw SQL execution
       const [apiRows] = await db.execute(sql`
-        SELECT 
-          SUM(spend) as todaySpend,
-          SUM(clicks) as todayClicks,
-          SUM(impressions) as todayImpressions,
-          MAX(updatedAt) as lastUpdateTime
-        FROM daily_performance
-        WHERE accountId = ${accountId}
-          AND DATE(date) = ${today}
-          ${campaignId ? sql`AND campaignId = ${campaignId}` : sql``}
-      // @ts-ignore
-      `) as unknown;
+ SELECT 
+ SUM(spend) as todaySpend,
+ SUM(clicks) as todayClicks,
+ SUM(impressions) as todayImpressions,
+ MAX(updatedAt) as lastUpdateTime
+ FROM daily_performance
+ WHERE accountId = ${accountId}
+ AND DATE(date) = ${today}
+ ${campaignId ? sql`AND campaignId = ${campaignId}` : sql``}
+ `) as unknown;
 
       // @ts-ignore
       result = Array.isArray(apiRows) && apiRows.length > 0 ? apiRows[0] : null;

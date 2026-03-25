@@ -156,29 +156,28 @@ export async function saveMarginalBenefitHistory(
   if ((existing as Record<string, unknown>)[0] && ((existing as Record<string, unknown>)[0] as unknown[]).length > 0) {
     // 更新现有记录
     await db.execute(sql`
-      UPDATE marginal_benefit_history SET
-        current_adjustment = ${analysisResult.currentAdjustment},
-        marginal_roas = ${analysisResult.marginalROAS},
-        marginal_acos = ${analysisResult.marginalACoS},
-        marginal_sales = ${analysisResult.marginalSales},
-        marginal_spend = ${analysisResult.marginalSpend},
-        elasticity = ${analysisResult.elasticity},
-        diminishing_point = ${analysisResult.diminishingPoint},
-        optimal_range_min = ${analysisResult.optimalRange.min},
-        optimal_range_max = ${analysisResult.optimalRange.max},
-        confidence = ${analysisResult.confidence},
-        data_points = ${analysisResult.dataPoints},
-        total_impressions = ${performanceData.totalImpressions},
-        total_clicks = ${performanceData.totalClicks},
-        total_spend = ${performanceData.totalSpend},
-        total_sales = ${performanceData.totalSales},
-        total_orders = ${performanceData.totalOrders}
-      WHERE account_id = ${accountId} 
-      AND campaign_id = ${campaignId}
-      AND placement_type = ${placementType}
-      AND analysis_date = ${today}
-    // @ts-ignore
-    `);
+ UPDATE marginal_benefit_history SET
+ current_adjustment = ${analysisResult.currentAdjustment},
+ marginal_roas = ${analysisResult.marginalROAS},
+ marginal_acos = ${analysisResult.marginalACoS},
+ marginal_sales = ${analysisResult.marginalSales},
+ marginal_spend = ${analysisResult.marginalSpend},
+ elasticity = ${analysisResult.elasticity},
+ diminishing_point = ${analysisResult.diminishingPoint},
+ optimal_range_min = ${analysisResult.optimalRange.min},
+ optimal_range_max = ${analysisResult.optimalRange.max},
+ confidence = ${analysisResult.confidence},
+ data_points = ${analysisResult.dataPoints},
+ total_impressions = ${performanceData.totalImpressions},
+ total_clicks = ${performanceData.totalClicks},
+ total_spend = ${performanceData.totalSpend},
+ total_sales = ${performanceData.totalSales},
+ total_orders = ${performanceData.totalOrders}
+ WHERE account_id = ${accountId} 
+ AND campaign_id = ${campaignId}
+ AND placement_type = ${placementType}
+ AND analysis_date = ${today}
+ `);
     // @ts-ignore
     return ((existing as Record<string, unknown>)[0] as unknown[])[0].id;
   }
@@ -435,37 +434,29 @@ export async function comparePeriods(
   // 获取两个时间段的数据
   const [period1Data, period2Data] = await Promise.all([
     db.execute(sql`
-      SELECT placement_type, 
-        AVG(marginal_roas) as avg_marginal_roas,
-        AVG(marginal_sales) as avg_marginal_sales,
-        AVG(elasticity) as avg_elasticity
-      FROM marginal_benefit_history
-      // @ts-ignore
-      WHERE account_id = ${accountId}
-      // @ts-ignore
-      AND campaign_id = ${campaignId}
-      AND analysis_date >= ${period1Start}
-      AND analysis_date <= ${period1End}
-      GROUP BY placement_type
-    `),
+ SELECT placement_type, 
+ AVG(marginal_roas) as avg_marginal_roas,
+ AVG(marginal_sales) as avg_marginal_sales,
+ AVG(elasticity) as avg_elasticity
+ FROM marginal_benefit_history
+ WHERE account_id = ${accountId}
+ AND campaign_id = ${campaignId}
+ AND analysis_date >= ${period1Start}
+ AND analysis_date <= ${period1End}
+ GROUP BY placement_type
+ `),
     db.execute(sql`
-      SELECT placement_type,
-        AVG(marginal_roas) as avg_marginal_roas,
-        // @ts-ignore
-        AVG(marginal_sales) as avg_marginal_sales,
-        // @ts-ignore
-        AVG(elasticity) as avg_elasticity
-      // @ts-ignore
-      FROM marginal_benefit_history
-      WHERE account_id = ${accountId}
-      AND campaign_id = ${campaignId}
-      AND analysis_date >= ${period2Start}
-      // @ts-ignore
-      AND analysis_date <= ${period2End}
-      // @ts-ignore
-      GROUP BY placement_type
-    // @ts-ignore
-    `)
+ SELECT placement_type,
+ AVG(marginal_roas) as avg_marginal_roas,
+ AVG(marginal_sales) as avg_marginal_sales,
+ AVG(elasticity) as avg_elasticity
+ FROM marginal_benefit_history
+ WHERE account_id = ${accountId}
+ AND campaign_id = ${campaignId}
+ AND analysis_date >= ${period2Start}
+ AND analysis_date <= ${period2End}
+ GROUP BY placement_type
+ `)
   ]);
 
   // @ts-ignore

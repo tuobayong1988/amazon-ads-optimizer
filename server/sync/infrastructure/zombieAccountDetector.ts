@@ -130,15 +130,14 @@ export async function detectAndPauseZombieAccounts(): Promise<ZombieDetectionRes
         // 如果最近N次全部为0但还没找到非0记录，查更早的记录
         if (!lastNonZeroSyncAt && consecutiveZeros >= CHECK_WINDOW_SIZE) {
           const olderSync = await database.execute(sql`
-            SELECT completedAt
-            FROM data_sync_jobs
-            WHERE accountId = ${accountId}
-              AND status = 'completed'
-              AND recordsSynced > 0
-            ORDER BY completedAt DESC
-            // @ts-ignore
-            LIMIT 1
-          `);
+ SELECT completedAt
+ FROM data_sync_jobs
+ WHERE accountId = ${accountId}
+ AND status = 'completed'
+ AND recordsSynced > 0
+ ORDER BY completedAt DESC
+ LIMIT 1
+ `);
           // @ts-ignore
           const olderRows = (olderSync as Record<string, unknown>)[0] || olderSync;
           if (Array.isArray(olderRows) && olderRows.length > 0) {

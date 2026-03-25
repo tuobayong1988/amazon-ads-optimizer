@@ -331,10 +331,9 @@ export async function updateDailyPerformanceConversion(data: {
   if (data.idempotencyId) {
     try {
       const result = await db.execute(sql`
-        INSERT IGNORE INTO ams_processed_messages (idempotency_id, dataset_id)
-        VALUES (${data.idempotencyId}, ${data.datasetId || null})
-      // @ts-ignore
-      `);
+ INSERT IGNORE INTO ams_processed_messages (idempotency_id, dataset_id)
+ VALUES (${data.idempotencyId}, ${data.datasetId || null})
+ `);
       // @ts-ignore
       if ((result as Record<string, unknown>)[0]?.affectedRows === 0) {
         log.debug(`[AMS DB] 跳过重复转化消息: idempotencyId=${data.idempotencyId}`);

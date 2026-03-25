@@ -728,47 +728,46 @@ async function correctBidMismatches(database: unknown, accountId: number): Promi
     //   4. 排除所有护栏机制产生的事件（冷却、熔断、提价恢复）
     // v436: 添加MAX_EXECUTION_TIME防止僵尸查询（最多60秒）
     const mismatchQuery = sql`
-      SELECT /*+ MAX_EXECUTION_TIME(60000) */
-        oe.id as event_id,
-        oe.keyword_id,
-        oe.keyword_text,
-        oe.campaign_id,
-        oe.campaign_name,
-        c.campaignId as amazon_campaign_id,
-        oe.new_bid as expected_bid,
-        oe.previous_bid,
-        k.bid as current_bid,
-        oe.created_at as optimized_at,
-        pg.max_bid as max_bid
-      FROM optimization_events oe
-      JOIN keywords k ON oe.keyword_id = k.id
-      JOIN ad_groups ag ON k.internal_ad_group_id = ag.id
-      JOIN campaigns c ON ag.campaignId = c.campaignId
-      LEFT JOIN performance_groups pg ON c.performanceGroupId = pg.id
-      WHERE oe.account_id = ${accountId}
-        AND oe.event_category = 'bid_adjustment'
-        AND oe.status = 'success'
-        AND oe.api_sync_status = 'synced'
-        AND oe.created_at > DATE_SUB(NOW(), INTERVAL 1 DAY)
-        AND k.keywordId IS NOT NULL
-        AND (oe.change_reason IS NULL OR oe.change_reason NOT LIKE '%AutoCorrector%')
-        AND (oe.change_reason IS NULL OR oe.change_reason NOT LIKE '%熔断%')
-        AND (oe.change_reason IS NULL OR oe.change_reason NOT LIKE '%冷却保护%')
-        AND (oe.change_reason IS NULL OR oe.change_reason NOT LIKE '%提价恢复%')
-        AND (oe.change_reason IS NULL OR oe.change_reason NOT LIKE '%曝光保护%')
-        AND ABS(CAST(k.bid AS DECIMAL(10,2)) - CAST(oe.new_bid AS DECIMAL(10,2))) > ${bidTolerance}
-        AND oe.id = (
-          SELECT MAX(oe2.id) FROM optimization_events oe2 
-          WHERE oe2.keyword_id = oe.keyword_id 
-            AND oe2.event_category = 'bid_adjustment'
-            AND oe2.status = 'success'
-            // @ts-ignore
-            AND oe2.api_sync_status = 'synced'
-            AND (oe2.change_reason IS NULL OR oe2.change_reason NOT LIKE '%AutoCorrector%')
-        )
-      ORDER BY oe.created_at DESC
-      LIMIT ${sql.raw(String(AUTO_CORRECTION_CONFIG.maxBidCorrectionsPerRun))}
-    `;
+ SELECT /*+ MAX_EXECUTION_TIME(60000) */
+ oe.id as event_id,
+ oe.keyword_id,
+ oe.keyword_text,
+ oe.campaign_id,
+ oe.campaign_name,
+ c.campaignId as amazon_campaign_id,
+ oe.new_bid as expected_bid,
+ oe.previous_bid,
+ k.bid as current_bid,
+ oe.created_at as optimized_at,
+ pg.max_bid as max_bid
+ FROM optimization_events oe
+ JOIN keywords k ON oe.keyword_id = k.id
+ JOIN ad_groups ag ON k.internal_ad_group_id = ag.id
+ JOIN campaigns c ON ag.campaignId = c.campaignId
+ LEFT JOIN performance_groups pg ON c.performanceGroupId = pg.id
+ WHERE oe.account_id = ${accountId}
+ AND oe.event_category = 'bid_adjustment'
+ AND oe.status = 'success'
+ AND oe.api_sync_status = 'synced'
+ AND oe.created_at > DATE_SUB(NOW(), INTERVAL 1 DAY)
+ AND k.keywordId IS NOT NULL
+ AND (oe.change_reason IS NULL OR oe.change_reason NOT LIKE '%AutoCorrector%')
+ AND (oe.change_reason IS NULL OR oe.change_reason NOT LIKE '%熔断%')
+ AND (oe.change_reason IS NULL OR oe.change_reason NOT LIKE '%冷却保护%')
+ AND (oe.change_reason IS NULL OR oe.change_reason NOT LIKE '%提价恢复%')
+ AND (oe.change_reason IS NULL OR oe.change_reason NOT LIKE '%曝光保护%')
+ AND ABS(CAST(k.bid AS DECIMAL(10,2)) - CAST(oe.new_bid AS DECIMAL(10,2))) > ${bidTolerance}
+ AND oe.id = (
+ SELECT MAX(oe2.id) FROM optimization_events oe2 
+ WHERE oe2.keyword_id = oe.keyword_id 
+ AND oe2.event_category = 'bid_adjustment'
+ AND oe2.status = 'success'
+ AND oe2.api_sync_status = 'synced'
+ AND (oe2.change_reason IS NULL OR oe2.change_reason NOT LIKE '%AutoCorrector%')
+ )
+ ORDER BY oe.created_at DESC
+ LIMIT ${sql.raw(String(AUTO_CORRECTION_CONFIG.maxBidCorrectionsPerRun))}
+ `;
     
     // @ts-ignore
     const mismatches = await database.execute(mismatchQuery);
@@ -791,20 +790,15 @@ async function correctBidMismatches(database: unknown, accountId: number): Promi
     for (const row of (rows as unknown[])) {
       // 检查该keyword是否有比当前参考事件更新的优化决策
       const newerDecisionQuery = sql`
-        SELECT id, new_bid, change_reason, created_at 
-        // @ts-ignore
-        FROM optimization_events 
-        // @ts-ignore
-        WHERE keyword_id = ${(row as any).keyword_id}
-          AND event_category = 'bid_adjustment'
-          AND status = 'success'
-          // @ts-ignore
-          AND id > ${(row as any).event_id}
-        // @ts-ignore
-        ORDER BY id DESC
-        // @ts-ignore
-        LIMIT 1
-      `;
+ SELECT id, new_bid, change_reason, created_at 
+ FROM optimization_events 
+ WHERE keyword_id = ${(row as any).keyword_id}
+ AND event_category = 'bid_adjustment'
+ AND status = 'success'
+ AND id > ${(row as any).event_id}
+ ORDER BY id DESC
+ LIMIT 1
+ `;
       // @ts-ignore
       const newerResult = await database.execute(newerDecisionQuery);
       const newerRows = (newerResult as Record<string, unknown>[])[0] || newerResult;
@@ -825,16 +819,14 @@ async function correctBidMismatches(database: unknown, accountId: number): Promi
       
       // v259: 增强护栏事件检测 — 排除所有护栏机制产生的事件
       const recentHoldQuery = sql`
-        SELECT id, change_reason FROM optimization_events 
-        // @ts-ignore
-        WHERE keyword_id = ${(row as any).keyword_id}
-          AND event_category = 'bid_adjustment'
-          AND created_at > DATE_SUB(NOW(), INTERVAL 8 HOUR)
-          AND (change_reason LIKE '%冷却保护%' OR change_reason LIKE '%熔断%' OR change_reason LIKE '%提价恢复%' OR change_reason LIKE '%曝光保护%' OR change_reason LIKE '%cooldown%' OR change_reason LIKE '%circuit_breaker%' OR change_reason LIKE '%recovery%')
-        // @ts-ignore
-        ORDER BY id DESC
-        LIMIT 1
-      `;
+ SELECT id, change_reason FROM optimization_events 
+ WHERE keyword_id = ${(row as any).keyword_id}
+ AND event_category = 'bid_adjustment'
+ AND created_at > DATE_SUB(NOW(), INTERVAL 8 HOUR)
+ AND (change_reason LIKE '%冷却保护%' OR change_reason LIKE '%熔断%' OR change_reason LIKE '%提价恢复%' OR change_reason LIKE '%曝光保护%' OR change_reason LIKE '%cooldown%' OR change_reason LIKE '%circuit_breaker%' OR change_reason LIKE '%recovery%')
+ ORDER BY id DESC
+ LIMIT 1
+ `;
       // @ts-ignore
       const holdResult = await database.execute(recentHoldQuery);
       const holdRows = (holdResult as Record<string, unknown>[])[0] || holdResult;
@@ -850,16 +842,14 @@ async function correctBidMismatches(database: unknown, accountId: number): Promi
       
       // v328: 纠错冷却机制 — 同一个keyword在8小时内最多纠正1次，避免拉锯战
       const recentCorrectionQuery = sql`
-        SELECT id FROM optimization_events 
-        // @ts-ignore
-        WHERE keyword_id = ${(row as any).keyword_id}
-          AND event_category = 'bid_adjustment'
-          AND change_reason LIKE '%AutoCorrector%'
-          AND created_at > DATE_SUB(NOW(), INTERVAL 8 HOUR)
-        ORDER BY id DESC
-        LIMIT 1
-      // @ts-ignore
-      `;
+ SELECT id FROM optimization_events 
+ WHERE keyword_id = ${(row as any).keyword_id}
+ AND event_category = 'bid_adjustment'
+ AND change_reason LIKE '%AutoCorrector%'
+ AND created_at > DATE_SUB(NOW(), INTERVAL 8 HOUR)
+ ORDER BY id DESC
+ LIMIT 1
+ `;
       // @ts-ignore
       const recentCorrResult = await database.execute(recentCorrectionQuery);
       const recentCorrRows = (recentCorrResult as Record<string, unknown>[])[0] || recentCorrResult;
@@ -1149,46 +1139,37 @@ async function correctBudgetMismatches(database: unknown, accountId: number): Pr
     // v436: 添加MAX_EXECUTION_TIME防止僵尸查询（最多60秒）
     // @ts-ignore
     const mismatchQuery = sql`
-      SELECT /*+ MAX_EXECUTION_TIME(60000) */
-        oe.id as event_id,
-        // @ts-ignore
-        oe.campaign_id,
-        oe.campaign_name,
-        oe.new_value as expected_budget,
-        oe.previous_value as previous_budget,
-        c.dailyBudget as current_budget,
-        // @ts-ignore
-        c.campaignId as amazon_campaign_id,
-        oe.created_at as optimized_at
-      // @ts-ignore
-      FROM optimization_events oe
-      JOIN campaigns c ON oe.campaign_id = c.id
-      LEFT JOIN performance_groups pg ON c.performanceGroupId = pg.id
-      WHERE oe.account_id = ${accountId}
-        AND oe.event_category = 'budget_adjustment'
-        AND oe.status = 'success'
-        // @ts-ignore
-        AND oe.api_sync_status = 'synced'
-        AND oe.created_at > DATE_SUB(NOW(), INTERVAL 3 DAY)
-        // @ts-ignore
-        AND (oe.change_reason IS NULL OR oe.change_reason NOT LIKE '%AutoCorrector%')
-        AND (pg.daypartingEnabled IS NULL OR pg.daypartingEnabled = 0)
-        AND ABS(CAST(c.dailyBudget AS DECIMAL(10,2)) - CAST(REPLACE(REPLACE(oe.new_value, '$', ''), ',', '') AS DECIMAL(10,2))) > ${budgetTolerance}
-        AND oe.id = (
-          SELECT MAX(oe2.id) FROM optimization_events oe2 
-          WHERE oe2.campaign_id = oe.campaign_id 
-            AND oe2.event_category = 'budget_adjustment'
-            AND oe2.status = 'success'
-            // @ts-ignore
-            AND oe2.api_sync_status = 'synced'
-            AND (oe2.change_reason IS NULL OR oe2.change_reason NOT LIKE '%AutoCorrector%')
-        // @ts-ignore
-        )
-      // @ts-ignore
-      ORDER BY oe.created_at DESC
-      // @ts-ignore
-      LIMIT ${sql.raw(String(AUTO_CORRECTION_CONFIG.maxBudgetCorrectionsPerRun))}
-    `;
+ SELECT /*+ MAX_EXECUTION_TIME(60000) */
+ oe.id as event_id,
+ oe.campaign_id,
+ oe.campaign_name,
+ oe.new_value as expected_budget,
+ oe.previous_value as previous_budget,
+ c.dailyBudget as current_budget,
+ c.campaignId as amazon_campaign_id,
+ oe.created_at as optimized_at
+ FROM optimization_events oe
+ JOIN campaigns c ON oe.campaign_id = c.id
+ LEFT JOIN performance_groups pg ON c.performanceGroupId = pg.id
+ WHERE oe.account_id = ${accountId}
+ AND oe.event_category = 'budget_adjustment'
+ AND oe.status = 'success'
+ AND oe.api_sync_status = 'synced'
+ AND oe.created_at > DATE_SUB(NOW(), INTERVAL 3 DAY)
+ AND (oe.change_reason IS NULL OR oe.change_reason NOT LIKE '%AutoCorrector%')
+ AND (pg.daypartingEnabled IS NULL OR pg.daypartingEnabled = 0)
+ AND ABS(CAST(c.dailyBudget AS DECIMAL(10,2)) - CAST(REPLACE(REPLACE(oe.new_value, '$', ''), ',', '') AS DECIMAL(10,2))) > ${budgetTolerance}
+ AND oe.id = (
+ SELECT MAX(oe2.id) FROM optimization_events oe2 
+ WHERE oe2.campaign_id = oe.campaign_id 
+ AND oe2.event_category = 'budget_adjustment'
+ AND oe2.status = 'success'
+ AND oe2.api_sync_status = 'synced'
+ AND (oe2.change_reason IS NULL OR oe2.change_reason NOT LIKE '%AutoCorrector%')
+ )
+ ORDER BY oe.created_at DESC
+ LIMIT ${sql.raw(String(AUTO_CORRECTION_CONFIG.maxBudgetCorrectionsPerRun))}
+ `;
     
     // @ts-ignore
     const mismatches = await database.execute(mismatchQuery);
@@ -1310,34 +1291,31 @@ async function correctPlacementMismatches(database: unknown, accountId: number):
   try {
     // v436: 添加MAX_EXECUTION_TIME防止僵尸查询（最多60秒）
     const mismatchQuery = sql`
-      SELECT /*+ MAX_EXECUTION_TIME(60000) */
-        oe.id as event_id,
-        oe.campaign_id,
-        oe.campaign_name,
-        oe.action_detail,
-        // @ts-ignore
-        c.placementTopSearchBidAdjustment as current_top,
-        c.placementProductPageBidAdjustment as current_product,
-        c.campaignId as amazon_campaign_id,
-        oe.created_at as optimized_at
-      FROM optimization_events oe
-      JOIN campaigns c ON oe.campaign_id = c.id
-      WHERE oe.account_id = ${accountId}
-        AND oe.event_category = 'placement_adjustment'
-        AND oe.status = 'success'
-        AND oe.api_sync_status IN ('synced', 'pending')
-        AND oe.created_at > DATE_SUB(NOW(), INTERVAL 3 DAY)
-        AND oe.id = (
-          SELECT MAX(oe2.id) FROM optimization_events oe2 
-          WHERE oe2.campaign_id = oe.campaign_id 
-            AND oe2.event_category = 'placement_adjustment'
-            // @ts-ignore
-            AND oe2.status = 'success'
-        )
-      ORDER BY oe.created_at DESC
-      // @ts-ignore
-      LIMIT ${sql.raw(String(AUTO_CORRECTION_CONFIG.maxPlacementCorrectionsPerRun))}
-    `;
+ SELECT /*+ MAX_EXECUTION_TIME(60000) */
+ oe.id as event_id,
+ oe.campaign_id,
+ oe.campaign_name,
+ oe.action_detail,
+ c.placementTopSearchBidAdjustment as current_top,
+ c.placementProductPageBidAdjustment as current_product,
+ c.campaignId as amazon_campaign_id,
+ oe.created_at as optimized_at
+ FROM optimization_events oe
+ JOIN campaigns c ON oe.campaign_id = c.id
+ WHERE oe.account_id = ${accountId}
+ AND oe.event_category = 'placement_adjustment'
+ AND oe.status = 'success'
+ AND oe.api_sync_status IN ('synced', 'pending')
+ AND oe.created_at > DATE_SUB(NOW(), INTERVAL 3 DAY)
+ AND oe.id = (
+ SELECT MAX(oe2.id) FROM optimization_events oe2 
+ WHERE oe2.campaign_id = oe.campaign_id 
+ AND oe2.event_category = 'placement_adjustment'
+ AND oe2.status = 'success'
+ )
+ ORDER BY oe.created_at DESC
+ LIMIT ${sql.raw(String(AUTO_CORRECTION_CONFIG.maxPlacementCorrectionsPerRun))}
+ `;
     
     // @ts-ignore
     const mismatches = await database.execute(mismatchQuery);
@@ -2182,14 +2160,13 @@ async function retryFailedNegativeKeywordAdds(database: unknown, accountId: numb
         if (amazonNegId) {
           // @ts-ignore
           await database.execute(sql`
-            UPDATE negative_keywords 
-            SET amazon_negative_keyword_id = ${amazonNegId}
-            WHERE negativeText = ${nk.keywordText}
-              AND campaignId = ${String(nk.campaignId)}
-              AND amazon_negative_keyword_id IS NULL
-            // @ts-ignore
-            LIMIT 1
-          `).catch((err: Error) => {
+ UPDATE negative_keywords 
+ SET amazon_negative_keyword_id = ${amazonNegId}
+ WHERE negativeText = ${nk.keywordText}
+ AND campaignId = ${String(nk.campaignId)}
+ AND amazon_negative_keyword_id IS NULL
+ LIMIT 1
+ `).catch((err: Error) => {
             log.warn(`v196: 回写否定词ID失败: ${(err as Error).message}`);
           });
           log.info(`v196: 否定词同步成功并回写ID: "${nk.keywordText}" -> ${amazonNegId}`);
@@ -2809,27 +2786,26 @@ async function correctMaxBidViolations(database: unknown, accountId: number): Pr
     
     // 同样检查product_targets
     const ptViolationQuery = sql`
-      SELECT 
-        pt.id as target_id,
-        pt.targetText as target_text,
-        pt.targetId as amazon_target_id,
-        CAST(pt.bid AS DECIMAL(10,2)) as current_bid,
-        pg.max_bid,
-        pg.id as pg_id,
-        pg.name as pg_name,
-        c.id as campaign_id
-      FROM product_targets pt
-      JOIN ad_groups ag ON pt.internal_ad_group_id = ag.id
-      JOIN campaigns c ON ag.campaignId = c.campaignId
-      JOIN performance_groups pg ON c.performanceGroupId = pg.id
-      WHERE c.accountId = ${accountId}
-        AND pt.targetStatus = 'enabled'
-        AND pg.max_bid IS NOT NULL AND pg.max_bid > 0
-        // @ts-ignore
-        AND CAST(pt.bid AS DECIMAL(10,2)) > pg.max_bid
-      ORDER BY CAST(pt.bid AS DECIMAL(10,2)) - pg.max_bid DESC
-      LIMIT 50
-    `;
+ SELECT 
+ pt.id as target_id,
+ pt.targetText as target_text,
+ pt.targetId as amazon_target_id,
+ CAST(pt.bid AS DECIMAL(10,2)) as current_bid,
+ pg.max_bid,
+ pg.id as pg_id,
+ pg.name as pg_name,
+ c.id as campaign_id
+ FROM product_targets pt
+ JOIN ad_groups ag ON pt.internal_ad_group_id = ag.id
+ JOIN campaigns c ON ag.campaignId = c.campaignId
+ JOIN performance_groups pg ON c.performanceGroupId = pg.id
+ WHERE c.accountId = ${accountId}
+ AND pt.targetStatus = 'enabled'
+ AND pg.max_bid IS NOT NULL AND pg.max_bid > 0
+ AND CAST(pt.bid AS DECIMAL(10,2)) > pg.max_bid
+ ORDER BY CAST(pt.bid AS DECIMAL(10,2)) - pg.max_bid DESC
+ LIMIT 50
+ `;
     
     // @ts-ignore
     const ptViolations = await database.execute(ptViolationQuery);
@@ -2889,27 +2865,25 @@ async function cleanupOrphanKeywords(database: unknown, accountId: number): Prom
     // 查找缺少Amazon ID且创建超过24小时的enabled关键词
     // 这些关键词无法同步到Amazon，应该标记为paused以避免干扰优化算法
     const orphanQuery = sql`
-      SELECT 
-        k.id as keyword_id,
-        k.keywordText as keyword_text,
-        k.bid,
-        k.createdAt,
-        c.id as campaign_id,
-        c.campaignName as campaign_name,
-        // @ts-ignore
-        pg.name as pg_name
-      FROM keywords k
-      JOIN ad_groups ag ON k.internal_ad_group_id = ag.id
-      JOIN campaigns c ON ag.campaignId = c.campaignId
-      LEFT JOIN performance_groups pg ON c.performanceGroupId = pg.id
-      WHERE c.accountId = ${accountId}
-        AND k.keywordStatus = 'enabled'
-        AND k.keywordId IS NULL
-        AND k.createdAt < DATE_SUB(NOW(), INTERVAL 24 HOUR)
-      // @ts-ignore
-      ORDER BY k.createdAt ASC
-      LIMIT 200
-    `;
+ SELECT 
+ k.id as keyword_id,
+ k.keywordText as keyword_text,
+ k.bid,
+ k.createdAt,
+ c.id as campaign_id,
+ c.campaignName as campaign_name,
+ pg.name as pg_name
+ FROM keywords k
+ JOIN ad_groups ag ON k.internal_ad_group_id = ag.id
+ JOIN campaigns c ON ag.campaignId = c.campaignId
+ LEFT JOIN performance_groups pg ON c.performanceGroupId = pg.id
+ WHERE c.accountId = ${accountId}
+ AND k.keywordStatus = 'enabled'
+ AND k.keywordId IS NULL
+ AND k.createdAt < DATE_SUB(NOW(), INTERVAL 24 HOUR)
+ ORDER BY k.createdAt ASC
+ LIMIT 200
+ `;
     
     // @ts-ignore
     const orphans = await database.execute(orphanQuery);
@@ -3003,21 +2977,18 @@ async function retryHistoricalFailedKeywordHarvests(database: unknown, accountId
     // 扩展条件: 包含 not_applicable, failed, pending 状态 (覆盖所有需要重试的类型)
     // @ts-ignore
     const failedEvents = await database.execute(sql`
-      SELECT id, account_id, campaign_id, campaign_name, keyword_id, keyword_text,
-             // @ts-ignore
-             action_detail, api_sync_status, api_sync_detail, created_at
-      FROM optimization_events
-      WHERE account_id = ${accountId}
-        AND action_type IN ('keyword_create', 'search_term_harvest')
-        AND api_sync_status IN ('not_applicable', 'failed', 'pending')
-        AND keyword_id IS NULL
-        // @ts-ignore
-        AND action_detail IS NOT NULL
-        // @ts-ignore
-        AND action_detail != ''
-      ORDER BY created_at DESC
-      LIMIT ${sql.raw(String(MAX_PER_RUN))}
-    `);
+ SELECT id, account_id, campaign_id, campaign_name, keyword_id, keyword_text,
+ action_detail, api_sync_status, api_sync_detail, created_at
+ FROM optimization_events
+ WHERE account_id = ${accountId}
+ AND action_type IN ('keyword_create', 'search_term_harvest')
+ AND api_sync_status IN ('not_applicable', 'failed', 'pending')
+ AND keyword_id IS NULL
+ AND action_detail IS NOT NULL
+ AND action_detail != ''
+ ORDER BY created_at DESC
+ LIMIT ${sql.raw(String(MAX_PER_RUN))}
+ `);
     
     const events = (failedEvents as unknown as Record<string, unknown>)[0] || failedEvents;
     if (!events || events.length === 0) return results;
@@ -3071,11 +3042,10 @@ async function retryHistoricalFailedKeywordHarvests(database: unknown, accountId
           for (const kw of (kwEvents as unknown[])) {
             // @ts-ignore
             await database.execute(sql`
-              UPDATE optimization_events SET api_sync_status = 'invalid_legacy',
-                api_sync_detail = ${JSON.stringify({ reason: 'v311: Product Targeting campaign不支持keyword操作', fixedAt: new Date().toISOString() })}
-              // @ts-ignore
-              WHERE id = ${(kw as any).eventId}
-            `).catch(() => {});
+ UPDATE optimization_events SET api_sync_status = 'invalid_legacy',
+ api_sync_detail = ${JSON.stringify({ reason: 'v311: Product Targeting campaign不支持keyword操作', fixedAt: new Date().toISOString() })}
+ WHERE id = ${(kw as any).eventId}
+ `).catch(() => {});
             // @ts-expect-error - type assertion
             results.push({ type: 'keyword_create_retry' as unknown, accountId, targetId: localCampaignId, targetType: 'campaign', previousValue: '', correctedValue: kw.searchTerm, reason: `v311: PT campaign不支持keyword，放弃重试: ${kw.searchTerm}`, success: false, errorMessage: 'pt_campaign_no_keyword' });
           }
@@ -3095,11 +3065,10 @@ async function retryHistoricalFailedKeywordHarvests(database: unknown, accountId
           for (const kw of (kwEvents as unknown[])) {
             // @ts-ignore
             await database.execute(sql`
-              UPDATE optimization_events SET api_sync_status = 'invalid_legacy',
-                api_sync_detail = ${JSON.stringify({ reason: 'v178: campaign不存在', fixedAt: new Date().toISOString() })}
-              // @ts-ignore
-              WHERE id = ${(kw as any).eventId}
-            `).catch(() => {});
+ UPDATE optimization_events SET api_sync_status = 'invalid_legacy',
+ api_sync_detail = ${JSON.stringify({ reason: 'v178: campaign不存在', fixedAt: new Date().toISOString() })}
+ WHERE id = ${(kw as any).eventId}
+ `).catch(() => {});
             // @ts-ignore
             results.push({ type: 'keyword_create_retry', accountId, targetId: localCampaignId, targetType: 'campaign', previousValue: '', correctedValue: kw.searchTerm, reason: `Campaign不存在，放弃重试: ${kw.searchTerm}`, success: false, errorMessage: 'campaign_not_found' });
           // @ts-ignore
@@ -3128,13 +3097,10 @@ async function retryHistoricalFailedKeywordHarvests(database: unknown, accountId
           for (const kw of (kwEvents as unknown[])) {
             // @ts-ignore
             await database.execute(sql`
-              // @ts-ignore
-              UPDATE optimization_events SET api_sync_status = 'invalid_legacy',
-                // @ts-ignore
-                api_sync_detail = ${JSON.stringify({ reason: 'v178: 无活跃adGroup', fixedAt: new Date().toISOString() })}
-              // @ts-ignore
-              WHERE id = ${(kw as any).eventId}
-            `).catch(() => {});
+ UPDATE optimization_events SET api_sync_status = 'invalid_legacy',
+ api_sync_detail = ${JSON.stringify({ reason: 'v178: 无活跃adGroup', fixedAt: new Date().toISOString() })}
+ WHERE id = ${(kw as any).eventId}
+ `).catch(() => {});
             // @ts-ignore
             results.push({ type: 'keyword_create_retry', accountId, targetId: localCampaignId, targetType: 'campaign', previousValue: '', correctedValue: kw.searchTerm, reason: `无活跃adGroup，放弃重试: ${kw.searchTerm}`, success: false, errorMessage: 'no_active_adgroup' });
           }
@@ -3163,11 +3129,10 @@ async function retryHistoricalFailedKeywordHarvests(database: unknown, accountId
             // 已存在，直接标记为 synced
             // @ts-ignore
             await database.execute(sql`
-              UPDATE optimization_events SET api_sync_status = 'synced',
-                api_sync_detail = ${JSON.stringify({ reason: 'v178: 关键词已存在于目标广告组', fixedAt: new Date().toISOString() })}
-              // @ts-ignore
-              WHERE id = ${(kw as any).eventId}
-            `).catch(() => {});
+ UPDATE optimization_events SET api_sync_status = 'synced',
+ api_sync_detail = ${JSON.stringify({ reason: 'v178: 关键词已存在于目标广告组', fixedAt: new Date().toISOString() })}
+ WHERE id = ${(kw as any).eventId}
+ `).catch(() => {});
             // @ts-ignore
             results.push({ type: 'keyword_create_retry', accountId, targetId: localCampaignId, targetType: 'campaign', previousValue: '', correctedValue: kw.searchTerm, reason: `关键词已存在，标记为synced: ${kw.searchTerm}`, success: true });
           } else {
@@ -3203,12 +3168,10 @@ async function retryHistoricalFailedKeywordHarvests(database: unknown, accountId
               log.warn(`v204: 关键词预验证失败，标记为invalid_legacy: "${kw.searchTerm}" → ${kwValidation.reasonMessage}`);
               // @ts-ignore
               await database.execute(sql`
-                UPDATE optimization_events SET api_sync_status = 'invalid_legacy',
-                  api_sync_detail = ${JSON.stringify({ reason: `v204: 关键词预验证失败: ${kwValidation.reasonMessage}`, fixedAt: new Date().toISOString() })}
-                // @ts-ignore
-                WHERE id = ${(kw as any).eventId}
-              // @ts-ignore
-              `).catch(() => {});
+ UPDATE optimization_events SET api_sync_status = 'invalid_legacy',
+ api_sync_detail = ${JSON.stringify({ reason: `v204: 关键词预验证失败: ${kwValidation.reasonMessage}`, fixedAt: new Date().toISOString() })}
+ WHERE id = ${(kw as any).eventId}
+ `).catch(() => {});
               // @ts-ignore
               results.push({ type: 'keyword_create_retry', accountId, targetId: localCampaignId, targetType: 'keyword', previousValue: '', correctedValue: kw.searchTerm, reason: `预验证失败: ${kwValidation.reasonMessage}`, success: false, errorMessage: kwValidation.reasonCode || 'VALIDATION_FAILED' });
               continue;
@@ -3249,11 +3212,10 @@ async function retryHistoricalFailedKeywordHarvests(database: unknown, accountId
             // 可能是重复插入，标记为 invalid_legacy
             // @ts-ignore
             await database.execute(sql`
-              UPDATE optimization_events SET api_sync_status = 'invalid_legacy',
-                api_sync_detail = ${JSON.stringify({ reason: `v178: 本地创建失败: ${(insertErr as Error).message}`, fixedAt: new Date().toISOString() })}
-              // @ts-ignore
-              WHERE id = ${(kw as any).eventId}
-            `).catch(() => {});
+ UPDATE optimization_events SET api_sync_status = 'invalid_legacy',
+ api_sync_detail = ${JSON.stringify({ reason: `v178: 本地创建失败: ${(insertErr as Error).message}`, fixedAt: new Date().toISOString() })}
+ WHERE id = ${(kw as any).eventId}
+ `).catch(() => {});
             // @ts-ignore
             results.push({ type: 'keyword_create_retry', accountId, targetId: localCampaignId, targetType: 'campaign', previousValue: '', correctedValue: kw.searchTerm, reason: `本地创建失败: ${kw.searchTerm}`, success: false, errorMessage: (insertErr as Error).message });
           }
@@ -3305,19 +3267,16 @@ async function retryHistoricalFailedKeywordHarvests(database: unknown, accountId
           if (isSuccess || isDuplicate) {
             // @ts-ignore
             await database.execute(sql`
-              // @ts-ignore
-              UPDATE optimization_events SET api_sync_status = 'synced',
-                api_sync_detail = ${JSON.stringify({ 
-                  correctedBy: 'AutoCorrector-v178-harvest-retry',
-                  fixedAt: new Date().toISOString(),
-                  // @ts-ignore
-                  localKeywordId: kw.localKeywordId,
-                  isDuplicate,
-                })},
-                api_synced_at = NOW()
-              // @ts-ignore
-              WHERE id = ${(kw as any).eventId}
-            `).catch(() => {});
+ UPDATE optimization_events SET api_sync_status = 'synced',
+ api_sync_detail = ${JSON.stringify({ 
+ correctedBy: 'AutoCorrector-v178-harvest-retry',
+ fixedAt: new Date().toISOString(),
+ localKeywordId: kw.localKeywordId,
+ isDuplicate,
+ })},
+ api_synced_at = NOW()
+ WHERE id = ${(kw as any).eventId}
+ `).catch(() => {});
             
             // @ts-ignore
             results.push({ type: 'keyword_create_retry', accountId, targetId: localCampaignId, targetType: 'keyword', previousValue: '', correctedValue: kw.keywordText, reason: isDuplicate ? `关键词Amazon已存在: ${kw.keywordText}` : `重试创建关键词成功: ${kw.keywordText}`, success: true });
@@ -3327,26 +3286,23 @@ async function retryHistoricalFailedKeywordHarvests(database: unknown, accountId
             // 失败 - 标记为 invalid_legacy（不再重试）
             // @ts-ignore
             await database.execute(sql`
-              UPDATE optimization_events SET api_sync_status = 'invalid_legacy',
-                api_sync_detail = ${JSON.stringify({ 
-                  reason: `v178: Amazon拒绝创建关键词`,
-                  errorCode: errorCode || 'UNKNOWN',
-                  fixedAt: new Date().toISOString(),
-                  // @ts-ignore
-                  localKeywordId: kw.localKeywordId,
-                })}
-              // @ts-ignore
-              WHERE id = ${(kw as any).eventId}
-            `).catch(() => {});
+ UPDATE optimization_events SET api_sync_status = 'invalid_legacy',
+ api_sync_detail = ${JSON.stringify({ 
+ reason: `v178: Amazon拒绝创建关键词`,
+ errorCode: errorCode || 'UNKNOWN',
+ fixedAt: new Date().toISOString(),
+ localKeywordId: kw.localKeywordId,
+ })}
+ WHERE id = ${(kw as any).eventId}
+ `).catch(() => {});
             
             // 删除本地创建的无效关键词记录
             // @ts-ignore
             if (kw.localKeywordId) {
               // @ts-ignore
               await database.execute(sql`
-                // @ts-ignore
-                DELETE FROM keywords WHERE id = ${(kw as any).localKeywordId} AND keywordId IS NULL
-              `).catch(() => {});
+ DELETE FROM keywords WHERE id = ${(kw as any).localKeywordId} AND keywordId IS NULL
+ `).catch(() => {});
             }
             
             // @ts-ignore
@@ -3591,10 +3547,9 @@ async function backfillNegativeKeywordIds(database: unknown, accountId: number):
             if (agRows.length > 0 && agRows[0].campaignId) {
               // @ts-ignore
               await database.execute(sql`
-                UPDATE negative_keywords SET campaignId = ${String(agRows[0].campaignId)}
-                // @ts-ignore
-                WHERE id = ${(row as any).id}
-              `);
+ UPDATE negative_keywords SET campaignId = ${String(agRows[0].campaignId)}
+ WHERE id = ${(row as any).id}
+ `);
               backfilledCount++;
             }
           } catch (_: any) { /* 单条失败不影响其他 */ }
@@ -3695,9 +3650,8 @@ async function backfillNegativeKeywordIds(database: unknown, accountId: number):
       if (amazonId) {
         // @ts-ignore
         await database.execute(sql`
-          // @ts-ignore
-          UPDATE negative_keywords SET amazon_negative_keyword_id = ${amazonId} WHERE id = ${(row as any).id}
-        `);
+ UPDATE negative_keywords SET amazon_negative_keyword_id = ${amazonId} WHERE id = ${(row as any).id}
+ `);
         results.push({
           type: 'settings_retry',
           accountId,
@@ -3756,9 +3710,8 @@ async function backfillNegativeKeywordIds(database: unknown, accountId: number):
           if (newId) {
             // @ts-ignore
             await database.execute(sql`
-              // @ts-ignore
-              UPDATE negative_keywords SET amazon_negative_keyword_id = ${newId} WHERE id = ${(row as any).id}
-            `);
+ UPDATE negative_keywords SET amazon_negative_keyword_id = ${newId} WHERE id = ${(row as any).id}
+ `);
             results.push({
               type: 'settings_retry',
               accountId,
@@ -3808,49 +3761,40 @@ async function verifyBiddingLogsExecution(database: unknown, accountId: number):
       // 首选camelCase列名（旧表实际列名），显式映射的列用snake_case
       // @ts-ignore
       recentBidLogs = await database.execute(sql`
-        // @ts-ignore
-        SELECT bl.id, bl.logTargetType as log_target_type, bl.targetId as target_id, bl.targetName as target_name,
-               // @ts-ignore
-               bl.previousBid as previous_bid, bl.newBid as new_bid, bl.createdAt as created_at,
-               bl.campaignId as campaign_id, bl.internal_ad_group_id as ad_group_id
-        FROM bidding_logs bl
-        INNER JOIN (
-          SELECT targetId, logTargetType, MAX(id) as max_id
-          FROM bidding_logs
-          WHERE accountId = ${accountId}
-            AND execution_status = 'success'
-            AND createdAt > DATE_SUB(NOW(), INTERVAL 24 HOUR)
-          GROUP BY targetId, logTargetType
-        ) latest ON bl.id = latest.max_id
-        LIMIT 200
-      `);
+ SELECT bl.id, bl.logTargetType as log_target_type, bl.targetId as target_id, bl.targetName as target_name,
+ bl.previousBid as previous_bid, bl.newBid as new_bid, bl.createdAt as created_at,
+ bl.campaignId as campaign_id, bl.internal_ad_group_id as ad_group_id
+ FROM bidding_logs bl
+ INNER JOIN (
+ SELECT targetId, logTargetType, MAX(id) as max_id
+ FROM bidding_logs
+ WHERE accountId = ${accountId}
+ AND execution_status = 'success'
+ AND createdAt > DATE_SUB(NOW(), INTERVAL 24 HOUR)
+ GROUP BY targetId, logTargetType
+ ) latest ON bl.id = latest.max_id
+ LIMIT 200
+ `);
     } catch (camelErr: unknown) {
       // @ts-ignore
       log.warn(`v200: camelCase查询失败，尝试snake_case列名: ${(camelErr as Error).message?.substring(0, 100)}`);
       // 回退到snake_case列名（如果表在casing配置后被重建）
       // @ts-ignore
       recentBidLogs = await database.execute(sql`
-        SELECT bl.id, bl.log_target_type, bl.target_id, bl.target_name,
-               bl.previous_bid, bl.new_bid, bl.created_at,
-               // @ts-ignore
-               bl.campaign_id, bl.internal_ad_group_id
-        FROM bidding_logs bl
-        INNER JOIN (
-          SELECT target_id, log_target_type, MAX(id) as max_id
-          // @ts-ignore
-          FROM bidding_logs
-          WHERE account_id = ${accountId}
-            AND execution_status = 'success'
-            // @ts-ignore
-            AND created_at > DATE_SUB(NOW(), INTERVAL 24 HOUR)
-          // @ts-ignore
-          GROUP BY target_id, log_target_type
-        // @ts-ignore
-        ) latest ON bl.id = latest.max_id
-        // @ts-ignore
-        LIMIT 200
-      // @ts-ignore
-      `);
+ SELECT bl.id, bl.log_target_type, bl.target_id, bl.target_name,
+ bl.previous_bid, bl.new_bid, bl.created_at,
+ bl.campaign_id, bl.internal_ad_group_id
+ FROM bidding_logs bl
+ INNER JOIN (
+ SELECT target_id, log_target_type, MAX(id) as max_id
+ FROM bidding_logs
+ WHERE account_id = ${accountId}
+ AND execution_status = 'success'
+ AND created_at > DATE_SUB(NOW(), INTERVAL 24 HOUR)
+ GROUP BY target_id, log_target_type
+ ) latest ON bl.id = latest.max_id
+ LIMIT 200
+ `);
     // @ts-ignore
     }
     
@@ -4645,18 +4589,17 @@ async function retryFailedProductTargetCreations(database: unknown, accountId: n
     // 查找缺少Amazon targetId的product_targets记录
     // @ts-ignore
     const [missingTargets] = await database.execute(sql`
-      SELECT pt.id, pt.internal_ad_group_id, pt.targetType, pt.targetExpression, pt.bid, pt.targetStatus,
-             ag.adGroupId as amazon_ad_group_id, ag.campaignId as amazon_campaign_id
-      FROM product_targets pt
-      // @ts-ignore
-      INNER JOIN ad_groups ag ON pt.internal_ad_group_id = ag.id
-      WHERE pt.accountId = ${accountId}
-        AND (pt.targetId IS NULL OR pt.targetId = '' OR pt.targetId = '0')
-        AND pt.targetStatus != 'archived'
-        AND ag.adGroupId IS NOT NULL
-        AND ag.campaignId IS NOT NULL
-      LIMIT 200
-    `);
+ SELECT pt.id, pt.internal_ad_group_id, pt.targetType, pt.targetExpression, pt.bid, pt.targetStatus,
+ ag.adGroupId as amazon_ad_group_id, ag.campaignId as amazon_campaign_id
+ FROM product_targets pt
+ INNER JOIN ad_groups ag ON pt.internal_ad_group_id = ag.id
+ WHERE pt.accountId = ${accountId}
+ AND (pt.targetId IS NULL OR pt.targetId = '' OR pt.targetId = '0')
+ AND pt.targetStatus != 'archived'
+ AND ag.adGroupId IS NOT NULL
+ AND ag.campaignId IS NOT NULL
+ LIMIT 200
+ `);
     
     if (!missingTargets || missingTargets.length === 0) {
       log.info(`v310: 账户${accountId} 无缺少Amazon ID的商品定向需要创建`);
@@ -4887,12 +4830,11 @@ async function revalidateStalePendingCommands(database: unknown, accountId: numb
         if (shouldCancel) {
           // @ts-ignore
           await database.execute(sql`
-            UPDATE optimization_events 
-            SET api_sync_status = 'not_applicable',
-                error_message = ${`v324增量重评估: ${cancelReason}`}
-            // @ts-ignore
-            WHERE id = ${(row as any).id}
-          `);
+ UPDATE optimization_events 
+ SET api_sync_status = 'not_applicable',
+ error_message = ${`v324增量重评估: ${cancelReason}`}
+ WHERE id = ${(row as any).id}
+ `);
           cancelled++;
           
           results.push({

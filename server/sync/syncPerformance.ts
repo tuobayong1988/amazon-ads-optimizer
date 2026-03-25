@@ -1218,21 +1218,20 @@ AmazonSyncService.prototype.generateHourlyFromDaily = async function(this: Amazo
   try {
     // 查找还没有hourly数据的daily记录（增量式）
     const dailyData = await db.execute(sql`
-      SELECT dp.* FROM daily_performance dp
-      LEFT JOIN (
-        SELECT DISTINCT accountId, campaignId, DATE(date) AS dt
-        FROM hourly_performance
-        // @ts-ignore
-        WHERE accountId = ${this.accountId}
-      ) hp ON dp.accountId = hp.accountId 
-        AND dp.campaignId = hp.campaignId 
-        AND DATE(dp.date) = hp.dt
-      WHERE dp.accountId = ${this.accountId}
-        AND DATE(dp.date) >= ${startDate}
-        AND DATE(dp.date) <= ${endDate}
-        AND (dp.impressions > 0 OR dp.clicks > 0)
-        AND hp.dt IS NULL
-    `);
+ SELECT dp.* FROM daily_performance dp
+ LEFT JOIN (
+ SELECT DISTINCT accountId, campaignId, DATE(date) AS dt
+ FROM hourly_performance
+ WHERE accountId = ${this.accountId}
+ ) hp ON dp.accountId = hp.accountId 
+ AND dp.campaignId = hp.campaignId 
+ AND DATE(dp.date) = hp.dt
+ WHERE dp.accountId = ${this.accountId}
+ AND DATE(dp.date) >= ${startDate}
+ AND DATE(dp.date) <= ${endDate}
+ AND (dp.impressions > 0 OR dp.clicks > 0)
+ AND hp.dt IS NULL
+ `);
     
     // @ts-ignore
     const rows = (dailyData as Record<string, unknown>[])?.[0] || dailyData;

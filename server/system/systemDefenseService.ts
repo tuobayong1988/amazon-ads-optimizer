@@ -584,19 +584,18 @@ export async function executeRealEmergencyOptimization(): Promise<DefenseResult>
 
         // 暂停ACoS>200%的Campaign
         const [extremeCampaigns] = await dbInstance.execute(sql`
-          SELECT c.id, c.campaignId, c.campaignName,
-                 SUM(dp.spend) as total_spend, SUM(dp.sales) as total_sales
-          FROM campaigns c
-          JOIN daily_performance dp ON dp.campaignId = c.campaignId AND dp.accountId = c.accountId
-          WHERE c.accountId = ${account.id}
-            AND c.campaignStatus = 'enabled'
-            AND dp.date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
-          GROUP BY c.id, c.campaignId, c.campaignName
-          HAVING total_spend > 10 AND (total_sales = 0 OR (total_spend / total_sales) > 2)
-          ORDER BY total_spend DESC
-          LIMIT 20
-        // @ts-ignore
-        `);
+ SELECT c.id, c.campaignId, c.campaignName,
+ SUM(dp.spend) as total_spend, SUM(dp.sales) as total_sales
+ FROM campaigns c
+ JOIN daily_performance dp ON dp.campaignId = c.campaignId AND dp.accountId = c.accountId
+ WHERE c.accountId = ${account.id}
+ AND c.campaignStatus = 'enabled'
+ AND dp.date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+ GROUP BY c.id, c.campaignId, c.campaignName
+ HAVING total_spend > 10 AND (total_sales = 0 OR (total_spend / total_sales) > 2)
+ ORDER BY total_spend DESC
+ LIMIT 20
+ `);
 
         // @ts-ignore
         const extremeRows = extremeCampaigns as any[];
@@ -661,18 +660,17 @@ export async function executeRealEmergencyOptimization(): Promise<DefenseResult>
 
         // 暂停零转化高花费Campaign（花费>$30但0单）
         const [zeroConvCampaigns] = await dbInstance.execute(sql`
-          SELECT c.id, c.campaignId, c.campaignName, SUM(dp.spend) as total_spend
-          FROM campaigns c
-          JOIN daily_performance dp ON dp.campaignId = c.campaignId AND dp.accountId = c.accountId
-          WHERE c.accountId = ${account.id}
-            AND c.campaignStatus = 'enabled'
-            AND dp.date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
-          GROUP BY c.id, c.campaignId, c.campaignName
-          HAVING total_spend > 30 AND SUM(dp.orders) = 0
-          ORDER BY total_spend DESC
-          // @ts-ignore
-          LIMIT 10
-        `);
+ SELECT c.id, c.campaignId, c.campaignName, SUM(dp.spend) as total_spend
+ FROM campaigns c
+ JOIN daily_performance dp ON dp.campaignId = c.campaignId AND dp.accountId = c.accountId
+ WHERE c.accountId = ${account.id}
+ AND c.campaignStatus = 'enabled'
+ AND dp.date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+ GROUP BY c.id, c.campaignId, c.campaignName
+ HAVING total_spend > 30 AND SUM(dp.orders) = 0
+ ORDER BY total_spend DESC
+ LIMIT 10
+ `);
 
         // @ts-ignore
         const zeroConvRows = zeroConvCampaigns as any[];

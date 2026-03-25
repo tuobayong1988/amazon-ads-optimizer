@@ -1255,14 +1255,13 @@ async function updateTargetOptimizedVersion(targetId: number, version: number): 
       if (!database) return;
       
       await database.execute(sql`
-        INSERT INTO optimization_events 
-          (account_id, event_category, action_type, action_detail, change_reason,
-           // @ts-ignore
-           previous_value, new_value, algorithm_version, status, api_sync_status, created_at)
-        VALUES 
-          (0, 'settings_change', 'settings_update', ${actionDetail}, ${changeReason},
-           'reoptimize_triggered', ${`v${version}`}, ${`v${version}`}, 'success', 'not_applicable', NOW())
-      `);
+ INSERT INTO optimization_events 
+ (account_id, event_category, action_type, action_detail, change_reason,
+ previous_value, new_value, algorithm_version, status, api_sync_status, created_at)
+ VALUES 
+ (0, 'settings_change', 'settings_update', ${actionDetail}, ${changeReason},
+ 'reoptimize_triggered', ${`v${version}`}, ${`v${version}`}, 'success', 'not_applicable', NOW())
+ `);
       return; // 成功
     } catch (error: unknown) {
       log.warn(`[PostDeployOptimizer] 更新目标版本失败 (targetId=${targetId}, 尝试${attempt}/${maxRetries}): ${(error as Error).message}`);
@@ -1281,16 +1280,15 @@ async function getTargetLastOptimizedVersion(targetId: number): Promise<number |
     if (!database) return null;
     
     const result = await database.execute(sql`
-      SELECT action_detail FROM optimization_events
-      // @ts-ignore
-      WHERE event_category = 'settings_change'
-        AND action_type = 'settings_update'
-        AND status = 'success'
-        AND JSON_EXTRACT(action_detail, '$.type') = 'target_reoptimized'
-        AND JSON_EXTRACT(action_detail, '$.targetId') = ${targetId}
-      ORDER BY created_at DESC
-      LIMIT 1
-    `);
+ SELECT action_detail FROM optimization_events
+ WHERE event_category = 'settings_change'
+ AND action_type = 'settings_update'
+ AND status = 'success'
+ AND JSON_EXTRACT(action_detail, '$.type') = 'target_reoptimized'
+ AND JSON_EXTRACT(action_detail, '$.targetId') = ${targetId}
+ ORDER BY created_at DESC
+ LIMIT 1
+ `);
     
     // @ts-ignore
     const rows = (result as Record<string, unknown>[][])[0] || [];
@@ -1462,13 +1460,12 @@ async function reoptimizeTarget(
               if (database) {
                 const cleanupResult = await database.execute(
                   sql`UPDATE optimization_logs 
-                      SET api_sync_status = 'not_applicable', 
-                          error_message = 'v223: 清理无效pending - 分时竞价出价未变更' 
-                      WHERE performance_group_id = ${targetId}
-                        AND action_type = 'dayparting_bid' 
-                        // @ts-ignore
-                        AND api_sync_status = 'pending'
-                        AND previous_value = new_value`
+ SET api_sync_status = 'not_applicable', 
+ error_message = 'v223: 清理无效pending - 分时竞价出价未变更' 
+ WHERE performance_group_id = ${targetId}
+ AND action_type = 'dayparting_bid' 
+ AND api_sync_status = 'pending'
+ AND previous_value = new_value`
                 );
                 // @ts-ignore
                 const cleaned = (cleanupResult as Record<string, unknown>[])?.[0]?.affectedRows || 0;
@@ -1567,10 +1564,9 @@ async function reoptimizeTarget(
                   if (shouldCancel) {
                     await database.execute(
                       sql`UPDATE optimization_logs 
-                          SET api_sync_status = 'not_applicable',
-                              error_message = ${`v310重评估取消: ${cancelReason}`}
-                          // @ts-ignore
-                          WHERE id = ${(row as any).id}`
+ SET api_sync_status = 'not_applicable',
+ error_message = ${`v310重评估取消: ${cancelReason}`}
+ WHERE id = ${(row as any).id}`
                     );
                     cancelled++;
                   } else {
@@ -1675,26 +1671,20 @@ async function reoptimizeTarget(
                   try {
                     await database.execute(
                       sql`INSERT INTO optimization_events 
-                          (account_id, event_category, action_type, action_detail, change_reason, 
-                           previous_value, new_value, algorithm_version, status, api_sync_status)
-                          VALUES (${config.accountId}, 'audit', 'algorithm_audit', 
-                                  ${JSON.stringify({ 
-                                    // @ts-ignore
-                                    sourceLogId: row.id, 
-                                    // @ts-ignore
-                                    entityType: row.entity_type, 
-                                    // @ts-ignore
-                                    entityId: row.entity_id,
-                                    // @ts-ignore
-                                    originalAction: row.action_type,
-                                    auditReason,
-                                    // @ts-ignore
-                                    keywordText: row.keywordText,
-                                  })},
-                                  ${`v310审计: ${auditReason}`},
-                                  // @ts-ignore
-                                  ${String((row as any).new_value)}, ${String((row as any).current_bid)},
-                                  'v310', 'success', 'not_applicable')`
+ (account_id, event_category, action_type, action_detail, change_reason, 
+ previous_value, new_value, algorithm_version, status, api_sync_status)
+ VALUES (${config.accountId}, 'audit', 'algorithm_audit', 
+ ${JSON.stringify({ 
+ sourceLogId: row.id, 
+ entityType: row.entity_type, 
+ entityId: row.entity_id,
+ originalAction: row.action_type,
+ auditReason,
+ keywordText: row.keywordText,
+ })},
+ ${`v310审计: ${auditReason}`},
+ ${String((row as any).new_value)}, ${String((row as any).current_bid)},
+ 'v310', 'success', 'not_applicable')`
                     );
                   } catch (insertErr: unknown) {
                     log.warn(`v310: 审计记录插入失败: ${(insertErr as Error).message}`);
@@ -2041,42 +2031,40 @@ export async function runPostDeployOptimization(): Promise<PostDeployResult> {
         // 保留需要API同步的设置变更(budget, bid相关)的pending/failed状态
         // @ts-ignore
         const settingsResult = await database.execute(sql`
-          UPDATE optimization_events 
-          SET api_sync_status = 'not_applicable',
-              api_sync_detail = ${JSON.stringify({ reason: 'v266: 内部设置变更不需要Amazon API同步', fixedAt: new Date().toISOString() })}
-          WHERE action_type = 'settings_update'
-            AND event_category = 'settings_change'
-            AND api_sync_status IN ('failed', 'pending')
-            AND (
-              JSON_EXTRACT(action_detail, '$.type') IN ('system_deploy', 'target_reoptimized', 'algorithm_config', 'strategy_update', 'system_config')
-              OR change_reason LIKE '%部署%'
-              OR change_reason LIKE '%算法%参数%'
-              OR change_reason LIKE '%策略%更新%'
-            // @ts-ignore
-            )
-        `);
+ UPDATE optimization_events 
+ SET api_sync_status = 'not_applicable',
+ api_sync_detail = ${JSON.stringify({ reason: 'v266: 内部设置变更不需要Amazon API同步', fixedAt: new Date().toISOString() })}
+ WHERE action_type = 'settings_update'
+ AND event_category = 'settings_change'
+ AND api_sync_status IN ('failed', 'pending')
+ AND (
+ JSON_EXTRACT(action_detail, '$.type') IN ('system_deploy', 'target_reoptimized', 'algorithm_config', 'strategy_update', 'system_config')
+ OR change_reason LIKE '%部署%'
+ OR change_reason LIKE '%算法%参数%'
+ OR change_reason LIKE '%策略%更新%'
+ )
+ `);
         // @ts-ignore
         const settingsFixed = (settingsResult as Record<string, unknown>[])[0]?.affectedRows || 0;
         log.info(`[PostDeployOptimizer] v266: 修复${settingsFixed}个内部settings_update事件状态为not_applicable(保留需要API同步的设置变更)`);
         
         // v266: 将之前被错误标记为not_applicable的预算/出价相关settings_update事件恢复为pending，以便重试同步
         const restoreResult = await database.execute(sql`
-          UPDATE optimization_events 
-          SET api_sync_status = 'pending',
-              api_sync_detail = ${JSON.stringify({ reason: 'v266: 恢复被错误标记的需要API同步的设置变更', fixedAt: new Date().toISOString() })}
-          // @ts-ignore
-          WHERE action_type = 'settings_update'
-            AND event_category = 'settings_change'
-            AND api_sync_status = 'not_applicable'
-            AND (
-              change_reason LIKE '%预算%'
-              OR change_reason LIKE '%budget%'
-              OR change_reason LIKE '%出价%'
-              OR change_reason LIKE '%bid%'
-              OR JSON_EXTRACT(action_detail, '$.type') IN ('budget_adjustment', 'bid_adjustment')
-            )
-            AND created_at > DATE_SUB(NOW(), INTERVAL 7 DAY)
-        `);
+ UPDATE optimization_events 
+ SET api_sync_status = 'pending',
+ api_sync_detail = ${JSON.stringify({ reason: 'v266: 恢复被错误标记的需要API同步的设置变更', fixedAt: new Date().toISOString() })}
+ WHERE action_type = 'settings_update'
+ AND event_category = 'settings_change'
+ AND api_sync_status = 'not_applicable'
+ AND (
+ change_reason LIKE '%预算%'
+ OR change_reason LIKE '%budget%'
+ OR change_reason LIKE '%出价%'
+ OR change_reason LIKE '%bid%'
+ OR JSON_EXTRACT(action_detail, '$.type') IN ('budget_adjustment', 'bid_adjustment')
+ )
+ AND created_at > DATE_SUB(NOW(), INTERVAL 7 DAY)
+ `);
         // @ts-ignore
         const restored = (restoreResult as Record<string, unknown>[])[0]?.affectedRows || 0;
         // @ts-ignore

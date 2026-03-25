@@ -281,17 +281,12 @@ export async function getAllDistributedLockStatus(): Promise<Array<{
     const database = await getDb();
     // @ts-ignore
     const result = await database.execute(sql`
-      // @ts-ignore
-      SELECT lock_key, holder_id, acquired_at, expires_at,
-        // @ts-ignore
-        TIMESTAMPDIFF(SECOND, NOW(), expires_at) * 1000 as remaining_ms
-      // @ts-ignore
-      FROM sync_locks
-      // @ts-ignore
-      WHERE expires_at > NOW()
-      // @ts-ignore
-      ORDER BY acquired_at DESC
-    `);
+ SELECT lock_key, holder_id, acquired_at, expires_at,
+ TIMESTAMPDIFF(SECOND, NOW(), expires_at) * 1000 as remaining_ms
+ FROM sync_locks
+ WHERE expires_at > NOW()
+ ORDER BY acquired_at DESC
+ `);
     const rows = extractRows(result);
     return (rows as unknown[]).map(row => ({
       // @ts-ignore

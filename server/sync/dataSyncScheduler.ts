@@ -606,19 +606,13 @@ async function executeUnifiedSync(tier: SyncTier): Promise<void> {
       // 但手动同步的冲突由SyncCoordinator的MANUAL_OVERRIDE机制处理
       const runningJobs = await database.execute(
         sql`SELECT id, accountId, syncType, trigger_source, current_step, current_step_index, total_steps,
-                   // @ts-ignore
-                   TIMESTAMPDIFF(MINUTE, startedAt, NOW()) as running_minutes,
-                   // @ts-ignore
-                   TIMESTAMPDIFF(SECOND, updated_at, NOW()) as seconds_since_heartbeat
-            FROM data_sync_jobs
-            // @ts-ignore
-            WHERE status = 'running'
-              // @ts-ignore
-              AND updated_at >= DATE_SUB(NOW(), INTERVAL 10 MINUTE)
-              // @ts-ignore
-              AND (trigger_source IS NULL OR trigger_source = 'auto')
-            // @ts-ignore
-            ORDER BY id`
+ TIMESTAMPDIFF(MINUTE, startedAt, NOW()) as running_minutes,
+ TIMESTAMPDIFF(SECOND, updated_at, NOW()) as seconds_since_heartbeat
+ FROM data_sync_jobs
+ WHERE status = 'running'
+ AND updated_at >= DATE_SUB(NOW(), INTERVAL 10 MINUTE)
+ AND (trigger_source IS NULL OR trigger_source = 'auto')
+ ORDER BY id`
       );
       // Drizzle mysql2返回 [rows, fields]，取第一个元素
       // @ts-ignore

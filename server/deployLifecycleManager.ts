@@ -338,9 +338,8 @@ async function persistShutdownState(): Promise<void> {
       // v409: 只记录日志，不再无条件标记为failed
       // 如果任务真的卡死，dataSyncScheduler的启动清理（30分钟阈值）和定期清理（60分钟阈值）会处理
       const runningJobs = await database.execute(sql`
-        // @ts-ignore
-        SELECT id, account_id as accountId, current_step FROM data_sync_jobs WHERE status = 'running'
-      `);
+ SELECT id, account_id as accountId, current_step FROM data_sync_jobs WHERE status = 'running'
+ `);
       // @ts-ignore
       const runningCount = (runningJobs as unknown[])?.[0]?.length || (Array.isArray(runningJobs) ? (runningJobs as unknown[]).filter((r: unknown) => r.id).length : 0);
       if (runningCount > 0) {
@@ -351,14 +350,12 @@ async function persistShutdownState(): Promise<void> {
       
       // 同时取消pending状态的同步任务（部署后会重新调度）
       const syncCancelResult = await database.execute(sql`
-        UPDATE data_sync_jobs 
-        SET status = 'cancelled', 
-            completedAt = NOW(),
-            // @ts-ignore
-            errorMessage = CONCAT(COALESCE(errorMessage, ''), ' [', ${syncResetNote}, ']')
-        // @ts-ignore
-        WHERE status = 'pending'
-      `);
+ UPDATE data_sync_jobs 
+ SET status = 'cancelled', 
+ completedAt = NOW(),
+ errorMessage = CONCAT(COALESCE(errorMessage, ''), ' [', ${syncResetNote}, ']')
+ WHERE status = 'pending'
+ `);
       // @ts-ignore
       const syncCancelled = (syncCancelResult as Record<string, unknown>[])?.[0]?.affectedRows || 0;
       // @ts-ignore
@@ -872,12 +869,9 @@ export async function orchestrateStartup(server: unknown): Promise<void> {
           staleAccountCount: staleAccounts.length,
         });
         await database.execute(sql`
-          // @ts-ignore
-          INSERT INTO optimization_events (account_id, event_category, action_type, action_detail, change_reason, algorithm_version, status, api_sync_status) 
-          // @ts-ignore
-          VALUES (0, 'settings_change', 'auto_correction', ${detail}, ${`v${SYSTEM_VERSION} 启动恢复: 清理${staleCleaned}个卡死同步任务, ${staleAccounts.length}个账户同步滞后`}, ${`v${SYSTEM_VERSION}`}, 'success', 'internal')
-        // @ts-ignore
-        `);
+ INSERT INTO optimization_events (account_id, event_category, action_type, action_detail, change_reason, algorithm_version, status, api_sync_status) 
+ VALUES (0, 'settings_change', 'auto_correction', ${detail}, ${`v${SYSTEM_VERSION} 启动恢复: 清理${staleCleaned}个卡死同步任务, ${staleAccounts.length}个账户同步滞后`}, ${`v${SYSTEM_VERSION}`}, 'success', 'internal')
+ `);
       // @ts-ignore
       }
       
@@ -911,10 +905,9 @@ export async function orchestrateStartup(server: unknown): Promise<void> {
             durationMs: syncResult.durationMs,
           });
           await database.execute(sql`
-            INSERT INTO optimization_events (account_id, event_category, action_type, action_detail, change_reason, algorithm_version, status, api_sync_status) 
-            // @ts-ignore
-            VALUES (0, 'settings_change', 'auto_correction', ${syncDetail}, ${`v${SYSTEM_VERSION} 部署后完整同步完成: ${(syncResult as any).successfulAccounts}/${(syncResult as any).totalAccounts}成功`}, ${`v${SYSTEM_VERSION}`}, 'success', 'internal')
-          `);
+ INSERT INTO optimization_events (account_id, event_category, action_type, action_detail, change_reason, algorithm_version, status, api_sync_status) 
+ VALUES (0, 'settings_change', 'auto_correction', ${syncDetail}, ${`v${SYSTEM_VERSION} 部署后完整同步完成: ${(syncResult as any).successfulAccounts}/${(syncResult as any).totalAccounts}成功`}, ${`v${SYSTEM_VERSION}`}, 'success', 'internal')
+ `);
         } catch (syncErr: unknown) {
           log.warn(`[LifecycleManager] v405: 部署后轻量级同步失败: ${(syncErr as Error).message}`);
         }

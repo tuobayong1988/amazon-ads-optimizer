@@ -169,25 +169,22 @@ async function calculateRollbackRate(
 
     // 前一周期: N天前到2N天前
     const previousPeriodQuery = sql`
-      SELECT 
-        COUNT(CASE WHEN change_reason NOT LIKE '%AutoCorrector%' THEN 1 END) as total_original,
-        SUM(CASE 
-          WHEN status = 'rolled_back' 
-            AND change_reason NOT LIKE '%AutoCorrector%'
-            AND ABS(CAST(new_value AS DECIMAL(10,4)) - CAST(previous_value AS DECIMAL(10,4))) / NULLIF(CAST(previous_value AS DECIMAL(10,4)), 0) >= 0.15
-          THEN 1 
-          ELSE 0 
-        END) as hard_rollback
-      FROM optimization_events
-      WHERE account_id = ${accountId}
-        AND event_category = 'bid_adjustment'
-        AND action_type IN ('bid_increase', 'bid_decrease')
-        // @ts-ignore
-        AND created_at > DATE_SUB(NOW(), INTERVAL ${sql.raw(String(days * 2))} DAY)
-        // @ts-ignore
-        AND created_at <= DATE_SUB(NOW(), INTERVAL ${sql.raw(String(days))} DAY)
-    // @ts-ignore
-    `;
+ SELECT 
+ COUNT(CASE WHEN change_reason NOT LIKE '%AutoCorrector%' THEN 1 END) as total_original,
+ SUM(CASE 
+ WHEN status = 'rolled_back' 
+ AND change_reason NOT LIKE '%AutoCorrector%'
+ AND ABS(CAST(new_value AS DECIMAL(10,4)) - CAST(previous_value AS DECIMAL(10,4))) / NULLIF(CAST(previous_value AS DECIMAL(10,4)), 0) >= 0.15
+ THEN 1 
+ ELSE 0 
+ END) as hard_rollback
+ FROM optimization_events
+ WHERE account_id = ${accountId}
+ AND event_category = 'bid_adjustment'
+ AND action_type IN ('bid_increase', 'bid_decrease')
+ AND created_at > DATE_SUB(NOW(), INTERVAL ${sql.raw(String(days * 2))} DAY)
+ AND created_at <= DATE_SUB(NOW(), INTERVAL ${sql.raw(String(days))} DAY)
+ `;
     const previousResult = await db.execute(previousPeriodQuery);
     // @ts-ignore
     const previousRows = (previousResult as Record<string, unknown>[])[0] || previousResult;
@@ -229,18 +226,17 @@ async function calculateAlgorithmActivation(
 
   try {
     const query = sql`
-      SELECT 
-        change_reason,
-        action_detail,
-        COUNT(*) as cnt
-      FROM optimization_events
-      // @ts-ignore
-      WHERE account_id = ${accountId}
-        AND event_category = 'bid_adjustment'
-        AND status = 'success'
-        AND created_at > DATE_SUB(NOW(), INTERVAL ${sql.raw(String(days))} DAY)
-      GROUP BY change_reason, action_detail
-    `;
+ SELECT 
+ change_reason,
+ action_detail,
+ COUNT(*) as cnt
+ FROM optimization_events
+ WHERE account_id = ${accountId}
+ AND event_category = 'bid_adjustment'
+ AND status = 'success'
+ AND created_at > DATE_SUB(NOW(), INTERVAL ${sql.raw(String(days))} DAY)
+ GROUP BY change_reason, action_detail
+ `;
     const result = await db.execute(query);
     // @ts-ignore
     const rows = (result as Record<string, unknown>[][])[0] || result;
@@ -303,14 +299,13 @@ async function calculateAcosTrend(
     // 最近3天ACoS
     // @ts-ignore
     const recentQuery = sql`
-      // @ts-ignore
-      SELECT 
-        SUM(spend) as total_spend,
-        SUM(sales) as total_sales
-      FROM daily_performance
-      WHERE accountId = ${accountId}
-        AND date >= DATE_SUB(CURDATE(), INTERVAL 3 DAY)
-    `;
+ SELECT 
+ SUM(spend) as total_spend,
+ SUM(sales) as total_sales
+ FROM daily_performance
+ WHERE accountId = ${accountId}
+ AND date >= DATE_SUB(CURDATE(), INTERVAL 3 DAY)
+ `;
     const recentResult = await db.execute(recentQuery);
     // @ts-ignore
     const recentRows = (recentResult as Record<string, unknown>[])[0] || recentResult;
@@ -395,23 +390,21 @@ async function calculateBidIncreaseAnalysis(
 
   try {
     const query = sql`
-      SELECT 
-        change_reason,
-        previous_bid,
-        new_bid,
-        bid_change_percent,
-        created_at
-      FROM optimization_events
-      // @ts-ignore
-      WHERE account_id = ${accountId}
-        AND event_category = 'bid_adjustment'
-        AND action_type = 'bid_increase'
-        // @ts-ignore
-        AND status = 'success'
-        AND created_at > DATE_SUB(NOW(), INTERVAL ${sql.raw(String(days))} DAY)
-      ORDER BY created_at DESC
-      LIMIT 1000
-    `;
+ SELECT 
+ change_reason,
+ previous_bid,
+ new_bid,
+ bid_change_percent,
+ created_at
+ FROM optimization_events
+ WHERE account_id = ${accountId}
+ AND event_category = 'bid_adjustment'
+ AND action_type = 'bid_increase'
+ AND status = 'success'
+ AND created_at > DATE_SUB(NOW(), INTERVAL ${sql.raw(String(days))} DAY)
+ ORDER BY created_at DESC
+ LIMIT 1000
+ `;
     const result = await db.execute(query);
     // @ts-ignore
     const rows = (result as Record<string, unknown>[][])[0] || result;
@@ -473,13 +466,12 @@ async function calculateCircuitBreakerRate(
   try {
     // 总出价决策数
     const totalQuery = sql`
-      // @ts-ignore
-      SELECT COUNT(*) as total
-      FROM optimization_events
-      WHERE account_id = ${accountId}
-        AND event_category = 'bid_adjustment'
-        AND created_at > DATE_SUB(NOW(), INTERVAL ${sql.raw(String(days))} DAY)
-    `;
+ SELECT COUNT(*) as total
+ FROM optimization_events
+ WHERE account_id = ${accountId}
+ AND event_category = 'bid_adjustment'
+ AND created_at > DATE_SUB(NOW(), INTERVAL ${sql.raw(String(days))} DAY)
+ `;
     const totalResult = await db.execute(totalQuery);
     // @ts-ignore
     const totalRows = (totalResult as Record<string, unknown>[])[0] || totalResult;

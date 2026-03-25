@@ -165,11 +165,10 @@ export async function executeDaypartingOptimization(
             if (ageHours > 72) {
               // 超过72小时的分时竞价已过时，当前时段不同了
               await dbConn2.execute(sql`
-                UPDATE optimization_logs SET api_sync_status = 'superseded',
-                  api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.superseded_reason', 'v310: 分时竞价超过72小时已过时')
-                // @ts-ignore
-                WHERE id = ${(row as any).id}
-              `);
+ UPDATE optimization_logs SET api_sync_status = 'superseded',
+ api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.superseded_reason', 'v310: 分时竞价超过72小时已过时')
+ WHERE id = ${(row as any).id}
+ `);
               timedOut++;
               continue;
             }
@@ -192,21 +191,17 @@ export async function executeDaypartingOptimization(
               if (syncResult.success > 0) {
                 // @ts-ignore
                 await dbConn2.execute(sql`
-                  // @ts-ignore
-                  UPDATE optimization_logs SET api_sync_status = 'synced',
-                    api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.retry_synced', 'v310: dayparting_bid重试成功')
-                  // @ts-ignore
-                  WHERE id = ${(row as any).id}
-                `);
+ UPDATE optimization_logs SET api_sync_status = 'synced',
+ api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.retry_synced', 'v310: dayparting_bid重试成功')
+ WHERE id = ${(row as any).id}
+ `);
                 retried++;
               } else {
                 await dbConn2.execute(sql`
-                  UPDATE optimization_logs SET api_sync_status = 'failed',
-                    // @ts-ignore
-                    api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.retry_error', ${(syncResult as any).errors.join('; ')})
-                  // @ts-ignore
-                  WHERE id = ${(row as any).id}
-                `);
+ UPDATE optimization_logs SET api_sync_status = 'failed',
+ api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.retry_error', ${(syncResult as any).errors.join('; ')})
+ WHERE id = ${(row as any).id}
+ `);
               }
             }
           } catch (retryErr: unknown) {

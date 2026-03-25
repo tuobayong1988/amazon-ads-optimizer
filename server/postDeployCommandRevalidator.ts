@@ -376,25 +376,23 @@ async function auditAndCorrectHistoricalCommands(
     // 1. 查询近期synced的出价调整指令
     const syncedEvents = await database.execute(
       sql`SELECT /*+ MAX_EXECUTION_TIME(60000) */ oe.id, oe.action_type, oe.event_category, oe.keyword_id, oe.keyword_text,
-                 oe.campaign_id, oe.campaign_name, oe.internal_ad_group_id,
-                 oe.previous_bid, oe.new_bid, oe.previous_value, oe.new_value,
-                 oe.created_at, oe.algorithm_version,
-                 k.bid as current_bid, k.keywordId as amazon_keyword_id, k.matchType, k.keywordStatus as keyword_status,
-                 c.dailyBudget as campaign_budget, c.campaignId as amazon_campaign_id,
-                 pg.targetAcos as target_acos
-          FROM optimization_events oe
-          LEFT JOIN keywords k ON oe.keyword_id = k.id
-          LEFT JOIN campaigns c ON oe.campaign_id = c.id
-          LEFT JOIN performance_groups pg ON oe.performance_group_id = pg.id
-          WHERE oe.performance_group_id = ${targetId}
-            // @ts-ignore
-            AND oe.api_sync_status = 'synced'
-            AND oe.action_type IN ('bid_increase', 'bid_decrease', 'bid_set', 'bid_auto_adjust',
-                                    'budget_increase', 'budget_decrease', 'budget_set')
-            // @ts-ignore
-            AND oe.created_at > DATE_SUB(NOW(), INTERVAL ${sql.raw(String(REVALIDATION_CONFIG.auditLookbackDays))} DAY)
-          ORDER BY oe.created_at DESC
-          LIMIT ${sql.raw(String(REVALIDATION_CONFIG.maxSyncedPerTarget))}`
+ oe.campaign_id, oe.campaign_name, oe.internal_ad_group_id,
+ oe.previous_bid, oe.new_bid, oe.previous_value, oe.new_value,
+ oe.created_at, oe.algorithm_version,
+ k.bid as current_bid, k.keywordId as amazon_keyword_id, k.matchType, k.keywordStatus as keyword_status,
+ c.dailyBudget as campaign_budget, c.campaignId as amazon_campaign_id,
+ pg.targetAcos as target_acos
+ FROM optimization_events oe
+ LEFT JOIN keywords k ON oe.keyword_id = k.id
+ LEFT JOIN campaigns c ON oe.campaign_id = c.id
+ LEFT JOIN performance_groups pg ON oe.performance_group_id = pg.id
+ WHERE oe.performance_group_id = ${targetId}
+ AND oe.api_sync_status = 'synced'
+ AND oe.action_type IN ('bid_increase', 'bid_decrease', 'bid_set', 'bid_auto_adjust',
+ 'budget_increase', 'budget_decrease', 'budget_set')
+ AND oe.created_at > DATE_SUB(NOW(), INTERVAL ${sql.raw(String(REVALIDATION_CONFIG.auditLookbackDays))} DAY)
+ ORDER BY oe.created_at DESC
+ LIMIT ${sql.raw(String(REVALIDATION_CONFIG.maxSyncedPerTarget))}`
     );
     
     // @ts-ignore

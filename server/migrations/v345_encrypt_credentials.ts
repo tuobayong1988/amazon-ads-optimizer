@@ -111,12 +111,10 @@ export async function migrateEncryptCredentials(): Promise<{
           // @ts-ignore
           const encryptedSecret = encrypt(record.clientSecret);
           await db.execute(sql`
-            UPDATE amazon_api_credentials 
-            SET clientSecret = ${encryptedSecret}
-            // @ts-ignore
-            WHERE id = ${(record as any).id}
-          // @ts-ignore
-          `);
+ UPDATE amazon_api_credentials 
+ SET clientSecret = ${encryptedSecret}
+ WHERE id = ${(record as any).id}
+ `);
           updates.push('clientSecret');
         }
 
@@ -125,11 +123,10 @@ export async function migrateEncryptCredentials(): Promise<{
           // @ts-ignore
           const encryptedToken = encrypt(record.refreshToken);
           await db.execute(sql`
-            UPDATE amazon_api_credentials 
-            SET refreshToken = ${encryptedToken}
-            // @ts-ignore
-            WHERE id = ${(record as any).id}
-          `);
+ UPDATE amazon_api_credentials 
+ SET refreshToken = ${encryptedToken}
+ WHERE id = ${(record as any).id}
+ `);
           // @ts-ignore
           updates.push('refreshToken');
         }

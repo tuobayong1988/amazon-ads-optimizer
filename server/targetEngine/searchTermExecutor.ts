@@ -175,12 +175,10 @@ export async function executeSearchTermAnalysis(
             const rowCampaignType = (row as Record<string, unknown>).campaign_type;
             if (rowCampaignType === 'sb' || rowCampaignType === 'sd') {
               await dbInstance.execute(sql`
-                // @ts-ignore
-                UPDATE optimization_logs SET api_sync_status = 'skipped_unsupported_campaign_type',
-                  api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.skip_reason', ${`v354: ${rowCampaignType.toUpperCase()}广告活动不支持通过API创建关键词`})
-                // @ts-ignore
-                WHERE id = ${(row as any).id}
-              `);
+ UPDATE optimization_logs SET api_sync_status = 'skipped_unsupported_campaign_type',
+ api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.skip_reason', ${`v354: ${rowCampaignType.toUpperCase()}广告活动不支持通过API创建关键词`})
+ WHERE id = ${(row as any).id}
+ `);
               retryFailed++;
               // @ts-ignore
               continue;
@@ -197,11 +195,10 @@ export async function executeSearchTermAnalysis(
             // @ts-ignore
             if (searchTerm && permanentlyFailedKeywords.has(searchTerm.toLowerCase().trim())) {
               await dbInstance.execute(sql`
-                UPDATE optimization_logs SET api_sync_status = 'permanently_failed',
-                  api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.retry_skip_reason', 'v310: 关键词在永久失败名单中')
-                // @ts-ignore
-                WHERE id = ${(row as any).id}
-              `);
+ UPDATE optimization_logs SET api_sync_status = 'permanently_failed',
+ api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.retry_skip_reason', 'v310: 关键词在永久失败名单中')
+ WHERE id = ${(row as any).id}
+ `);
               retryFailed++;
               continue;
             }
@@ -213,9 +210,8 @@ export async function executeSearchTermAnalysis(
                 // v355: P0修复 — campaigns表的Amazon ID列名是campaignId（驼峰），不是campaign_id（下划线）
                 // @ts-ignore
                 const campaignLookup = await dbInstance.execute(sql`
-                  SELECT campaignId FROM campaigns WHERE id = ${localCampaignId} LIMIT 1
-                // @ts-ignore
-                `);
+ SELECT campaignId FROM campaigns WHERE id = ${localCampaignId} LIMIT 1
+ `);
                 // @ts-expect-error - type assertion
                 const lookupRows = (campaignLookup as Record<string, unknown>)[0] || [];
                 // @ts-ignore
@@ -239,31 +235,25 @@ export async function executeSearchTermAnalysis(
                         if (apiResult.success > 0) {
                           // @ts-ignore
                           await dbInstance.execute(sql`
-                            // @ts-ignore
-                            UPDATE optimization_logs SET api_sync_status = 'synced',
-                              api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.retry_synced', 'v310: pending重试成功')
-                            // @ts-ignore
-                            WHERE id = ${(row as any).id}
-                          `);
+ UPDATE optimization_logs SET api_sync_status = 'synced',
+ api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.retry_synced', 'v310: pending重试成功')
+ WHERE id = ${(row as any).id}
+ `);
                           retrySuccess++;
                         } else {
                           await dbInstance.execute(sql`
-                            // @ts-ignore
-                            UPDATE optimization_logs SET api_sync_status = 'failed',
-                              // @ts-ignore
-                              api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.retry_error', ${(apiResult as any).errors.join('; ')})
-                            // @ts-ignore
-                            WHERE id = ${(row as any).id}
-                          `);
+ UPDATE optimization_logs SET api_sync_status = 'failed',
+ api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.retry_error', ${(apiResult as any).errors.join('; ')})
+ WHERE id = ${(row as any).id}
+ `);
                           retryFailed++;
                         }
                       } catch (retryApiErr: unknown) {
                         await dbInstance.execute(sql`
-                          UPDATE optimization_logs SET api_sync_status = 'failed',
-                            api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.retry_error', ${(retryApiErr as Error).message})
-                          // @ts-ignore
-                          WHERE id = ${(row as any).id}
-                        `);
+ UPDATE optimization_logs SET api_sync_status = 'failed',
+ api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.retry_error', ${(retryApiErr as Error).message})
+ WHERE id = ${(row as any).id}
+ `);
                         retryFailed++;
                       }
                       continue;
@@ -274,12 +264,10 @@ export async function executeSearchTermAnalysis(
               }
               // 无法解析Amazon ID，标记为超时失败
               await dbInstance.execute(sql`
-                UPDATE optimization_logs SET api_sync_status = 'timeout_failed',
-                  api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.timeout_reason', 'v310: 无法解析Amazon ID')
-                // @ts-ignore
-                WHERE id = ${(row as any).id}
-              // @ts-ignore
-              `);
+ UPDATE optimization_logs SET api_sync_status = 'timeout_failed',
+ api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.timeout_reason', 'v310: 无法解析Amazon ID')
+ WHERE id = ${(row as any).id}
+ `);
               retryFailed++;
             } else {
               // 有Amazon Campaign ID，直接重试同步
@@ -300,52 +288,43 @@ export async function executeSearchTermAnalysis(
                     // @ts-ignore
                     if (apiResult.success > 0) {
                       await dbInstance.execute(sql`
-                        UPDATE optimization_logs SET api_sync_status = 'synced',
-                          // @ts-ignore
-                          api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.retry_synced', 'v310: pending重试成功')
-                        // @ts-ignore
-                        WHERE id = ${(row as any).id}
-                      `);
+ UPDATE optimization_logs SET api_sync_status = 'synced',
+ api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.retry_synced', 'v310: pending重试成功')
+ WHERE id = ${(row as any).id}
+ `);
                       retrySuccess++;
                     } else {
                       await dbInstance.execute(sql`
-                        UPDATE optimization_logs SET api_sync_status = 'failed',
-                          // @ts-ignore
-                          api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.retry_error', ${(apiResult as any).errors.join('; ')})
-                        // @ts-ignore
-                        WHERE id = ${(row as any).id}
-                      `);
+ UPDATE optimization_logs SET api_sync_status = 'failed',
+ api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.retry_error', ${(apiResult as any).errors.join('; ')})
+ WHERE id = ${(row as any).id}
+ `);
                       retryFailed++;
                     }
                   } catch (retryApiErr: unknown) {
                     // @ts-ignore
                     await dbInstance.execute(sql`
-                      UPDATE optimization_logs SET api_sync_status = 'failed',
-                        api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.retry_error', ${(retryApiErr as Error).message})
-                      // @ts-ignore
-                      WHERE id = ${(row as any).id}
-                    `);
+ UPDATE optimization_logs SET api_sync_status = 'failed',
+ api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.retry_error', ${(retryApiErr as Error).message})
+ WHERE id = ${(row as any).id}
+ `);
                     // @ts-ignore
                     retryFailed++;
                   }
                 } else {
                   await dbInstance.execute(sql`
-                    // @ts-ignore
-                    UPDATE optimization_logs SET api_sync_status = 'timeout_failed',
-                      api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.timeout_reason', 'v310: adGroupId无效')
-                    // @ts-ignore
-                    WHERE id = ${(row as any).id}
-                  `);
+ UPDATE optimization_logs SET api_sync_status = 'timeout_failed',
+ api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.timeout_reason', 'v310: adGroupId无效')
+ WHERE id = ${(row as any).id}
+ `);
                   retryFailed++;
                 }
               } else {
                 await dbInstance.execute(sql`
-                  UPDATE optimization_logs SET api_sync_status = 'timeout_failed',
-                    api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.timeout_reason', 'v310: 找不到广告组')
-                  // @ts-ignore
-                  WHERE id = ${(row as any).id}
-                // @ts-ignore
-                `);
+ UPDATE optimization_logs SET api_sync_status = 'timeout_failed',
+ api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.timeout_reason', 'v310: 找不到广告组')
+ WHERE id = ${(row as any).id}
+ `);
                 retryFailed++;
               }
             }
@@ -361,16 +340,13 @@ export async function executeSearchTermAnalysis(
       
       // v310: 将超过72小时仍然pending的记录标记为timeout_failed（已经重试过但仍然无法处理的）
       const timeoutResult = await dbInstance.execute(sql`
-        // @ts-ignore
-        UPDATE optimization_logs 
-        // @ts-ignore
-        SET api_sync_status = 'timeout_failed',
-            api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.timeout_reason', 'v310: pending超过72小时未同步')
-        WHERE performance_group_id = ${config.performanceGroupId}
-          AND api_sync_status = 'pending'
-          AND created_at < DATE_SUB(NOW(), INTERVAL 72 HOUR)
-      // @ts-ignore
-      `);
+ UPDATE optimization_logs 
+ SET api_sync_status = 'timeout_failed',
+ api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.timeout_reason', 'v310: pending超过72小时未同步')
+ WHERE performance_group_id = ${config.performanceGroupId}
+ AND api_sync_status = 'pending'
+ AND created_at < DATE_SUB(NOW(), INTERVAL 72 HOUR)
+ `);
       // @ts-ignore
       const timeoutCount = (timeoutResult as Record<string, unknown>[])[0]?.affectedRows || 0;
       // @ts-ignore
@@ -1266,15 +1242,13 @@ export async function executeSearchTermAnalysis(
                       const amazonNegId = negSyncResult.keywordIdMap?.get(mapKey);
                       if (amazonNegId) {
                         await dbInstance.execute(sql`
-                          UPDATE negative_keywords 
-                          SET amazon_negative_keyword_id = ${amazonNegId}
-                          // @ts-ignore
-                          WHERE negativeText = ${(d as any).searchTerm}
-                            // @ts-ignore
-                            AND campaignId = ${(campaign as any).campaignId}
-                            AND amazon_negative_keyword_id IS NULL
-                          LIMIT 1
-                        `);
+ UPDATE negative_keywords 
+ SET amazon_negative_keyword_id = ${amazonNegId}
+ WHERE negativeText = ${(d as any).searchTerm}
+ AND campaignId = ${(campaign as any).campaignId}
+ AND amazon_negative_keyword_id IS NULL
+ LIMIT 1
+ `);
                         // @ts-ignore
                         log.info(`[SearchTermAnalysis] v195: 否词ID回写成功: "${d.searchTerm}" -> ${amazonNegId}`);
                       }
@@ -1403,21 +1377,19 @@ export async function executeAutoNgramNegation(
       const startDateStr = startDate.toISOString().split('T')[0];
       
       const campaignPerformance = await dbInstance.execute(sql`
-        SELECT 
-          campaign_id,
-          SUM(search_term_spend) as spend,
-          SUM(search_term_sales) as sales,
-          SUM(search_term_orders) as orders,
-          SUM(search_term_clicks) as clicks
-        FROM search_terms
-        WHERE account_id = ${config.accountId}
-        AND report_start_date >= ${startDateStr}
-        // @ts-ignore
-        AND search_term LIKE ${`%${(suggestion as any).ngram}%`}
-        // @ts-ignore
-        AND campaign_id IN (${safeInClause(campaignIds as any)})
-        GROUP BY campaign_id
-      `);
+ SELECT 
+ campaign_id,
+ SUM(search_term_spend) as spend,
+ SUM(search_term_sales) as sales,
+ SUM(search_term_orders) as orders,
+ SUM(search_term_clicks) as clicks
+ FROM search_terms
+ WHERE account_id = ${config.accountId}
+ AND report_start_date >= ${startDateStr}
+ AND search_term LIKE ${`%${(suggestion as any).ngram}%`}
+ AND campaign_id IN (${safeInClause(campaignIds as any)})
+ GROUP BY campaign_id
+ `);
       
       // @ts-ignore
       const perfRows = (campaignPerformance as Record<string, unknown>[])[0] || [];
