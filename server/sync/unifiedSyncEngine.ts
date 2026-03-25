@@ -1077,10 +1077,10 @@ const activeSyncs = new Map<string, { tier: SyncTier; startTime: Date; timeoutMs
 // (v518的45分钟导致账户90021在步骤23/36被超时终止，建议竞价步骤被跳过)
 const DEFAULT_SYNC_TIMEOUT_MS = 60 * 60 * 1000; // v519: 默认60分钟（原45分钟不够）
 const LARGE_ACCOUNT_TIMEOUT_TIERS = [
-  { threshold: 5000, timeoutMs: 90 * 60 * 1000 },  // 5000+广告活动: 90分钟
-  { threshold: 3000, timeoutMs: 75 * 60 * 1000 },  // 3000-5000: 75分钟
-  { threshold: 1000, timeoutMs: 60 * 60 * 1000 },  // 1000-3000: 60分钟
-  // v519: 小账户也使用60分钟默认值，不再需要额外tier
+  { threshold: 5000, timeoutMs: 120 * 60 * 1000 },  // 5000+广告活动: 120分钟
+  { threshold: 3000, timeoutMs: 105 * 60 * 1000 },  // 3000-5000: 105分钟
+  { threshold: 1000, timeoutMs: 90 * 60 * 1000 },   // 1000-3000: 90分钟 (v519b: 从60分钟提升，ElaraFit 1487活动需要61+分钟)
+  // v519b: 小账户使用60分钟默认值
 ];
 const NIGHTLY_SYNC_TIMEOUT_MS = 4 * 60 * 60 * 1000; // nightly层级: 4小时
 
