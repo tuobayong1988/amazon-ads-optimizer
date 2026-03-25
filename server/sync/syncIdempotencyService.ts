@@ -47,9 +47,17 @@ interface SyncLock {
 }
 
 const syncLocks = new Map<string, SyncLock>();
-// v424: 锁超时从30分钟增加到45分钟，以覆盖大账户（如90023）全量同步的场景
-// 与unifiedSyncEngine的activeSyncs超时保持一致
-const LOCK_TIMEOUT_MS = 45 * 60 * 1000;
+// v518: 动态锁超时 - 默认45分钟，大账户通过参数传入更长超时
+// 与unifiedSyncEngine的动态超时机制保持一致
+const DEFAULT_LOCK_TIMEOUT_MS = 45 * 60 * 1000;
+// v518: 导出动态超时计算函数，供unifiedSyncEngine调用
+export function getDynamicLockTimeout(campaignCount: number, tier: string): number {
+  if (tier === 'nightly') return 4 * 60 * 60 * 1000; // nightly: 4小时
+  if (campaignCount >= 5000) return 90 * 60 * 1000;
+  if (campaignCount >= 3000) return 75 * 60 * 1000;
+  if (campaignCount >= 1000) return 60 * 60 * 1000;
+  return DEFAULT_LOCK_TIMEOUT_MS;
+}
 
 function getLockKey(accountId: number, syncType: string = 'all'): string {
   return `sync:${accountId}:${syncType}`;
@@ -79,7 +87,7 @@ function acquireMemoryLock(accountId: number, syncType: string = 'all'): string 
     accountId,
     syncType,
     acquiredAt: now,
-    expiresAt: new Date(now.getTime() + LOCK_TIMEOUT_MS),
+    expiresAt: new Date(now.getTime() + DEFAULT_LOCK_TIMEOUT_MS),
   });
   
   return lockId;
@@ -122,7 +130,7 @@ export async function acquireSyncLock(accountId: number, syncType: string = 'all
   // auto或distributed模式：优先尝试分布式锁
   try {
     const holderId = `${PROCESS_ID}:${lockKey}`;
-    const acquired = await acquireLock(lockKey, holderId, LOCK_TIMEOUT_MS);
+    const acquired = await acquireLock(lockKey, holderId, DEFAULT_LOCK_TIMEOUT_MS);
     
     if (acquired) {
       log.info(`[v358] 分布式锁已获取: ${lockKey}`);

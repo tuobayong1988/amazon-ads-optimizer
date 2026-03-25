@@ -347,12 +347,15 @@ export function logHealthSnapshot(): void {
     }
   }
 
-  // v221+v424 僵尸条目清理：清除运行超过45分钟的activeSyncs条目
+  // v518: 僵尸条目清理 - 使用每个条目自身的动态超时值（而非硬编码45分钟）
+  // 修复：之前硬编码45分钟与大账户动态超时（60-90分钟）冲突，导致大账户全量同步被提前终止
   const now = new Date();
-  const ZOMBIE_THRESHOLD_MS = 45 * 60 * 1000; // v424: 从30分钟增加到45分钟，与锁超时保持一致
   let zombiesCleaned = 0;
   for (const [key, sync] of activeSyncs.entries()) {
-    if (now.getTime() - sync.startTime.getTime() > ZOMBIE_THRESHOLD_MS) {
+    const entryTimeoutMs = sync.timeoutMs || DEFAULT_SYNC_TIMEOUT_MS;
+    if (now.getTime() - sync.startTime.getTime() > entryTimeoutMs) {
+      const runningMin = ((now.getTime() - sync.startTime.getTime()) / 60000).toFixed(1);
+      log.warn(`[HealthMonitor] v518: 僵尸清理 - ${key} 已运行${runningMin}分钟，超过动态超时${Math.round(entryTimeoutMs / 60000)}分钟`);
       activeSyncs.delete(key);
       zombiesCleaned++;
     }
@@ -363,7 +366,7 @@ export function logHealthSnapshot(): void {
       const key = `${r.accountId}:${r.tier}`;
       return activeSyncs.has(key);
     });
-    log.warn(`[HealthMonitor] v424: 已清理 ${zombiesCleaned} 个僵尸同步条目（运行超过45分钟）`);
+    log.warn(`[HealthMonitor] v518: 已清理 ${zombiesCleaned} 个僵尸同步条目`);
   }
 }
 
@@ -1050,7 +1053,16 @@ const engineStatus: EngineStatus = {
 
 // v399: 并发控制 - 默认从10→15，500租户场景下提升同步吞吐量
 const MAX_CONCURRENT_ACCOUNTS = parseInt(process.env.MAX_CONCURRENT_ACCOUNTS || '15', 10);
-const activeSyncs = new Map<string, { tier: SyncTier; startTime: Date }>();
+const activeSyncs = new Map<string, { tier: SyncTier; startTime: Date; timeoutMs: number }>();
+
+// v518: 动态超时常量 - 根据账户广告活动数量自动调整
+const DEFAULT_SYNC_TIMEOUT_MS = 45 * 60 * 1000; // 默认45分钟
+const LARGE_ACCOUNT_TIMEOUT_TIERS = [
+  { threshold: 5000, timeoutMs: 90 * 60 * 1000 },  // 5000+广告活动: 90分钟
+  { threshold: 3000, timeoutMs: 75 * 60 * 1000 },  // 3000-5000: 75分钟
+  { threshold: 1000, timeoutMs: 60 * 60 * 1000 },  // 1000-3000: 60分钟
+];
+const NIGHTLY_SYNC_TIMEOUT_MS = 4 * 60 * 60 * 1000; // nightly层级: 4小时
 
 // 导出速率控制器供外部使用
 export function getRateController(): ApiRateController {
@@ -1195,10 +1207,10 @@ export async function syncAccount(
     const existingTier = existingKey.split(':')[1];
     const runningMinutes = (Date.now() - existing.startTime.getTime()) / 60000;
     
-    // v424: 超时保护从30分钟增加到45分钟，以覆盖大账户全量同步场景
-    // 与syncIdempotencyService的LOCK_TIMEOUT_MS保持一致
-    if (runningMinutes >= 45) {
-      log.warn(`[UnifiedSync] v424: 账户 ${account.accountId} 的${existingTier}层同步已超时（${runningMinutes.toFixed(1)}分钟），强制释放`);
+    // v518: 动态超时保护 - 使用每个条目自身的超时值（而非硬编码45分钟）
+    const existingTimeoutMin = (existing.timeoutMs || DEFAULT_SYNC_TIMEOUT_MS) / 60000;
+    if (runningMinutes >= existingTimeoutMin) {
+      log.warn(`[UnifiedSync] v518: 账户 ${account.accountId} 的${existingTier}层同步已超时（${runningMinutes.toFixed(1)}分钟 >= 动态阈值${existingTimeoutMin}分钟），强制释放`);
       activeSyncs.delete(existingKey);
       continue;
     }
@@ -1258,8 +1270,9 @@ export async function syncAccount(
     }
   }
 
-  // 注册活跃同步（使用层级感知的key）
-  activeSyncs.set(lockKey, { tier, startTime });
+  // v518: 注册活跃同步（使用层级感知的key，包含动态超时值）
+  // 注：timeoutMs会在下方查询广告活动数量后更新
+  activeSyncs.set(lockKey, { tier, startTime, timeoutMs: DEFAULT_SYNC_TIMEOUT_MS });
   engineStatus.currentlyRunning.push({ accountId: account.accountId, tier, step: 'initializing' });
 
   try {
@@ -1297,12 +1310,8 @@ export async function syncAccount(
     let isLargeAccount = false;
     const LARGE_ACCOUNT_THRESHOLD = 1000; // 超过1000个广告活动视为大账户
     const LARGE_ACCOUNT_STEP_DELAY_MS = 10000; // v476: 大账户步骤间额外延迟10秒，优先保证100%成功率
-    const BASE_SYNC_TIMEOUT_MS = 45 * 60 * 1000; // 基础超时45分钟
-    // v403: nightly层级超时4小时，其他层级保持原有动态超时
-    const NIGHTLY_TIMEOUT_MS = 4 * 60 * 60 * 1000; // 4小时
-    // v380: 动态超时 - 大账户根据广告活动数量动态调整
-    // 1000以下: 45分钟, 1000-3000: 60分钟, 3000-5000: 75分钟, 5000+: 90分钟
-    let SYNC_TIMEOUT_MS = tier === 'nightly' ? NIGHTLY_TIMEOUT_MS : BASE_SYNC_TIMEOUT_MS;
+    // v518: 使用全局动态超时常量（与僵尸清理、锁超时保持一致）
+    let SYNC_TIMEOUT_MS = tier === 'nightly' ? NIGHTLY_SYNC_TIMEOUT_MS : DEFAULT_SYNC_TIMEOUT_MS;
     try {
       const database = await db.getDb();
       if (database) {
@@ -1314,15 +1323,19 @@ export async function syncAccount(
         campaignCount = countResult[0]?.count || 0;
         isLargeAccount = campaignCount >= LARGE_ACCOUNT_THRESHOLD;
         if (isLargeAccount && tier !== 'nightly') {
-          // v380: 动态超时计算（v403: nightly层级保持固定4小时超时）
-          if (campaignCount >= 5000) {
-            SYNC_TIMEOUT_MS = 90 * 60 * 1000;
-          } else if (campaignCount >= 3000) {
-            SYNC_TIMEOUT_MS = 75 * 60 * 1000;
-          } else {
-            SYNC_TIMEOUT_MS = 60 * 60 * 1000;
+          // v518: 动态超时计算 - 使用全局常量，确保与僵尸清理/锁超时一致
+          for (const t of LARGE_ACCOUNT_TIMEOUT_TIERS) {
+            if (campaignCount >= t.threshold) {
+              SYNC_TIMEOUT_MS = t.timeoutMs;
+              break;
+            }
           }
-          log.warn(`[UnifiedSync] v380: 大账户检测! 账户${account.accountId}(${account.accountName})拥有${campaignCount}个广告活动，启用自适应保护模式，超时=${Math.round(SYNC_TIMEOUT_MS / 60000)}分钟`);
+          // v518: 同步更新activeSyncs中的超时值，确保僵尸清理和锁超时使用同一动态值
+          const existingSync = activeSyncs.get(lockKey);
+          if (existingSync) {
+            existingSync.timeoutMs = SYNC_TIMEOUT_MS;
+          }
+          log.warn(`[UnifiedSync] v518: 大账户检测! 账户${account.accountId}(${account.accountName})拥有${campaignCount}个广告活动，动态超时=${Math.round(SYNC_TIMEOUT_MS / 60000)}分钟（已同步到僵尸清理/锁超时）`);
         }
       }
     } catch (e: unknown) {
