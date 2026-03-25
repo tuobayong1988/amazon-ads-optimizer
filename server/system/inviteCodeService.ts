@@ -72,7 +72,6 @@ async function dropInviteCodesForeignKeys(db: Awaited<ReturnType<typeof import("
     const fkResult = await db.execute(sql`
       SELECT CONSTRAINT_NAME FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS 
       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'invite_codes' AND CONSTRAINT_TYPE = 'FOREIGN KEY'
-    // @ts-ignore
     `);
     // @ts-ignore
     const fkRows = (fkResult as Record<string, unknown>[][])[0] || [];
@@ -120,12 +119,10 @@ async function ensureTablesExist(db: Awaited<ReturnType<typeof import("../db").g
         max_campaigns INT DEFAULT 50,
         max_api_calls_per_day INT DEFAULT 10000,
         features JSON,
-        // @ts-ignore
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         INDEX idx_slug (slug),
         INDEX idx_status (status)
-      // @ts-ignore
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     `);
     // @ts-ignore
@@ -144,7 +141,6 @@ async function ensureTablesExist(db: Awaited<ReturnType<typeof import("../db").g
         max_uses INT DEFAULT 1,
         used_count INT DEFAULT 0,
         used_by INT,
-        // @ts-ignore
         expires_at DATETIME NULL,
         is_active TINYINT DEFAULT 1,
         note VARCHAR(255),
@@ -161,7 +157,6 @@ async function ensureTablesExist(db: Awaited<ReturnType<typeof import("../db").g
         user_id INT NOT NULL,
         organization_id INT,
         used_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        // @ts-ignore
         ip_address VARCHAR(45),
         user_agent TEXT,
         INDEX idx_invite_code (invite_code_id),
@@ -207,7 +202,6 @@ export async function createInviteCode(input: CreateInviteCodeInput): Promise<{ 
       VALUES (
         ${code}, 
         ${input.createdBy}, 
-        // @ts-ignore
         ${input.organizationId || null},
         ${input.inviteType || 'external_user'},
         ${input.maxUses || 1},
@@ -215,7 +209,6 @@ export async function createInviteCode(input: CreateInviteCodeInput): Promise<{ 
         ${input.note || null},
         ${now.toISOString().slice(0, 19).replace('T', ' ')}
       )
-    // @ts-ignore
     `);
     
     // @ts-ignore
@@ -300,7 +293,6 @@ export async function validateInviteCode(code: string): Promise<{ valid: boolean
       FROM invite_codes ic
       LEFT JOIN users u ON ic.created_by = u.id
       WHERE ic.code = ${code}
-    // @ts-ignore
     `);
     
     // @ts-ignore

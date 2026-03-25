@@ -38,7 +38,6 @@ async function ensureMultiTenantTables(db: Awaited<ReturnType<typeof getDb>>): P
         INDEX idx_slug (slug),
         INDEX idx_status (status)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-    // @ts-ignore
     `);
     // @ts-ignore
     await db.execute(sql`
@@ -123,7 +122,6 @@ export async function registerWithInviteCode(input: RegisterInput, ipAddress?: s
       // 外部用户始终创建新组织，不共享管理员的组织
       const orgName = input.organizationName || `${input.name}的团队`;
       const orgResult = await db.execute(sql`
-        // @ts-ignore
         INSERT INTO organizations (name, type, status, max_users, max_accounts, created_at)
         VALUES (${orgName}, 'external', 'active', 10, 5, NOW())
       `);
@@ -159,7 +157,6 @@ export async function registerWithInviteCode(input: RegisterInput, ipAddress?: s
         ${role}, 
         'active', 
         ${now},
-        // @ts-ignore
         ${now}
       )
     `);
@@ -170,7 +167,6 @@ export async function registerWithInviteCode(input: RegisterInput, ipAddress?: s
     // 6. 如果是新组织的所有者，更新组织的owner_id
     if (inviteCode.inviteType === 'external_user' && organizationId !== 1) {
       await db.execute(sql`
-        // @ts-ignore
         UPDATE organizations SET owner_id = ${userId} WHERE id = ${organizationId}
       `);
     }
@@ -555,7 +551,6 @@ export async function createTeamMemberAccount(input: CreateTeamMemberInput): Pro
         ${input.username}, 
         ${passwordHash}, 
         ${input.email || ''}, 
-        // @ts-ignore
         ${input.name},
         ${memberRole}, 
         'active', 
