@@ -120,6 +120,47 @@ export const dataHealthRouter = router({
             .from(dataSyncJobs)
             .where(sql`${dataSyncJobs.startedAt} >= DATE_SUB(NOW(), INTERVAL 24 HOUR) AND ${accountFilter}`);
             
+            // v523: 7天同步趋势数据
+            const trendRows = await db.execute(
+              sql`SELECT 
+                    DATE(startedAt) as date,
+                    COUNT(*) as total,
+                    SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as succeeded,
+                    SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed
+                  FROM data_sync_jobs
+                  WHERE startedAt >= DATE_SUB(NOW(), INTERVAL 7 DAY) AND ${accountFilter}
+                  GROUP BY DATE(startedAt)
+                  ORDER BY date ASC`
+            ) as unknown;
+            // @ts-ignore
+            const trendData = ((trendRows as unknown)?.[0] || []).map((r: any) => ({
+              date: r.date,
+              dateLabel: r.date ? new Date(r.date).toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' }) : '',
+              total: Number(r.total || 0),
+              succeeded: Number(r.succeeded || 0),
+              failed: Number(r.failed || 0),
+              rate: Number(r.total) > 0 ? Math.round(Number(r.succeeded || 0) / Number(r.total) * 1000) / 10 : 0,
+            }));
+            
+            // v523: 按账户同步率排行榜
+            const leaderboardRows = await db.execute(
+              sql`SELECT 
+                    accountId,
+                    COUNT(*) as total,
+                    SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as succeeded
+                  FROM data_sync_jobs
+                  WHERE startedAt >= DATE_SUB(NOW(), INTERVAL 7 DAY) AND ${accountFilter}
+                  GROUP BY accountId
+                  ORDER BY total DESC`
+            ) as unknown;
+            // @ts-ignore
+            const accountLeaderboard = ((leaderboardRows as unknown)?.[0] || []).map((r: any) => ({
+              accountId: Number(r.accountId),
+              total: Number(r.total || 0),
+              succeeded: Number(r.succeeded || 0),
+              rate: Number(r.total) > 0 ? Math.round(Number(r.succeeded || 0) / Number(r.total) * 100) : 0,
+            })).sort((a: any, b: any) => b.rate - a.rate || b.total - a.total);
+            
             results.syncJobs = {
               status: 'active',
               recent: recentJobs,
@@ -131,6 +172,8 @@ export const dataHealthRouter = router({
                 successRate: syncStats?.total ? 
                   Math.round((Number(syncStats.succeeded || 0) / Number(syncStats.total)) * 100) : 0,
               },
+              trendData,
+              accountLeaderboard,
             };
           }
         } catch {

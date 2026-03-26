@@ -23,6 +23,7 @@ import {
   PlayCircle,
 } from "lucide-react";
 import { toast } from "sonner";
+import SyncRateBarChart from "@/components/correction/SyncRateBarChart";
 
 export default function AutoCorrectionDashboard() {
   const [activeTab, setActiveTab] = useState("overview");
@@ -543,6 +544,12 @@ export default function AutoCorrectionDashboard() {
           
           {/* 操作类型标签 */}
           <TabsContent value="actions" className="space-y-4">
+            {/* v523: 同步率水平条形图 - 直观展示各操作类型的同步健康状况 */}
+            <SyncRateBarChart 
+              actionBreakdown={actionBreakdown} 
+              actionTypeLabels={actionTypeLabels} 
+            />
+            
             <Card className="bg-gray-900 border-gray-800">
               <CardHeader>
                 <CardTitle className="text-white text-lg">按操作类型统计</CardTitle>

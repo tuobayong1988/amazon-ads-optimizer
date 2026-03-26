@@ -31,6 +31,7 @@ import {
   ArrowUpRight,
 } from "lucide-react";
 import { toast } from "sonner";
+import SyncRateMonitoringPanel from "@/components/health/SyncRateMonitoringPanel";
 
 // 健康评分颜色映射
 function getHealthColor(score: number): string {
@@ -295,6 +296,16 @@ export default function DataHealthDashboard() {
           {/* @ts-ignore */}
           {/* 同步概览 */}
           <TabsContent value="overview" className="space-y-4">
+            {/* v523: 同步率监控面板 - 仪表盘图 + 排行榜 + 7天趋势线 */}
+            {(data?.syncJobs as any)?.stats24h && (
+              <SyncRateMonitoringPanel
+                recentJobs={(data?.syncJobs as any)?.recent || []}
+                stats24h={(data?.syncJobs as any)?.stats24h}
+                trendData={(data?.syncJobs as any)?.trendData}
+                accountLeaderboard={(data?.syncJobs as any)?.accountLeaderboard}
+              />
+            )}
+            
             {/* @ts-ignore */}
             <Card>
               <CardHeader>
