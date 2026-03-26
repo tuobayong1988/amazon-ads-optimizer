@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 521;  // v521: 修复localBidRecommendationEngine getDb()缺少await+同步卡死清理阈值从15分钟提升到45分钟+心跳间隔1分钟
+export const SYSTEM_VERSION = 522;  // v522: 修复系统崩溃循环(sqlstring补丁+uncaughtException智能降级)+entityNotFoundError自动标记+SP Target自适应节流+SD Audience建议竞价回退

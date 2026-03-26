@@ -83,6 +83,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 522,
+    description: 'v522: [系统崩溃修复+API错误处理增强+建议竞价优化] — (1)P0-系统崩溃循环修复: sqlstring库escape()处理特殊对象时val.toString()失败导致uncaughtException每7.5分钟崩溃,通过patchSqlstring.ts底层补丁+uncaughtException智能降级解决 (2)P0-entityNotFoundError自动标记: amazonApiErrorMapper新增"cannot find the adgroup"模式+SB关键词更新自动标记失效adGroup和关键词为amazon_deleted+预过滤增强adGroup状态检查 (3)P1-SP Target自适应节流: 初始延迟2s,429错误时加倍(最高8s),成功时减半(最低1s) (4)P1-SD Audience建议竞价回退: 本地引擎无数据时回退到adGroup defaultBid作为基线',
+    affectedModules: ['sync', 'optimization', 'core'],
+    correctionActions: ['rerun_correction_scan'],
+  },
+  {
     version: 521,
     description: 'v521: [同步阻塞修复+建议竞价引擎修复+心跳增强] — (1)P0-localBidRecommendationEngine getDb()缺少await修复: getDb()是async函数但两处调用缺少await导致db变量为Promise对象,所有查询静默失败返回minimum_default,SB/SD建议竞价填充率0% (2)P0-同步卡死清理阈值调整: 启动清理从10分钟提升到30分钟,定期清理从15分钟提升到45分钟,防止全量同步报告下载步骤(耗时15-20分钟)被误杀 (3)P1-心跳间隔优化: 从3分钟缩短到1分钟,确保长步骤执行期间更频繁更新updated_at (4)P1-Amazon API日志增强: SB/SD建议竞价API添加详细错误日志',
     affectedModules: ['sync', 'optimization'],
