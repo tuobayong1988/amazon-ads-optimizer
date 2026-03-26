@@ -907,7 +907,7 @@ const SYNC_STEPS: SyncStep[] = [
   {
     id: 'sp_bid_recommendations',
     name: 'SP建议竞价',
-    tier: 'full',
+    tier: 'medium', // v521: 从full降级到medium层，允许建议竞价独立于报告下载步骤运行
     execute: async (service, ctx) => {
       try {
         // @ts-ignore
@@ -922,7 +922,7 @@ const SYNC_STEPS: SyncStep[] = [
   {
     id: 'sb_bid_recommendations',
     name: 'SB建议竞价',
-    tier: 'full',
+    tier: 'medium', // v521: 从full降级到medium层，解决全量同步阻塞导致SB建议竞价无法写入的问题
     execute: async (service, ctx) => {
       // @ts-ignore
       try {
@@ -939,7 +939,7 @@ const SYNC_STEPS: SyncStep[] = [
     id: 'sd_bid_recommendations',
     name: 'SD建议竞价',
     // @ts-ignore
-    tier: 'full',
+    tier: 'medium', // v521: 从full降级到medium层，解决全量同步阻塞导致SD建议竞价无法写入的问题
     execute: async (service, ctx) => {
       try {
         // @ts-ignore
@@ -956,7 +956,7 @@ const SYNC_STEPS: SyncStep[] = [
     id: 'sd_audience_bid_recommendations',
     name: 'SD受众建议竞价',
     // @ts-ignore
-    tier: 'full',
+    tier: 'medium', // v521: 从full降级到medium层
     execute: async (service, ctx) => {
       try {
         // @ts-ignore
