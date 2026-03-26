@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 519;  // v519: SD建议竞价同步增强+SD受众建议竞价+锁TTL动态超时修复
+export const SYSTEM_VERSION = 521;  // v521: 修复localBidRecommendationEngine getDb()缺少await+同步卡死清理阈值从15分钟提升到45分钟+心跳间隔1分钟

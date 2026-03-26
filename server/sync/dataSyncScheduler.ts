@@ -240,7 +240,7 @@ async function startSchedulerTasks(defaultIntervalMs: number): Promise<void> {
   (async () => {
     try {
       const { cleanupStaleJobs, cleanupOrphanedPendingJobs } = await import('./dataSyncService');
-      const staleResult = await cleanupStaleJobs(10); // v411: 启动清理10分钟阈值（与v410并发检查窗口一致，心跳3分钟间隔，10分钟无更新确定卡死）
+      const staleResult = await cleanupStaleJobs(30); // v521: 启动清理30分钟阈值（v411原10分钟太短，全量同步的报告下载步骤需要15-20分钟，心跳可能被事件循环阻塞）
       const orphanResult = await cleanupOrphanedPendingJobs(60); // 超过1小时的pending任务
       if (staleResult.cleaned > 0 || orphanResult.cleaned > 0) {
         log.warn(`[DataSyncScheduler] v335: 启动清理完成 - 卡死任务: ${staleResult.cleaned}个 (${staleResult.jobIds.join(',')}), 孤儿任务: ${orphanResult.cleaned}个`);
@@ -399,7 +399,7 @@ async function startSchedulerTasks(defaultIntervalMs: number): Promise<void> {
   monitoringIntervals.push(setInterval(async () => {
     try {
       const { cleanupStaleJobs } = await import('./dataSyncService');
-      const result = await cleanupStaleJobs(15); // v411: 定期清理15分钟阈值（心跳3分钟间隔，15分钟无更新确定卡死，避免僵尸任务长时间阻塞调度器）
+      const result = await cleanupStaleJobs(45); // v521: 定期清理45分钟阈值（v411原15分钟太短，全量同步报告下载步骤需要15-20分钟×3批=45-60分钟，心跳在高负载时可能延迟）
       if (result.cleaned > 0) {
         log.warn(`[DataSyncScheduler] v334: 定期清理发现 ${result.cleaned} 个卡死任务: ${result.jobIds.join(', ')}`);
       }

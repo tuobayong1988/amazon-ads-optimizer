@@ -83,6 +83,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 521,
+    description: 'v521: [同步阻塞修复+建议竞价引擎修复+心跳增强] — (1)P0-localBidRecommendationEngine getDb()缺少await修复: getDb()是async函数但两处调用缺少await导致db变量为Promise对象,所有查询静默失败返回minimum_default,SB/SD建议竞价填充率0% (2)P0-同步卡死清理阈值调整: 启动清理从10分钟提升到30分钟,定期清理从15分钟提升到45分钟,防止全量同步报告下载步骤(耗时15-20分钟)被误杀 (3)P1-心跳间隔优化: 从3分钟缩短到1分钟,确保长步骤执行期间更频繁更新updated_at (4)P1-Amazon API日志增强: SB/SD建议竞价API添加详细错误日志',
+    affectedModules: ['sync', 'optimization'],
+    correctionActions: ['rerun_correction_scan'],
+  },
+  {
     version: 519,
     description: 'v519: [SD建议竞价同步+SD受众建议竞价+锁TTL动态超时修复] — (1)P0-SD建议竞价同步增强: syncSdBidRecommendations添加本地推荐引擎回退(与V515 SB修复一致),解决844个SD定位suggestedBid 100%为NULL的问题 (2)P0-SD受众建议竞价新增: sd_audiences表新增suggested_bid/suggested_bid_low/suggested_bid_high三列,新增syncSdAudienceBidRecommendations函数基于本地推荐引擎为13个受众提供建议竞价 (3)P1-锁TTL动态超时修复: shardSyncOrchestrator账户级锁TTL从硬编45分钟改为动态计算(与unifiedSyncEngine V518一致),每个shard执行后同时续期账户级锁和全局锁,防止同步过程中锁过期导致多个同步实例并行运行 (4)P1-同步步骤扩展: unifiedSyncEngine新增sd_audience_bid_recommendations步骤,amazonSyncService Layer 6从3个并行扩展到4个',
     affectedModules: ['sync', 'db', 'optimization'],

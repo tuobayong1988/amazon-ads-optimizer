@@ -1468,7 +1468,7 @@ export async function syncAccount(
             } catch (hbErr: any) {
               // 心跳失败不影响同步继续
             }
-          }, 3 * 60 * 1000); // 每3分钟发送一次心跳
+          }, 60 * 1000); // v521: 每1分钟发送一次心跳（v408原3分钟，但报告下载步骤耗时15-20分钟，需要更频繁的心跳防止被卡死清理机制误杀）
         }
         
         const stepResult = await step.execute(syncService, context);
