@@ -92,6 +92,7 @@ const ERROR_MAPPINGS: ErrorMapping[] = [
       'ad group not found',
       'adgroup not found',
       'cannot find ad group',
+      'cannot find the adgroup',  // v522: Amazon实际返回的错误消息格式
     ],
     strategy: 'mark_deleted',
     taskStatus: 'permanently_failed',

@@ -82,6 +82,48 @@ export function safeDynamicSet(
   return sql.join(setClauses, sql`, `);
 }
 
+/**
+ * v522: 安全的 inArray 包装器
+ * 解决 drizzle-orm 的 inArray() 在接收到包含 undefined/null 的数组时
+ * 导致 mysql2 的 sqlstring.escape() 抛出 "val.toString is not a function" 同步错误。
+ * 
+ * 该错误无法被 try/catch 捕获，会直接触发 uncaughtException 导致进程崩溃。
+ * 
+ * @param column drizzle 列引用
+ * @param values 待过滤的值数组
+ * @returns 安全的 SQL 条件，或当数组为空时返回 sql`1=0`
+ * 
+ * @example
+ * // 替代: inArray(keywords.id, keywordIds)
+ * // 使用: safeInArray(keywords.id, keywordIds)
+ * db.select().from(keywords).where(safeInArray(keywords.id, keywordIds))
+ */
+export function safeInArray<T>(column: any, values: (T | undefined | null)[]): SQL {
+  // 过滤掉 undefined 和 null
+  const safeValues = values.filter((v): v is T => v !== undefined && v !== null);
+  
+  if (safeValues.length === 0) {
+    // 返回永远不匹配的条件，避免空数组导致的SQL语法错误
+    return sql`1=0`;
+  }
+  
+  // 对每个值再做一层安全检查：确保每个元素都有 toString 方法
+  const validValues = safeValues.filter(v => {
+    if (typeof v === 'object' && v !== null && typeof (v as any).toString !== 'function') {
+      return false;
+    }
+    return true;
+  });
+  
+  if (validValues.length === 0) {
+    return sql`1=0`;
+  }
+  
+  // 使用 drizzle 的 inArray
+  const { inArray } = require('drizzle-orm');
+  return inArray(column, validValues);
+}
+
 // 利润追踪字段白名单
 export const PROFIT_TRACKING_COLUMNS = [
   'actual_profit_7d',

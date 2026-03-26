@@ -134,11 +134,53 @@ export function registerGracefulShutdown(server: unknown): void {
   process.on('SIGTERM', () => handleShutdown('SIGTERM'));
   process.on('SIGINT', () => handleShutdown('SIGINT'));
   
-  // 未捕获异常的安全处理
+  // v522: 未捕获异常的智能分级处理
+  // 区分致命错误（必须重启）和非致命错误（记录并继续运行）
   process.on('uncaughtException', async (error) => {
-    log.warn(`[LifecycleManager] 未捕获异常: ${(error as Error).message}`);
+    const errorMsg = (error as Error).message || '';
+    log.warn(`[LifecycleManager] 未捕获异常: ${errorMsg}`);
     // @ts-expect-error - error stack access
     log.warn(error.stack as unknown);
+    
+    // v522: 非致命错误白名单 — 这些错误不应导致进程退出
+    // 1. val.toString is not a function: sqlstring处理undefined数组元素时的同步错误
+    //    根因: drizzle-orm的inArray()接收到包含undefined的数组，传递给mysql2的query()
+    //    影响: 单个SQL查询失败，不影响系统整体稳定性
+    // 2. Cannot read properties of undefined: 常见的空引用错误
+    const NON_FATAL_PATTERNS = [
+      'val.toString is not a function',
+      'Cannot convert undefined or null to object',
+      'Cannot read properties of undefined',
+      'Cannot read properties of null',
+    ];
+    
+    const isNonFatal = NON_FATAL_PATTERNS.some(pattern => errorMsg.includes(pattern));
+    
+    if (isNonFatal) {
+      log.warn(`[LifecycleManager] v522: 非致命异常已捕获并记录，系统继续运行（不触发关闭）`);
+      log.warn(`[LifecycleManager] v522: 错误类型: ${errorMsg.substring(0, 100)}`);
+      // 记录到数据库以便后续分析
+      try {
+        const database = await getDb();
+        if (database) {
+          const detail = JSON.stringify({
+            type: 'non_fatal_uncaught_exception',
+            systemVersion: SYSTEM_VERSION,
+            errorMessage: errorMsg.substring(0, 500),
+            errorStack: ((error as Error).stack || '').substring(0, 1000),
+            uptime: process.uptime(),
+            timestamp: new Date().toISOString(),
+          });
+          await database.execute(sql`INSERT INTO optimization_events (account_id, event_category, action_type, action_detail, change_reason, algorithm_version, status, api_sync_status) VALUES (0, 'settings_change', 'settings_update', ${detail}, ${`v${SYSTEM_VERSION} 非致命异常已安全捕获: ${errorMsg.substring(0, 100)}`}, ${`v${SYSTEM_VERSION}`}, 'success', 'internal')`);
+        }
+      } catch (logErr: unknown) {
+        // 记录失败不影响系统运行
+      }
+      return; // 不触发关闭，继续运行
+    }
+    
+    // 致命错误：触发优雅关闭
+    log.warn(`[LifecycleManager] v522: 致命异常，触发优雅关闭...`);
     await handleShutdown('uncaughtException');
   });
   

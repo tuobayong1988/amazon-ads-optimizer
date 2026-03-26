@@ -1263,7 +1263,25 @@ AmazonSyncService.prototype.syncSdAudienceBidRecommendations = async function(th
           }
           log.info(`[v519] 本地推荐引擎为SD adGroup ${amazonAdGroupId} 的 ${audiences.length} 个受众提供建议竞价 $${localRec.suggestedBid.toFixed(2)} (${localRec.source}, confidence=${localRec.confidence.toFixed(2)})`);
         } else {
-          log.debug(`[v519] 本地推荐引擎对SD adGroup ${amazonAdGroupId} 无足够数据 (source=${localRec.source})`);
+          // v522: 本地推荐引擎无数据时，使用adGroup的defaultBid作为基线建议竞价
+          const refAudience = audiences[0];
+          if (refAudience && refAudience.bid && Number(refAudience.bid) > 0) {
+            const baseBid = Number(refAudience.bid);
+            const sugBid = Math.max(baseBid, 0.10); // 最低0.10美元
+            for (const aud of audiences) {
+              await db.update(sdAudiences)
+                .set({
+                  suggestedBid: String(sugBid.toFixed(2)),
+                  suggestedBidLow: String(Math.max(sugBid * 0.5, 0.05).toFixed(2)),
+                  suggestedBidHigh: String((sugBid * 2.0).toFixed(2)),
+                })
+                .where(eq(sdAudiences.id, aud.id));
+              audienceBidsUpdated++;
+            }
+            log.info(`[v522] SD adGroup ${amazonAdGroupId} 使用当前出价$${sugBid.toFixed(2)}作为建议竞价基线 (${audiences.length}个受众)`);
+          } else {
+            log.debug(`[v519] 本地推荐引擎对SD adGroup ${amazonAdGroupId} 无足够数据 (source=${localRec.source})`);
+          }
         }
       } catch (localErr: unknown) {
         errors++;

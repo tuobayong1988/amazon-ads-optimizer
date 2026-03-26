@@ -1,4 +1,8 @@
 import "dotenv/config";
+// v522: 应用 sqlstring 安全补丁，必须在所有数据库操作之前执行
+import { patchSqlstring } from '../utils/patchSqlstring';
+patchSqlstring();
+
 import { createModuleLogger, logger } from "../utils/logger";
 const log = createModuleLogger('Server');
 import express from "express";

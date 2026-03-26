@@ -1265,13 +1265,14 @@ AmazonSyncService.prototype.syncSpBidRecommendations = async function(this: Amaz
 
     // 按adGroup批量请求建议竞价
     let tgtAdGroupIndex = 0;
+    let tgtApiDelay = 2000; // v522: 自适应节流 — 初始2秒，429时加倍，成功时缩减
+    let tgtConsecutiveSuccess = 0;
     for (const [internalAgId, tgtList] of tgtByAdGroup) {
       const amazonAgId = internalToAmazonAdGroupId.get(internalAgId);
       if (!amazonAgId) continue;
-
-      // v476: API节流 — 每个adGroup的商品定向建议竞价请求间隔5秒，优先保证100%成功率
+      // v522: 自适应API节流 — 根据429响应动态调整延迟
       if (tgtAdGroupIndex > 0) {
-        await new Promise(resolve => setTimeout(resolve, 5000));
+        await new Promise(resolve => setTimeout(resolve, tgtApiDelay));
       }
       tgtAdGroupIndex++;
 
@@ -1343,9 +1344,22 @@ AmazonSyncService.prototype.syncSpBidRecommendations = async function(this: Amaz
             log.debug(`[v436] adGroup ${internalAgId} 商品定位API返回空建议竞价 (batch=${batch.length})`);
           }
         }
+        // v522: 成功后逐步缩减延迟，最低1秒
+        tgtConsecutiveSuccess++;
+        if (tgtConsecutiveSuccess >= 5 && tgtApiDelay > 1000) {
+          tgtApiDelay = Math.max(1000, tgtApiDelay - 500);
+          tgtConsecutiveSuccess = 0;
+          log.debug(`[v522] Target建议竞价节流缩减至 ${tgtApiDelay}ms`);
+        }
       } catch (err: unknown) {
         errors++;
         const errMsg = (err as Error).message || 'unknown';
+        // v522: 429限流时加倍延迟，最高8秒
+        if (errMsg.includes('429') || errMsg.includes('Too Many') || errMsg.includes('HTML响应')) {
+          tgtApiDelay = Math.min(8000, tgtApiDelay * 2);
+          tgtConsecutiveSuccess = 0;
+          log.warn(`[v522] Target建议竞价429限流，延迟加倍至 ${tgtApiDelay}ms`);
+        }
         log.warn(`[v414] adGroup ${internalAgId} 商品定位建议竞价获取失败: ${errMsg}`);
         // v457: Amazon API失败时，使用本地历史数据推荐引擎
         try {

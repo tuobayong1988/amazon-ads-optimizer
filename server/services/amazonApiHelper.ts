@@ -197,12 +197,33 @@ export async function syncBidAdjustmentsToAmazon(
       }
     }
     
+    // v522: 批量查询adGroup状态，过滤已归档的adGroup
+    const adGroupStatusMap = new Map<string, string>();
+    try {
+      const uniqueAdGroupIds = [...new Set(kwResults.map(kw => kw.adGroupId).filter(Boolean))];
+      if (uniqueAdGroupIds.length > 0) {
+        const agResults = await dbInstance
+          .select({ adGroupId: adGroupsSchema.adGroupId, adGroupStatus: adGroupsSchema.adGroupStatus })
+          .from(adGroupsSchema)
+          .where(inArray(adGroupsSchema.adGroupId, uniqueAdGroupIds as string[]));
+        for (const ag of agResults) {
+          if (ag.adGroupId) adGroupStatusMap.set(ag.adGroupId, ag.adGroupStatus || 'enabled');
+        }
+      }
+    } catch (_: any) { /* 查询失败不影响主流程 */ }
+
     const kwIdMap = new Map<number, { amazonId: string; campaignId: string; adGroupId: string; campaignType: string }>();
     const amazonDeletedKwIds = new Set<number>();
     for (const kw of kwResults) {
       // v513: 增强预检机制 — 扩展实体状态过滤范围
       const kwStatus = String(kw.keywordStatus || '');
       if (kwStatus === 'amazon_deleted' || kwStatus === 'archived' || kwStatus === 'amazon_archived') {
+        amazonDeletedKwIds.add(kw.id);
+        continue;
+      }
+      // v522: 检查adGroup状态 — 跳过已归档的adGroup下的关键词
+      const agStatus = adGroupStatusMap.get(kw.adGroupId || '');
+      if (agStatus === 'archived') {
         amazonDeletedKwIds.add(kw.id);
         continue;
       }
@@ -525,11 +546,18 @@ export async function syncBidAdjustmentsToAmazon(
               // 当Amazon返回这些错误时，说明关键词或其所属adGroup在Amazon端已不存在
               // 需要标记为amazon_deleted/archived以防止纠错器反复重试
               const failLower = failReason.toLowerCase();
-              if (failLower.includes('entitynotfounderror') || failLower.includes('entity_not_found') || failLower.includes('keyword_cannot_find_ad_group') || failLower.includes('invalid_argument')) {
+              if (failLower.includes('entitynotfounderror') || failLower.includes('entity_not_found') || failLower.includes('keyword_cannot_find_ad_group') || failLower.includes('invalid_argument') || failLower.includes('cannot find the adgroup')) {
                 try {
                   await dbInstance.execute(sql.raw(`UPDATE keywords SET keywordStatus = 'amazon_archived' WHERE keywordId = '${String(item.keywordId).replace(/'/g, "''")}' LIMIT 1`));
-                  log.info(`[v507] SB关键词 ${item.keywordId} 标记为amazon_archived (原因: ${failReason.substring(0, 50)})`);
+                  log.info(`[v522] SB关键词 ${item.keywordId} 标记为amazon_archived (原因: ${failReason.substring(0, 50)})`);
                 } catch (_: any) { /* ignore */ }
+                // v522: 同时标记adGroup为amazon_deleted，防止同一adGroup下的其他关键词继续失败
+                if (failLower.includes('cannot find the adgroup') && item.adGroupId) {
+                  try {
+                    await dbInstance.execute(sql.raw(`UPDATE ad_groups SET adGroupStatus = 'archived' WHERE adGroupId = '${String(item.adGroupId).replace(/'/g, "''")}' LIMIT 1`));
+                    log.warn(`[v522] SB adGroup ${item.adGroupId} 标记为archived (Amazon端已不存在)`);
+                  } catch (_: any) { /* ignore */ }
+                }
               }
             }
           } else {
@@ -540,13 +568,26 @@ export async function syncBidAdjustmentsToAmazon(
         
         log.info(`[v502] SB关键词出价更新完成: 发送=${sbUpdates.length}, 成功=${sbUpdates.length - sbFailedIds.size}, 失败=${sbFailedIds.size}`);
       } catch (batchErr: unknown) {
-        log.warn(`[v502] SB关键词出价批量更新异常: ${(batchErr as Error).message}`);
+        const batchErrMsg = (batchErr as Error).message || '';
+        log.warn(`[v502] SB关键词出价批量更新异常: ${batchErrMsg}`);
         result.failed += sbUpdates.length;
         for (const item of sbKeywordBids.filter(r => r.adGroupId && r.campaignId)) {
           // @ts-ignore
-          result.itemResults.set(item.localId, { status: 'failed', error: (batchErr as Error).message });
+          result.itemResults.set(item.localId, { status: 'failed', error: batchErrMsg });
         }
-        result.errors.push(`SB关键词出价批量更新异常: ${(batchErr as Error).message}`);
+        result.errors.push(`SB关键词出价批量更新异常: ${batchErrMsg}`);
+        // v522: 批量异常中检测 adGroup 不存在的情况，自动标记关键词和adGroup
+        if (batchErrMsg.toLowerCase().includes('cannot find the adgroup')) {
+          try {
+            // 提取错误消息中的adGroupId
+            const adGroupIdMatch = batchErrMsg.match(/(\d{10,})\s*$/);
+            if (adGroupIdMatch) {
+              await dbInstance.execute(sql.raw(`UPDATE ad_groups SET adGroupStatus = 'archived' WHERE adGroupId = '${adGroupIdMatch[1]}' LIMIT 1`));
+              await dbInstance.execute(sql.raw(`UPDATE keywords SET keywordStatus = 'amazon_archived' WHERE internal_ad_group_id IN (SELECT id FROM ad_groups WHERE adGroupId = '${adGroupIdMatch[1]}') AND keywordStatus = 'enabled'`));
+              log.warn(`[v522] 批量异常: adGroup ${adGroupIdMatch[1]} 及其关键词已标记为archived/amazon_archived`);
+            }
+          } catch (_: any) { /* ignore */ }
+        }
       }
     }
   }
