@@ -3060,10 +3060,11 @@ export class AmazonAdsApiClient {
       // @ts-expect-error - Axios error response access
       const sdErrInfo = (error as Error & { response?: unknown }).response?.data || (error as Error).message;
       {
+        // v529: 修复 "Cannot convert object to primitive value" — 确保所有分支使用字符串
         const _errStr = typeof sdErrInfo === 'object' ? JSON.stringify(sdErrInfo).slice(0, 500) : String(sdErrInfo);
         const _isExpected = _errStr.includes('configuration date') || _errStr.includes('425');
         if (_isExpected) {
-          log.warn(`[Amazon API] 请求SD定向报告失败 (expected): ${sdErrInfo}`);
+          log.warn(`[Amazon API] 请求SD定向报告失败 (expected): ${_errStr}`);
         } else {
           log.warn(`[Amazon API] 请求SD定向报告失败: ${_errStr}`);
         }
@@ -3327,10 +3328,11 @@ export class AmazonAdsApiClient {
       // @ts-expect-error - Axios error response access
       const sbErrInfo = (error as Error & { response?: unknown }).response?.data || (error as Error).message;
       {
+        // v529: 修复 "Cannot convert object to primitive value" — 确保所有分支使用字符串
         const _errStr = typeof sbErrInfo === 'object' ? JSON.stringify(sbErrInfo).slice(0, 500) : String(sbErrInfo);
         const _isExpected = _errStr.includes('configuration date') || _errStr.includes('425');
         if (_isExpected) {
-          log.warn(`[Amazon API] 请求SB定向报告失败 (expected): ${sbErrInfo}`);
+          log.warn(`[Amazon API] 请求SB定向报告失败 (expected): ${_errStr}`);
         } else {
           log.warn(`[Amazon API] 请求SB定向报告失败: ${_errStr}`);
         }

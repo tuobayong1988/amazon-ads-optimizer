@@ -3889,7 +3889,7 @@ export const contextualFeatures = mysqlTable("contextual_features", {
 	keywordId: int(),
 	targetId: int(),
 	campaignId: varchar({ length: 64 }),
-	internalAdGroupId: int("internal_ad_group_id"),  // v418: ID体系重构
+	adGroupId: int(),  // v529: 修复列名映射 - 数据库实际列名是adGroupId(驼峰)而非internal_ad_group_id
 	snapshotDate: date("snapshot_date", { mode: 'string' }).notNull(),
 	hourOfDay: int("hour_of_day"),
 	dayOfWeek: int("day_of_week"),

@@ -762,6 +762,7 @@ AmazonSyncService.prototype.syncSdNegativeTargets = async function(this: AmazonS
           .where(eq(negativeKeywords.id, existing.id));
         updated++;
       } else {
+        // v529: 添加onDuplicateKeyUpdate处理竞态条件下的DUP_ENTRY错误
         await db.insert(negativeKeywords).values({
           // @ts-ignore
           accountId: this.accountId,
@@ -776,6 +777,8 @@ AmazonSyncService.prototype.syncSdNegativeTargets = async function(this: AmazonS
           amazonNegativeKeywordId: amazonTargetId || null,
           negativeSource: 'manual',
           negativeStatus: negState === 'enabled' ? 'active' as const : 'removed' as const,
+        }).onDuplicateKeyUpdate({
+          set: { negativeStatus: sql`VALUES(negativeStatus)`, amazonNegativeKeywordId: sql`VALUES(amazonNegativeKeywordId)` }
         });
         synced++;
       }

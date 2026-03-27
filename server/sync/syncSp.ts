@@ -37,6 +37,33 @@ import {
 
 const log = createModuleLogger('syncSp');
 
+// ==================== v529: 大账户分段同步辅助函数 ====================
+
+/**
+ * v529: 分段批量查询辅助函数
+ * 将大数组分段执行 inArray 查询，避免 MySQL IN 子句过大（超过 65535 参数限制）
+ * 对于 5000+ campaigns 的大账户，keywords 可能超过 75K，需要分段处理
+ */
+const SEGMENTED_QUERY_BATCH_SIZE = 5000; // 每批最多 5000 个 ID
+
+async function batchInArrayQuery<T>(
+  queryFn: (ids: string[]) => Promise<T[]>,
+  allIds: string[],
+): Promise<T[]> {
+  if (allIds.length <= SEGMENTED_QUERY_BATCH_SIZE) {
+    return allIds.length > 0 ? queryFn(allIds) : [];
+  }
+  
+  const results: T[] = [];
+  for (let i = 0; i < allIds.length; i += SEGMENTED_QUERY_BATCH_SIZE) {
+    const batch = allIds.slice(i, i + SEGMENTED_QUERY_BATCH_SIZE);
+    const batchResults = await queryFn(batch);
+    results.push(...batchResults);
+  }
+  log.info(`v529: 分段批量查询完成, 总ID数=${allIds.length}, 分${Math.ceil(allIds.length / SEGMENTED_QUERY_BATCH_SIZE)}批, 结果数=${results.length}`);
+  return results;
+}
+
 // ==================== 类型声明（模块扩展） ====================
 
 // @ts-ignore
@@ -91,21 +118,23 @@ AmazonSyncService.prototype.syncSpCampaigns = async function(this: AmazonSyncSer
       log.debug('[SP Sync Debug] endDate字段:', apiCampaigns[0].endDate);
     }
 
-    // v363: 批量预查询所有需要保护的广告活动ID（消除N+1查询）
+    // v529: 大账户分段同步 - 分段批量查询避免 MySQL IN 子句过大
+    log.info(`syncSpCampaigns: 开始处理 ${apiCampaigns.length} 个广告活动`);
     const apiCampaignIds = apiCampaigns.map(ac => String(ac.campaignId));
-    const existingCampaignRows = apiCampaignIds.length > 0
-      ? await db.select({ id: campaigns.id, campaignId: campaigns.campaignId }).from(campaigns)
-          .where(and(eq(campaigns.accountId, this.accountId), inArray(campaigns.campaignId, apiCampaignIds)))
-      : [];
+    const existingCampaignRows = await batchInArrayQuery(
+      (ids) => db.select({ id: campaigns.id, campaignId: campaigns.campaignId }).from(campaigns)
+        .where(and(eq(campaigns.accountId, this.accountId), inArray(campaigns.campaignId, ids))),
+      apiCampaignIds
+    );
     const existingCampaignMap = new Map(existingCampaignRows.map(r => [r.campaignId, r.id]));
     const allExistingCampaignIds = existingCampaignRows.map(r => r.id);
     const protectedCampaignIds = await getRecentlyOptimizedCampaignIds(allExistingCampaignIds, SYNC_PROTECTION_CONFIG.BUDGET_PROTECTION_HOURS);
     const protectionStats = createSyncProtectionStats();
-    log.info(`syncSpCampaigns: 批量查询完成, ${protectedCampaignIds.size}个广告活动有近期预算优化事件`);
+    log.info(`syncSpCampaigns: 批量查询完成, ${apiCampaigns.length}个API广告活动, ${existingCampaignRows.length}个已存在, ${protectedCampaignIds.size}个有近期预算优化事件`);
 
-    // v363: 批量预查询所有已存在的campaign完整记录（消除循环内查询）
-    const existingCampaignFullRows = apiCampaignIds.length > 0
-      ? await db.select({
+    // v529: 分段批量查询所有已存在的campaign完整记录
+    const existingCampaignFullRows = await batchInArrayQuery(
+      (ids) => db.select({
           id: campaigns.id,
           campaignId: campaigns.campaignId,
           campaignName: campaigns.campaignName,
@@ -113,8 +142,9 @@ AmazonSyncService.prototype.syncSpCampaigns = async function(this: AmazonSyncSer
           placementTopSearchBidAdjustment: campaigns.placementTopSearchBidAdjustment,
           placementProductPageBidAdjustment: campaigns.placementProductPageBidAdjustment,
         }).from(campaigns)
-          .where(and(eq(campaigns.accountId, this.accountId), inArray(campaigns.campaignId, apiCampaignIds)))
-      : [];
+          .where(and(eq(campaigns.accountId, this.accountId), inArray(campaigns.campaignId, ids))),
+      apiCampaignIds
+    );
     const existingCampaignFullMap = new Map(existingCampaignFullRows.map(r => [r.campaignId, r]));
 
     for (const apiCampaign of apiCampaigns) {
@@ -389,9 +419,17 @@ AmazonSyncService.prototype.syncSpAdGroups = async function(this: AmazonSyncServ
           .set(adGroupData)
           .where(eq(adGroups.id, existing.id));
       } else {
+        // v529: 添加onDuplicateKeyUpdate处理竞态条件下的DUP_ENTRY错误
         await db.insert(adGroups).values({
           ...adGroupData,
           createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+        }).onDuplicateKeyUpdate({
+          set: {
+            adGroupName: sql`VALUES(adGroupName)`,
+            adGroupStatus: sql`VALUES(adGroupStatus)`,
+            defaultBid: sql`VALUES(defaultBid)`,
+            updatedAt: sql`VALUES(updatedAt)`,
+          }
         });
       }
       synced++;
@@ -425,26 +463,31 @@ AmazonSyncService.prototype.syncSpKeywords = async function(this: AmazonSyncServ
     let synced = 0;
     let skipped = 0;
 
-    // v363: 批量预查询所有需要保护的关键词ID（消除N+1查询）
-    // 步骤1: 批量查询所有相关adGroup
+    // v529: 大账户分段同步 - 分段批量查询避免 MySQL IN 子句过大
+    log.info(`syncSpKeywords: 开始处理 ${apiKeywords.length} 个关键词`);
+    
+    // 步骤1: 分段批量查询所有相关adGroup
     const apiKeywordAdGroupIds = [...new Set(apiKeywords.map(ak => String(ak.adGroupId)))];
-    const adGroupRows = apiKeywordAdGroupIds.length > 0
-      ? await db.select({ id: adGroups.id, adGroupId: adGroups.adGroupId, campaignId: adGroups.campaignId }).from(adGroups)
-          .where(and(eq(adGroups.accountId, this.accountId), inArray(adGroups.adGroupId, apiKeywordAdGroupIds)))
-      : [];
+    const adGroupRows = await batchInArrayQuery(
+      (ids) => db.select({ id: adGroups.id, adGroupId: adGroups.adGroupId, campaignId: adGroups.campaignId }).from(adGroups)
+        .where(and(eq(adGroups.accountId, this.accountId), inArray(adGroups.adGroupId, ids))),
+      apiKeywordAdGroupIds
+    );
     const adGroupIdMap = new Map(adGroupRows.map(r => [r.adGroupId, r.id]));
     const adGroupFullMap = new Map(adGroupRows.map(r => [r.adGroupId, { id: r.id, campaignId: r.campaignId }]));
-    // v387: 批量查询所有已存在的keyword（添加accountId过滤）
+    
+    // v529: 分段批量查询所有已存在的keyword
     const apiKeywordIds = apiKeywords.map(ak => String(ak.keywordId));
-    const existingKeywordRows = apiKeywordIds.length > 0
-      ? await db.select({ id: keywords.id, keywordId: keywords.keywordId, adGroupId: keywords.internalAdGroupId, bid: keywords.bid, keywordText: keywords.keywordText }).from(keywords)
-          .where(and(eq(keywords.accountId, this.accountId), inArray(keywords.keywordId, apiKeywordIds)))
-      : [];
+    const existingKeywordRows = await batchInArrayQuery(
+      (ids) => db.select({ id: keywords.id, keywordId: keywords.keywordId, adGroupId: keywords.internalAdGroupId, bid: keywords.bid, keywordText: keywords.keywordText }).from(keywords)
+        .where(and(eq(keywords.accountId, this.accountId), inArray(keywords.keywordId, ids))),
+      apiKeywordIds
+    );
     const existingKeywordMap = new Map(existingKeywordRows.map(r => [`${r.adGroupId}:${r.keywordId}`, r]));
     const allExistingKeywordIds = existingKeywordRows.map(r => r.id);
     const protectedKeywordIds = await getRecentlyOptimizedKeywordIds(allExistingKeywordIds, SYNC_PROTECTION_CONFIG.BID_PROTECTION_HOURS);
     const protectionStats = createSyncProtectionStats();
-    log.info(`syncSpKeywords: 批量查询完成, ${protectedKeywordIds.size}个关键词有近期出价优化事件`);
+    log.info(`syncSpKeywords: 批量查询完成, ${apiKeywords.length}个API关键词, ${existingKeywordRows.length}个已存在, ${protectedKeywordIds.size}个有近期出价优化事件`);
 
     for (const apiKeyword of apiKeywords) {
       // v363: 使用批量预查询结果替代循环内查询
@@ -505,9 +548,16 @@ AmazonSyncService.prototype.syncSpKeywords = async function(this: AmazonSyncServ
           .where(eq(keywords.id, existing.id));
       } else {
         // @ts-expect-error - Drizzle query builder type
+        // v529: 添加onDuplicateKeyUpdate处理竞态条件下的DUP_ENTRY错误
         await db.insert(keywords).values({
           ...keywordData,
           createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+        }).onDuplicateKeyUpdate({
+          set: {
+            bid: sql`VALUES(bid)`,
+            keywordStatus: sql`VALUES(keywordStatus)`,
+            updatedAt: sql`VALUES(updatedAt)`,
+          }
         });
       // @ts-ignore
       }
@@ -540,24 +590,29 @@ AmazonSyncService.prototype.syncSpProductTargets = async function(this: AmazonSy
     let synced = 0;
     let skipped = 0;
 
-    // v363: 批量预查询所有需要保护的产品定向ID（消除N+1查询）
+    // v529: 大账户分段同步 - 分段批量查询避免 MySQL IN 子句过大
+    log.info(`syncSpProductTargets: 开始处理 ${apiTargets.length} 个产品定向`);
+    
     const apiTargetAdGroupIds = [...new Set(apiTargets.map(at => String(at.adGroupId)))];
-    const targetAdGroupRows = apiTargetAdGroupIds.length > 0
-      ? await db.select({ id: adGroups.id, adGroupId: adGroups.adGroupId, campaignId: adGroups.campaignId }).from(adGroups)
-          .where(and(eq(adGroups.accountId, this.accountId), inArray(adGroups.adGroupId, apiTargetAdGroupIds)))
-      : [];
+    const targetAdGroupRows = await batchInArrayQuery(
+      (ids) => db.select({ id: adGroups.id, adGroupId: adGroups.adGroupId, campaignId: adGroups.campaignId }).from(adGroups)
+        .where(and(eq(adGroups.accountId, this.accountId), inArray(adGroups.adGroupId, ids))),
+      apiTargetAdGroupIds
+    );
     const targetAdGroupIdMap = new Map(targetAdGroupRows.map(r => [r.adGroupId, r.id]));
     const targetAdGroupFullMap = new Map(targetAdGroupRows.map(r => [r.adGroupId, { id: r.id, campaignId: r.campaignId }]));
+    
     const apiTargetIds = apiTargets.map(at => String(at.targetId));
-    const existingTargetRows = apiTargetIds.length > 0
-      ? await db.select({ id: productTargets.id, targetId: productTargets.targetId, adGroupId: productTargets.internalAdGroupId, bid: productTargets.bid, targetValue: productTargets.targetValue }).from(productTargets)
-          .where(and(eq(productTargets.accountId, this.accountId), inArray(productTargets.targetId, apiTargetIds)))
-      : [];
+    const existingTargetRows = await batchInArrayQuery(
+      (ids) => db.select({ id: productTargets.id, targetId: productTargets.targetId, adGroupId: productTargets.internalAdGroupId, bid: productTargets.bid, targetValue: productTargets.targetValue }).from(productTargets)
+        .where(and(eq(productTargets.accountId, this.accountId), inArray(productTargets.targetId, ids))),
+      apiTargetIds
+    );
     const existingTargetMap = new Map(existingTargetRows.map(r => [`${r.adGroupId}:${r.targetId}`, r]));
     const allExistingTargetIds = existingTargetRows.map(r => r.id);
     const protectedTargetIds = await getRecentlyOptimizedKeywordIds(allExistingTargetIds, SYNC_PROTECTION_CONFIG.BID_PROTECTION_HOURS);
     const protectionStats = createSyncProtectionStats();
-    log.info(`syncSpProductTargets: 批量查询完成, ${protectedTargetIds.size}个产品定向有近期出价优化事件`);
+    log.info(`syncSpProductTargets: 批量查询完成, ${apiTargets.length}个API定向, ${existingTargetRows.length}个已存在, ${protectedTargetIds.size}个有近期出价优化事件`);
 
     for (const apiTarget of apiTargets) {
       // v363: 使用批量预查询结果替代循环内查询
@@ -744,10 +799,17 @@ AmazonSyncService.prototype.syncSpProductTargets = async function(this: AmazonSy
           .set(targetData)
           .where(eq(productTargets.id, existing.id));
       } else {
+        // v529: 添加onDuplicateKeyUpdate处理竞态条件下的DUP_ENTRY错误
         await db.insert(productTargets).values({
           ...targetData,
           createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
         // @ts-ignore
+        }).onDuplicateKeyUpdate({
+          set: {
+            bid: sql`VALUES(bid)`,
+            targetStatus: sql`VALUES(targetStatus)`,
+            updatedAt: sql`VALUES(updatedAt)`,
+          }
         });
       }
       synced++;
@@ -830,6 +892,7 @@ AmazonSyncService.prototype.syncSpNegativeKeywords = async function(this: Amazon
         updated++;
       } else {
         // @ts-ignore
+        // v529: 添加onDuplicateKeyUpdate处理竞态条件下的DUP_ENTRY错误
         await db.insert(negativeKeywords).values({
           accountId: this.accountId,
           campaignId: String(campaign.campaignId),
@@ -841,6 +904,8 @@ AmazonSyncService.prototype.syncSpNegativeKeywords = async function(this: Amazon
           amazonNegativeKeywordId: amazonKeywordId || null,
           negativeSource: 'manual',
           negativeStatus: 'active',
+        }).onDuplicateKeyUpdate({
+          set: { negativeStatus: sql`VALUES(negativeStatus)`, amazonNegativeKeywordId: sql`VALUES(amazonNegativeKeywordId)` }
         });
         synced++;
       }
@@ -894,6 +959,7 @@ AmazonSyncService.prototype.syncSpNegativeKeywords = async function(this: Amazon
         updated++;
       } else {
         // @ts-ignore
+        // v529: 添加onDuplicateKeyUpdate处理竞态条件下的DUP_ENTRY错误
         await db.insert(negativeKeywords).values({
           // @ts-ignore
           accountId: this.accountId,
@@ -906,6 +972,8 @@ AmazonSyncService.prototype.syncSpNegativeKeywords = async function(this: Amazon
           amazonNegativeKeywordId: amazonKeywordId || null,
           negativeSource: 'manual',
           negativeStatus: 'active',
+        }).onDuplicateKeyUpdate({
+          set: { negativeStatus: sql`VALUES(negativeStatus)`, amazonNegativeKeywordId: sql`VALUES(amazonNegativeKeywordId)` }
         });
         synced++;
       }
@@ -983,6 +1051,7 @@ AmazonSyncService.prototype.syncSpNegativeProductTargets = async function(this: 
         // @ts-ignore
         updated++;
       } else {
+        // v529: 添加onDuplicateKeyUpdate处理竞态条件下的DUP_ENTRY错误
         await db.insert(negativeKeywords).values({
           accountId: this.accountId,
           campaignId: String(campaign.campaignId),
@@ -993,6 +1062,8 @@ AmazonSyncService.prototype.syncSpNegativeProductTargets = async function(this: 
           amazonNegativeKeywordId: amazonTargetId || null,
           negativeSource: 'manual',
           negativeStatus: 'active',
+        }).onDuplicateKeyUpdate({
+          set: { negativeStatus: sql`VALUES(negativeStatus)`, amazonNegativeKeywordId: sql`VALUES(amazonNegativeKeywordId)` }
         });
         synced++;
       }
@@ -1042,6 +1113,7 @@ AmazonSyncService.prototype.syncSpNegativeProductTargets = async function(this: 
           .where(eq(negativeKeywords.id, existing.id));
         updated++;
       } else {
+        // v529: 添加onDuplicateKeyUpdate处理竞态条件下的DUP_ENTRY错误
         await db.insert(negativeKeywords).values({
           accountId: this.accountId,
           campaignId: String(campaign.campaignId),
@@ -1054,6 +1126,8 @@ AmazonSyncService.prototype.syncSpNegativeProductTargets = async function(this: 
           amazonNegativeKeywordId: amazonTargetId || null,
           negativeSource: 'manual',
           negativeStatus: 'active',
+        }).onDuplicateKeyUpdate({
+          set: { negativeStatus: sql`VALUES(negativeStatus)`, amazonNegativeKeywordId: sql`VALUES(amazonNegativeKeywordId)` }
         });
         synced++;
       }

@@ -1236,6 +1236,7 @@ AmazonSyncService.prototype.syncSbNegativeKeywords = async function(this: Amazon
         updated++;
       } else {
         // @ts-ignore
+        // v529: 添加onDuplicateKeyUpdate处理竞态条件下的DUP_ENTRY错误
         await db.insert(negativeKeywords).values({
           accountId: this.accountId,
           campaignId: String(campaign.campaignId),
@@ -1247,6 +1248,8 @@ AmazonSyncService.prototype.syncSbNegativeKeywords = async function(this: Amazon
           amazonNegativeKeywordId: amazonKeywordId || null,
           negativeSource: 'manual',
           negativeStatus: 'active',
+        }).onDuplicateKeyUpdate({
+          set: { negativeStatus: sql`VALUES(negativeStatus)`, amazonNegativeKeywordId: sql`VALUES(amazonNegativeKeywordId)` }
         });
         synced++;
       }
@@ -1330,6 +1333,7 @@ AmazonSyncService.prototype.syncSbNegativeTargets = async function(this: AmazonS
           .where(eq(negativeKeywords.id, existing.id));
         updated++;
       } else {
+        // v529: 添加onDuplicateKeyUpdate处理竞态条件下的DUP_ENTRY错误
         await db.insert(negativeKeywords).values({
           accountId: this.accountId,
           campaignId: String(campaign.campaignId),
@@ -1341,6 +1345,8 @@ AmazonSyncService.prototype.syncSbNegativeTargets = async function(this: AmazonS
           amazonNegativeKeywordId: amazonTargetId || null,
           negativeSource: 'manual',
           negativeStatus: 'active',
+        }).onDuplicateKeyUpdate({
+          set: { negativeStatus: sql`VALUES(negativeStatus)`, amazonNegativeKeywordId: sql`VALUES(amazonNegativeKeywordId)` }
         });
         synced++;
       }
