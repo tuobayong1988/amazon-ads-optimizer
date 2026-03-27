@@ -3365,77 +3365,56 @@ async function rescuePermanentlyFailedTasks(accountId: number): Promise<Correcti
            AND status = 'permanently_failed'
            AND completed_at < DATE_SUB(NOW(), INTERVAL 2 HOUR)
            AND completed_at > DATE_SUB(NOW(), INTERVAL 7 DAY)
-         // @ts-ignore
          ORDER BY completed_at DESC
          LIMIT 50`,
         [accountId]
-      ) as unknown[];
+      ) as any[];
       
-      // @ts-ignore
-      if (rows.length === 0) return results;
+      if (!rows || rows.length === 0) return results;
       
-      // @ts-ignore
       log.warn(`v190: 账户${accountId} 发现${rows.length}条permanently_failed任务需要恢复`);
       
       // 对于缺少Amazon ID的任务，先尝试回填
-      // @ts-ignore
-      for (const task of rows) {
+      for (const task of rows as any[]) {
         if (!task.amazon_entity_id && task.target_entity_id) {
-          // @ts-ignore
           try {
             if (task.target_entity_type === 'keyword') {
-              // @ts-ignore
               const [kwRows] = await conn.execute(
                 'SELECT keywordId FROM keywords WHERE id = ? AND keywordId IS NOT NULL LIMIT 1',
                 [task.target_entity_id]
-              // @ts-ignore
-              ) as unknown[];
-              // @ts-ignore
+              ) as any[];
               if (kwRows[0]?.keywordId) {
-                // @ts-ignore
                 task.amazon_entity_id = kwRows[0].keywordId;
-                // @ts-ignore
                 await conn.execute(
-                  // @ts-ignore
                   'UPDATE optimization_tasks SET amazon_entity_id = ? WHERE id = ?',
                   [task.amazon_entity_id, task.id]
                 );
                 log.debug(`v190: 回填Amazon ID: keyword ${task.target_entity_id} -> ${task.amazon_entity_id}`);
               }
-            // @ts-ignore
             } else if (task.target_entity_type === 'product_target') {
               const [ptRows] = await conn.execute(
                 'SELECT targetId FROM product_targets WHERE id = ? AND targetId IS NOT NULL LIMIT 1',
                 [task.target_entity_id]
-              // @ts-ignore
-              ) as unknown[];
-              // @ts-ignore
+              ) as any[];
               if (ptRows[0]?.targetId) {
-                // @ts-ignore
                 task.amazon_entity_id = ptRows[0].targetId;
                 await conn.execute(
                   'UPDATE optimization_tasks SET amazon_entity_id = ? WHERE id = ?',
                   [task.amazon_entity_id, task.id]
                 );
-                // @ts-ignore
                 log.debug(`v190: 回填Amazon ID: product_target ${task.target_entity_id} -> ${task.amazon_entity_id}`);
-              // @ts-ignore
               }
             } else if (task.target_entity_type === 'campaign') {
               const [cRows] = await conn.execute(
                 'SELECT campaignId FROM campaigns WHERE id = ? AND campaignId IS NOT NULL LIMIT 1',
                 [task.target_entity_id]
-              // @ts-ignore
-              ) as unknown[];
-              // @ts-ignore
+              ) as any[];
               if (cRows[0]?.campaignId) {
-                // @ts-ignore
                 task.amazon_entity_id = cRows[0].campaignId;
                 await conn.execute(
                   'UPDATE optimization_tasks SET amazon_entity_id = ? WHERE id = ?',
                   [task.amazon_entity_id, task.id]
                 );
-                // @ts-ignore
                 log.debug(`v190: 回填Amazon ID: campaign ${task.target_entity_id} -> ${task.amazon_entity_id}`);
               }
             }
@@ -3446,29 +3425,22 @@ async function rescuePermanentlyFailedTasks(accountId: number): Promise<Correcti
       }
       
       // 重置为retry状态，给予完整的重试机会
-      // @ts-ignore
-      const taskIds = rows.map((r: Record<string, unknown>) => r.id);
-      // @ts-ignore
+      const taskIds = (rows as any[]).map((r: Record<string, unknown>) => r.id);
       const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
       
-      // @ts-ignore
       await conn.execute(
-        // @ts-ignore
         `UPDATE optimization_tasks 
          SET status = 'retry', 
              retry_count = 0, 
              error_message = CONCAT('[AutoCorrector v190 恢复] ', IFNULL(error_message, '')),
              next_retry_at = ?
-         // @ts-ignore
          WHERE id IN (${taskIds.join(',')})`,
         [now]
       );
       
-      // @ts-ignore
       log.warn(`v190: 已恢复${taskIds.length}条permanently_failed任务为retry状态`);
       
-      // @ts-ignore
-      for (const task of rows) {
+      for (const task of rows as any[]) {
         results.push({
           type: 'keyword_create_retry', // 复用现有类型
           accountId,
