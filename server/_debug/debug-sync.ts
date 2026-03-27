@@ -115,15 +115,21 @@ export const debugSyncRouter = router({
     // @ts-ignore
     .query(async ({ input }: unknown) => {
       try {
-        // 直接查询sync_tasks表
-        // @ts-expect-error - dynamic property access
-        const tasks = await (db as Record<string, unknown>).query(
-          `SELECT * FROM sync_tasks 
-           WHERE account_id = ? 
-           ORDER BY created_at DESC 
-           LIMIT ?`,
-          [input.accountId, input.limit]
-        );
+        // v526: 使用getDirectConnection替代不存在的db.query，消除构建警告
+        const conn = await db.getDirectConnection(5000);
+        let tasks: any[] = [];
+        try {
+          const [rows] = await conn.execute(
+            `SELECT * FROM sync_tasks 
+             WHERE account_id = ? 
+             ORDER BY created_at DESC 
+             LIMIT ?`,
+            [input.accountId, input.limit]
+          );
+          tasks = rows as any[];
+        } finally {
+          conn.release();
+        }
 
         return {
           success: true,

@@ -83,4 +83,19 @@ export async function getKeywordsByCampaignId(campaignId: string | number) {
   return allKeywords;
 }
 
+// v526: 添加批量查询和批量更新函数，消除构建警告 (import-is-undefined)
+export async function getKeywordsByIds(ids: number[]) {
+  const db = await getDb();
+  if (!db || ids.length === 0) return [];
+  
+  return db.select().from(keywords).where(inArray(keywords.id, ids));
+}
+
+export async function batchUpdateKeywordStatus(ids: number[], status: string) {
+  const db = await getDb();
+  if (!db || ids.length === 0) return;
+  
+  await db.update(keywords).set({ keywordStatus: status }).where(inArray(keywords.id, ids));
+}
+
 // ==================== Product Target Functions ====================

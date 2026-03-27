@@ -23,7 +23,8 @@ async function getViteConfig() {
   ]);
 
   const plugins = [react(), tailwindcss(), jsxLocPlugin(), vitePluginManusRuntime()];
-  const rootDir = path.resolve(import.meta.dirname, "../..");
+  // v526: 使用__dirname替代import.meta.dirname，兼容esbuild CJS输出格式
+  const rootDir = path.resolve(__dirname, "../..");
 
   return {
     plugins,
@@ -96,8 +97,9 @@ export async function setupVite(app: Express, server: Server) {
     const url = req.originalUrl;
 
     try {
+      // v526: 使用__dirname替代import.meta.dirname
       const clientTemplate = path.resolve(
-        import.meta.dirname,
+        __dirname,
         "../..",
         "client",
         "index.html"
@@ -123,7 +125,8 @@ export function serveStatic(app: Express) {
   // 兼容两种运行模式:
   //   - esbuild打包模式: __dirname = project_root/dist/, 需要 resolve("..", "dist", "public")
   //   - tsx直接运行模式: __dirname = project_root/server/_core/, 需要 resolve("../..", "dist", "public")
-  const baseDir = typeof __dirname !== 'undefined' ? __dirname : import.meta.dirname;
+  // v526: esbuild CJS模式下__dirname始终可用，移除import.meta fallback
+  const baseDir = __dirname;
   // 检测是否在esbuild打包模式下运行（dist/index.js）
   const isEsbuildBundle = baseDir.endsWith('/dist') || baseDir.endsWith('\\dist');
   const distPath = isEsbuildBundle
