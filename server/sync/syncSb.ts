@@ -468,6 +468,11 @@ AmazonSyncService.prototype.syncSbKeywords = async function(this: AmazonSyncServ
       };
 
       if (existing) {
+        // v523.2: 保护 amazon_deleted 状态不被同步覆盖
+        if (existing.keywordStatus === 'amazon_deleted' && normalizedState !== 'archived') {
+          log.debug(`v523.2: 保护SB(syncSb) keyword amazon_deleted状态 - keyword=${existing.keywordText}(id=${existing.id})`);
+          delete (keywordData as Record<string, unknown>).keywordStatus;
+        }
         await db
           .update(keywords)
           // @ts-ignore
@@ -628,6 +633,11 @@ AmazonSyncService.prototype.syncSbProductTargets = async function(this: AmazonSy
       }
 
       if (existing) {
+        // v523.2: 保护 amazon_deleted 状态不被同步覆盖
+        if (existing.targetStatus === 'amazon_deleted' && normalizedState !== 'archived') {
+          log.debug(`v523.2: 保护SB(syncSb) target amazon_deleted状态 - target=${existing.targetValue}(id=${existing.id})`);
+          delete (targetData as Record<string, unknown>).targetStatus;
+        }
         await db
           .update(productTargets)
           .set(targetData)
@@ -1040,6 +1050,11 @@ AmazonSyncService.prototype.syncSbTargeting = async function(this: AmazonSyncSer
       };
 
       if (existing) {
+        // v523.2: 保护 amazon_deleted 状态不被绩效同步覆盖
+        if (existing.keywordStatus === 'amazon_deleted') {
+          log.debug(`v523.2: 保护SB绩效同步 keyword amazon_deleted状态 - id=${existing.id}`);
+          delete (keywordData as Record<string, unknown>).keywordStatus;
+        }
         await db
           .update(keywords)
           .set(keywordData)

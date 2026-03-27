@@ -1959,6 +1959,15 @@ export async function startOptimizationScheduler(): Promise<void> {
   } catch (correctorErr: unknown) {
     log.warn('[OptimizationScheduler] v167: 自动纠错服务启动失败:', (correctorErr as Error).message);
   }
+
+  // v523.2: 启动实体状态对齐独立调度器（每30分钟增量扫描）
+  try {
+    const { startAlignmentScheduler } = await import('./entityStateAlignment');
+    startAlignmentScheduler();
+    log.info('[OptimizationScheduler] v523.2: 实体状态对齐调度器已启动，间隔: 30分钟');
+  } catch (alignErr: unknown) {
+    log.warn('[OptimizationScheduler] v523.2: 实体状态对齐调度器启动失败:', (alignErr as Error).message);
+  }
   
   // v204: 启动NextGen维护任务 - 启动后立即执行，然后每2小时重复
   // v204修复: 移除41分钟偏移，避免服务器重启后维护任务永远无法执行

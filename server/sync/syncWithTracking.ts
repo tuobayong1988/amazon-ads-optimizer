@@ -875,6 +875,11 @@ AmazonSyncService.prototype.syncSpKeywordsWithTracking = async function(
 
       // @ts-ignore
       if (existing) {
+        // v523.2: 保护 amazon_deleted 状态不被同步覆盖
+        if (existing.keywordStatus === 'amazon_deleted' && normalizedState !== 'archived') {
+          log.debug(`v523.2: 保护(WT) keyword amazon_deleted状态 - keyword=${existing.keywordText}(id=${existing.id})`);
+          delete (keywordData as Record<string, unknown>).keywordStatus;
+        }
         const conflictCheck = detectConflict(existing, keywordData, ['bid', 'keywordStatus']);
         if (conflictCheck.hasConflict && syncJobId) {
           conflictRecords.push({
@@ -1064,6 +1069,11 @@ AmazonSyncService.prototype.syncSpProductTargetsWithTracking = async function(
       };
 
       if (existing) {
+        // v523.2: 保护 amazon_deleted 状态不被同步覆盖
+        if (existing.targetStatus === 'amazon_deleted' && normalizedState !== 'archived') {
+          log.debug(`v523.2: 保护(WT) target amazon_deleted状态 - target=${existing.targetValue}(id=${existing.id})`);
+          delete (targetData as Record<string, unknown>).targetStatus;
+        }
         const conflictCheck = detectConflict(existing, targetData, ['bid', 'targetStatus']);
         if (conflictCheck.hasConflict && syncJobId) {
           conflictRecords.push({

@@ -472,6 +472,12 @@ AmazonSyncService.prototype.syncSpKeywords = async function(this: AmazonSyncServ
       };
 
       if (existing) {
+        // v523.2: 保护 amazon_deleted 状态不被同步覆盖
+        const normalizedApiState = (apiKeyword.state || 'enabled').toLowerCase();
+        if (existing.keywordStatus === 'amazon_deleted' && normalizedApiState !== 'archived') {
+          log.debug(`v523.2: 保护SP(syncSp) keyword amazon_deleted状态 - keyword=${existing.keywordText}(id=${existing.id})`);
+          delete keywordData.keywordStatus;
+        }
         // v150: 智能出价保护策略
         // 检查optimization_events表，如果该关键词有24小时内成功同步到Amazon的出价优化事件，
         // 则保留本地出价不被覆盖（因为Amazon API数据可能有延迟）
@@ -707,6 +713,11 @@ AmazonSyncService.prototype.syncSpProductTargets = async function(this: AmazonSy
       }
 
       if (existing) {
+        // v523.2: 保护 amazon_deleted 状态不被同步覆盖
+        if (existing.targetStatus === 'amazon_deleted' && normalizedState !== 'archived') {
+          log.debug(`v523.2: 保护SP(syncSp) target amazon_deleted状态 - target=${existing.targetValue}(id=${existing.id})`);
+          delete (targetData as Record<string, unknown>).targetStatus;
+        }
         // v150: 智能出价保护策略
         // 检查optimization_events表，如果该产品定向有24小时内成功同步的出价优化事件，
         // 则保留本地bid不被覆盖

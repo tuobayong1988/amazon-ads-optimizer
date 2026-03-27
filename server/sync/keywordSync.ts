@@ -148,6 +148,11 @@ export async function syncSbKeywords(service: SyncContext,): Promise<{ synced: n
       };
 
       if (existing) {
+        // v523.2: 保护 amazon_deleted 状态不被同步覆盖
+        if (existing.keywordStatus === 'amazon_deleted' && normalizedState !== 'archived') {
+          log.debug(`v523.2: 保护SB amazon_deleted状态 - keyword=${existing.keywordText}(id=${existing.id})`);
+          delete (keywordData as Record<string, unknown>).keywordStatus;
+        }
         await db
           .update(keywords)
           .set(keywordData)
@@ -228,6 +233,8 @@ export async function syncSpKeywords(service: SyncContext,lastSyncTime?: string 
       // v215修复: 移除错误的updatedAt跳过逻辑
       // 始终使用Amazon API返回的最新数据更新本地记录
 
+      const normalizedApiStatus = (apiKeyword.state || 'enabled').toLowerCase() as 'enabled' | 'paused' | 'archived';
+
       const keywordData: Record<string, unknown> = {
         internalAdGroupId: adGroup.id,
         accountId: service.accountId,
@@ -235,12 +242,19 @@ export async function syncSpKeywords(service: SyncContext,lastSyncTime?: string 
         keywordId: String(apiKeyword.keywordId),
         keywordText: apiKeyword.keywordText,
         matchType: (apiKeyword.matchType || 'broad').toLowerCase() as 'broad' | 'phrase' | 'exact',
-        keywordStatus: (apiKeyword.state || 'enabled').toLowerCase() as 'enabled' | 'paused' | 'archived',  // v311: 修复字段名 status → keywordStatus，与Drizzle schema一致
+        keywordStatus: normalizedApiStatus,  // v311: 修复字段名 status → keywordStatus，与Drizzle schema一致
         bid: String(apiKeyword.bid && apiKeyword.bid !== 'undefined' ? apiKeyword.bid : (apiKeyword.defaultBid && apiKeyword.defaultBid !== 'undefined' ? apiKeyword.defaultBid : 0)),
         updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
       };
 
       if (existing) {
+        // v523.2: 保护 amazon_deleted 状态不被同步覆盖
+        // 当本地已标记为 amazon_deleted 时，如果 Amazon API 仍返回 enabled/paused，
+        // 说明 List API 缓存延迟，不应覆盖本地的删除标记
+        if (existing.keywordStatus === 'amazon_deleted' && normalizedApiStatus !== 'archived') {
+          log.debug(`v523.2: 保护amazon_deleted状态 - keyword=${existing.keywordText}(id=${existing.id}), API返回${normalizedApiStatus}，保留本地amazon_deleted`);
+          delete keywordData.keywordStatus;
+        }
         // v150: 智能出价保护策略
         // 检查optimization_events表，如果该关键词有24小时内成功同步到Amazon的出价优化事件，
         // 则保留本地出价不被覆盖（因为Amazon API数据可能有延迟）

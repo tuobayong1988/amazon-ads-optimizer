@@ -85,16 +85,58 @@ export async function enqueueTasks(tasks: OptimizationTask[]): Promise<string> {
   
   const batchId = tasks[0].batchId || randomUUID();
   
-  log.debug(`[SyncEngine] 入队任务: batchId=${batchId}, 总计=${tasks.length}条`);
+  // v523.2: 预过滤 - 过滤掉引用已删除实体的任务
+  let filteredTasks = tasks;
+  try {
+    const { filterDeletedEntities } = await import('./entityStateAlignment');
+    
+    // 收集所有实体ID并按类型分组
+    const keywordIds: number[] = [];
+    const targetIds: number[] = [];
+    for (const t of tasks) {
+      const task = t as Record<string, unknown>;
+      if (task.targetEntityType === 'keyword' && task.targetEntityId) {
+        keywordIds.push(Number(task.targetEntityId));
+      } else if (task.targetEntityType === 'product_target' && task.targetEntityId) {
+        targetIds.push(Number(task.targetEntityId));
+      }
+    }
+    
+    // 批量检查已删除实体
+    const deletedKeywords = keywordIds.length > 0 ? await filterDeletedEntities('keyword', keywordIds) : new Set<number>();
+    const deletedTargets = targetIds.length > 0 ? await filterDeletedEntities('product_target', targetIds) : new Set<number>();
+    
+    if (deletedKeywords.size > 0 || deletedTargets.size > 0) {
+      filteredTasks = tasks.filter(t => {
+        const task = t as Record<string, unknown>;
+        if (task.targetEntityType === 'keyword' && deletedKeywords.has(Number(task.targetEntityId))) return false;
+        if (task.targetEntityType === 'product_target' && deletedTargets.has(Number(task.targetEntityId))) return false;
+        return true;
+      });
+      const removed = tasks.length - filteredTasks.length;
+      if (removed > 0) {
+        log.warn(`[SyncEngine] v523.2: 预过滤移除 ${removed} 个引用已删除实体的任务 (kw=${deletedKeywords.size}, tgt=${deletedTargets.size})`);
+      }
+    }
+  } catch (filterErr: unknown) {
+    log.debug(`[SyncEngine] v523.2: 预过滤失败，继续使用原始任务列表: ${(filterErr as Error).message}`);
+  }
   
-  // v350: 使用连接池获取直接连接，替代独立createConnection
+  if (filteredTasks.length === 0) {
+    log.info(`[SyncEngine] v523.2: 所有任务均引用已删除实体，跳过入队`);
+    return '';
+  }
+  
+  log.debug(`[SyncEngine] 入队任务: batchId=${batchId}, 总计=${filteredTasks.length}条${filteredTasks.length < tasks.length ? ` (原始${tasks.length}条, 过滤${tasks.length - filteredTasks.length}条)` : ''}`);
+  
+  // v350: 使用连接池获取直接连接，替代独立 createConnection
   const conn = await db.getDirectConnection();
   
   try {
     // v457: 使用类型安全查询模块批量插入任务
-    await Q.insertTasks(conn, batchId, tasks);
+    await Q.insertTasks(conn, batchId, filteredTasks);
     
-    log.info(`[SyncEngine] ✅ 入队完成: batchId=${batchId}, ${tasks.length}条任务`);
+    log.info(`[SyncEngine] ✅ 入队完成: batchId=${batchId}, ${filteredTasks.length}条任务`);
   } finally {
     conn.release(); // v350: 归还连接到池，而不是关闭
   }

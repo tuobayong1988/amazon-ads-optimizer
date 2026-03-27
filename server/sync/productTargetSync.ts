@@ -152,6 +152,11 @@ export async function syncSbProductTargets(service: SyncContext,): Promise<{ syn
       }
 
       if (existing) {
+        // v523.2: 保护 amazon_deleted 状态不被同步覆盖
+        if (existing.targetStatus === 'amazon_deleted' && normalizedState !== 'archived') {
+          log.debug(`v523.2: 保护SB target amazon_deleted状态 - target=${existing.targetValue}(id=${existing.id})`);
+          delete (targetData as Record<string, unknown>).targetStatus;
+        }
         await db
           .update(productTargets)
           .set(targetData)
@@ -299,6 +304,11 @@ export async function syncSdProductTargets(service: SyncContext,): Promise<{ syn
       }
 
       if (existing) {
+        // v523.2: 保护 amazon_deleted 状态不被同步覆盖
+        if (existing.targetStatus === 'amazon_deleted' && normalizedState !== 'archived') {
+          log.debug(`v523.2: 保护SD target amazon_deleted状态 - target=${existing.targetValue}(id=${existing.id})`);
+          delete (targetData as Record<string, unknown>).targetStatus;
+        }
         await db
           .update(productTargets)
           .set(targetData)
@@ -632,6 +642,11 @@ export async function syncSpProductTargets(service: SyncContext,lastSyncTime?: s
       }
 
       if (existing) {
+        // v523.2: 保护 amazon_deleted 状态不被同步覆盖
+        if (existing.targetStatus === 'amazon_deleted' && normalizedState !== 'archived') {
+          log.debug(`v523.2: 保护SP target amazon_deleted状态 - target=${existing.targetValue}(id=${existing.id})`);
+          delete (targetData as Record<string, unknown>).targetStatus;
+        }
         // v150: 智能出价保护策略
         // 检查optimization_events表，如果该产品定向有24小时内成功同步的出价优化事件，
         // 则保留本地bid不被覆盖

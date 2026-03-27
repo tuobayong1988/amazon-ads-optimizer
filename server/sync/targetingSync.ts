@@ -125,6 +125,10 @@ export async function syncAutoTargeting(service: SyncContext,days: number = 14):
       };
 
       if (existing) {
+        // v523.2: 保护 amazon_deleted 状态不被绩效同步覆盖
+        if (existing.targetStatus === 'amazon_deleted') {
+          delete (targetData as Record<string, unknown>).targetStatus;
+        }
         await db
           .update(productTargets)
           .set(targetData)
@@ -305,6 +309,10 @@ export async function syncSdTargeting(service: SyncContext,days: number = 14): P
         updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
       };
       if (existing) {
+        // v523.2: 保护 amazon_deleted 状态不被绩效同步覆盖
+        if (existing.targetStatus === 'amazon_deleted') {
+          delete (targetData as Record<string, unknown>).targetStatus;
+        }
         await db
           .update(productTargets)
           .set(targetData)
@@ -475,6 +483,10 @@ export async function syncSbTargeting(service: SyncContext,days: number = 14): P
         };
 
         if (existing) {
+          // v523.2: 保护 amazon_deleted 状态不被绩效同步覆盖
+          if (existing.keywordStatus === 'amazon_deleted') {
+            delete (keywordData as Record<string, unknown>).keywordStatus;
+          }
           await db
             .update(keywords)
             .set(keywordData)
