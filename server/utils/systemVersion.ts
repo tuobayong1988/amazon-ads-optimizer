@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 525;  // v525: 架构弹性升级 — 熔断器(CircuitBreaker)+自适应超时(AdaptiveTimeout)+舱壁隔离(Bulkhead)+双向状态对齐协议(BiDirectionalAlignment)+强类型SQL查询层(TypeSafeQuery)+弹性监控端点(ResilienceMonitor)
+export const SYSTEM_VERSION = 526;  // v526: 数据质量清零 — RLDataRecorder列名映射修复(adGroupId)+迁移脚本幂等性增强(v390/v395)+SQL注入修复(ts-ignore嵌入SQL)

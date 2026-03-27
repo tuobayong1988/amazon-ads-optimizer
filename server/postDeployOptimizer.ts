@@ -83,6 +83,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 526,
+    description: 'v526: [数据质量清零 — 消除剩余警告和迁移脚本问题] — (1)P0-RLDataRecorder列名映射修复: rl_training_logs表的Drizzle schema将internalAdGroupId映射到internal_ad_group_id列,但数据库实际列名为adGroupId(驼峰),修正为int()默认映射,消除~400+/小时的插入警告 (2)P1-迁移脚本v390幂等性增强: 添加information_schema查询预检查索引是否已存在,避免每次部署重复尝试创建 (3)P1-迁移脚本v395幂等性增强+SQL注入修复: 添加uk_search_term约束存在性检查,已存在则跳过整个迁移;修复SQL字符串中误嵌入的@ts-ignore注释导致的语法错误',
+    affectedModules: ['rl_training', 'migration'],
+    correctionActions: [],
+  },
+  {
     version: 525,
     description: 'v525: [架构弹性升级 — 第三方API异常处理与高并发场景优化] — (1)P0-熔断器(CircuitBreaker): 新增circuitBreakerService.ts实现三态熔断器(CLOSED/OPEN/HALF_OPEN),集成到apiRateLimitService和amazonApiHelper,当账户级别失败率超过50%时自动熔断阻断请求,防止无效重试和日志风暴 (2)P0-自适应超时(AdaptiveTimeout): 新增adaptiveTimeoutService.ts基于历史P90/P99耗时动态计算超时时间,替代硬编码超时,集成到amazonApiHelper的withRetry函数 (3)P0-舱壁隔离(Bulkhead): 新增bulkheadService.ts实现资源池隔离,为不同层级账户分配独立并发槽位,集成到dataSyncScheduler的executeTieredSyncForAccount (4)P0-双向状态对齐协议: 重写entityStateAlignment.ts实现版本向量机制,正向对齐(同步时标记已验证实体)+反向对齐(扫描未验证实体并标记为amazon_deleted),集成到所有同步模块 (5)P1-强类型SQL查询层: 新增typeSafeQueryBuilder.ts提供safeExecute/validateSql运行时验证,已迁移optSyncQueries中7个高风险SQL函数 (6)P1-弹性监控端点: 新增resilienceMonitor.ts聚合所有弹性组件状态,ops.ts新增/resilience、/resilience/summary、/resilience/query-stats三个监控端点',
     affectedModules: ['sync', 'optimization', 'core', 'automation'],

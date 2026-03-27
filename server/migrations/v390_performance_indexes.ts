@@ -1,6 +1,8 @@
 /**
  * v390: 性能优化索引 - 为纠错监控和健康分析的高频查询添加复合索引
  * 
+ * v526修复: 增强幂等性检查，先查询information_schema确认索引是否已存在
+ * 
  * 问题：
  * - getDashboard 的6个SQL查询都基于 account_id 过滤 optimization_events 表
  * - 缺少 (account_id, api_sync_status) 复合索引，导致全表扫描
@@ -20,15 +22,14 @@ export async function runV390PerformanceIndexes(db: unknown): Promise<void> {
 
   const indexDefinitions = [
     // optimization_events表 - 纠错监控高频查询索引
-    { name: 'idx_oe_account_sync_status', sql: 'CREATE INDEX IF NOT EXISTS idx_oe_account_sync_status ON optimization_events (account_id, api_sync_status)' },
-    { name: 'idx_oe_account_action_type', sql: 'CREATE INDEX IF NOT EXISTS idx_oe_account_action_type ON optimization_events (account_id, action_type)' },
-    { name: 'idx_oe_account_synced_at', sql: 'CREATE INDEX IF NOT EXISTS idx_oe_account_synced_at ON optimization_events (account_id, api_synced_at)' },
-    { name: 'idx_oe_account_action_sync', sql: 'CREATE INDEX IF NOT EXISTS idx_oe_account_action_sync ON optimization_events (account_id, action_type, api_sync_status)' },
+    { name: 'idx_oe_account_sync_status', table: 'optimization_events', ddl: 'CREATE INDEX idx_oe_account_sync_status ON optimization_events (account_id, api_sync_status)' },
+    { name: 'idx_oe_account_action_type', table: 'optimization_events', ddl: 'CREATE INDEX idx_oe_account_action_type ON optimization_events (account_id, action_type)' },
+    { name: 'idx_oe_account_synced_at', table: 'optimization_events', ddl: 'CREATE INDEX idx_oe_account_synced_at ON optimization_events (account_id, api_synced_at)' },
+    { name: 'idx_oe_account_action_sync', table: 'optimization_events', ddl: 'CREATE INDEX idx_oe_account_action_sync ON optimization_events (account_id, action_type, api_sync_status)' },
     // 覆盖最近纠错日志查询的排序条件
-    { name: 'idx_oe_account_created_at', sql: 'CREATE INDEX IF NOT EXISTS idx_oe_account_created_at ON optimization_events (account_id, created_at DESC)' },
-    
+    { name: 'idx_oe_account_created_at', table: 'optimization_events', ddl: 'CREATE INDEX idx_oe_account_created_at ON optimization_events (account_id, created_at DESC)' },
     // daily_performance表 - 健康分析查询索引
-    { name: 'idx_dp_account_date_desc', sql: 'CREATE INDEX IF NOT EXISTS idx_dp_account_date_desc ON daily_performance (accountId, date DESC)' },
+    { name: 'idx_dp_account_date_desc', table: 'daily_performance', ddl: 'CREATE INDEX idx_dp_account_date_desc ON daily_performance (accountId, date DESC)' },
   ];
 
   let created = 0;
@@ -37,21 +38,29 @@ export async function runV390PerformanceIndexes(db: unknown): Promise<void> {
 
   for (const idx of indexDefinitions) {
     try {
-      // @ts-ignore
-      await db.execute(sql.raw(idx.sql));
-      created++;
-      log.info(`[v390] 索引 ${idx.name} 创建成功`);
-    // @ts-ignore
-    } catch (error: unknown) {
-      // @ts-ignore
-      if (error.message?.includes('Duplicate') || error.code === 'ER_DUP_KEYNAME') {
+      // 幂等性检查：先查询information_schema确认索引是否已存在
+      const checkSql = `SELECT COUNT(*) as cnt FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '${idx.table}' AND INDEX_NAME = '${idx.name}'`;
+      const checkResult = (db as any).execute(sql.raw(checkSql));
+      const rows = await checkResult;
+      const exists = rows?.[0]?.[0]?.cnt > 0 || rows?.[0]?.cnt > 0;
+
+      if (exists) {
         skipped++;
         log.debug(`[v390] 索引 ${idx.name} 已存在，跳过`);
-      // @ts-ignore
+        continue;
+      }
+
+      await (db as any).execute(sql.raw(idx.ddl));
+      created++;
+      log.info(`[v390] 索引 ${idx.name} 创建成功`);
+    } catch (error: unknown) {
+      const errMsg = (error as Error).message || '';
+      if (errMsg.includes('Duplicate') || (error as any).code === 'ER_DUP_KEYNAME') {
+        skipped++;
+        log.debug(`[v390] 索引 ${idx.name} 已存在（Duplicate），跳过`);
       } else {
         failed++;
-        // @ts-ignore
-        log.warn(`[v390] 索引 ${idx.name} 创建失败:`, error.message);
+        log.warn(`[v390] 索引 ${idx.name} 创建失败: ${errMsg}`);
       }
     }
   }

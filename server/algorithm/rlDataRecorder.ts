@@ -174,7 +174,7 @@ export async function recordBidAction(action: BidAction): Promise<void> {
       keywordId: action.keywordId || null,
       targetId: action.targetId || null,
       campaignId: action.campaignId || null,
-      internalAdGroupId: action.adGroupId || null,  // v418: ID体系重构
+      adGroupId: action.adGroupId || null,  // v526: 修复列名映射，与schema一致
       episodeId,
       stepIndex,
       // State

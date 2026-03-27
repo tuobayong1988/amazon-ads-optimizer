@@ -3941,7 +3941,7 @@ export const rlTrainingLogs = mysqlTable("rl_training_logs", {
 	keywordId: int(),
 	targetId: int(),
 	campaignId: varchar({ length: 64 }),
-	internalAdGroupId: int("internal_ad_group_id"),  // v418: ID体系重构
+	adGroupId: int(),  // v526: 修复列名映射 - 数据库实际列名是adGroupId(驼峰)而非internal_ad_group_id(下划线)
 	episodeId: varchar("episode_id", { length: 64 }),
 	stepIndex: int("step_index").default(0),
 	// State: 调整前的状态向量
