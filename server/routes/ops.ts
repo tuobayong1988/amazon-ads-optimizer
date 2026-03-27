@@ -1578,5 +1578,25 @@ router.get('/jwt-test', async (req: Request, res: Response) => {
   }
 });
 
+// ==================== v523: 手动触发实体状态对齐 ====================
+router.post('/align-entity-states', async (req: Request, res: Response) => {
+  try {
+    const { accountId } = req.body || {};
+    const { alignEntityStates, alignAllAccountEntityStates } = await import('../sync/entityStateAlignment');
+    
+    if (accountId) {
+      // 对指定账户执行对齐
+      const result = await alignEntityStates(Number(accountId));
+      return res.json({ success: true, result });
+    } else {
+      // 对所有活跃账户执行对齐
+      const result = await alignAllAccountEntityStates();
+      return res.json({ success: true, result });
+    }
+  } catch (err: unknown) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
 export default router;
 

@@ -69,6 +69,7 @@ const BATCH_CONFIG: Record<string, { maxBatchSize: number; delayMs: number }> = 
   'placement_adjustment':  { maxBatchSize: 10,   delayMs: 200 },
   'budget_adjustment':     { maxBatchSize: 10,   delayMs: 200 },
   'dayparting_adjustment': { maxBatchSize: 1000, delayMs: 200 },
+  'negative_product_target': { maxBatchSize: 50, delayMs: 500 },
 };
 
 // ============================================================
@@ -2210,6 +2211,65 @@ async function executeBatchByType(
         }
         
         await new Promise(resolve => setTimeout(resolve, 200));
+      }
+      break;
+    }
+    
+    case 'negative_product_target': {
+      // v523: 否定产品定向批量创建 — 使用 amazonApiHelper.syncNegativeProductTargetsToAmazon
+      // 任务结构: target_entity_type='campaign', action='add_negative_product_target'
+      // target_entity_name = ASIN, amazon_entity_id = Amazon campaignId, campaign_id = internal campaign id
+      for (const t of (batch as unknown[])) {
+        try {
+          // @ts-ignore
+          const asin = String(t.target_entity_name || t.new_value || '').trim();
+          // @ts-ignore
+          const amazonCampaignId = String(t.amazon_entity_id || '');
+          
+          if (!asin || !amazonCampaignId) {
+            // @ts-ignore
+            await markTaskFailed(conn, t.id, 'v523: 缺少ASIN或Amazon Campaign ID');
+            result.failed++;
+            continue;
+          }
+          
+          // 查询campaign类型以路由到正确的API
+          // @ts-ignore
+          const campTypeInfo = await Q.getCampaignTypeById(conn, t.target_entity_id);
+          const campType = (campTypeInfo?.campaignType || 'sp_manual').toLowerCase();
+          const apiCampType = campType.startsWith('sb') ? 'sb' as const
+            : campType.startsWith('sd') ? 'sd' as const
+            : 'sp' as const;
+          
+          const negResult = await amazonApiHelper.syncNegativeProductTargetsToAmazon(
+            // @ts-ignore
+            t.account_id,
+            [{
+              campaignId: amazonCampaignId,
+              asin: asin,
+              campaignType: apiCampType,
+              negativeScope: 'campaign' as const,
+            }]
+          );
+          
+          if (negResult.success > 0) {
+            // @ts-ignore
+            await markTaskSynced(conn, t.id);
+            result.synced++;
+            log.info(`[SyncEngine] v523: ✅ 否定产品定向同步: Campaign ${amazonCampaignId}, ASIN=${asin}`);
+          } else {
+            const errMsg = negResult.errors.join('; ') || 'API返回失败';
+            // @ts-ignore
+            await markTaskForRetry(conn, t.id, t.retry_count, `v523: ${errMsg}`);
+            result.failed++;
+          }
+        } catch (err: unknown) {
+          // @ts-ignore
+          await markTaskForRetry(conn, t.id, t.retry_count, (err as Error).message);
+          result.failed++;
+        }
+        
+        await new Promise(resolve => setTimeout(resolve, 300));
       }
       break;
     }

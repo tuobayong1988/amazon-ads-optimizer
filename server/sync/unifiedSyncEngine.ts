@@ -1747,9 +1747,20 @@ export async function syncAllAccounts(tier: SyncTier): Promise<BatchSyncResult> 
     );
     const maxAccounts = getMaxAccountsForTier(tier);
     if (prioritized.length > maxAccounts) {
-      accounts = prioritized.slice(0, maxAccounts) as typeof allAccounts;
-      log.info(`[UnifiedSync] [v373] 优先级调度: ${allAccounts.length}个账号中选取TOP-${maxAccounts}个进行${tier}层同步`);
-      log.info(`[UnifiedSync] [v373] 跳过的${prioritized.length - maxAccounts}个低优先级账号将在下一周期同步`);
+      // v523: 新账号保障机制 — 从未同步过的账号必须包含在本周期中，不受 maxAccounts 截断
+      const topAccounts = prioritized.slice(0, maxAccounts) as typeof allAccounts;
+      const topAccountIds = new Set(topAccounts.map(a => a.accountId));
+      const neverSyncedMissing = prioritized.slice(maxAccounts).filter(
+        (a: any) => !a.lastSyncAt && !topAccountIds.has(a.accountId)
+      ) as typeof allAccounts;
+      if (neverSyncedMissing.length > 0) {
+        log.warn(`[UnifiedSync] [v523] 新账号保障: ${neverSyncedMissing.length}个从未同步的账号被强制加入本周期: ${neverSyncedMissing.map(a => a.accountId).join(', ')}`);
+        accounts = [...topAccounts, ...neverSyncedMissing];
+      } else {
+        accounts = topAccounts;
+      }
+      log.info(`[UnifiedSync] [v373] 优先级调度: ${allAccounts.length}个账号中选取${accounts.length}个进行${tier}层同步`);
+      log.info(`[UnifiedSync] [v373] 跳过的${prioritized.length - accounts.length}个低优先级账号将在下一周期同步`);
     } else {
       accounts = prioritized as typeof allAccounts;
       log.info(`[UnifiedSync] [v373] 优先级调度: 全部${accounts.length}个账号参与${tier}层同步`);

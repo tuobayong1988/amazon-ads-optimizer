@@ -472,19 +472,18 @@ async function startSchedulerTasks(defaultIntervalMs: number): Promise<void> {
   // v383: 自愈调度器已移至onBecomeLeader回调中启动，确保只在Leader实例上运行
 
   // v488: SyncCoordinator 过期状态清理定时器（每10分钟）
-  monitoringIntervals.push(setInterval(() => {
+  monitoringIntervals.push(setInterval(async () => {
     try {
-      const cleaned = cleanupExpiredOverrides();
-      // @ts-ignore
-      if (cleaned > 0) {
+      const cleaned = await cleanupExpiredOverrides();
+      if (cleaned && (cleaned as any) > 0) {
         log.warn(`[DataSyncScheduler] v488: SyncCoordinator清理了 ${cleaned} 个过期的手动接管状态`);
       }
       // 输出协调器状态快照
       const coordStatus = getCoordinatorStatus();
-      // @ts-ignore
-      if (coordStatus.manualOverrides.length > 0) {
-        // @ts-ignore
-        log.info(`[DataSyncScheduler] v488: SyncCoordinator状态 - 手动接管中: ${coordStatus.manualOverrides.map(o => `账号${o.accountId}(阶段:${o.phase},耗时:${(o.elapsedMs/1000).toFixed(0)}s)`).join(', ')}`);
+      // v523: 安全访问 manualOverrides，防止 stub 实现返回缺少该字段
+      const overrides = Array.isArray((coordStatus as any)?.manualOverrides) ? (coordStatus as any).manualOverrides : [];
+      if (overrides.length > 0) {
+        log.info(`[DataSyncScheduler] v488: SyncCoordinator状态 - 手动接管中: ${overrides.map((o: any) => `账号${o.accountId}(阶段:${o.phase},耗时:${(o.elapsedMs/1000).toFixed(0)}s)`).join(', ')}`);
       }
     } catch (err: unknown) {
       log.warn(`[DataSyncScheduler] v488: SyncCoordinator清理异常: ${(err as Error).message}`);
@@ -722,6 +721,18 @@ async function executeUnifiedSync(tier: SyncTier): Promise<void> {
         log.info(`[DataSyncScheduler] v337.4: 快速否定扫描完成`);
       } catch (negErr: unknown) {
         log.warn(`[DataSyncScheduler] v337.4: 快速否定扫描失败: ${(negErr as Error).message}`);
+      }
+      
+      // v523: 实体状态对齐 — 扫描 entityNotFoundError 并标记本地实体为 amazon_deleted
+      try {
+        log.info(`[DataSyncScheduler] v523: 数据同步完成，触发实体状态对齐...`);
+        const { alignAllAccountEntityStates } = await import('./entityStateAlignment');
+        const alignResult = await alignAllAccountEntityStates();
+        log.info(`[DataSyncScheduler] v523: 实体状态对齐完成: ${alignResult.totalAccounts}个账户, ` +
+          `keywords=${alignResult.totalKeywordsAligned}, targets=${alignResult.totalTargetsAligned}, ` +
+          `cancelled=${alignResult.totalTasksCancelled}`);
+      } catch (alignErr: unknown) {
+        log.warn(`[DataSyncScheduler] v523: 实体状态对齐失败: ${(alignErr as Error).message}`);
       }
     }
 
