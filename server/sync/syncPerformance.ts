@@ -231,7 +231,7 @@ AmazonSyncService.prototype.syncPerformanceDataBatch = async function(this: Amaz
         log.info(`[${name}] 请求报告 (尝试${attempt}/${maxRetries}): ${effectiveStartDate} - ${endDateStr}`);
         const reportId = await requestFn(effectiveStartDate, endDateStr);
         log.info(`[${name}] 报告请求成功, reportId: ${reportId}`);
-        const data = await this.client.waitAndDownloadReport(reportId, 300000); // v413: 15分钟→5分钟，避免单报告阻塞过久
+        const data = await this.client.waitAndDownloadReport(reportId, 600000); // v523.3: 5分钟→10分钟，避免高并发时Amazon排队导致超时
         log.info(`[${name}] 报告下载完成, 数据条数: ${data?.length || 0}`);
         return data;
       } catch (err: unknown) {
@@ -278,21 +278,47 @@ AmazonSyncService.prototype.syncPerformanceDataBatch = async function(this: Amaz
   const sbStartDate = clampStartDateForRetention('SB', startDateStr);
   const sdStartDate = clampStartDateForRetention('SD', startDateStr);
   
-  log.info(`[v413] 开始批量提交报告: SP(${spStartDate}), SB(${sbStartDate}), SD(${sdStartDate}) - ${endDateStr}`);
+  // v523.3: 构建报告请求列表，跳过日期倒置的批次（clamp后startDate > endDate）
+  // 根因：当totalDays=90且分3批时，第3批endDate=T-62，但SB/SD的clamp后startDate可能>endDate
+  const reportRequestList: Array<{ name: string; requestFn: () => Promise<string> }> = [];
+  const reportAdTypes: string[] = [];
   
-  const reportResults = await this.client.submitAndWaitMultipleReports([
-    { name: 'SP绩效', requestFn: () => this.client.requestSpCampaignReport(spStartDate, endDateStr) },
-    { name: 'SB绩效', requestFn: () => this.client.requestSbCampaignReport(sbStartDate, endDateStr) },
-    { name: 'SD绩效', requestFn: () => this.client.requestSdCampaignReport(sdStartDate, endDateStr) },
-  ], 300000, 2000);
+  if (spStartDate <= endDateStr) {
+    reportRequestList.push({ name: 'SP绩效', requestFn: () => this.client.requestSpCampaignReport(spStartDate, endDateStr) });
+    reportAdTypes.push('SP');
+  } else {
+    log.info(`[v523.3] 跳过SP绩效报告: clamp后startDate(${spStartDate}) > endDate(${endDateStr})，该批次超出SP数据保留期`);
+  }
+  if (sbStartDate <= endDateStr) {
+    reportRequestList.push({ name: 'SB绩效', requestFn: () => this.client.requestSbCampaignReport(sbStartDate, endDateStr) });
+    reportAdTypes.push('SB');
+  } else {
+    log.info(`[v523.3] 跳过SB绩效报告: clamp后startDate(${sbStartDate}) > endDate(${endDateStr})，该批次超出SB数据保留期`);
+  }
+  if (sdStartDate <= endDateStr) {
+    reportRequestList.push({ name: 'SD绩效', requestFn: () => this.client.requestSdCampaignReport(sdStartDate, endDateStr) });
+    reportAdTypes.push('SD');
+  } else {
+    log.info(`[v523.3] 跳过SD绩效报告: clamp后startDate(${sdStartDate}) > endDate(${endDateStr})，该批次超出SD数据保留期`);
+  }
   
-  // 处理每个报告的结果
-  const adTypes = ['SP', 'SB', 'SD'];
+  log.info(`[v413] 开始批量提交报告: SP(${spStartDate}), SB(${sbStartDate}), SD(${sdStartDate}) - ${endDateStr}, 实际提交${reportRequestList.length}个`);
+  
+  // v523.3: 如果所有报告都因日期倒置被跳过，直接返回0
+  if (reportRequestList.length === 0) {
+    log.info(`[v523.3] 当前批次所有广告类型均超出数据保留期，跳过`);
+    return totalSynced;
+  }
+  
+  // v523.3: 超时时间从300秒增加到600秒，避免高并发时Amazon排队导致的超时
+  const reportResults = await this.client.submitAndWaitMultipleReports(reportRequestList, 600000, 2000);
+  
+  // v523.3: 使用动态的reportAdTypes替代硬编码的adTypes
   for (let i = 0; i < reportResults.length; i++) {
     const result = reportResults[i];
     if (result.data && result.data.length > 0) {
       // @ts-expect-error - runtime type mismatch
-      totalSynced += await this.processReportData(db, result.data, adTypes[i]);
+      totalSynced += await this.processReportData(db, result.data, reportAdTypes[i]);
       log.info(`[v413] ${result.name}报告处理完成: ${result.data.length}条`);
     } else if (result.error) {
       log.warn(`[v413] ${result.name}报告失败: ${result.error}`);
@@ -301,10 +327,8 @@ AmazonSyncService.prototype.syncPerformanceDataBatch = async function(this: Amaz
     }
   }
   
-  const spCount = reportResults[0]?.data?.length || 0;
-  const sbCount = reportResults[1]?.data?.length || 0;
-  const sdCount = reportResults[2]?.data?.length || 0;
-  log.info(`[v413] 绩效数据同步完成(批量模式): SP=${spCount}, SB=${sbCount}, SD=${sdCount}, 总入库=${totalSynced}`);
+  const resultSummary = reportAdTypes.map((t, i) => `${t}=${reportResults[i]?.data?.length || 0}`).join(', ');
+  log.info(`[v413] 绩效数据同步完成(批量模式): ${resultSummary}, 总入库=${totalSynced}`);
   return totalSynced;
 };
 
@@ -804,7 +828,7 @@ AmazonSyncService.prototype.syncKeywordPerformanceData = async function(this: Am
       try {
         const reportId = await this.client.requestSpKeywordReport(rangeStartDate, rangeEndDate);
         // @ts-ignore
-        const data = await this.client.waitAndDownloadReport(reportId, 300000);
+        const data = await this.client.waitAndDownloadReport(reportId, 600000); // v523.3: 超时时间增加到600秒
         // @ts-ignore
         if (data && data.length > 0) allReportData = data;
       // @ts-ignore
@@ -843,7 +867,8 @@ AmazonSyncService.prototype.syncKeywordPerformanceData = async function(this: Am
         });
       }
       log.info(`[v413] 关键词绩效: ${batches}批次批量提交开始`);
-      const results = await this.client.submitAndWaitMultipleReports(batchRequests, 300000, 2000);
+      // v523.3: 超时时间从300秒增加到600秒
+      const results = await this.client.submitAndWaitMultipleReports(batchRequests, 600000, 2000);
       for (const result of results) {
         if (result.data && result.data.length > 0) {
           allReportData = allReportData.concat(result.data);
@@ -1447,7 +1472,8 @@ AmazonSyncService.prototype.syncAdGroupPerformanceData = async function(this: Am
       // @ts-ignore
       log.info(`[v413] ${reportName}: ${rBatches}批次批量提交开始`);
       // @ts-ignore
-      const results = await this.client.submitAndWaitMultipleReports(batchRequests, 300000, 2000);
+      // v523.3: 超时时间从300秒增加到600秒
+      const results = await this.client.submitAndWaitMultipleReports(batchRequests, 600000, 2000);
       
       let allData: unknown[] = [];
       for (const result of results) {
@@ -1718,7 +1744,7 @@ AmazonSyncService.prototype.syncPlacementPerformance = async function(this: Amaz
     if (batches === 1) {
       try {
         const reportId = await this.client.requestSpPlacementReport(rangeStartDate, rangeEndDate);
-        const data = await this.client.waitAndDownloadReport(reportId, 300000);
+        const data = await this.client.waitAndDownloadReport(reportId, 600000); // v523.3: 超时时间增加到600秒
         if (data && data.length > 0) allReportData = data;
       } catch (e: unknown) {
         log.warn(`v413: SP广告位报告请求失败:`, (e as Error).message);
@@ -1739,7 +1765,8 @@ AmazonSyncService.prototype.syncPlacementPerformance = async function(this: Amaz
         });
       }
       log.info(`[v413] SP广告位: ${batches}批次批量提交开始`);
-      const results = await this.client.submitAndWaitMultipleReports(batchRequests, 300000, 2000);
+      // v523.3: 超时时间从300秒增加到600秒
+      const results = await this.client.submitAndWaitMultipleReports(batchRequests, 600000, 2000);
       for (const result of results) {
         if (result.data && result.data.length > 0) {
           allReportData = allReportData.concat(result.data);

@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 523;  // v523: 修复SQL语法错误(@ts-ignore嵌入SQL)+支持negative_product_target任务类型+修复DataSyncScheduler空指针+新账户同步保障+实体状态对齐机制+AutoCorrector SQL修复
+export const SYSTEM_VERSION = 524;  // v524: 修复AutoStopLoss SQL列名错误(internalAdGroupId→internal_ad_group_id)+修复绩效报告日期倒置(clampStartDate>endDate时跳过批次)+报告超时时间300s→600s

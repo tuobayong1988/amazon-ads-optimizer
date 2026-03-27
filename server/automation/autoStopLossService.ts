@@ -346,7 +346,7 @@ export async function scanAndNegateSearchTerms(accountId: number): Promise<StopL
         st.id,
         st.searchTerm,
         st.campaignId,
-        st.internalAdGroupId,
+        st.internal_ad_group_id,
         SUM(st.searchTermSpend) as totalSpend,
         SUM(st.searchTermSales) as totalSales,
         SUM(st.searchTermOrders) as totalOrders,
@@ -356,7 +356,7 @@ export async function scanAndNegateSearchTerms(accountId: number): Promise<StopL
       WHERE st.accountId = ${accountId}
         AND st.reportStartDate >= ${startDateStr}
         AND st.reportStartDate <= ${endDateStr}
-      GROUP BY st.searchTerm, st.campaignId, st.internalAdGroupId
+      GROUP BY st.searchTerm, st.campaignId, st.internal_ad_group_id
       HAVING SUM(st.searchTermSpend) > 5
       ORDER BY SUM(st.searchTermSpend) DESC
       LIMIT 500

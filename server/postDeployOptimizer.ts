@@ -83,6 +83,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 524,
+    description: 'v524: [AutoStopLoss修复+绩效报告同步修复] — (1)P0-AutoStopLoss SQL列名修复: autoStopLossService.ts中搜索词扫描使用internalAdGroupId(驼峰)但search_terms表实际列名为internal_ad_group_id(下划线),导致所有账户的搜索词止损扫描100%失败 (2)P0-绩效报告日期倒置修复: syncPerformance.ts中clampStartDateForRetention将startDate推后到超过endDate时(SB/SD第3批次),Amazon API返回400错误,新增日期倒置检测自动跳过超出保留期的批次 (3)P1-报告超时时间优化: 所有submitAndWaitMultipleReports和waitAndDownloadReport超时从300秒增加到600秒,避免高并发时Amazon排队导致的超时失败',
+    affectedModules: ['automation', 'sync'],
+    correctionActions: ['rerun_correction_scan'],
+  },
+  {
     version: 523,
     description: 'v523: [生产环境健康修复6项] — (1)P0-SQL语法错误修复: 移除optSyncQueries.ts和optimizationAutoCorrector.ts中嵌入SQL模板字符串内的@ts-ignore注释,解决每5分钟报SQL语法错误和rescuePermanentlyFailedTasks执行失败 (2)P0-negative_product_target任务支持: OptSyncEngine新增对negative_product_target任务类型的处理,释放56个卡死的僵尸任务 (3)P0-DataSyncScheduler空指针修复: 添加coordStatus.manualOverrides安全访问保护,解决每10分钟报Cannot read properties of undefined (4)P1-新账户同步保障: unifiedSyncEngine新增从未同步账户保障机制,确保新账户不受maxAccounts截断 (5)P1-实体状态对齐机制: 新增entityStateAlignment.ts模块,自动扫描entityNotFoundError并标记本地实体为amazon_deleted (6)P1-实体对齐API: ops.ts新增/align-entity-states端点支持手动触发',
     affectedModules: ['sync', 'optimization', 'core'],
