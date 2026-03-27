@@ -1598,5 +1598,33 @@ router.post('/align-entity-states', async (req: Request, res: Response) => {
   }
 });
 
+// ==================== v525: 弹性架构监控端点 ====================
+router.get('/resilience', async (_req: Request, res: Response) => {
+  try {
+    const { getResilienceStatus } = await import('../services/resilienceMonitor');
+    res.json(getResilienceStatus());
+  } catch (err: unknown) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+router.get('/resilience/summary', async (_req: Request, res: Response) => {
+  try {
+    const { getResilienceHealthSummary } = await import('../services/resilienceMonitor');
+    res.json({ summary: getResilienceHealthSummary() });
+  } catch (err: unknown) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+router.get('/resilience/query-stats', async (_req: Request, res: Response) => {
+  try {
+    const { getQueryStats } = await import('../services/typeSafeQueryBuilder');
+    res.json(getQueryStats());
+  } catch (err: unknown) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
 export default router;
 

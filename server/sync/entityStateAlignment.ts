@@ -1,32 +1,121 @@
 /**
- * v523.2: 实体状态对齐模块（增强版）
+ * v525: 双向状态对齐协议（Bidirectional State Alignment Protocol）
  * 
- * 解决问题: 本地数据库中的实体（keywords, product_targets）状态与 Amazon 端不一致，
- * 导致优化引擎持续为已在 Amazon 端删除的实体生成优化任务，产生大量 entityNotFoundError。
+ * 从 v523.2 的被动式"错误驱动对齐"升级为主动式"双向协议对齐"。
  * 
- * v523.2 增强:
- * 1. 同步覆盖保护: 所有同步模块在 upsert 时保护 amazon_deleted 状态不被覆盖
- * 2. 独立定时触发: 不再仅依赖 full 层同步完成，每 30 分钟独立运行一次增量扫描
- * 3. 优化任务预过滤: 提供 isEntityDeleted() 检查，供优化引擎在创建任务前过滤已删除实体
- * 4. 增量扫描: 只扫描上次对齐后新产生的 entityNotFoundError，降低数据库负载
+ * ===== 核心设计理念 =====
  * 
- * 工作原理:
- * 1. 从 optimization_tasks 中扫描近期因 entityNotFoundError 而 permanently_failed 的任务
- * 2. 提取这些任务引用的实体 ID
- * 3. 检查本地数据库中这些实体的当前状态
- * 4. 将仍标记为 enabled/paused 的实体更新为 amazon_deleted
- * 5. 取消所有引用这些实体的 pending/retry 任务
+ * v523.2 的局限性:
+ * - 只能在 entityNotFoundError 已经发生后才能检测到状态不一致
+ * - 依赖错误日志驱动，存在时间延迟（错误发生 → 对齐扫描 → 修复）
+ * - 同步模块覆盖保护是"防御性"的，无法主动发现新的不一致
+ * 
+ * v525 双向协议:
+ * 1. 正向对齐（Forward Alignment）: 同步时主动比对 Amazon 返回的实体列表与本地数据库
+ *    - 如果本地有实体但 Amazon 返回列表中没有 → 标记为 amazon_deleted
+ *    - 引入 lastVerifiedAt 时间戳，记录每个实体最后一次被 Amazon API 确认存在的时间
+ * 2. 反向对齐（Reverse Alignment）: 保留 v523.2 的错误驱动对齐作为兜底
+ *    - 扫描 entityNotFoundError → 标记 amazon_deleted → 取消相关任务
+ * 3. 版本向量（Version Vector）: 每次同步记录同步版本号
+ *    - 只有同步版本号更高的数据才能覆盖本地状态
+ *    - 防止旧数据覆盖新的对齐结果
  * 
  * 触发时机:
- * - 每次 full 层同步完成后自动执行（完整扫描）
- * - 每 30 分钟独立执行一次增量扫描
- * - 可通过 API 手动触发指定账户的深度对齐
+ * - 正向对齐: 每次同步完成后自动执行（对比 Amazon 返回 vs 本地）
+ * - 反向对齐: 每 30 分钟独立增量扫描
+ * - 手动触发: 可通过 API 触发指定账户的深度对齐
  */
 
 import * as db from '../db';
 import { createModuleLogger } from '../utils/logger';
+import { logSync, logSyncWarn } from '../utils/opsLogger';
 
 const log = createModuleLogger('EntityStateAlignment');
+
+// ============================================================
+// 版本向量管理
+// ============================================================
+
+/**
+ * 全局同步版本计数器
+ * 每次同步周期递增，用于防止旧数据覆盖新的对齐结果
+ */
+let globalSyncVersion = 0;
+
+/**
+ * 获取并递增全局同步版本号
+ */
+export function nextSyncVersion(): number {
+  return ++globalSyncVersion;
+}
+
+/**
+ * 获取当前同步版本号（不递增）
+ */
+export function getCurrentSyncVersion(): number {
+  return globalSyncVersion;
+}
+
+// ============================================================
+// 实体验证时间戳管理
+// ============================================================
+
+/**
+ * 实体验证记录: 记录每个实体最后一次被 Amazon API 确认存在的时间
+ * key: "keyword:123" 或 "target:456"
+ * value: { lastVerifiedAt: Date, syncVersion: number }
+ */
+interface EntityVerification {
+  lastVerifiedAt: Date;
+  syncVersion: number;
+}
+
+const entityVerificationMap = new Map<string, EntityVerification>();
+
+/**
+ * 记录实体被 Amazon API 确认存在
+ * 在同步模块处理 Amazon 返回数据时调用
+ */
+export function markEntityVerified(entityType: 'keyword' | 'product_target', entityId: number, syncVersion: number): void {
+  const key = `${entityType}:${entityId}`;
+  entityVerificationMap.set(key, {
+    lastVerifiedAt: new Date(),
+    syncVersion,
+  });
+}
+
+/**
+ * 批量记录实体被 Amazon API 确认存在
+ */
+export function markEntitiesVerified(entityType: 'keyword' | 'product_target', entityIds: number[], syncVersion: number): void {
+  const now = new Date();
+  for (const id of entityIds) {
+    entityVerificationMap.set(`${entityType}:${id}`, {
+      lastVerifiedAt: now,
+      syncVersion,
+    });
+  }
+}
+
+/**
+ * 检查实体是否应该被更新（版本向量检查）
+ * 只有同步版本号 >= 当前记录的版本号时才允许更新
+ * 
+ * @returns true 表示允许更新，false 表示应拒绝（旧数据试图覆盖新数据）
+ */
+export function shouldAllowStateUpdate(entityType: 'keyword' | 'product_target', entityId: number, incomingSyncVersion: number): boolean {
+  const key = `${entityType}:${entityId}`;
+  const existing = entityVerificationMap.get(key);
+  if (!existing) return true; // 无记录，允许更新
+  return incomingSyncVersion >= existing.syncVersion;
+}
+
+// ============================================================
+// 已删除实体缓存（保留 v523.2 的高性能预过滤能力）
+// ============================================================
+
+const deletedEntityCache = new Map<string, number>(); // key → timestamp
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24小时
 
 // 上次对齐时间戳（用于增量扫描）
 let lastAlignmentTime: Date | null = null;
@@ -34,38 +123,161 @@ let lastAlignmentTime: Date | null = null;
 // 独立定时器
 let alignmentInterval: ReturnType<typeof setInterval> | null = null;
 
-// 已知已删除实体缓存（用于优化任务预过滤）
-const deletedEntityCache = new Map<string, number>(); // key: "keyword:123" or "target:456", value: timestamp
-
-// 缓存过期时间: 24小时
-const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
-
 export interface AlignmentResult {
   accountId: number;
   keywordsAligned: number;
   productTargetsAligned: number;
   tasksCancelled: number;
+  forwardAligned: number;   // v525: 正向对齐发现的不一致数量
+  reverseAligned: number;   // v525: 反向对齐发现的不一致数量
   errors: string[];
   durationMs: number;
 }
 
+// ============================================================
+// 正向对齐（Forward Alignment）
+// ============================================================
+
 /**
- * v523.2: 检查实体是否已被标记为 amazon_deleted
- * 供优化引擎在创建任务前调用，避免为已删除实体生成无效任务
+ * v525: 正向对齐 - 同步完成后比对 Amazon 返回的实体列表与本地数据库
  * 
- * @param entityType - 'keyword' 或 'product_target'
- * @param entityId - 实体的数据库 ID
- * @returns true 表示实体已删除，不应创建优化任务
+ * 工作原理:
+ * 1. 接收同步模块传入的 Amazon 返回的实体 ID 列表
+ * 2. 查询本地数据库中该账户下所有活跃的同类型实体
+ * 3. 找出"本地有但 Amazon 没有"的实体
+ * 4. 将这些实体标记为 amazon_deleted
+ * 
+ * @param accountId - 账户 ID
+ * @param entityType - 实体类型
+ * @param amazonEntityIds - Amazon API 返回的实体 Amazon ID 列表
+ * @param campaignId - 可选，限定在特定广告活动范围内对齐
+ */
+export async function forwardAlign(
+  accountId: number,
+  entityType: 'keyword' | 'product_target',
+  amazonEntityIds: string[],
+  campaignId?: number
+): Promise<{ aligned: number; entityIds: number[] }> {
+  const result = { aligned: 0, entityIds: [] as number[] };
+  
+  if (amazonEntityIds.length === 0) return result;
+
+  const database = await db.getDb();
+  if (!database) return result;
+
+  const { sql } = await import('drizzle-orm');
+
+  try {
+    const amazonIdSet = new Set(amazonEntityIds.map(id => String(id)));
+    
+    // 查询本地活跃实体
+    const tableName = entityType === 'keyword' ? 'keywords' : 'product_targets';
+    const statusCol = entityType === 'keyword' ? 'keywordStatus' : 'targetStatus';
+    const amazonIdCol = entityType === 'keyword' ? 'keywordId' : 'targetId';
+    
+    let localQuery = `
+      SELECT id, ${amazonIdCol} as amazonId 
+      FROM ${tableName} 
+      WHERE account_id = ${Number(accountId)}
+        AND ${statusCol} NOT IN ('amazon_deleted', 'archived', 'deleted')
+    `;
+    if (campaignId) {
+      localQuery += ` AND campaign_id = ${Number(campaignId)}`;
+    }
+
+    const [localRows] = await database.execute(sql.raw(localQuery)) as any;
+    
+    if (!Array.isArray(localRows) || localRows.length === 0) return result;
+
+    // 找出本地有但 Amazon 没有的实体
+    const missingEntities: number[] = [];
+    for (const row of localRows) {
+      const amazonId = String(row.amazonId);
+      if (amazonId && !amazonIdSet.has(amazonId)) {
+        missingEntities.push(Number(row.id));
+      }
+    }
+
+    if (missingEntities.length === 0) return result;
+
+    // 安全阈值: 如果超过 50% 的本地实体在 Amazon 端"消失"，可能是 API 分页问题而非真正删除
+    const missingRatio = missingEntities.length / localRows.length;
+    if (missingRatio > 0.5 && missingEntities.length > 10) {
+      log.warn(`[v525] 正向对齐安全阈值触发: 账户${accountId} ${entityType} ` +
+        `${missingEntities.length}/${localRows.length} (${(missingRatio * 100).toFixed(1)}%) 实体缺失, ` +
+        `疑似API分页不完整, 跳过标记`);
+      logSyncWarn('EntityStateAlignment', `正向对齐安全阈值触发`, {
+        accountId, entityType, missing: missingEntities.length, total: localRows.length
+      });
+      return result;
+    }
+
+    // 批量标记为 amazon_deleted
+    const BATCH_SIZE = 500;
+    for (let i = 0; i < missingEntities.length; i += BATCH_SIZE) {
+      const batch = missingEntities.slice(i, i + BATCH_SIZE);
+      const idList = batch.join(',');
+      await database.execute(
+        sql.raw(`UPDATE ${tableName} SET ${statusCol} = 'amazon_deleted', updatedAt = NOW() WHERE id IN (${idList}) AND ${statusCol} NOT IN ('amazon_deleted', 'archived')`)
+      );
+    }
+
+    result.aligned = missingEntities.length;
+    result.entityIds = missingEntities;
+
+    // 更新缓存
+    for (const id of missingEntities) {
+      deletedEntityCache.set(`${entityType}:${id}`, Date.now());
+    }
+
+    if (missingEntities.length > 0) {
+      log.warn(`[v525] 正向对齐: 账户${accountId} 标记 ${missingEntities.length} 个 ${entityType} 为 amazon_deleted`);
+      logSync('EntityStateAlignment', `正向对齐完成`, {
+        accountId, entityType, aligned: missingEntities.length
+      });
+    }
+
+    // 取消引用这些实体的待处理任务
+    if (missingEntities.length > 0) {
+      for (let i = 0; i < missingEntities.length; i += BATCH_SIZE) {
+        const batch = missingEntities.slice(i, i + BATCH_SIZE);
+        const idList = batch.join(',');
+        await database.execute(
+          sql.raw(`
+            UPDATE optimization_tasks 
+            SET status = 'cancelled', 
+                error_message = CONCAT(COALESCE(error_message, ''), ' | v525: 正向对齐-实体在Amazon端不存在'),
+                completed_at = NOW()
+            WHERE target_entity_id IN (${idList})
+              AND account_id = ${Number(accountId)}
+              AND status IN ('pending', 'retry')
+          `)
+        );
+      }
+    }
+
+  } catch (err: unknown) {
+    log.warn(`[v525] 正向对齐失败: 账户${accountId} ${entityType}: ${(err as Error).message}`);
+  }
+
+  return result;
+}
+
+// ============================================================
+// 反向对齐（Reverse Alignment）- 保留 v523.2 的错误驱动对齐
+// ============================================================
+
+/**
+ * v523.2 → v525: 检查实体是否已被标记为 amazon_deleted
+ * 供优化引擎在创建任务前调用
  */
 export async function isEntityDeleted(entityType: 'keyword' | 'product_target', entityId: number): Promise<boolean> {
-  // 先检查缓存
   const cacheKey = `${entityType}:${entityId}`;
   const cachedTime = deletedEntityCache.get(cacheKey);
   if (cachedTime && (Date.now() - cachedTime) < CACHE_TTL_MS) {
     return true;
   }
 
-  // 缓存未命中，查询数据库
   const database = await db.getDb();
   if (!database) return false;
 
@@ -90,15 +302,14 @@ export async function isEntityDeleted(entityType: 'keyword' | 'product_target', 
       }
     }
   } catch (err: unknown) {
-    log.debug(`[v523.2] isEntityDeleted 查询失败: ${(err as Error).message}`);
+    log.debug(`[v525] isEntityDeleted 查询失败: ${(err as Error).message}`);
   }
 
   return false;
 }
 
 /**
- * v523.2: 批量检查实体是否已删除（高性能版本）
- * 用于优化引擎批量过滤已删除实体
+ * v523.2 → v525: 批量检查实体是否已删除（高性能版本）
  */
 export async function filterDeletedEntities(
   entityType: 'keyword' | 'product_target',
@@ -107,7 +318,6 @@ export async function filterDeletedEntities(
   const deletedIds = new Set<number>();
   if (entityIds.length === 0) return deletedIds;
 
-  // 先从缓存中筛选
   const uncachedIds: number[] = [];
   for (const id of entityIds) {
     const cacheKey = `${entityType}:${id}`;
@@ -121,7 +331,6 @@ export async function filterDeletedEntities(
 
   if (uncachedIds.length === 0) return deletedIds;
 
-  // 批量查询数据库
   const database = await db.getDb();
   if (!database) return deletedIds;
 
@@ -158,16 +367,14 @@ export async function filterDeletedEntities(
       }
     }
   } catch (err: unknown) {
-    log.debug(`[v523.2] filterDeletedEntities 批量查询失败: ${(err as Error).message}`);
+    log.debug(`[v525] filterDeletedEntities 批量查询失败: ${(err as Error).message}`);
   }
 
   return deletedIds;
 }
 
 /**
- * 对指定账户执行实体状态对齐
- * @param accountId - 账户 ID
- * @param incremental - 是否增量扫描（只扫描上次对齐后的新错误）
+ * 反向对齐: 对指定账户执行错误驱动的实体状态对齐
  */
 export async function alignEntityStates(accountId: number, incremental: boolean = false): Promise<AlignmentResult> {
   const startTime = Date.now();
@@ -176,11 +383,13 @@ export async function alignEntityStates(accountId: number, incremental: boolean 
     keywordsAligned: 0,
     productTargetsAligned: 0,
     tasksCancelled: 0,
+    forwardAligned: 0,
+    reverseAligned: 0,
     errors: [],
     durationMs: 0,
   };
 
-  log.info(`[v523.2] 开始实体状态对齐: 账户 ${accountId}, 模式=${incremental ? '增量' : '全量'}`);
+  log.info(`[v525] 反向对齐开始: 账户 ${accountId}, 模式=${incremental ? '增量' : '全量'}`);
 
   const database = await db.getDb();
   if (!database) {
@@ -191,15 +400,12 @@ export async function alignEntityStates(accountId: number, incremental: boolean 
 
   const { sql } = await import('drizzle-orm');
 
-  // 增量扫描的时间窗口
   const timeFilter = incremental && lastAlignmentTime
     ? `AND ot.completed_at >= '${lastAlignmentTime.toISOString().slice(0, 19).replace('T', ' ')}'`
     : `AND ot.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)`;
 
   try {
-    // ============================================================
     // Step 1: 扫描因 entityNotFoundError 失败的 keyword 任务
-    // ============================================================
     const [keywordRows] = await database.execute(
       sql.raw(`
         SELECT DISTINCT ot.target_entity_id, ot.amazon_entity_id
@@ -231,16 +437,14 @@ export async function alignEntityStates(accountId: number, incremental: boolean 
         );
       }
       result.keywordsAligned = keywordEntityIds.length;
-      // 更新缓存
+      result.reverseAligned += keywordEntityIds.length;
       for (const id of keywordEntityIds) {
         deletedEntityCache.set(`keyword:${id}`, Date.now());
       }
-      log.warn(`[v523.2] 账户 ${accountId}: 标记 ${keywordEntityIds.length} 个 keyword 为 amazon_deleted`);
+      log.warn(`[v525] 反向对齐: 账户 ${accountId} 标记 ${keywordEntityIds.length} 个 keyword 为 amazon_deleted`);
     }
 
-    // ============================================================
     // Step 2: 扫描因 entityNotFoundError 失败的 product_target 任务
-    // ============================================================
     const [targetRows] = await database.execute(
       sql.raw(`
         SELECT DISTINCT ot.target_entity_id, ot.amazon_entity_id
@@ -272,16 +476,14 @@ export async function alignEntityStates(accountId: number, incremental: boolean 
         );
       }
       result.productTargetsAligned = targetEntityIds.length;
-      // 更新缓存
+      result.reverseAligned += targetEntityIds.length;
       for (const id of targetEntityIds) {
         deletedEntityCache.set(`target:${id}`, Date.now());
       }
-      log.warn(`[v523.2] 账户 ${accountId}: 标记 ${targetEntityIds.length} 个 product_target 为 amazon_deleted`);
+      log.warn(`[v525] 反向对齐: 账户 ${accountId} 标记 ${targetEntityIds.length} 个 product_target 为 amazon_deleted`);
     }
 
-    // ============================================================
-    // Step 3: 取消所有引用已标记为 amazon_deleted 实体的 pending/retry 任务
-    // ============================================================
+    // Step 3: 取消引用已删除实体的待处理任务
     const allDeletedEntityIds = [...keywordEntityIds, ...targetEntityIds];
     if (allDeletedEntityIds.length > 0) {
       const BATCH_SIZE = 500;
@@ -293,7 +495,7 @@ export async function alignEntityStates(accountId: number, incremental: boolean 
           sql.raw(`
             UPDATE optimization_tasks 
             SET status = 'cancelled', 
-                error_message = CONCAT(COALESCE(error_message, ''), ' | v523.2: 实体已在Amazon端删除，自动取消'),
+                error_message = CONCAT(COALESCE(error_message, ''), ' | v525: 反向对齐-实体已在Amazon端删除'),
                 completed_at = NOW()
             WHERE target_entity_id IN (${idList})
               AND account_id = ${Number(accountId)}
@@ -304,18 +506,18 @@ export async function alignEntityStates(accountId: number, incremental: boolean 
       }
       result.tasksCancelled = totalCancelled;
       if (totalCancelled > 0) {
-        log.warn(`[v523.2] 账户 ${accountId}: 取消 ${totalCancelled} 个引用已删除实体的待处理任务`);
+        log.warn(`[v525] 反向对齐: 账户 ${accountId} 取消 ${totalCancelled} 个引用已删除实体的待处理任务`);
       }
     }
 
-    log.info(`[v523.2] 实体状态对齐完成: 账户 ${accountId}, ` +
+    log.info(`[v525] 反向对齐完成: 账户 ${accountId}, ` +
       `keywords=${result.keywordsAligned}, targets=${result.productTargetsAligned}, ` +
       `cancelled=${result.tasksCancelled}`);
 
   } catch (err: unknown) {
     const errMsg = (err as Error).message;
     result.errors.push(errMsg);
-    log.warn(`[v523.2] 实体状态对齐失败: 账户 ${accountId}, 错误: ${errMsg}`);
+    log.warn(`[v525] 反向对齐失败: 账户 ${accountId}, 错误: ${errMsg}`);
   }
 
   result.durationMs = Date.now() - startTime;
@@ -323,8 +525,7 @@ export async function alignEntityStates(accountId: number, incremental: boolean 
 }
 
 /**
- * 对所有活跃账户执行实体状态对齐
- * @param incremental - 是否增量扫描
+ * 对所有活跃账户执行反向对齐
  */
 export async function alignAllAccountEntityStates(incremental: boolean = false): Promise<{
   totalAccounts: number;
@@ -341,18 +542,17 @@ export async function alignAllAccountEntityStates(incremental: boolean = false):
     accountResults: [] as AlignmentResult[],
   };
 
-  log.info(`[v523.2] 开始全账户实体状态对齐, 模式=${incremental ? '增量' : '全量'}...`);
+  log.info(`[v525] 全账户反向对齐开始, 模式=${incremental ? '增量' : '全量'}...`);
 
   const database = await db.getDb();
   if (!database) {
-    log.warn('[v523.2] 数据库不可用，跳过全账户对齐');
+    log.warn('[v525] 数据库不可用，跳过全账户对齐');
     return summary;
   }
 
   const { sql } = await import('drizzle-orm');
 
   try {
-    // 查找有 entityNotFoundError 的活跃账户
     const timeFilter = incremental && lastAlignmentTime
       ? `AND ot.completed_at >= '${lastAlignmentTime.toISOString().slice(0, 19).replace('T', ' ')}'`
       : `AND ot.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)`;
@@ -377,7 +577,7 @@ export async function alignAllAccountEntityStates(incremental: boolean = false):
     }
 
     summary.totalAccounts = accountIds.length;
-    log.info(`[v523.2] 发现 ${accountIds.length} 个账户需要实体状态对齐`);
+    log.info(`[v525] 发现 ${accountIds.length} 个账户需要反向对齐`);
 
     for (const accountId of accountIds) {
       const result = await alignEntityStates(accountId, incremental);
@@ -390,31 +590,57 @@ export async function alignAllAccountEntityStates(incremental: boolean = false):
       await new Promise(resolve => setTimeout(resolve, 500));
     }
 
-    // 更新上次对齐时间
     lastAlignmentTime = new Date();
-
-    // 清理过期缓存
     cleanupCache();
 
-    log.info(`[v523.2] 全账户实体状态对齐完成: ` +
+    log.info(`[v525] 全账户反向对齐完成: ` +
       `${summary.totalAccounts}个账户, ` +
       `keywords=${summary.totalKeywordsAligned}, targets=${summary.totalTargetsAligned}, ` +
       `cancelled=${summary.totalTasksCancelled}`);
 
   } catch (err: unknown) {
-    log.warn(`[v523.2] 全账户实体状态对齐失败: ${(err as Error).message}`);
+    log.warn(`[v525] 全账户反向对齐失败: ${(err as Error).message}`);
   }
 
   return summary;
 }
 
+// ============================================================
+// 对齐健康报告
+// ============================================================
+
+export interface AlignmentHealthReport {
+  cacheSize: number;
+  verificationMapSize: number;
+  globalSyncVersion: number;
+  lastAlignmentTime: string | null;
+  schedulerRunning: boolean;
+}
+
 /**
- * v523.2: 启动独立定时对齐器
- * 每 30 分钟执行一次增量扫描，不依赖 full 层同步
+ * v525: 获取对齐模块健康报告
+ */
+export function getAlignmentHealth(): AlignmentHealthReport {
+  return {
+    cacheSize: deletedEntityCache.size,
+    verificationMapSize: entityVerificationMap.size,
+    globalSyncVersion,
+    lastAlignmentTime: lastAlignmentTime?.toISOString() || null,
+    schedulerRunning: alignmentInterval !== null,
+  };
+}
+
+// ============================================================
+// 调度器
+// ============================================================
+
+/**
+ * v525: 启动独立定时对齐器
+ * 每 30 分钟执行一次增量反向对齐扫描
  */
 export function startAlignmentScheduler(): void {
   if (alignmentInterval) {
-    log.info('[v523.2] 对齐调度器已在运行，跳过重复启动');
+    log.info('[v525] 对齐调度器已在运行，跳过重复启动');
     return;
   }
 
@@ -422,30 +648,45 @@ export function startAlignmentScheduler(): void {
 
   alignmentInterval = setInterval(async () => {
     try {
-      log.info('[v523.2] 独立增量对齐扫描开始...');
+      log.info('[v525] 独立增量反向对齐扫描开始...');
       const result = await alignAllAccountEntityStates(true);
       const totalAligned = result.totalKeywordsAligned + result.totalTargetsAligned;
       if (totalAligned > 0 || result.totalTasksCancelled > 0) {
-        log.warn(`[v523.2] 增量对齐发现问题: aligned=${totalAligned}, cancelled=${result.totalTasksCancelled}`);
+        log.warn(`[v525] 增量对齐发现问题: aligned=${totalAligned}, cancelled=${result.totalTasksCancelled}`);
       } else {
-        log.info('[v523.2] 增量对齐扫描完成，无新的不一致实体');
+        log.info('[v525] 增量对齐扫描完成，无新的不一致实体');
       }
     } catch (err: unknown) {
-      log.warn(`[v523.2] 独立增量对齐失败: ${(err as Error).message}`);
+      log.warn(`[v525] 独立增量对齐失败: ${(err as Error).message}`);
     }
   }, INTERVAL_MS);
 
-  log.info(`[v523.2] 实体状态对齐独立调度器已启动，间隔: 30分钟`);
+  // 同时定期清理验证映射（每 6 小时清理超过 24 小时未验证的条目）
+  setInterval(() => {
+    const cutoff = Date.now() - CACHE_TTL_MS;
+    let cleaned = 0;
+    for (const [key, record] of entityVerificationMap.entries()) {
+      if (record.lastVerifiedAt.getTime() < cutoff) {
+        entityVerificationMap.delete(key);
+        cleaned++;
+      }
+    }
+    if (cleaned > 0) {
+      log.debug(`[v525] 清理 ${cleaned} 个过期验证记录, 剩余 ${entityVerificationMap.size} 个`);
+    }
+  }, 6 * 60 * 60 * 1000);
+
+  log.info(`[v525] 双向状态对齐调度器已启动 (反向对齐间隔: 30分钟)`);
 }
 
 /**
- * v523.2: 停止独立定时对齐器
+ * v525: 停止独立定时对齐器
  */
 export function stopAlignmentScheduler(): void {
   if (alignmentInterval) {
     clearInterval(alignmentInterval);
     alignmentInterval = null;
-    log.info('[v523.2] 实体状态对齐独立调度器已停止');
+    log.info('[v525] 双向状态对齐调度器已停止');
   }
 }
 
@@ -462,6 +703,6 @@ function cleanupCache(): void {
     }
   }
   if (cleaned > 0) {
-    log.debug(`[v523.2] 清理 ${cleaned} 个过期缓存条目, 剩余 ${deletedEntityCache.size} 个`);
+    log.debug(`[v525] 清理 ${cleaned} 个过期缓存条目, 剩余 ${deletedEntityCache.size} 个`);
   }
 }

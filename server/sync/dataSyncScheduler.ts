@@ -44,6 +44,7 @@ import {
   getCoordinatorStatus,
   shouldAbortAutoSync,
 } from './syncCoordinator';
+import { getBulkhead, type TaskCategory } from '../services/bulkheadService';
 // v384: 移除Leader选举依赖，改为单实例直接启动模式
 // import { startLeaderElection, isCurrentLeader, getLeaderStatus, stopLeaderElection } from '../utils/leaderElection';
 
@@ -875,6 +876,19 @@ async function executeTieredSyncForAccount(request: QueuedRequest): Promise<void
   log.info(`[DataSyncScheduler] 开始${tier}层同步账号 ${accountId}`);
   logSync('DataSyncScheduler', `开始${tier}层同步`, { accountId, tier });
 
+  // v525: 舱壁隔离 - 获取同步资源槽位
+  const bulkhead = getBulkhead();
+  const bulkheadCategory: TaskCategory = 'sync';
+  const acquired = await bulkhead.acquire(accountId, bulkheadCategory, `${tier}层同步-账户${accountId}`, true);
+  if (!acquired) {
+    log.warn(`[DataSyncScheduler] v525: 舱壁拒绝 账户${accountId} ${tier}层同步 (资源池已满或队列超时)`);
+    logSyncWarn('DataSyncScheduler', `舱壁拒绝同步`, { accountId, tier });
+    return;
+  }
+
+  // v525: 整体 try/finally 确保舱壁槽位始终被释放
+  try {
+
   // v194: 获取账号信息，不存在时优雅跳过而非抛出异常
   const account = await db.getAdAccountById(accountId);
   if (!account) {
@@ -1002,6 +1016,18 @@ async function executeTieredSyncForAccount(request: QueuedRequest): Promise<void
       log.warn(`[DataSyncScheduler] v196: 账号 ${accountId} 优化目标执行失败: ${(optErr as Error).message}`);
       logOptimizationError('DataSyncScheduler', `账号${accountId}优化目标执行失败`, { accountId, error: (optErr as Error).message });
     }
+  }
+
+  // v525: 同步成功，记录账户健康
+  bulkhead.recordAccountSuccess(accountId);
+
+  } catch (syncError: unknown) {
+    // v525: 同步失败，记录账户失败
+    bulkhead.recordAccountFailure(accountId, (syncError as Error).message?.substring(0, 100));
+    throw syncError;
+  } finally {
+    // v525: 始终释放舱壁槽位
+    bulkhead.release(accountId, bulkheadCategory);
   }
 }
 

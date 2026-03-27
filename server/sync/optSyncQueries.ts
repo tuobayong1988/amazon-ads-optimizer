@@ -14,6 +14,7 @@
 
 import { campaigns, adGroups, keywords, productTargets, adAccounts } from '../../drizzle/schema';
 import { createModuleLogger } from '../utils/logger';
+import { safeExecute, validateSql } from '../services/typeSafeQueryBuilder';
 
 const log = createModuleLogger('OptSyncQueries');
 
@@ -763,11 +764,10 @@ export async function updateKeywordAmazonId(
  */
 export async function cleanupZombieTasks(conn: unknown): Promise<number> {
   try {
-    const [result] = await (conn as Record<string, Function>).execute(
-      `UPDATE optimization_tasks SET status = 'retry', retry_count = retry_count + 1, 
+    const zombieSql = `UPDATE optimization_tasks SET status = 'retry', retry_count = retry_count + 1, 
        error_message = CONCAT(IFNULL(error_message,''), ' | v457: 僵尸任务自动重置(processing超过15分钟)') 
-       WHERE status = 'processing' AND processing_started_at < DATE_SUB(NOW(), INTERVAL 15 MINUTE)`
-    );
+       WHERE status = 'processing' AND processing_started_at < DATE_SUB(NOW(), INTERVAL 15 MINUTE)`;
+    const [result] = await safeExecute(conn as Record<string, Function>, zombieSql, [], 'cleanupZombieTasks');
     return ((result as any)?.affectedRows) || 0;
   } catch (err: unknown) {
     log.warn(`[OptSyncQueries] 僵尸任务清理失败: ${(err as Error).message}`);
@@ -781,21 +781,19 @@ export async function cleanupZombieTasks(conn: unknown): Promise<number> {
 export async function cleanupDeletedKeywordTasks(conn: unknown): Promise<number> {
   try {
     // v457: 清理本地数据库中已删除的keyword任务
-    const [result1] = await (conn as Record<string, Function>).execute(
-      `UPDATE optimization_tasks ot
+    const kwCleanSql1 = `UPDATE optimization_tasks ot
        LEFT JOIN ${K.table} k ON ot.target_entity_id = k.${K.id}
        SET ot.status = 'failed', ot.error_message = CONCAT(IFNULL(ot.error_message,''), ' | v457: 目标keyword已被删除')
-       WHERE ot.target_entity_type = 'keyword' AND ot.status IN ('pending', 'retry') AND k.${K.id} IS NULL AND ot.target_entity_id IS NOT NULL`
-    );
+       WHERE ot.target_entity_type = 'keyword' AND ot.status IN ('pending', 'retry') AND k.${K.id} IS NULL AND ot.target_entity_id IS NOT NULL`;
+    const [result1] = await safeExecute(conn as Record<string, Function>, kwCleanSql1, [], 'cleanupDeletedKeywordTasks.orphan');
     const count1 = ((result1 as any)?.affectedRows) || 0;
     
     // v479: 清理Amazon端已不存在的keyword任务（keywordStatus = 'amazon_deleted' 或 'archived'）
-    const [result2] = await (conn as Record<string, Function>).execute(
-      `UPDATE optimization_tasks ot
+    const kwCleanSql2 = `UPDATE optimization_tasks ot
        INNER JOIN ${K.table} k ON ot.target_entity_id = k.${K.id}
        SET ot.status = 'cancelled', ot.error_message = CONCAT(IFNULL(ot.error_message,''), ' | v479: keyword已在Amazon端删除/归档')
-       WHERE ot.target_entity_type = 'keyword' AND ot.status IN ('pending', 'retry') AND k.keywordStatus IN ('amazon_deleted', 'archived')`
-    );
+       WHERE ot.target_entity_type = 'keyword' AND ot.status IN ('pending', 'retry') AND k.keywordStatus IN ('amazon_deleted', 'archived')`;
+    const [result2] = await safeExecute(conn as Record<string, Function>, kwCleanSql2, [], 'cleanupDeletedKeywordTasks.amazonDeleted');
     const count2 = ((result2 as any)?.affectedRows) || 0;
     if (count2 > 0) {
       log.warn(`[OptSyncQueries] v479: 取消${count2}个引用amazon_deleted/archived keyword的任务`);
@@ -814,21 +812,19 @@ export async function cleanupDeletedKeywordTasks(conn: unknown): Promise<number>
 export async function cleanupDeletedProductTargetTasks(conn: unknown): Promise<number> {
   try {
     // v457: 清理本地数据库中已删除的product_target任务
-    const [result1] = await (conn as Record<string, Function>).execute(
-      `UPDATE optimization_tasks ot
+    const ptCleanSql1 = `UPDATE optimization_tasks ot
        LEFT JOIN ${PT.table} pt ON ot.target_entity_id = pt.${PT.id}
        SET ot.status = 'failed', ot.error_message = CONCAT(IFNULL(ot.error_message,''), ' | v457: 目标product_target已被删除')
-       WHERE ot.target_entity_type = 'product_target' AND ot.status IN ('pending', 'retry') AND pt.${PT.id} IS NULL AND ot.target_entity_id IS NOT NULL`
-    );
+       WHERE ot.target_entity_type = 'product_target' AND ot.status IN ('pending', 'retry') AND pt.${PT.id} IS NULL AND ot.target_entity_id IS NOT NULL`;
+    const [result1] = await safeExecute(conn as Record<string, Function>, ptCleanSql1, [], 'cleanupDeletedPTTasks.orphan');
     const count1 = ((result1 as any)?.affectedRows) || 0;
     
     // v479: 清理Amazon端已不存在的product_target任务
-    const [result2] = await (conn as Record<string, Function>).execute(
-      `UPDATE optimization_tasks ot
+    const ptCleanSql2 = `UPDATE optimization_tasks ot
        INNER JOIN ${PT.table} pt ON ot.target_entity_id = pt.${PT.id}
        SET ot.status = 'cancelled', ot.error_message = CONCAT(IFNULL(ot.error_message,''), ' | v479: product_target已在Amazon端删除/归档')
-       WHERE ot.target_entity_type = 'product_target' AND ot.status IN ('pending', 'retry') AND pt.targetStatus IN ('amazon_deleted', 'archived')`
-    );
+       WHERE ot.target_entity_type = 'product_target' AND ot.status IN ('pending', 'retry') AND pt.targetStatus IN ('amazon_deleted', 'archived')`;
+    const [result2] = await safeExecute(conn as Record<string, Function>, ptCleanSql2, [], 'cleanupDeletedPTTasks.amazonDeleted');
     const count2 = ((result2 as any)?.affectedRows) || 0;
     if (count2 > 0) {
       log.warn(`[OptSyncQueries] v479: 取消${count2}个引用amazon_deleted/archived product_target的任务`);
@@ -999,15 +995,13 @@ export async function insertTasks(
       );
     }
     
-    await (conn as Record<string, Function>).execute(
-      `INSERT INTO optimization_tasks 
+    const insertSql = `INSERT INTO optimization_tasks 
        (batch_id, optimization_target_id, account_id, task_type, priority,
         target_entity_type, target_entity_id, amazon_entity_id, target_entity_name,
         action, old_value, new_value, change_reason, algorithm_used, confidence_score,
         campaign_id, campaign_name, ad_group_id, event_id, status, created_at)
-       VALUES ${placeholders}`,
-      values
-    );
+       VALUES ${placeholders}`;
+    await safeExecute(conn as Record<string, Function>, insertSql, values, 'insertTasks');
   }
 }
 

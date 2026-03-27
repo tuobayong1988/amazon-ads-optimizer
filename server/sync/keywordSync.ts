@@ -16,8 +16,9 @@ import {
   searchTerms,
   negativeKeywords,
   optimizationEvents,
-} from '../../drizzle/schema';
+import { getDb } from '../db';
 import { createModuleLogger } from '../utils/logger';
+import { forwardAlign, markEntitiesVerified, nextSyncVersion } from './entityStateAlignment';
 import type { AmazonAdsApiClient } from './amazonAdsApi';
 
 /** 同步服务上下文 - 从AmazonSyncService传入 */
@@ -167,6 +168,17 @@ export async function syncSbKeywords(service: SyncContext,): Promise<{ synced: n
     }
 
     log.info(`SB关键词同步完成: synced=${synced}, skipped=${skipped}`);
+
+    // v525: 正向对齐 - SB关键词
+    try {
+      const syncVer = nextSyncVersion();
+      const amazonKeywordIds = apiKeywords.map((k: any) => String(k.keywordId)).filter(Boolean);
+      markEntitiesVerified('keyword', apiKeywords.map((k: any) => Number(k.keywordId)).filter(Boolean), syncVer);
+      await forwardAlign(service.accountId, 'keyword', amazonKeywordIds);
+    } catch (alignErr: unknown) {
+      log.debug(`[v525] SB关键词正向对齐失败: ${(alignErr as Error).message}`);
+    }
+
     return { synced, skipped };
   } catch (error: unknown) {
     log.warn(`[v242] SB关键词同步失败(account=${service.accountId}, marketplace=${service.marketplace}): ${serializeError(error)}`);
@@ -290,6 +302,17 @@ export async function syncSpKeywords(service: SyncContext,lastSyncTime?: string 
     }
 
     logSyncProtectionSummary('syncSpKeywords', protectionStats);
+
+    // v525: 正向对齐 - 比对 Amazon 返回的关键词列表与本地数据库
+    try {
+      const syncVer = nextSyncVersion();
+      const amazonKeywordIds = apiKeywords.map((k: any) => String(k.keywordId)).filter(Boolean);
+      markEntitiesVerified('keyword', apiKeywords.map((k: any) => Number(k.keywordId)).filter(Boolean), syncVer);
+      await forwardAlign(service.accountId, 'keyword', amazonKeywordIds);
+    } catch (alignErr: unknown) {
+      log.debug(`[v525] SP关键词正向对齐失败: ${(alignErr as Error).message}`);
+    }
+
     return { synced, skipped };
   } catch (error: unknown) {
     log.warn(`[v242] SP关键词同步失败(account=${service.accountId}, marketplace=${service.marketplace}): ${serializeError(error)}`);

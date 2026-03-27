@@ -19,6 +19,7 @@ import {
 } from '../../drizzle/schema';
 import { createModuleLogger } from '../utils/logger';
 import type { AmazonAdsApiClient } from './amazonAdsApi';
+import { forwardAlign, markEntitiesVerified, nextSyncVersion } from './entityStateAlignment';
 
 /** 同步服务上下文 - 从AmazonSyncService传入 */
 export interface SyncContext {
@@ -171,6 +172,17 @@ export async function syncSbProductTargets(service: SyncContext,): Promise<{ syn
     }
 
     log.info(`SB商品定位同步完成: synced=${synced}, skipped=${skipped}`);
+
+    // v525: 正向对齐 - SB商品定位
+    try {
+      const syncVer = nextSyncVersion();
+      const amazonTargetIds = apiTargets.map((t: any) => String(t.targetId)).filter(Boolean);
+      markEntitiesVerified('product_target', apiTargets.map((t: any) => Number(t.targetId)).filter(Boolean), syncVer);
+      await forwardAlign(service.accountId, 'product_target', amazonTargetIds);
+    } catch (alignErr: unknown) {
+      log.debug(`[v525] SB商品定位正向对齐失败: ${(alignErr as Error).message}`);
+    }
+
     return { synced, skipped };
   } catch (error) {
     log.warn('Error syncing SB product targets:', error);
@@ -323,6 +335,17 @@ export async function syncSdProductTargets(service: SyncContext,): Promise<{ syn
     }
 
     log.info(`SD商品定位同步完成: synced=${synced}, skipped=${skipped}`);
+
+    // v525: 正向对齐 - SD商品定位
+    try {
+      const syncVer = nextSyncVersion();
+      const amazonTargetIds = apiTargets.map((t: any) => String(t.targetId)).filter(Boolean);
+      markEntitiesVerified('product_target', apiTargets.map((t: any) => Number(t.targetId)).filter(Boolean), syncVer);
+      await forwardAlign(service.accountId, 'product_target', amazonTargetIds);
+    } catch (alignErr: unknown) {
+      log.debug(`[v525] SD商品定位正向对齐失败: ${(alignErr as Error).message}`);
+    }
+
     return { synced, skipped };
   } catch (error) {
     log.warn('Error syncing SD product targets:', error);
@@ -682,6 +705,17 @@ export async function syncSpProductTargets(service: SyncContext,lastSyncTime?: s
 
     log.info(`SP产品定向同步完成: synced=${synced}, skipped=${skipped}`);
     logSyncProtectionSummary('syncSpProductTargets', protectionStats);
+
+    // v525: 正向对齐 - SP产品定向
+    try {
+      const syncVer = nextSyncVersion();
+      const amazonTargetIds = apiTargets.map((t: any) => String(t.targetId)).filter(Boolean);
+      markEntitiesVerified('product_target', apiTargets.map((t: any) => Number(t.targetId)).filter(Boolean), syncVer);
+      await forwardAlign(service.accountId, 'product_target', amazonTargetIds);
+    } catch (alignErr: unknown) {
+      log.debug(`[v525] SP产品定向正向对齐失败: ${(alignErr as Error).message}`);
+    }
+
     return { synced, skipped };
   } catch (error) {
     log.warn('Error syncing SP product targets:', error);

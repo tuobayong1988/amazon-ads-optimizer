@@ -17,6 +17,7 @@
 
 import { createModuleLogger } from '../utils/logger';
 import { SYSTEM_VERSION } from '../utils/systemVersion';
+import { getCircuitBreaker, CircuitState } from './circuitBreakerService';
 
 const log = createModuleLogger('ApiRateLimitService');
 
@@ -314,6 +315,16 @@ export class ApiRateLimitService {
     endpointType: ApiEndpointType = 'default',
     autoWait: boolean = true
   ): Promise<RateLimitDecision> {
+    // v525: 熔断器前置检查 - 如果该账户+端点已熔断，直接快速失败
+    const circuitBreaker = getCircuitBreaker();
+    if (!circuitBreaker.canPass(accountId, endpointType)) {
+      const status = circuitBreaker.getStatus(accountId, endpointType);
+      const waitMs = status.timeUntilHalfOpen || 60000;
+      log.warn(`[RateLimit] v${SYSTEM_VERSION}: 账户${accountId} ${endpointType}端点已熔断(${status.state}), 快速失败 | 剩余冷却${Math.round(waitMs / 1000)}s`);
+      this.recordThrottle(accountId, endpointType, waitMs);
+      return { allowed: false, waitMs, remainingTokens: 0, retryAfterMs: waitMs };
+    }
+
     const effectiveConfig = this.getEffectiveConfig(accountId, endpointType);
     const globalConfig = GLOBAL_ENDPOINT_CONFIGS[endpointType] || GLOBAL_ENDPOINT_CONFIGS.default;
     
@@ -433,6 +444,9 @@ export class ApiRateLimitService {
    * 不再修改全局配置，只影响触发429的特定账户
    */
   recordExternalThrottle(accountId: number, endpointType: ApiEndpointType): void {
+    // v525: 429错误同时通知熔断器
+    const circuitBreaker = getCircuitBreaker();
+    circuitBreaker.recordFailure(accountId, endpointType, false);
     const stateKey = `${accountId}:${endpointType}`;
     let state = accountThrottleStates.get(stateKey);
     

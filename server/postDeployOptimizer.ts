@@ -83,6 +83,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 525,
+    description: 'v525: [架构弹性升级 — 第三方API异常处理与高并发场景优化] — (1)P0-熔断器(CircuitBreaker): 新增circuitBreakerService.ts实现三态熔断器(CLOSED/OPEN/HALF_OPEN),集成到apiRateLimitService和amazonApiHelper,当账户级别失败率超过50%时自动熔断阻断请求,防止无效重试和日志风暴 (2)P0-自适应超时(AdaptiveTimeout): 新增adaptiveTimeoutService.ts基于历史P90/P99耗时动态计算超时时间,替代硬编码超时,集成到amazonApiHelper的withRetry函数 (3)P0-舱壁隔离(Bulkhead): 新增bulkheadService.ts实现资源池隔离,为不同层级账户分配独立并发槽位,集成到dataSyncScheduler的executeTieredSyncForAccount (4)P0-双向状态对齐协议: 重写entityStateAlignment.ts实现版本向量机制,正向对齐(同步时标记已验证实体)+反向对齐(扫描未验证实体并标记为amazon_deleted),集成到所有同步模块 (5)P1-强类型SQL查询层: 新增typeSafeQueryBuilder.ts提供safeExecute/validateSql运行时验证,已迁移optSyncQueries中7个高风险SQL函数 (6)P1-弹性监控端点: 新增resilienceMonitor.ts聚合所有弹性组件状态,ops.ts新增/resilience、/resilience/summary、/resilience/query-stats三个监控端点',
+    affectedModules: ['sync', 'optimization', 'core', 'automation'],
+    correctionActions: [],
+  },
+  {
     version: 524,
     description: 'v524: [AutoStopLoss修复+绩效报告同步修复] — (1)P0-AutoStopLoss SQL列名修复: autoStopLossService.ts中搜索词扫描使用internalAdGroupId(驼峰)但search_terms表实际列名为internal_ad_group_id(下划线),导致所有账户的搜索词止损扫描100%失败 (2)P0-绩效报告日期倒置修复: syncPerformance.ts中clampStartDateForRetention将startDate推后到超过endDate时(SB/SD第3批次),Amazon API返回400错误,新增日期倒置检测自动跳过超出保留期的批次 (3)P1-报告超时时间优化: 所有submitAndWaitMultipleReports和waitAndDownloadReport超时从300秒增加到600秒,避免高并发时Amazon排队导致的超时失败',
     affectedModules: ['automation', 'sync'],

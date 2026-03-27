@@ -15,6 +15,8 @@ import { sql } from 'drizzle-orm';
 import { createModuleLogger } from '../utils/logger';
 // v359: 分端点限流服务
 import { acquireApiPermit, classifyEndpoint, getApiRateLimitService } from './apiRateLimitService';
+import { getCircuitBreaker } from './circuitBreakerService';
+import { getAdaptiveTimeout } from './adaptiveTimeoutService';
 // v223: getAmazonSyncService 从 syncServiceProvider re-export
 import { getAmazonSyncService as _getAmazonSyncService } from '../sync/scheduling/syncServiceProvider';
 
@@ -34,13 +36,23 @@ async function withRetry<T>(
   let lastError: Error | null = null;
   // v360: 真正集成限流服务 - 在每次API调用前获取令牌
   const endpointType = classifyEndpoint(label);
+  // v525: 自适应超时服务
+  const adaptiveTimeout = getAdaptiveTimeout();
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
       // v360+v369: 调用前获取限流许可，使用真实accountId
       try {
         await acquireApiPermit(accountId, endpointType);
       } catch (_: any) { /* 限流服务异常不影响主流程 */ }
-      return await fn();
+      const callStartTime = Date.now();
+      const result = await fn();
+      const callDurationMs = Date.now() - callStartTime;
+      // v525: 记录耗时并通知熔断器
+      try {
+        adaptiveTimeout.recordLatency(endpointType, callDurationMs);
+        getCircuitBreaker().recordSuccess(accountId, endpointType);
+      } catch (_: any) {}
+      return result;
     } catch (error: unknown) {
       // @ts-ignore
       lastError = error;
@@ -63,6 +75,13 @@ async function withRetry<T>(
         } catch (_: any) { /* 限流服务异常不影响主流程 */ }
       }
       
+      // v525: 非瞬态失败通知熔断器
+      if (!isRetryable) {
+        try { getCircuitBreaker().recordFailure(accountId, endpointType, false); } catch (_: any) {}
+      } else if (isServerError || isNetworkError) {
+        try { getCircuitBreaker().recordFailure(accountId, endpointType, true); } catch (_: any) {}
+      }
+
       if (!isRetryable || attempt >= maxRetries) {
         throw error;
       }

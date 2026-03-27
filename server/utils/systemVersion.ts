@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 524;  // v524: 修复AutoStopLoss SQL列名错误(internalAdGroupId→internal_ad_group_id)+修复绩效报告日期倒置(clampStartDate>endDate时跳过批次)+报告超时时间300s→600s
+export const SYSTEM_VERSION = 525;  // v525: 架构弹性升级 — 熔断器(CircuitBreaker)+自适应超时(AdaptiveTimeout)+舱壁隔离(Bulkhead)+双向状态对齐协议(BiDirectionalAlignment)+强类型SQL查询层(TypeSafeQuery)+弹性监控端点(ResilienceMonitor)
