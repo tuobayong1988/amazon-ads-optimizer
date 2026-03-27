@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 522;  // v522: 修复系统崩溃循环(sqlstring补丁+uncaughtException智能降级)+entityNotFoundError自动标记+SP Target自适应节流+SD Audience建议竞价回退
+export const SYSTEM_VERSION = 523;  // v523: 修复SQL语法错误(@ts-ignore嵌入SQL)+支持negative_product_target任务类型+修复DataSyncScheduler空指针+新账户同步保障+实体状态对齐机制+AutoCorrector SQL修复

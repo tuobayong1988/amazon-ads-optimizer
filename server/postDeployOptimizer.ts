@@ -83,6 +83,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 523,
+    description: 'v523: [生产环境健康修复6项] — (1)P0-SQL语法错误修复: 移除optSyncQueries.ts和optimizationAutoCorrector.ts中嵌入SQL模板字符串内的@ts-ignore注释,解决每5分钟报SQL语法错误和rescuePermanentlyFailedTasks执行失败 (2)P0-negative_product_target任务支持: OptSyncEngine新增对negative_product_target任务类型的处理,释放56个卡死的僵尸任务 (3)P0-DataSyncScheduler空指针修复: 添加coordStatus.manualOverrides安全访问保护,解决每10分钟报Cannot read properties of undefined (4)P1-新账户同步保障: unifiedSyncEngine新增从未同步账户保障机制,确保新账户不受maxAccounts截断 (5)P1-实体状态对齐机制: 新增entityStateAlignment.ts模块,自动扫描entityNotFoundError并标记本地实体为amazon_deleted (6)P1-实体对齐API: ops.ts新增/align-entity-states端点支持手动触发',
+    affectedModules: ['sync', 'optimization', 'core'],
+    correctionActions: ['rerun_correction_scan', 'cleanup_stale_pending'],
+  },
+  {
     version: 522,
     description: 'v522: [系统崩溃修复+API错误处理增强+建议竞价优化] — (1)P0-系统崩溃循环修复: sqlstring库escape()处理特殊对象时val.toString()失败导致uncaughtException每7.5分钟崩溃,通过patchSqlstring.ts底层补丁+uncaughtException智能降级解决 (2)P0-entityNotFoundError自动标记: amazonApiErrorMapper新增"cannot find the adgroup"模式+SB关键词更新自动标记失效adGroup和关键词为amazon_deleted+预过滤增强adGroup状态检查 (3)P1-SP Target自适应节流: 初始延迟2s,429错误时加倍(最高8s),成功时减半(最低1s) (4)P1-SD Audience建议竞价回退: 本地引擎无数据时回退到adGroup defaultBid作为基线',
     affectedModules: ['sync', 'optimization', 'core'],
