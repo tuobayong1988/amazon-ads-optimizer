@@ -540,7 +540,7 @@ async function executeCliffRepair(cliff: CliffDetectionResult): Promise<boolean>
     // 2. 记录optimization_events — 使用snake_case列名
     await db.execute(sql`
       INSERT INTO optimization_events (
-        account_id, event_category, event_type, status,
+        account_id, event_category, action_type, status,
         ${sql.raw(cliff.entityType === 'keyword' ? 'keyword_id' : 'target_id')},
         previous_bid, new_bid,
         action_detail, api_sync_status, created_at

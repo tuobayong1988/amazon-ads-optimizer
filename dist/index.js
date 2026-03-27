@@ -482,7 +482,7 @@ ${t.recommendations.map(n=>`\u2022 ${n}`).join(`
       WHERE id = ${t.entityId} AND accountId = ${t.accountId}
     `),await e.execute(_`
       INSERT INTO optimization_events (
-        account_id, event_category, event_type, status,
+        account_id, event_category, action_type, status,
         ${_.raw(t.entityType==="keyword"?"keyword_id":"target_id")},
         previous_bid, new_bid,
         action_detail, api_sync_status, created_at
