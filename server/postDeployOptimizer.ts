@@ -83,6 +83,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 527,
+    description: 'v527: [零警告构建+v395迁移列名修复] — (1)P0-v395迁移脚本列名修复: search_terms表的DELETE/GROUP BY/ALTER TABLE中列名与数据库实际结构不匹配(adGroupId→internal_ad_group_id, report_start_date→reportStartDate),导致每次部署均报Failed query警告 (2)P1-构建警告清零: 消除全部5个esbuild警告(import.meta.dirname×2, getKeywordsByIds, batchUpdateKeywordStatus, db.query)',
+    affectedModules: ['migration'],
+    correctionActions: [],
+  },
+  {
     version: 526,
     description: 'v526: [数据质量清零 — 消除剩余警告和迁移脚本问题] — (1)P0-RLDataRecorder列名映射修复: rl_training_logs表的Drizzle schema将internalAdGroupId映射到internal_ad_group_id列,但数据库实际列名为adGroupId(驼峰),修正为int()默认映射,消除~400+/小时的插入警告 (2)P1-迁移脚本v390幂等性增强: 添加information_schema查询预检查索引是否已存在,避免每次部署重复尝试创建 (3)P1-迁移脚本v395幂等性增强+SQL注入修复: 添加uk_search_term约束存在性检查,已存在则跳过整个迁移;修复SQL字符串中误嵌入的@ts-ignore注释导致的语法错误',
     affectedModules: ['rl_training', 'migration'],

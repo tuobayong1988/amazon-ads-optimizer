@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 526;  // v526: 数据质量清零 — RLDataRecorder列名映射修复(adGroupId)+迁移脚本幂等性增强(v390/v395)+SQL注入修复(ts-ignore嵌入SQL)
+export const SYSTEM_VERSION = 527;  // v527: 零警告构建+v395迁移列名修复(adGroupId→internal_ad_group_id, report_start_date→reportStartDate)

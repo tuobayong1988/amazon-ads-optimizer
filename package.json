@@ -1,6 +1,6 @@
 {
   "name": "amazon-ads-optimizer",
-  "version": "4.2.7",
+  "version": "5.2.7",
   "license": "MIT",
   "scripts": {
     "build": "vite build --config vite.build.config.ts && node build-server.js",
