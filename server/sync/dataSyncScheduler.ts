@@ -241,7 +241,8 @@ async function startSchedulerTasks(defaultIntervalMs: number): Promise<void> {
   (async () => {
     try {
       const { cleanupStaleJobs, cleanupOrphanedPendingJobs } = await import('./dataSyncService');
-      const staleResult = await cleanupStaleJobs(30); // v521: 启动清理30分钟阈值（v411原10分钟太短，全量同步的报告下载步骤需要15-20分钟，心跳可能被事件循环阻塞）
+      // v528: 启动清理使用30分钟阈值（仅清理进程重启后残留的running状态，不会影响当前活跃任务）
+      const staleResult = await cleanupStaleJobs(30);
       const orphanResult = await cleanupOrphanedPendingJobs(60); // 超过1小时的pending任务
       if (staleResult.cleaned > 0 || orphanResult.cleaned > 0) {
         log.warn(`[DataSyncScheduler] v335: 启动清理完成 - 卡死任务: ${staleResult.cleaned}个 (${staleResult.jobIds.join(',')}), 孤儿任务: ${orphanResult.cleaned}个`);
@@ -396,19 +397,23 @@ async function startSchedulerTasks(defaultIntervalMs: number): Promise<void> {
   }, 5 * 60 * 1000));
   log.info(`[DataSyncScheduler] v137: 优化任务重试同步引擎已启动，间隔: 5分钟`);
 
-  // v361: 定期清理卡死任务（每10分钟）
+  // v528: 定期清理卡死任务（每10分钟）
+  // 核心改进：从固定45分钟一刀切 → 基于心跳活跃度的动态清理
+  // updated_at每1分钟由心跳更新，所以15分钟无更新 = 任务确实卡死
   monitoringIntervals.push(setInterval(async () => {
     try {
       const { cleanupStaleJobs } = await import('./dataSyncService');
-      const result = await cleanupStaleJobs(45); // v521: 定期清理45分钟阈值（v411原15分钟太短，全量同步报告下载步骤需要15-20分钟×3批=45-60分钟，心跳在高负载时可能延迟）
+      // v528: 使用15分钟心跳超时（心跳每1分钟发送，15分钟无更新说明任务确实卡死）
+      // 比HealthMonitor的10分钟宽松一些，避免DB层清理先于内存层
+      const result = await cleanupStaleJobs(15);
       if (result.cleaned > 0) {
-        log.warn(`[DataSyncScheduler] v334: 定期清理发现 ${result.cleaned} 个卡死任务: ${result.jobIds.join(', ')}`);
+        log.warn(`[DataSyncScheduler] v528: 定期清理发现 ${result.cleaned} 个心跳超时任务: ${result.jobIds.join(', ')}`);
       }
     } catch (err: unknown) {
-      log.warn(`[DataSyncScheduler] v334: 定期卡死任务清理异常: ${(err as Error).message}`);
+      log.warn(`[DataSyncScheduler] v528: 定期卡死任务清理异常: ${(err as Error).message}`);
     }
   }, 10 * 60 * 1000));
-  log.info('[DataSyncScheduler] v334: 卡死任务定期清理已启动，间隔: 10分钟');
+  log.info('[DataSyncScheduler] v528: 心跳感知的卡死任务定期清理已启动，间隔: 10分钟，心跳超时: 15分钟');
 
   // v361: SLO监控 - 每10分钟采集一次SLO指标
   monitoringIntervals.push(setInterval(async () => {

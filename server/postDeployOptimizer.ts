@@ -83,6 +83,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 528,
+    description: 'v528: [基于心跳活跃度的统一僵尸清理机制] — (1)P0-HealthMonitor僵尸判定重写: 从startTime固定超时→基于lastHeartbeat心跳活跃度判定,10分钟无心跳才判定为僵尸,保留6小时绝对超时安全网 (2)P0-三层超时统一: HealthMonitor/DataSyncScheduler/ShardOrchestrator的大账户超时值统一为3小时(5000+)/2.5小时(3000+)/2小时(1000+) (3)P0-心跳双写: 每次心跳同时更新DB(updated_at)和内存(activeSyncs.lastHeartbeat),确保三层清理机制都能感知任务活跃 (4)P1-DataSyncScheduler定期清理: 从45分钟一刀切→15分钟心跳超时,与心跳机制对齐',
+    affectedModules: ['sync', 'scheduler'],
+    correctionActions: [],
+  },
+  {
     version: 527,
     description: 'v527: [零警告构建+v395迁移列名修复] — (1)P0-v395迁移脚本列名修复: search_terms表的DELETE/GROUP BY/ALTER TABLE中列名与数据库实际结构不匹配(adGroupId→internal_ad_group_id, report_start_date→reportStartDate),导致每次部署均报Failed query警告 (2)P1-构建警告清零: 消除全部5个esbuild警告(import.meta.dirname×2, getKeywordsByIds, batchUpdateKeywordStatus, db.query)',
     affectedModules: ['migration'],

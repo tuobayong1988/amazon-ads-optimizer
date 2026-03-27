@@ -44,15 +44,16 @@ const log = createModuleLogger('shardSyncOrchestrator');
 // 进程实例ID（用于分布式锁）
 const INSTANCE_ID = `worker-${randomUUID().slice(0, 8)}`;
 
-// v519: 动态超时常量 — 与unifiedSyncEngine V518保持一致
-const DEFAULT_ACCOUNT_LOCK_TTL_MS = 45 * 60 * 1000;  // 默认45分钟
+// v528: 动态超时常量 — 与unifiedSyncEngine v528统一
+// 核心改进：大幅提升大账户超时值，避免被僵尸清理中断
+const DEFAULT_ACCOUNT_LOCK_TTL_MS = 60 * 60 * 1000;  // 默认60分钟（与unifiedSyncEngine一致）
 const GLOBAL_LOCK_TTL_MS = 60 * 60 * 1000;            // 全局锁1小时
 const NIGHTLY_LOCK_TTL_MS = 4 * 60 * 60 * 1000;       // nightly层级4小时
 const LARGE_ACCOUNT_THRESHOLD = 1000;
 const LARGE_ACCOUNT_TIMEOUT_TIERS = [
-  { threshold: 5000, timeoutMs: 90 * 60 * 1000 },  // 5000+广告活动: 90分钟
-  { threshold: 3000, timeoutMs: 75 * 60 * 1000 },  // 3000-5000: 75分钟
-  { threshold: 1000, timeoutMs: 60 * 60 * 1000 },  // 1000-3000: 60分钟
+  { threshold: 5000, timeoutMs: 180 * 60 * 1000 },  // 5000+广告活动: 3小时（与unifiedSyncEngine一致）
+  { threshold: 3000, timeoutMs: 150 * 60 * 1000 },  // 3000-5000: 2.5小时
+  { threshold: 1000, timeoutMs: 120 * 60 * 1000 },  // 1000-3000: 2小时
 ];
 
 /**

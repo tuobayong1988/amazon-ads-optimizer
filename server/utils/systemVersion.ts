@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 527;  // v527: 零警告构建+v395迁移列名修复(adGroupId→internal_ad_group_id, report_start_date→reportStartDate)
+export const SYSTEM_VERSION = 528;  // v528: 基于心跳活跃度的统一僵尸清理机制，解决大账户同步被反复中断的问题

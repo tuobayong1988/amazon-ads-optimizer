@@ -347,15 +347,27 @@ export function logHealthSnapshot(): void {
     }
   }
 
-  // v518: 僵尸条目清理 - 使用每个条目自身的动态超时值（而非硬编码45分钟）
-  // 修复：之前硬编码45分钟与大账户动态超时（60-90分钟）冲突，导致大账户全量同步被提前终止
+  // v528: 基于心跳活跃度的智能僵尸清理
+  // 核心原则：心跳活跃 = 任务存活，只有心跳停止才是僵尸
+  // 两层保护：① 心跳超时(10分钟) ② 绝对超时(6小时安全网)
   const now = new Date();
   let zombiesCleaned = 0;
   for (const [key, sync] of activeSyncs.entries()) {
-    const entryTimeoutMs = sync.timeoutMs || DEFAULT_SYNC_TIMEOUT_MS;
-    if (now.getTime() - sync.startTime.getTime() > entryTimeoutMs) {
-      const runningMin = ((now.getTime() - sync.startTime.getTime()) / 60000).toFixed(1);
-      log.warn(`[HealthMonitor] v518: 僵尸清理 - ${key} 已运行${runningMin}分钟，超过动态超时${Math.round(entryTimeoutMs / 60000)}分钟`);
+    const heartbeatAge = now.getTime() - sync.lastHeartbeat.getTime();
+    const totalRuntime = now.getTime() - sync.startTime.getTime();
+    const absoluteTimeout = Math.min(sync.timeoutMs || MAX_ABSOLUTE_TIMEOUT_MS, MAX_ABSOLUTE_TIMEOUT_MS);
+    
+    // 判定条件：心跳超时 OR 绝对超时
+    const isHeartbeatDead = heartbeatAge > HEARTBEAT_ZOMBIE_TIMEOUT_MS;
+    const isAbsoluteTimeout = totalRuntime > absoluteTimeout;
+    
+    if (isHeartbeatDead || isAbsoluteTimeout) {
+      const runningMin = (totalRuntime / 60000).toFixed(1);
+      const heartbeatMin = (heartbeatAge / 60000).toFixed(1);
+      const reason = isHeartbeatDead 
+        ? `心跳超时(${heartbeatMin}分钟无心跳，阈值${Math.round(HEARTBEAT_ZOMBIE_TIMEOUT_MS / 60000)}分钟)` 
+        : `绝对超时(运行${runningMin}分钟，上限${Math.round(absoluteTimeout / 60000)}分钟)`;
+      log.warn(`[HealthMonitor] v528: 僵尸清理 - ${key} 已运行${runningMin}分钟，原因: ${reason}`);
       activeSyncs.delete(key);
       zombiesCleaned++;
     }
@@ -366,7 +378,7 @@ export function logHealthSnapshot(): void {
       const key = `${r.accountId}:${r.tier}`;
       return activeSyncs.has(key);
     });
-    log.warn(`[HealthMonitor] v518: 已清理 ${zombiesCleaned} 个僵尸同步条目`);
+    log.warn(`[HealthMonitor] v528: 已清理 ${zombiesCleaned} 个僵尸同步条目`);
   }
 }
 
@@ -1070,17 +1082,28 @@ const engineStatus: EngineStatus = {
 
 // v399: 并发控制 - 默认从10→15，500租户场景下提升同步吞吐量
 const MAX_CONCURRENT_ACCOUNTS = parseInt(process.env.MAX_CONCURRENT_ACCOUNTS || '15', 10);
-const activeSyncs = new Map<string, { tier: SyncTier; startTime: Date; timeoutMs: number }>();
+const activeSyncs = new Map<string, {
+  tier: SyncTier;
+  startTime: Date;
+  lastHeartbeat: Date;       // v528: 最后心跳时间（每次onProgress/心跳定时器更新）
+  timeoutMs: number;         // 绝对超时（安全网，防止无限运行）
+}>();
 
-// v519: 动态超时常量 - 根据账户广告活动数量自动调整
-// v519修复: 默认从45分钟提升到60分钟，因为36步全量同步即使小账户也可能需要50+分钟
-// (v518的45分钟导致账户90021在步骤23/36被超时终止，建议竞价步骤被跳过)
-const DEFAULT_SYNC_TIMEOUT_MS = 60 * 60 * 1000; // v519: 默认60分钟（原45分钟不够）
+// v528: 心跳超时 — 僵尸判定的主要依据
+// 如果一个任务超过此时间没有心跳更新，才判定为僵尸
+// 心跳每1分钟发送一次（v521），所以10分钟无心跳说明任务确实卡死
+const HEARTBEAT_ZOMBIE_TIMEOUT_MS = 10 * 60 * 1000; // 10分钟无心跳 = 僵尸
+
+// v528: 绝对超时（安全网） — 即使心跳正常，也不允许无限运行
+// 这是防止心跳正常但任务实际卡在无限循环中的极端情况
+const MAX_ABSOLUTE_TIMEOUT_MS = 6 * 60 * 60 * 1000; // 6小时绝对上限
+
+// v528: 动态超时常量（仅用于绝对超时安全网，不再是僵尸判定的主要依据）
+const DEFAULT_SYNC_TIMEOUT_MS = 60 * 60 * 1000; // 默认60分钟
 const LARGE_ACCOUNT_TIMEOUT_TIERS = [
-  { threshold: 5000, timeoutMs: 120 * 60 * 1000 },  // 5000+广告活动: 120分钟
-  { threshold: 3000, timeoutMs: 105 * 60 * 1000 },  // 3000-5000: 105分钟
-  { threshold: 1000, timeoutMs: 90 * 60 * 1000 },   // 1000-3000: 90分钟 (v519b: 从60分钟提升，ElaraFit 1487活动需要61+分钟)
-  // v519b: 小账户使用60分钟默认值
+  { threshold: 5000, timeoutMs: 180 * 60 * 1000 },  // 5000+广告活动: 3小时
+  { threshold: 3000, timeoutMs: 150 * 60 * 1000 },  // 3000-5000: 2.5小时
+  { threshold: 1000, timeoutMs: 120 * 60 * 1000 },  // 1000-3000: 2小时
 ];
 const NIGHTLY_SYNC_TIMEOUT_MS = 4 * 60 * 60 * 1000; // nightly层级: 4小时
 
@@ -1290,9 +1313,9 @@ export async function syncAccount(
     }
   }
 
-  // v518: 注册活跃同步（使用层级感知的key，包含动态超时值）
+  // v528: 注册活跃同步（包含心跳时间和动态超时值）
   // 注：timeoutMs会在下方查询广告活动数量后更新
-  activeSyncs.set(lockKey, { tier, startTime, timeoutMs: DEFAULT_SYNC_TIMEOUT_MS });
+  activeSyncs.set(lockKey, { tier, startTime, lastHeartbeat: new Date(), timeoutMs: DEFAULT_SYNC_TIMEOUT_MS });
   engineStatus.currentlyRunning.push({ accountId: account.accountId, tier, step: 'initializing' });
 
   try {
@@ -1388,13 +1411,18 @@ export async function syncAccount(
         runningEntry.step = step.name;
       }
 
-      // v406: 进度回调 - await以确保DB写入完成（修复进度丢失bug）
+      // v528: 进度回调 + 心跳更新（每个步骤开始时同步更新DB和内存心跳）
       if (options?.onProgress) {
         try {
           await options.onProgress(step.name, i, steps.length);
         } catch (progressErr: unknown) {
           log.debug(`[UnifiedSync] v406: 进度回调失败: ${(progressErr as Error).message}`);
         }
+      }
+      // v528: 每个步骤开始时更新内存心跳
+      const syncEntryForStep = activeSyncs.get(lockKey);
+      if (syncEntryForStep) {
+        syncEntryForStep.lastHeartbeat = new Date();
       }
 
       // v473: Profile广告类型能力检测 — 如果已检测到不支持SB/SD，跳过对应步骤
@@ -1458,17 +1486,28 @@ export async function syncAccount(
         // v220: 记录API调用（每个步骤通常包含1-3个API调用）
         rateController.recordApiCall();
         
-        // v408: 心跳机制 - 在步骤执行期间每3分钟更新updated_at，防止被僵尸任务清理机制误杀
+        // v528: 心跳机制 - 同时更新DB(updated_at)和内存(activeSyncs.lastHeartbeat)
+        // 确保三层清理机制都能感知到任务活跃状态
         let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
         if (options?.onProgress) {
           heartbeatTimer = setInterval(async () => {
             try {
+              // 更新DB心跳(updated_at)
               await options.onProgress!(step.name, i, steps.length);
-              log.debug(`[UnifiedSync] v408: 心跳更新 - 账户${account.accountId} 步骤[${i+1}/${steps.length}]: ${step.name}`);
+              // v528: 同步更新内存心跳，防止HealthMonitor误判为僵尸
+              const syncEntry = activeSyncs.get(lockKey);
+              if (syncEntry) {
+                syncEntry.lastHeartbeat = new Date();
+              }
+              log.debug(`[UnifiedSync] v528: 心跳更新(DB+内存) - 账户${account.accountId} 步骤[${i+1}/${steps.length}]: ${step.name}`);
             } catch (hbErr: any) {
-              // 心跳失败不影响同步继续
+              // 心跳失败不影响同步继续，但仍然更新内存心跳以防止误杀
+              const syncEntry = activeSyncs.get(lockKey);
+              if (syncEntry) {
+                syncEntry.lastHeartbeat = new Date();
+              }
             }
-          }, 60 * 1000); // v521: 每1分钟发送一次心跳（v408原3分钟，但报告下载步骤耗时15-20分钟，需要更频繁的心跳防止被卡死清理机制误杀）
+          }, 60 * 1000); // v521: 每1分钟发送一次心跳
         }
         
         const stepResult = await step.execute(syncService, context);
