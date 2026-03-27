@@ -6,9 +6,9 @@
  */
 
 import { createModuleLogger } from '../utils/logger';
-import { CircuitBreakerService } from './circuitBreakerService';
-import { AdaptiveTimeoutService } from './adaptiveTimeoutService';
-import { BulkheadService } from './bulkheadService';
+import { getCircuitBreaker } from './circuitBreakerService';
+import { getAdaptiveTimeout } from './adaptiveTimeoutService';
+import { getBulkhead } from './bulkheadService';
 import { getQueryStats, resetQueryStats } from './typeSafeQueryBuilder';
 
 const log = createModuleLogger('ResilienceMonitor');
@@ -16,35 +16,47 @@ const log = createModuleLogger('ResilienceMonitor');
 export interface ResilienceStatus {
   timestamp: string;
   circuitBreaker: {
-    accounts: Record<string, {
+    breakers: Array<{
+      key: string;
       state: string;
+      errorRate: number;
       failureCount: number;
       successCount: number;
-      lastFailure: string | null;
-      lastStateChange: string | null;
+      consecutiveOpenCount: number;
+      currentCooldownMs: number;
+      timeUntilHalfOpen: number | null;
     }>;
     globalStats: {
-      totalAccounts: number;
+      totalBreakers: number;
       openCircuits: number;
       halfOpenCircuits: number;
       closedCircuits: number;
     };
   };
   adaptiveTimeout: {
-    operations: Record<string, {
-      currentTimeoutMs: number;
+    latencyStats: Array<{
+      endpointType: string;
+      sampleCount: number;
       p50Ms: number;
       p90Ms: number;
       p99Ms: number;
-      sampleCount: number;
+      avgMs: number;
+      adaptiveTimeoutMs: number;
+    }>;
+    concurrencyStatus: Array<{
+      endpointType: string;
+      currentConcurrency: number;
     }>;
   };
   bulkhead: {
-    partitions: Record<string, {
-      activeSlots: number;
-      maxSlots: number;
+    partitions: Array<{
+      key: string;
+      maxConcurrency: number;
+      activeTasks: number;
       queueLength: number;
-      utilizationPct: number;
+      utilization: number;
+      totalProcessed: number;
+      totalRejected: number;
     }>;
   };
   queryLayer: {
@@ -61,74 +73,91 @@ export interface ResilienceStatus {
  * 获取完整的弹性架构状态
  */
 export function getResilienceStatus(): ResilienceStatus {
-  const cbService = CircuitBreakerService.getInstance();
-  const atService = AdaptiveTimeoutService.getInstance();
-  const bhService = BulkheadService.getInstance();
-  const queryStats = getQueryStats();
-
   // 熔断器状态
-  const cbStatus = cbService.getAllStatus();
+  let cbBreakers: ResilienceStatus['circuitBreaker']['breakers'] = [];
   let openCount = 0;
   let halfOpenCount = 0;
   let closedCount = 0;
-  const cbAccounts: Record<string, any> = {};
-  
-  for (const [accountId, status] of Object.entries(cbStatus)) {
-    cbAccounts[accountId] = {
-      state: status.state,
-      failureCount: status.failureCount,
-      successCount: status.successCount,
-      lastFailure: status.lastFailureTime ? new Date(status.lastFailureTime).toISOString() : null,
-      lastStateChange: status.lastStateChangeTime ? new Date(status.lastStateChangeTime).toISOString() : null,
-    };
-    if (status.state === 'OPEN') openCount++;
-    else if (status.state === 'HALF_OPEN') halfOpenCount++;
-    else closedCount++;
+
+  try {
+    const cbService = getCircuitBreaker();
+    const allCbStatus = cbService.getAllStatus();
+    cbBreakers = allCbStatus.map(s => {
+      if (s.state === 'OPEN') openCount++;
+      else if (s.state === 'HALF_OPEN') halfOpenCount++;
+      else closedCount++;
+      return {
+        key: s.key,
+        state: s.state,
+        errorRate: Math.round(s.errorRate * 100) / 100,
+        failureCount: s.failureCount,
+        successCount: s.successCount,
+        consecutiveOpenCount: s.consecutiveOpenCount,
+        currentCooldownMs: s.currentCooldownMs,
+        timeUntilHalfOpen: s.timeUntilHalfOpen,
+      };
+    });
+  } catch (e) {
+    log.warn(`[v525] 获取熔断器状态失败: ${(e as Error).message}`);
   }
 
   // 自适应超时状态
-  const atStatus = atService.getAllStats();
-  const atOperations: Record<string, any> = {};
-  for (const [op, stats] of Object.entries(atStatus)) {
-    atOperations[op] = {
-      currentTimeoutMs: atService.getTimeout(op),
-      p50Ms: stats.p50,
-      p90Ms: stats.p90,
-      p99Ms: stats.p99,
-      sampleCount: stats.sampleCount,
-    };
+  let latencyStats: ResilienceStatus['adaptiveTimeout']['latencyStats'] = [];
+  let concurrencyStatus: ResilienceStatus['adaptiveTimeout']['concurrencyStatus'] = [];
+
+  try {
+    const atService = getAdaptiveTimeout();
+    const allLatency = atService.getAllLatencyStats();
+    latencyStats = allLatency.map(s => ({
+      endpointType: s.endpointType,
+      sampleCount: s.sampleCount,
+      p50Ms: Math.round(s.p50Ms),
+      p90Ms: Math.round(s.p90Ms),
+      p99Ms: Math.round(s.p99Ms),
+      avgMs: Math.round(s.avgMs),
+      adaptiveTimeoutMs: Math.round(s.adaptiveTimeoutMs),
+    }));
+    const allConcurrency = atService.getAllConcurrencyStatus();
+    concurrencyStatus = allConcurrency.map(s => ({
+      endpointType: s.endpointType,
+      currentConcurrency: s.currentConcurrency,
+    }));
+  } catch (e) {
+    log.warn(`[v525] 获取自适应超时状态失败: ${(e as Error).message}`);
   }
 
   // 舱壁状态
-  const bhStatus = bhService.getAllStatus();
-  const bhPartitions: Record<string, any> = {};
-  for (const [partition, status] of Object.entries(bhStatus)) {
-    bhPartitions[partition] = {
-      activeSlots: status.activeSlots,
-      maxSlots: status.maxSlots,
-      queueLength: status.queueLength,
-      utilizationPct: status.maxSlots > 0 ? Math.round((status.activeSlots / status.maxSlots) * 100) : 0,
-    };
+  let bhPartitions: ResilienceStatus['bulkhead']['partitions'] = [];
+
+  try {
+    const bhService = getBulkhead();
+    const allBhStatus = bhService.getAllStatus();
+    bhPartitions = allBhStatus.map(s => ({
+      key: s.key,
+      maxConcurrency: s.maxConcurrency,
+      activeTasks: s.activeTasks,
+      queueLength: s.queueLength,
+      utilization: Math.round(s.utilization * 100) / 100,
+      totalProcessed: s.totalProcessed,
+      totalRejected: s.totalRejected,
+    }));
+  } catch (e) {
+    log.warn(`[v525] 获取舱壁状态失败: ${(e as Error).message}`);
   }
 
-  return {
-    timestamp: new Date().toISOString(),
-    circuitBreaker: {
-      accounts: cbAccounts,
-      globalStats: {
-        totalAccounts: Object.keys(cbAccounts).length,
-        openCircuits: openCount,
-        halfOpenCircuits: halfOpenCount,
-        closedCircuits: closedCount,
-      },
-    },
-    adaptiveTimeout: {
-      operations: atOperations,
-    },
-    bulkhead: {
-      partitions: bhPartitions,
-    },
-    queryLayer: {
+  // 查询安全层状态
+  let queryLayerData: ResilienceStatus['queryLayer'] = {
+    totalQueries: 0,
+    totalErrors: 0,
+    totalSlowQueries: 0,
+    validationRejections: 0,
+    avgDurationMs: 0,
+    recentSlowQueries: [],
+  };
+
+  try {
+    const queryStats = getQueryStats();
+    queryLayerData = {
       totalQueries: queryStats.totalQueries,
       totalErrors: queryStats.totalErrors,
       totalSlowQueries: queryStats.totalSlowQueries,
@@ -139,7 +168,30 @@ export function getResilienceStatus(): ResilienceStatus {
         durationMs: q.durationMs,
         timestamp: q.timestamp.toISOString(),
       })),
+    };
+  } catch (e) {
+    log.warn(`[v525] 获取查询安全层状态失败: ${(e as Error).message}`);
+  }
+
+  return {
+    timestamp: new Date().toISOString(),
+    circuitBreaker: {
+      breakers: cbBreakers,
+      globalStats: {
+        totalBreakers: cbBreakers.length,
+        openCircuits: openCount,
+        halfOpenCircuits: halfOpenCount,
+        closedCircuits: closedCount,
+      },
     },
+    adaptiveTimeout: {
+      latencyStats,
+      concurrencyStatus,
+    },
+    bulkhead: {
+      partitions: bhPartitions,
+    },
+    queryLayer: queryLayerData,
   };
 }
 
@@ -147,20 +199,23 @@ export function getResilienceStatus(): ResilienceStatus {
  * 生成弹性架构健康摘要（用于日志和告警）
  */
 export function getResilienceHealthSummary(): string {
-  const status = getResilienceStatus();
-  const lines: string[] = [];
-  
-  lines.push(`[v525 Resilience] CB: ${status.circuitBreaker.globalStats.closedCircuits}closed/${status.circuitBreaker.globalStats.openCircuits}open/${status.circuitBreaker.globalStats.halfOpenCircuits}halfOpen`);
-  
-  const bhEntries = Object.entries(status.bulkhead.partitions);
-  if (bhEntries.length > 0) {
-    const maxUtil = Math.max(...bhEntries.map(([, s]) => s.utilizationPct));
-    lines.push(`BH: ${bhEntries.length}partitions, maxUtil=${maxUtil}%`);
+  try {
+    const status = getResilienceStatus();
+    const lines: string[] = [];
+    
+    lines.push(`[v525 Resilience] CB: ${status.circuitBreaker.globalStats.closedCircuits}closed/${status.circuitBreaker.globalStats.openCircuits}open/${status.circuitBreaker.globalStats.halfOpenCircuits}halfOpen`);
+    
+    if (status.bulkhead.partitions.length > 0) {
+      const maxUtil = Math.max(...status.bulkhead.partitions.map(s => s.utilization));
+      lines.push(`BH: ${status.bulkhead.partitions.length}partitions, maxUtil=${Math.round(maxUtil * 100)}%`);
+    }
+    
+    lines.push(`Query: ${status.queryLayer.totalQueries}total, ${status.queryLayer.totalErrors}err, ${status.queryLayer.validationRejections}rejected, ${status.queryLayer.totalSlowQueries}slow, avg=${status.queryLayer.avgDurationMs}ms`);
+    
+    return lines.join(' | ');
+  } catch (e) {
+    return `[v525 Resilience] Error getting summary: ${(e as Error).message}`;
   }
-  
-  lines.push(`Query: ${status.queryLayer.totalQueries}total, ${status.queryLayer.totalErrors}err, ${status.queryLayer.validationRejections}rejected, ${status.queryLayer.totalSlowQueries}slow, avg=${status.queryLayer.avgDurationMs}ms`);
-  
-  return lines.join(' | ');
 }
 
 /**
