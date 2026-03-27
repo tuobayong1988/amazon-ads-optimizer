@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 528;  // v528: 基于心跳活跃度的统一僵尸清理机制，解决大账户同步被反复中断的问题
+export const SYSTEM_VERSION = 529;  // v529: 辅助模块SQL修复 + DUP_ENTRY UPSERT + 大账户分段同步
