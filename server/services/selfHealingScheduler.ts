@@ -691,7 +691,7 @@ export function createDefaultSelfHealingScheduler(): SelfHealingScheduler {
         // 检查 1: daily_performance 中是否有短 campaignId（本地ID泄漏）
         const [dpShortIds] = await database.execute(sql`
           SELECT COUNT(*) as cnt FROM daily_performance 
-          WHERE campaign_id IS NOT NULL AND LENGTH(campaign_id) < 8
+          WHERE campaignId IS NOT NULL AND LENGTH(campaignId) < 8
         `);
         // @ts-ignore
         const dpCount = Number((dpShortIds as unknown)?.[0]?.cnt || 0);
@@ -715,7 +715,7 @@ export function createDefaultSelfHealingScheduler(): SelfHealingScheduler {
         // 检查 3: campaigns 表中是否有短 campaignId
         const [campShortIds] = await database.execute(sql`
  SELECT COUNT(*) as cnt FROM campaigns 
- WHERE campaign_id IS NOT NULL AND LENGTH(campaign_id) < 8
+ WHERE campaignId IS NOT NULL AND LENGTH(campaignId) < 8
  `);
         // @ts-ignore
         const campCount = Number((campShortIds as unknown)?.[0]?.cnt || 0);
@@ -727,7 +727,7 @@ export function createDefaultSelfHealingScheduler(): SelfHealingScheduler {
         // 检查 4: ad_groups 表中是否有短 adGroupId
         const [agShortIds] = await database.execute(sql`
  SELECT COUNT(*) as cnt FROM ad_groups 
- WHERE ad_group_id IS NOT NULL AND LENGTH(ad_group_id) < 8
+ WHERE adGroupId IS NOT NULL AND LENGTH(adGroupId) < 8
  `);
         // @ts-ignore
         const agCount = Number((agShortIds as unknown)?.[0]?.cnt || 0);
@@ -740,7 +740,7 @@ export function createDefaultSelfHealingScheduler(): SelfHealingScheduler {
         // @ts-ignore
         const [ptNullAccount] = await database.execute(sql`
           SELECT COUNT(*) as cnt FROM product_targets 
-          WHERE account_id IS NULL
+          WHERE accountId IS NULL
         `);
         // @ts-ignore
         const ptCount = Number((ptNullAccount as unknown)?.[0]?.cnt || 0);
@@ -752,7 +752,7 @@ export function createDefaultSelfHealingScheduler(): SelfHealingScheduler {
         // 检查 6: placement_performance 中是否有短 campaignId
         const [ppShortIds] = await database.execute(sql`
           SELECT COUNT(*) as cnt FROM placement_performance 
-          WHERE campaign_id IS NOT NULL AND LENGTH(campaign_id) < 8
+          WHERE campaignId IS NOT NULL AND LENGTH(campaignId) < 8
         `);
         // @ts-ignore
         const ppCount = Number((ppShortIds as unknown)?.[0]?.cnt || 0);
@@ -764,7 +764,7 @@ export function createDefaultSelfHealingScheduler(): SelfHealingScheduler {
         // 检查 7: search_terms 中是否有短 campaignId
         const [stShortIds] = await database.execute(sql`
           SELECT COUNT(*) as cnt FROM search_terms 
-          WHERE campaign_id IS NOT NULL AND LENGTH(campaign_id) < 8
+          WHERE campaignId IS NOT NULL AND LENGTH(campaignId) < 8
         `);
         // @ts-ignore
         const stCount = Number((stShortIds as unknown)?.[0]?.cnt || 0);

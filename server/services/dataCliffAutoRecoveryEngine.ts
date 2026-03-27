@@ -2,6 +2,7 @@
  * 数据断崖主动监控与自动修复引擎 (Data Cliff Auto-Recovery Engine)
  * 
  * v510: 核心升级 — 变被动拦截为主动扫描
+ * v529: 修复所有SQL列名映射 — 使用数据库实际camelCase列名
  * 
  * 核心理念（来自"惯性系统理论"）：
  * 亚马逊广告系统是一个具有强烈惯性的复杂系统。一旦稳定出单的投放词
@@ -24,6 +25,13 @@
  * 修复策略：
  * - 阶梯式快速恢复（3步：70% → 85% → 100% 历史CPC）
  * - 修复期间锁定，暂停常规降价优化
+ * 
+ * v529 SQL列名修复说明：
+ * - keywords表: keywordId, keywordText, matchType, keywordCpc, campaignId, keywordStatus, accountId (camelCase)
+ * - campaigns表: campaignId, campaignName, campaignType, accountId (camelCase)
+ * - product_targets表: targetId, targetValue, targetCpc, campaignId, targetStatus, accountId (camelCase)
+ * - daily_performance表: accountId, campaignId, date (camelCase, campaign级别无keyword/target列)
+ * - optimization_events表: account_id, keyword_id, target_id, event_category, created_at (snake_case)
  */
 
 import { getDb } from '../db';
@@ -191,6 +199,7 @@ export async function scanAndRecoverDataCliffs(accountId: number): Promise<Cliff
 
 /**
  * 扫描关键词数据断崖
+ * v529: 修复SQL列名 — keywords表使用camelCase列名
  */
 async function scanKeywordCliffs(accountId: number): Promise<{ scanned: number; cliffs: CliffDetectionResult[] }> {
   const cliffs: CliffDetectionResult[] = [];
@@ -201,19 +210,19 @@ async function scanKeywordCliffs(accountId: number): Promise<{ scanned: number; 
     
     const config = CLIFF_RECOVERY_CONFIG;
     
-    // 查询有历史出单记录的活跃关键词
+    // v529: 修复SQL列名 — 使用数据库实际camelCase列名
     const coreKeywords = await db.execute(sql`
       SELECT 
-        k.id, k.keyword_id as keywordId, k.keyword_text as keywordText, k.match_type as matchType,
-        k.bid as currentBid, k.keyword_cpc as historicalCpc,
+        k.id, k.keywordId, k.keywordText, k.matchType,
+        k.bid as currentBid, k.keywordCpc as historicalCpc,
         k.orders as totalOrders, k.clicks as totalClicks,
-        k.campaign_id as campaignId,
-        c.campaign_name as campaignName,
-        c.campaign_type as campaignType
+        k.campaignId,
+        c.campaignName,
+        c.campaignType
       FROM keywords k
-      JOIN campaigns c ON k.campaign_id = c.campaign_id AND k.account_id = c.account_id
-      WHERE k.account_id = ${accountId}
-        AND k.keyword_status = 'enabled'
+      JOIN campaigns c ON k.campaignId = c.campaignId AND k.accountId = c.accountId
+      WHERE k.accountId = ${accountId}
+        AND k.keywordStatus = 'enabled'
         AND k.bid IS NOT NULL
         AND k.orders >= ${config.historicalOrderThreshold}
     `);
@@ -250,6 +259,8 @@ async function scanKeywordCliffs(accountId: number): Promise<{ scanned: number; 
 
 /**
  * 扫描Product Target数据断崖
+ * v529: 修复SQL列名 — product_targets表使用camelCase列名
+ *       expression_value → targetValue (数据库实际列名)
  */
 async function scanProductTargetCliffs(accountId: number): Promise<{ scanned: number; cliffs: CliffDetectionResult[] }> {
   const cliffs: CliffDetectionResult[] = [];
@@ -260,18 +271,19 @@ async function scanProductTargetCliffs(accountId: number): Promise<{ scanned: nu
     
     const config = CLIFF_RECOVERY_CONFIG;
     
+    // v529: 修复SQL列名 — 使用数据库实际camelCase列名
     const coreTargets = await db.execute(sql`
       SELECT 
-        pt.id, pt.target_id as targetId, pt.expression_value as expressionValue,
-        pt.bid as currentBid, pt.target_cpc as historicalCpc,
+        pt.id, pt.targetId, pt.targetValue,
+        pt.bid as currentBid, pt.targetCpc as historicalCpc,
         pt.orders as totalOrders, pt.clicks as totalClicks,
-        pt.campaign_id as campaignId,
-        c.campaign_name as campaignName,
-        c.campaign_type as campaignType
+        pt.campaignId,
+        c.campaignName,
+        c.campaignType
       FROM product_targets pt
-      JOIN campaigns c ON pt.campaign_id = c.campaign_id AND pt.account_id = c.account_id
-      WHERE pt.account_id = ${accountId}
-        AND pt.target_status = 'enabled'
+      JOIN campaigns c ON pt.campaignId = c.campaignId AND pt.accountId = c.accountId
+      WHERE pt.accountId = ${accountId}
+        AND pt.targetStatus = 'enabled'
         AND pt.bid IS NOT NULL
         AND pt.orders >= ${config.historicalOrderThreshold}
     `);
@@ -287,7 +299,7 @@ async function scanProductTargetCliffs(accountId: number): Promise<{ scanned: nu
           db, accountId, 'product_target', Number(pt.id),
           Number(pt.currentBid) || 0,
           Number(pt.historicalCpc) || 0,
-          String(pt.expressionValue || ''),
+          String(pt.targetValue || ''),
           String(pt.campaignId || ''),
           String(pt.campaignName || ''),
           String(pt.campaignType || 'sp')
@@ -309,6 +321,10 @@ async function scanProductTargetCliffs(accountId: number): Promise<{ scanned: nu
 /**
  * 检测单个实体是否存在数据断崖
  * 
+ * v529: 修复SQL列名 + 修复daily_performance查询逻辑
+ * daily_performance是campaign级别的表，没有keyword_id/target_id列。
+ * 改为通过keywords/product_targets表的campaignId关联，使用campaign级别的聚合数据作为近似基线。
+ * 
  * 多窗口对比算法：
  * 1. 查询远期窗口(30-90天前)的日均订单和日均点击作为基线
  * 2. 查询近期窗口(最近7天)的日均订单和日均点击
@@ -329,35 +345,38 @@ async function detectCliffForEntity(
   if (!db || currentBid <= 0) return null;
   
   const config = CLIFF_RECOVERY_CONFIG;
-  const entityColumn = entityType === 'keyword' ? 'keyword_id' : 'target_id';
   
-  // 查询远期窗口（历史基线）
+  // v529: daily_performance是campaign级别的表，没有keyword_id/target_id列
+  // 改为使用campaign级别的聚合数据作为近似基线
+  // 通过campaignId关联，获取该campaign在不同时间窗口的表现
+  
+  // 查询远期窗口（历史基线）- 使用campaign级别数据
   const baselineResult = await db.execute(sql`
     SELECT 
       COALESCE(SUM(orders), 0) as total_orders,
       COALESCE(SUM(clicks), 0) as total_clicks,
       COALESCE(SUM(impressions), 0) as total_impressions,
       COALESCE(SUM(spend), 0) as total_spend,
-      COUNT(DISTINCT report_date) as data_days
+      COUNT(DISTINCT date) as data_days
     FROM daily_performance
-    WHERE account_id = ${accountId}
-      AND ${sql.raw(entityColumn)} = ${entityId}
-      AND report_date >= DATE_SUB(CURDATE(), INTERVAL ${config.windows.baseline.startDaysAgo} DAY)
-      AND report_date <= DATE_SUB(CURDATE(), INTERVAL ${config.windows.baseline.endDaysAgo} DAY)
+    WHERE accountId = ${accountId}
+      AND campaignId = ${campaignId}
+      AND date >= DATE_SUB(CURDATE(), INTERVAL ${config.windows.baseline.startDaysAgo} DAY)
+      AND date <= DATE_SUB(CURDATE(), INTERVAL ${config.windows.baseline.endDaysAgo} DAY)
   `);
   
-  // 查询近期窗口
+  // 查询近期窗口 - 使用campaign级别数据
   const recentResult = await db.execute(sql`
     SELECT 
       COALESCE(SUM(orders), 0) as total_orders,
       COALESCE(SUM(clicks), 0) as total_clicks,
       COALESCE(SUM(impressions), 0) as total_impressions,
       COALESCE(SUM(spend), 0) as total_spend,
-      COUNT(DISTINCT report_date) as data_days
+      COUNT(DISTINCT date) as data_days
     FROM daily_performance
-    WHERE account_id = ${accountId}
-      AND ${sql.raw(entityColumn)} = ${entityId}
-      AND report_date >= DATE_SUB(CURDATE(), INTERVAL ${config.windows.recent.startDaysAgo} DAY)
+    WHERE accountId = ${accountId}
+      AND campaignId = ${campaignId}
+      AND date >= DATE_SUB(CURDATE(), INTERVAL ${config.windows.recent.startDaysAgo} DAY)
   `);
   
   const baselineRows = Array.isArray(baselineResult) ? (Array.isArray(baselineResult[0]) ? baselineResult[0] : baselineResult) : [];
@@ -461,6 +480,7 @@ async function detectCliffForEntity(
  * 获取当前恢复步骤
  * 
  * 通过查询optimization_events中最近的cliff_recovery事件来确定
+ * v529: optimization_events表使用snake_case列名 — 保持不变
  */
 async function getCurrentRecoveryStep(
   db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
@@ -469,6 +489,7 @@ async function getCurrentRecoveryStep(
   entityId: number
 ): Promise<number> {
   try {
+    // optimization_events表使用snake_case列名
     const entityColumn = entityType === 'keyword' ? 'keyword_id' : 'target_id';
     
     const result = await db.execute(sql`
@@ -492,6 +513,10 @@ async function getCurrentRecoveryStep(
 /**
  * 执行单个断崖修复
  * 
+ * v529: 修复SQL列名
+ * - keywords/product_targets表: 使用camelCase列名 (accountId)
+ * - optimization_events表: 使用snake_case列名 (account_id, keyword_id等)
+ * 
  * 1. 更新本地数据库中的出价
  * 2. 记录optimization_events（cliff_recovery类型）
  * 3. 记录审计日志
@@ -505,14 +530,14 @@ async function executeCliffRepair(cliff: CliffDetectionResult): Promise<boolean>
     const tableName = cliff.entityType === 'keyword' ? 'keywords' : 'product_targets';
     const bidColumn = 'bid';
     
-    // 1. 更新本地数据库
+    // 1. 更新本地数据库 — keywords/product_targets使用camelCase列名
     await db.execute(sql`
       UPDATE ${sql.raw(tableName)}
       SET ${sql.raw(bidColumn)} = ${String(cliff.actualRecoveryBid)}
-      WHERE id = ${cliff.entityId} AND account_id = ${cliff.accountId}
+      WHERE id = ${cliff.entityId} AND accountId = ${cliff.accountId}
     `);
     
-    // 2. 记录optimization_events
+    // 2. 记录optimization_events — 使用snake_case列名
     await db.execute(sql`
       INSERT INTO optimization_events (
         account_id, event_category, event_type, status,
@@ -587,6 +612,7 @@ async function executeCliffRepair(cliff: CliffDetectionResult): Promise<boolean>
  * 检查某个实体是否在断崖修复锁定期内
  * 
  * 在常规出价优化流程中调用，如果实体正在修复中，应跳过降价操作
+ * v529: optimization_events表使用snake_case列名 — 保持不变
  */
 export async function isInCliffRecoveryLockdown(
   accountId: number,
@@ -597,6 +623,7 @@ export async function isInCliffRecoveryLockdown(
     const db = await getDb();
     if (!db) return { locked: false, reason: '' };
     
+    // optimization_events表使用snake_case列名
     const entityColumn = entityType === 'keyword' ? 'keyword_id' : 'target_id';
     
     const result = await db.execute(sql`

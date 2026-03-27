@@ -66,59 +66,20 @@ export async function getKeywordCpcFloor(
       return { dynamicFloor: ratioFloor, historicalCpc: 0, source: 'ratio_fallback', historicalOrders: 0, periodDescription: 'DB不可用' };
     }
     
-    // 策略1: 查询daily_performance中30-90天前的出单期数据
-    // 选择30-90天窗口是因为：这段时间的数据已经完成归因，且足够代表稳定表现
-    const result = await db.execute(sql`
-      SELECT 
-        COALESCE(SUM(dp.spend), 0) as total_spend,
-        COALESCE(SUM(dp.clicks), 0) as total_clicks,
-        COALESCE(SUM(dp.orders), 0) as total_orders,
-        COUNT(DISTINCT dp.report_date) as data_days
-      FROM daily_performance dp
-      WHERE dp.account_id = ${accountId}
-        AND dp.keyword_id = ${keywordId}
-        AND dp.report_date >= DATE_SUB(CURDATE(), INTERVAL 90 DAY)
-        AND dp.report_date <= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
-        AND dp.orders > 0
-    `);
-    
-    const rows = Array.isArray(result) ? (Array.isArray(result[0]) ? result[0] : result) : [];
-    const row = (rows as Array<Record<string, unknown>>)[0];
-    
-    if (row) {
-      const totalSpend = Number(row.total_spend) || 0;
-      const totalClicks = Number(row.total_clicks) || 0;
-      const totalOrders = Number(row.total_orders) || 0;
-      const dataDays = Number(row.data_days) || 0;
-      
-      if (totalClicks >= 10 && totalOrders >= 2) {
-        const historicalCpc = totalSpend / totalClicks;
-        const dynamicFloor = Math.max(historicalCpc * 0.85, ratioFloor);
-        
-        log.info(`[CpcFloor] keyword=${keywordId}: 历史CPC=$${historicalCpc.toFixed(2)} (${dataDays}天出单数据, ${totalOrders}单), 动态底线=$${dynamicFloor.toFixed(2)}`);
-        
-        return {
-          dynamicFloor,
-          historicalCpc,
-          source: 'historical_cpc',
-          historicalOrders: totalOrders,
-          periodDescription: `30-90天出单期(${dataDays}天, ${totalOrders}单, ${totalClicks}次点击)`,
-        };
-      }
-    }
-    
-    // 策略2: 回退到keywords表的keywordCpc汇总字段
+    // v529: daily_performance是campaign级别的表，没有keyword_id列
+    // 改为直接使用keywords表的汇总字段(keywordCpc, orders)
+    // 策略1: 查询keywords表的keywordCpc汇总字段
     const kwResult = await db.execute(sql`
-      SELECT keyword_cpc, orders
+      SELECT keywordCpc, orders
       FROM keywords
-      WHERE id = ${keywordId} AND account_id = ${accountId}
+      WHERE id = ${keywordId} AND accountId = ${accountId}
     `);
     
     const kwRows = Array.isArray(kwResult) ? (Array.isArray(kwResult[0]) ? kwResult[0] : kwResult) : [];
     const kwRow = (kwRows as Array<Record<string, unknown>>)[0];
     
     if (kwRow) {
-      const keywordCpc = Number(kwRow.keyword_cpc) || 0;
+      const keywordCpc = Number(kwRow.keywordCpc) || 0;
       const orders = Number(kwRow.orders) || 0;
       
       if (keywordCpc > 0 && orders >= 4) {
@@ -170,56 +131,19 @@ export async function getTargetCpcFloor(
       return { dynamicFloor: ratioFloor, historicalCpc: 0, source: 'ratio_fallback', historicalOrders: 0, periodDescription: 'DB不可用' };
     }
     
-    // 查询daily_performance中30-90天前的出单期数据
-    const result = await db.execute(sql`
-      SELECT 
-        COALESCE(SUM(dp.spend), 0) as total_spend,
-        COALESCE(SUM(dp.clicks), 0) as total_clicks,
-        COALESCE(SUM(dp.orders), 0) as total_orders,
-        COUNT(DISTINCT dp.report_date) as data_days
-      FROM daily_performance dp
-      WHERE dp.account_id = ${accountId}
-        AND dp.target_id = ${targetId}
-        AND dp.report_date >= DATE_SUB(CURDATE(), INTERVAL 90 DAY)
-        AND dp.report_date <= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
-        AND dp.orders > 0
-    `);
-    
-    const rows = Array.isArray(result) ? (Array.isArray(result[0]) ? result[0] : result) : [];
-    const row = (rows as Array<Record<string, unknown>>)[0];
-    
-    if (row) {
-      const totalSpend = Number(row.total_spend) || 0;
-      const totalClicks = Number(row.total_clicks) || 0;
-      const totalOrders = Number(row.total_orders) || 0;
-      const dataDays = Number(row.data_days) || 0;
-      
-      if (totalClicks >= 10 && totalOrders >= 2) {
-        const historicalCpc = totalSpend / totalClicks;
-        const dynamicFloor = Math.max(historicalCpc * 0.85, ratioFloor);
-        
-        return {
-          dynamicFloor,
-          historicalCpc,
-          source: 'historical_cpc',
-          historicalOrders: totalOrders,
-          periodDescription: `30-90天出单期(${dataDays}天, ${totalOrders}单)`,
-        };
-      }
-    }
-    
-    // 回退到product_targets表的汇总字段
+    // v529: daily_performance是campaign级别的表，没有target_id列
+    // 改为直接使用product_targets表的汇总字段(targetCpc, orders)
     const ptResult = await db.execute(sql`
-      SELECT target_cpc, orders
+      SELECT targetCpc, orders
       FROM product_targets
-      WHERE id = ${targetId} AND account_id = ${accountId}
+      WHERE id = ${targetId} AND accountId = ${accountId}
     `);
     
     const ptRows = Array.isArray(ptResult) ? (Array.isArray(ptResult[0]) ? ptResult[0] : ptResult) : [];
     const ptRow = (ptRows as Array<Record<string, unknown>>)[0];
     
     if (ptRow) {
-      const targetCpc = Number(ptRow.target_cpc) || 0;
+      const targetCpc = Number(ptRow.targetCpc) || 0;
       const orders = Number(ptRow.orders) || 0;
       
       if (targetCpc > 0 && orders >= 4) {
