@@ -138,6 +138,15 @@ async function syncPerformanceDataBatch(service: SyncContext, startDateStr: stri
     { name: `SD绩效(${startDateStr}~${endDateStr})`, requestFn: () => service.client.requestSdCampaignReport(startDateStr, endDateStr) },
   ];
   log.info(`[v413] 绩效报告批量提交: ${startDateStr} - ${endDateStr}`);
+  // P5: 异步报告模式
+  if (process.env.P5_ASYNC_REPORTS === 'true') {
+    const asyncResult = await service.client.submitReportsToAsyncQueue(reportRequests, {
+      accountId: service.accountId,
+      syncType: 'performance_sync',
+    });
+    log.info(`[P5] Async performance reports submitted: ${asyncResult.queued} queued`);
+    return 0; // 数据将由 ReportJobScheduler 异步处理
+  }
   const results = await service.client.submitAndWaitMultipleReports(reportRequests, 300000, 2000);
   const spData = results[0]?.data || null;
   const sbData = results[1]?.data || null;

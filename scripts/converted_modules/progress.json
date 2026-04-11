@@ -1,0 +1,22 @@
+{
+  "server/automation/optimizationHealthAlert.ts": "failed",
+  "server/automation/smartAutoEnrollService.ts": "failed",
+  "server/db/v550-patch/pendingEventProcessor.ts": "failed",
+  "server/services/adaptiveRateLimiter.ts": "failed",
+  "server/services/budgetRulesCoordinator.ts": "failed",
+  "server/services/dataAnomalyDetector.ts": "failed",
+  "server/services/dataRetentionService.ts": "failed",
+  "server/sync/checkpointManager.ts": "failed",
+  "server/sync/dateGapBackfillService.ts": "failed",
+  "server/sync/distributedQueue.ts": "failed",
+  "server/sync/nightlySyncMonitor.ts": "failed",
+  "server/sync/performanceIntegrityChecker.ts": "failed",
+  "server/sync/reportSemaphore.ts": "failed",
+  "server/sync/startupTasks.ts": "failed",
+  "server/sync/syncSchedulerAdapter.ts": "failed",
+  "server/sync/syncTaskConsumer.ts": "failed",
+  "server/sync/tokenHealthChecker.ts": "failed",
+  "server/sync/v534_upgrade_reconciliation.ts": "failed",
+  "server/sync/v534_upgrade_syncEngine.ts": "failed",
+  "server/utils/dynamicLogLevel.ts": "failed"
+}

@@ -359,8 +359,13 @@ async function startServer() {
     log.info('[EffectTrackingScheduler] v417: 效果追踪调度器已启动，间隔: 1小时');
 
     // 启动异步报告任务调度器
-    reportJobScheduler.start();
-    log.info('[ReportJobScheduler] 异步报告任务调度器已启动');
+    // P5: 当 Worker 进程启用时，主进程跳过 ReportJobScheduler（由 Worker 进程运行）
+    if (process.env.P5_WORKER_ENABLED === 'true') {
+      log.info('[P5] ReportJobScheduler delegated to Worker process, skipping in main process');
+    } else {
+      reportJobScheduler.start();
+      log.info('[ReportJobScheduler] 异步报告任务调度器已启动');
+    }
 
     // v450: 启动 CloudWatch 自定义指标推送（每5分钟推送连接池/内存指标）
     startCloudWatchMonitor();

@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>数据管理中心 - PPCOpt Admin</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
+        h1 { font-size: 24px; font-weight: 700; margin-bottom: 8px; color: #f8fafc; }
+        .subtitle { color: #94a3b8; margin-bottom: 32px; }
+        .card { background: #1e293b; border-radius: 12px; padding: 24px; margin-bottom: 24px; border: 1px solid #334155; }
+        .card-title { font-size: 18px; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+        .form-group { margin-bottom: 16px; }
+        .form-group label { display: block; font-size: 14px; color: #94a3b8; margin-bottom: 6px; }
+        .form-group input, .form-group select { width: 100%; padding: 10px 14px; background: #0f172a; border: 1px solid #334155; border-radius: 8px; color: #e2e8f0; font-size: 14px; }
+        .form-group input:focus, .form-group select:focus { outline: none; border-color: #3b82f6; }
+        .btn { padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; border: none; transition: all 0.2s; }
+        .btn-primary { background: #3b82f6; color: white; }
+        .btn-primary:hover { background: #2563eb; }
+        .btn-danger { background: #ef4444; color: white; }
+        .btn-danger:hover { background: #dc2626; }
+        .btn-success { background: #22c55e; color: white; }
+        .btn-success:hover { background: #16a34a; }
+        .btn-warning { background: #f59e0b; color: white; }
+        .btn-warning:hover { background: #d97706; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .alert { padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; font-size: 14px; }
+        .alert-danger { background: #450a0a; border: 1px solid #991b1b; color: #fca5a5; }
+        .alert-info { background: #0c1929; border: 1px solid #1e40af; color: #93c5fd; }
+        .result-box { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 16px; margin-top: 16px; font-family: monospace; font-size: 13px; max-height: 400px; overflow-y: auto; white-space: pre-wrap; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+        .confirm-dialog { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+        .confirm-dialog .dialog-content { background: #1e293b; border-radius: 12px; padding: 32px; max-width: 500px; width: 90%; border: 1px solid #ef4444; }
+        .confirm-dialog h3 { color: #ef4444; margin-bottom: 16px; }
+        .confirm-dialog p { color: #94a3b8; margin-bottom: 16px; line-height: 1.6; }
+        .confirm-dialog .btn-group { display: flex; gap: 12px; justify-content: flex-end; }
+        .hidden { display: none; }
+        @media (max-width: 768px) { .grid-2 { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Data Management Center</h1>
+        <p class="subtitle">v577.5 - Tenant Data Management, Schema Migration, System Diagnostics</p>
+
+        <div class="card" id="loginCard">
+            <div class="card-title">Admin Login</div>
+            <div class="form-group">
+                <label>Username</label>
+                <input type="text" id="username" value="" />
+            </div>
+            <div class="form-group">
+                <label>Password</label>
+                <input type="password" id="password" value="" />
+            </div>
+            <button class="btn btn-primary" onclick="doLogin()">Login</button>
+            <div id="loginResult" class="result-box hidden"></div>
+        </div>
+
+        <div id="mainContent" class="hidden">
+            <div class="grid-2">
+                <div class="card">
+                    <div class="card-title">Database Schema Migration</div>
+                    <p style="color:#94a3b8;margin-bottom:16px;font-size:14px;">Auto-detect and fix missing database columns (amazonBid, auth_expired enum, etc.)</p>
+                    <button class="btn btn-success" onclick="runSchemaMigration()">Run Schema Migration</button>
+                    <div id="migrationResult" class="result-box hidden"></div>
+                </div>
+                <div class="card">
+                    <div class="card-title">Full Sync</div>
+                    <p style="color:#94a3b8;margin-bottom:16px;font-size:14px;">Trigger full data sync for all connected accounts (Recovery mode, staggered start)</p>
+                    <button class="btn btn-warning" onclick="triggerFullSync()">Trigger Full Sync</button>
+                    <div id="syncResult" class="result-box hidden"></div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">Account Data Purge</div>
+                <div class="alert alert-danger">
+                    WARNING: This will permanently delete ALL data for the specified account (campaigns, keywords, performance data, optimization logs, etc. across 50+ tables). This action is IRREVERSIBLE.
+                </div>
+                <div class="form-group">
+                    <label>Account ID</label>
+                    <input type="number" id="purgeAccountId" placeholder="Enter account ID to purge" />
+                </div>
+                <div class="form-group">
+                    <label>Confirmation Phrase (type <code>CONFIRM_PURGE_ALL_DATA</code>)</label>
+                    <input type="text" id="purgeConfirm" placeholder="CONFIRM_PURGE_ALL_DATA" />
+                </div>
+                <button class="btn btn-danger" onclick="showPurgeConfirm('account')">Purge Account Data</button>
+                <div id="purgeAccountResult" class="result-box hidden"></div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">Organization (Tenant) Data Purge</div>
+                <div class="alert alert-danger">
+                    EXTREME DANGER: This will permanently delete ALL data for ALL accounts under the specified organization. Used for GDPR/compliance "right to be forgotten" requests.
+                </div>
+                <div class="form-group">
+                    <label>Organization ID</label>
+                    <input type="number" id="purgeOrgId" placeholder="Enter organization ID to purge" />
+                </div>
+                <div class="form-group">
+                    <label>Confirmation Phrase (type <code>CONFIRM_PURGE_ALL_DATA</code>)</label>
+                    <input type="text" id="purgeOrgConfirm" placeholder="CONFIRM_PURGE_ALL_DATA" />
+                </div>
+                <button class="btn btn-danger" onclick="showPurgeConfirm('org')">Purge Organization Data</button>
+                <div id="purgeOrgResult" class="result-box hidden"></div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">System Diagnostics</div>
+                <button class="btn btn-primary" onclick="runDiagnostics()">Run Diagnostics</button>
+                <div id="diagnosticsResult" class="result-box hidden"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="confirmDialog" class="confirm-dialog hidden">
+        <div class="dialog-content">
+            <h3>Confirm Data Purge</h3>
+            <p id="confirmMessage">Are you sure you want to permanently delete all data? This action cannot be undone.</p>
+            <div class="form-group">
+                <label>Type <strong>DELETE</strong> to confirm</label>
+                <input type="text" id="finalConfirm" placeholder="DELETE" />
+            </div>
+            <div class="btn-group">
+                <button class="btn" style="background:#334155;color:#e2e8f0" onclick="hideConfirm()">Cancel</button>
+                <button class="btn btn-danger" onclick="executePurge()">Confirm Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let token = '';
+        let pendingPurgeType = '';
+
+        async function doLogin() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const resultEl = document.getElementById('loginResult');
+            resultEl.classList.remove('hidden');
+            resultEl.textContent = 'Logging in...';
+            try {
+                const resp = await fetch('/api/trpc/auth.localLogin', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ json: { username, password } })
+                });
+                const data = await resp.json();
+                if (data.result && data.result.data && data.result.data.json && data.result.data.json.token) {
+                    token = data.result.data.json.token;
+                    resultEl.textContent = 'Login successful';
+                    resultEl.style.color = '#86efac';
+                    document.getElementById('loginCard').style.display = 'none';
+                    document.getElementById('mainContent').classList.remove('hidden');
+                } else {
+                    resultEl.textContent = 'Login failed: ' + JSON.stringify(data);
+                    resultEl.style.color = '#fca5a5';
+                }
+            } catch (e) {
+                resultEl.textContent = 'Request failed: ' + e.message;
+                resultEl.style.color = '#fca5a5';
+            }
+        }
+
+        async function trpcCall(procedure, input) {
+            const resp = await fetch('/api/trpc/' + procedure, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + token
+                },
+                body: JSON.stringify({ json: input || {} })
+            });
+            return await resp.json();
+        }
+
+        async function runSchemaMigration() {
+            const el = document.getElementById('migrationResult');
+            el.classList.remove('hidden');
+            el.textContent = 'Running schema migration...';
+            try {
+                const data = await trpcCall('debugSync.runSchemaMigration', {});
+                el.textContent = JSON.stringify(data.result && data.result.data && data.result.data.json || data, null, 2);
+                el.style.color = (data.result && data.result.data && data.result.data.json && data.result.data.json.success) ? '#86efac' : '#fca5a5';
+            } catch (e) {
+                el.textContent = 'Failed: ' + e.message;
+                el.style.color = '#fca5a5';
+            }
+        }
+
+        async function triggerFullSync() {
+            const el = document.getElementById('syncResult');
+            el.classList.remove('hidden');
+            el.textContent = 'Triggering full sync...';
+            try {
+                const data = await trpcCall('debugSync.triggerFullSyncAll', {});
+                el.textContent = JSON.stringify(data.result && data.result.data && data.result.data.json || data, null, 2);
+                el.style.color = '#86efac';
+            } catch (e) {
+                el.textContent = 'Failed: ' + e.message;
+                el.style.color = '#fca5a5';
+            }
+        }
+
+        function showPurgeConfirm(type) {
+            pendingPurgeType = type;
+            var msg = type === 'account'
+                ? 'You are about to permanently delete ALL data for account #' + document.getElementById('purgeAccountId').value + '. This cannot be undone!'
+                : 'You are about to permanently delete ALL data for ALL accounts under organization #' + document.getElementById('purgeOrgId').value + '. This cannot be undone!';
+            document.getElementById('confirmMessage').textContent = msg;
+            document.getElementById('finalConfirm').value = '';
+            document.getElementById('confirmDialog').classList.remove('hidden');
+        }
+
+        function hideConfirm() {
+            document.getElementById('confirmDialog').classList.add('hidden');
+            pendingPurgeType = '';
+        }
+
+        async function executePurge() {
+            if (document.getElementById('finalConfirm').value !== 'DELETE') {
+                alert('Please type DELETE to confirm');
+                return;
+            }
+            hideConfirm();
+
+            if (pendingPurgeType === 'account') {
+                var el = document.getElementById('purgeAccountResult');
+                el.classList.remove('hidden');
+                el.textContent = 'Purging account data...';
+                try {
+                    var data = await trpcCall('debugSync.purgeAccountData', {
+                        accountId: parseInt(document.getElementById('purgeAccountId').value),
+                        confirmPhrase: document.getElementById('purgeConfirm').value
+                    });
+                    el.textContent = JSON.stringify(data.result && data.result.data && data.result.data.json || data, null, 2);
+                    el.style.color = (data.result && data.result.data && data.result.data.json && data.result.data.json.success) ? '#86efac' : '#fca5a5';
+                } catch (e) {
+                    el.textContent = 'Failed: ' + e.message;
+                    el.style.color = '#fca5a5';
+                }
+            } else if (pendingPurgeType === 'org') {
+                var el = document.getElementById('purgeOrgResult');
+                el.classList.remove('hidden');
+                el.textContent = 'Purging organization data...';
+                try {
+                    var data = await trpcCall('debugSync.purgeOrganizationData', {
+                        organizationId: parseInt(document.getElementById('purgeOrgId').value),
+                        confirmPhrase: document.getElementById('purgeOrgConfirm').value
+                    });
+                    el.textContent = JSON.stringify(data.result && data.result.data && data.result.data.json || data, null, 2);
+                    el.style.color = (data.result && data.result.data && data.result.data.json && data.result.data.json.success) ? '#86efac' : '#fca5a5';
+                } catch (e) {
+                    el.textContent = 'Failed: ' + e.message;
+                    el.style.color = '#fca5a5';
+                }
+            }
+        }
+
+        async function runDiagnostics() {
+            var el = document.getElementById('diagnosticsResult');
+            el.classList.remove('hidden');
+            el.textContent = 'Running diagnostics...';
+            try {
+                var accountsResp = await trpcCall('adAccount.list', {});
+                var accounts = (accountsResp.result && accountsResp.result.data && accountsResp.result.data.json) || [];
+                var report = '=== System Diagnostics Report ===\n';
+                report += 'Time: ' + new Date().toLocaleString('zh-CN') + '\n';
+                report += 'Version: v577.5\n\n';
+                report += '--- Account Overview ---\n';
+                report += 'Total accounts: ' + accounts.length + '\n';
+                for (var i = 0; i < accounts.length; i++) {
+                    var acc = accounts[i];
+                    report += '\n[' + acc.id + '] ' + (acc.storeName || 'N/A') + ' (' + (acc.marketplace || 'N/A') + ')\n';
+                    report += '  Status: ' + (acc.connectionStatus || 'N/A') + '\n';
+                }
+                el.textContent = report;
+                el.style.color = '#93c5fd';
+            } catch (e) {
+                el.textContent = 'Diagnostics failed: ' + e.message;
+                el.style.color = '#fca5a5';
+            }
+        }
+    </script>
+</body>
+</html>

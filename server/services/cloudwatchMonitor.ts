@@ -1,5 +1,5 @@
 /**
- * v450: CloudWatch 自定义指标推送服务
+ * v450 + P5e: CloudWatch 自定义指标推送服务
  * 
  * 定期将应用健康指标推送到 CloudWatch，支持以下指标：
  * - 数据库连接池泄漏数 (LeakedConnections)
@@ -7,6 +7,8 @@
  * - 内存使用量 RSS (MemoryRSS)
  * - 堆内存使用量 (HeapUsed)
  * - 活跃直接连接数 (ActiveDirectConnections)
+ * - P5e: Redis 队列深度 (RedisQueueDepth)
+ * - P5e: 报告任务状态分布 (ReportJobsPending/Submitted/Failed)
  */
 
 import { CloudWatchClient, PutMetricDataCommand, type MetricDatum } from '@aws-sdk/client-cloudwatch';
@@ -92,21 +94,123 @@ function collectMetrics(): MetricDatum[] {
 }
 
 /**
+ * P5e: 收集 Redis 队列深度指标
+ */
+async function collectRedisQueueMetrics(): Promise<MetricDatum[]> {
+  const metrics: MetricDatum[] = [];
+  const now = new Date();
+  const dimensions = [
+    { Name: 'Environment', Value: process.env.NODE_ENV || 'production' },
+  ];
+
+  try {
+    const { getRedis, isRedisAvailable } = await import('../utils/redisClient');
+    if (!isRedisAvailable() || !getRedis()) return metrics;
+
+    const redis = getRedis()!;
+    const queueKeys = [
+      'sync:task:queue:critical',
+      'sync:task:queue:high',
+      'sync:task:queue:medium',
+      'sync:task:queue:low',
+    ];
+
+    let totalDepth = 0;
+    for (const key of queueKeys) {
+      const len = await redis.llen(key);
+      totalDepth += len;
+    }
+
+    metrics.push({
+      MetricName: 'RedisQueueDepth',
+      Value: totalDepth,
+      Unit: 'Count',
+      Timestamp: now,
+      Dimensions: dimensions,
+    });
+  } catch (_err) {
+    // Redis 不可用时跳过
+  }
+
+  return metrics;
+}
+
+/**
+ * P5e: 收集 report_jobs 状态分布指标
+ */
+async function collectReportJobMetrics(): Promise<MetricDatum[]> {
+  const metrics: MetricDatum[] = [];
+  const now = new Date();
+  const dimensions = [
+    { Name: 'Environment', Value: process.env.NODE_ENV || 'production' },
+  ];
+
+  try {
+    const { getDb } = await import('../db');
+    const { reportJobs } = await import('../../drizzle/schema');
+    const { sql } = await import('drizzle-orm');
+    const db = await getDb();
+    if (!db) return metrics;
+
+    const statusCounts = await db.select({
+      status: reportJobs.status,
+      count: sql<number>`count(*)`,
+    }).from(reportJobs).groupBy(reportJobs.status);
+
+    const statusMap: Record<string, number> = {};
+    for (const row of statusCounts) {
+      statusMap[row.status] = Number(row.count);
+    }
+
+    // 推送关键状态指标
+    const statusMetrics: Array<[string, string]> = [
+      ['ReportJobsPending', 'pending'],
+      ['ReportJobsSubmitted', 'submitted'],
+      ['ReportJobsCompleted', 'completed'],
+      ['ReportJobsFailed', 'failed'],
+    ];
+
+    for (const [metricName, status] of statusMetrics) {
+      metrics.push({
+        MetricName: metricName,
+        Value: statusMap[status] || 0,
+        Unit: 'Count',
+        Timestamp: now,
+        Dimensions: dimensions,
+      });
+    }
+  } catch (_err) {
+    // DB 不可用时跳过
+  }
+
+  return metrics;
+}
+
+/**
  * 推送指标到 CloudWatch
  */
 async function pushMetrics(): Promise<void> {
   try {
-    const metrics = collectMetrics();
+    const baseMetrics = collectMetrics();
+    
+    // P5e: 收集 Redis 和 report_jobs 指标
+    const redisMetrics = await collectRedisQueueMetrics();
+    const reportJobMetrics = await collectReportJobMetrics();
+    
+    const allMetrics = [...baseMetrics, ...redisMetrics, ...reportJobMetrics];
     const client = getClient();
     
     // CloudWatch PutMetricData 每次最多20个指标
-    const command = new PutMetricDataCommand({
-      Namespace: NAMESPACE,
-      MetricData: metrics,
-    });
+    for (let i = 0; i < allMetrics.length; i += 20) {
+      const batch = allMetrics.slice(i, i + 20);
+      const command = new PutMetricDataCommand({
+        Namespace: NAMESPACE,
+        MetricData: batch,
+      });
+      await client.send(command);
+    }
     
-    await client.send(command);
-    console.log(`[CloudWatch] Pushed ${metrics.length} metrics to ${NAMESPACE}`);
+    console.log(`[CloudWatch] P5e: Pushed ${allMetrics.length} metrics to ${NAMESPACE} (base=${baseMetrics.length}, redis=${redisMetrics.length}, reportJobs=${reportJobMetrics.length})`);
   } catch (error: unknown) {
     // 不要让 CloudWatch 推送失败影响应用运行
     // @ts-ignore
@@ -129,7 +233,7 @@ export function startCloudWatchMonitor(): void {
   
   // 设置定时推送
   intervalId = setInterval(pushMetrics, PUSH_INTERVAL_MS);
-  console.log(`[CloudWatch] Monitor started, pushing metrics every ${PUSH_INTERVAL_MS / 1000}s to namespace: ${NAMESPACE}`);
+  console.log(`[CloudWatch] P5e: Monitor started with Redis queue + report_jobs metrics, pushing every ${PUSH_INTERVAL_MS / 1000}s to namespace: ${NAMESPACE}`);
 }
 
 /**
@@ -148,16 +252,22 @@ export function stopCloudWatchMonitor(): void {
  */
 export async function manualPushMetrics(): Promise<{ success: boolean; metrics: number; error?: string }> {
   try {
-    const metrics = collectMetrics();
+    const baseMetrics = collectMetrics();
+    const redisMetrics = await collectRedisQueueMetrics();
+    const reportJobMetrics = await collectReportJobMetrics();
+    const allMetrics = [...baseMetrics, ...redisMetrics, ...reportJobMetrics];
     const client = getClient();
     
-    const command = new PutMetricDataCommand({
-      Namespace: NAMESPACE,
-      MetricData: metrics,
-    });
+    for (let i = 0; i < allMetrics.length; i += 20) {
+      const batch = allMetrics.slice(i, i + 20);
+      const command = new PutMetricDataCommand({
+        Namespace: NAMESPACE,
+        MetricData: batch,
+      });
+      await client.send(command);
+    }
     
-    await client.send(command);
-    return { success: true, metrics: metrics.length };
+    return { success: true, metrics: allMetrics.length };
   // @ts-ignore
   } catch (error: unknown) {
     // @ts-ignore

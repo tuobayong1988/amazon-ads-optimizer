@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 529;  // v529: 辅助模块SQL修复 + DUP_ENTRY UPSERT + 大账户分段同步
+export const SYSTEM_VERSION = 640;  // v640: P6系统优化 — 步骤级超时+断点续传 + 指令传递指数退避+死信队列 + 空账户预检 + 大账户分段同步 + Redis任务队列增强

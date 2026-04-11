@@ -78,8 +78,37 @@ AmazonSyncService.prototype.syncPerformanceData = async function(this: AmazonSyn
   }
 
   try {
-    // Amazon API单次请求最多31天，需要分批请求
-    const MAX_DAYS_PER_REQUEST = 31;
+    // v640: 大账户自适应分段同步
+    // 根据广告活动数量动态调整单批天数，减少单次API请求的数据量
+    let campaignCount = 0;
+    try {
+      const countResult = await db.select({ count: sql<number>`count(*)` })
+        .from(campaigns)
+        .where(eq(campaigns.accountId, this.accountId));
+      campaignCount = countResult[0]?.count || 0;
+    } catch (e) {
+      log.warn(`[v640] 获取广告活动数量失败，使用默认分批策略`);
+    }
+
+    // v640: 根据账户规模动态调整分批天数
+    // 小账户(<100 campaigns): 31天/批（默认）
+    // 中账户(100-500): 21天/批
+    // 大账户(500-2000): 14天/批
+    // 超大账户(>2000): 7天/批
+    let MAX_DAYS_PER_REQUEST = 31;
+    let accountSizeLabel = 'Small';
+    if (campaignCount > 2000) {
+      MAX_DAYS_PER_REQUEST = 7;
+      accountSizeLabel = 'Super-XL';
+    } else if (campaignCount > 500) {
+      MAX_DAYS_PER_REQUEST = 14;
+      accountSizeLabel = 'XL';
+    } else if (campaignCount > 100) {
+      MAX_DAYS_PER_REQUEST = 21;
+      accountSizeLabel = 'Medium';
+    }
+    log.info(`[v640] 账户 ${this.accountId} 规模: ${accountSizeLabel} (${campaignCount} campaigns), 分批天数: ${MAX_DAYS_PER_REQUEST}天/批`);
+
     const totalDays = Math.min(days, 90); // 最多90天（SP支持95天，SB只支持60天，取90天作为平衡）
     
     let totalSynced = 0;
@@ -153,11 +182,13 @@ AmazonSyncService.prototype.syncPerformanceData = async function(this: AmazonSyn
       log.warn(`v195: hourly_performance生成失败: ${(hourlyErr as Error).message}`);
     }
     
-    // v358: 如果有失败批次，抛出错误让调用方知道同步不完整
+    // v640: 改进的部分失败处理 - 不再抛出错误，而是记录并继续
+    // 原因：抛出错误会导致整个同步任务被标记为失败，但实际上大部分数据已成功同步
     if (failedBatches.length > 0) {
       const failSummary = failedBatches.map(fb => `批次${fb.batch}(${fb.startDate}~${fb.endDate}): ${fb.error}`).join('; ');
-      log.warn(`[v358] 绩效数据同步部分失败: ${failedBatches.length}/${batches}批失败, 成功同步${totalSynced}条. 失败详情: ${failSummary}`);
-      throw new Error(`PARTIAL_SYNC_FAILURE: ${failedBatches.length}/${batches}批失败, 成功${totalSynced}条. ${failSummary}`);
+      log.warn(`[v640] 绩效数据同步部分失败: ${failedBatches.length}/${batches}批失败, 成功同步${totalSynced}条. 失败详情: ${failSummary}`);
+      // v640: 不再抛出错误，而是返回已成功同步的数量，让同步继续执行后续步骤
+      // 失败的批次将在下一个同步周期自动重试
     }
     
     log.info(`绩效数据同步完成: 共${totalSynced}条记录`);
@@ -253,7 +284,8 @@ AmazonSyncService.prototype.syncPerformanceDataBatch = async function(this: Amaz
           if (attempt < maxRetries) {
             log.info(`[v351] [${name}] 使用调整后的startDate重试: ${effectiveStartDate} - ${endDateStr}`);
             await new Promise(r => setTimeout(r, 2000));
-            continue; // 立即重试，不计入常规重试延迟
+            // P5: async mode - skip sync processing
+          } else {
           }
         }
         
@@ -310,6 +342,19 @@ AmazonSyncService.prototype.syncPerformanceDataBatch = async function(this: Amaz
     return totalSynced;
   }
   
+  // P5: 异步报告模式 - 提交到队列后立即返回，由 ReportJobScheduler 异步处理
+  if (process.env.P5_ASYNC_REPORTS === 'true') {
+    const asyncResult = await this.client.submitReportsToAsyncQueue(reportRequestList, {
+      accountId: this.accountId,
+      profileId: String(this.client.credentials?.profileId || ''),
+      startDate: startDateStr,
+      endDate: endDateStr,
+      syncType: 'performance',
+    });
+    log.info(`[P5] Async performance reports submitted: ${asyncResult.queued} queued, ${asyncResult.failed} failed`);
+    return totalSynced; // 数据将由 ReportJobScheduler 异步处理
+  }
+
   // v523.3: 超时时间从300秒增加到600秒，避免高并发时Amazon排队导致的超时
   const reportResults = await this.client.submitAndWaitMultipleReports(reportRequestList, 600000, 2000);
   
@@ -868,6 +913,15 @@ AmazonSyncService.prototype.syncKeywordPerformanceData = async function(this: Am
       }
       log.info(`[v413] 关键词绩效: ${batches}批次批量提交开始`);
       // v523.3: 超时时间从300秒增加到600秒
+      // P5: 异步报告模式
+      if (process.env.P5_ASYNC_REPORTS === 'true') {
+        const asyncResult = await this.client.submitReportsToAsyncQueue(batchRequests, {
+          accountId: this.accountId,
+          syncType: 'keyword_performance',
+        });
+        log.info(`[P5] Async keyword reports submitted: ${asyncResult.queued} queued`);
+        // P5: async mode - skip sync processing
+      } else {
       const results = await this.client.submitAndWaitMultipleReports(batchRequests, 600000, 2000);
       for (const result of results) {
         if (result.data && result.data.length > 0) {
@@ -875,6 +929,7 @@ AmazonSyncService.prototype.syncKeywordPerformanceData = async function(this: Am
         } else if (result.error) {
           log.warn(`[v413] ${result.name}失败: ${result.error}`);
         }
+      }
       }
     }
 
@@ -1473,6 +1528,15 @@ AmazonSyncService.prototype.syncAdGroupPerformanceData = async function(this: Am
       log.info(`[v413] ${reportName}: ${rBatches}批次批量提交开始`);
       // @ts-ignore
       // v523.3: 超时时间从300秒增加到600秒
+      // P5: 异步报告模式
+      if (process.env.P5_ASYNC_REPORTS === 'true') {
+        const asyncResult = await this.client.submitReportsToAsyncQueue(batchRequests, {
+          accountId: this.accountId,
+          syncType: 'keyword_performance',
+        });
+        log.info(`[P5] Async keyword reports submitted: ${asyncResult.queued} queued`);
+        // P5: async mode - skip sync processing
+      } else {
       const results = await this.client.submitAndWaitMultipleReports(batchRequests, 600000, 2000);
       
       let allData: unknown[] = [];
@@ -1517,6 +1581,7 @@ AmazonSyncService.prototype.syncAdGroupPerformanceData = async function(this: Am
       }
       // @ts-ignore
       return allData;
+      }
     };
 
     // 1. SP广告组报告（使用传入的days参数，分批请求）
@@ -1766,6 +1831,15 @@ AmazonSyncService.prototype.syncPlacementPerformance = async function(this: Amaz
       }
       log.info(`[v413] SP广告位: ${batches}批次批量提交开始`);
       // v523.3: 超时时间从300秒增加到600秒
+      // P5: 异步报告模式
+      if (process.env.P5_ASYNC_REPORTS === 'true') {
+        const asyncResult = await this.client.submitReportsToAsyncQueue(batchRequests, {
+          accountId: this.accountId,
+          syncType: 'keyword_performance',
+        });
+        log.info(`[P5] Async keyword reports submitted: ${asyncResult.queued} queued`);
+        // P5: async mode - skip sync processing
+      } else {
       const results = await this.client.submitAndWaitMultipleReports(batchRequests, 600000, 2000);
       for (const result of results) {
         if (result.data && result.data.length > 0) {
@@ -1773,6 +1847,7 @@ AmazonSyncService.prototype.syncPlacementPerformance = async function(this: Amaz
         } else if (result.error) {
           log.warn(`[v413] ${result.name}失败: ${result.error}`);
         }
+      }
       }
     }
 

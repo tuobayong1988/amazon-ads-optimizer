@@ -713,6 +713,15 @@ AmazonSyncService.prototype.syncSbSearchTerms = async function(this: AmazonSyncS
         });
       }
       log.info(`[v413] SB搜索词: ${batches}批次批量提交开始`);
+      // P5: 异步报告模式
+      if (process.env.P5_ASYNC_REPORTS === 'true') {
+        const asyncResult = await this.client.submitReportsToAsyncQueue(batchRequests, {
+          accountId: this.accountId,
+          syncType: 'sb_sync',
+        });
+        log.info(`[P5] Async SB reports submitted: ${asyncResult.queued} queued`);
+        // P5: async mode
+      } else {
       const results = await this.client.submitAndWaitMultipleReports(batchRequests, 600000, 2000); // v449: SB报告超时从5分钟增加到10分钟
       for (const result of results) {
         if (result.data && result.data.length > 0) {
@@ -720,6 +729,7 @@ AmazonSyncService.prototype.syncSbSearchTerms = async function(this: AmazonSyncS
         } else if (result.error) {
           log.warn(`[v413] ${result.name}失败: ${result.error}`);
         }
+      }
       }
     }
 
@@ -945,6 +955,15 @@ AmazonSyncService.prototype.syncSbTargeting = async function(this: AmazonSyncSer
         });
       }
       log.info(`[v413] SB定向: ${batches}批次批量提交开始`);
+      // P5: 异步报告模式
+      if (process.env.P5_ASYNC_REPORTS === 'true') {
+        const asyncResult = await this.client.submitReportsToAsyncQueue(batchRequests, {
+          accountId: this.accountId,
+          syncType: 'sb_sync',
+        });
+        log.info(`[P5] Async SB reports submitted: ${asyncResult.queued} queued`);
+        // P5: async mode
+      } else {
       const results = await this.client.submitAndWaitMultipleReports(batchRequests, 600000, 2000); // v449: SB报告超时从5分钟增加到10分钟
       for (const result of results) {
         if (result.data && result.data.length > 0) {
@@ -956,6 +975,7 @@ AmazonSyncService.prototype.syncSbTargeting = async function(this: AmazonSyncSer
       // @ts-ignore
       }
     // @ts-ignore
+      }
     }
 
     const reportData = allReportData;
@@ -1409,6 +1429,15 @@ AmazonSyncService.prototype.syncSbPlacementPerformance = async function(this: Am
         });
       }
       log.info(`[v413] SB广告位: ${batches}批次批量提交开始`);
+      // P5: 异步报告模式
+      if (process.env.P5_ASYNC_REPORTS === 'true') {
+        const asyncResult = await this.client.submitReportsToAsyncQueue(batchRequests, {
+          accountId: this.accountId,
+          syncType: 'sb_sync',
+        });
+        log.info(`[P5] Async SB reports submitted: ${asyncResult.queued} queued`);
+        // P5: async mode
+      } else {
       const results = await this.client.submitAndWaitMultipleReports(batchRequests, 600000, 2000); // v449: SB报告超时从5分钟增加到10分钟
       for (const result of results) {
         if (result.data && result.data.length > 0) {
@@ -1416,6 +1445,7 @@ AmazonSyncService.prototype.syncSbPlacementPerformance = async function(this: Am
         } else if (result.error) {
           log.warn(`[v413] ${result.name}失败: ${result.error}`);
         }
+      }
       }
     }
 

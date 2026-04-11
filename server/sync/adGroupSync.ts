@@ -432,7 +432,9 @@ export async function syncAdGroupPerformanceData(service: SyncContext, days: num
     
     log.info(`[v413] 广告组报告批量提交: ${reportRequests.map(r => r.name).join(', ')}`);
     const reportResults = reportRequests.length > 0
-      ? await service.client.submitAndWaitMultipleReports(reportRequests, 300000, 2000)
+      ? (process.env.P5_ASYNC_REPORTS === 'true'
+          ? (await service.client.submitReportsToAsyncQueue(reportRequests, { accountId: service.accountId, syncType: 'ad_group_sync' })).results.map(r => ({ name: r.name, data: r.data as Record<string, unknown>[] | null, error: r.error }))
+          : await service.client.submitAndWaitMultipleReports(reportRequests, 300000, 2000))
       : [];
 
     /**

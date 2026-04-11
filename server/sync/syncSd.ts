@@ -523,6 +523,15 @@ AmazonSyncService.prototype.syncSdTargeting = async function(this: AmazonSyncSer
         });
       }
       log.info(`[v413] SD定向: ${batches}批次批量提交开始`);
+      // P5: 异步报告模式
+      if (process.env.P5_ASYNC_REPORTS === 'true') {
+        const asyncResult = await this.client.submitReportsToAsyncQueue(batchRequests, {
+          accountId: this.accountId,
+          syncType: 'sd_sync',
+        });
+        log.info(`[P5] Async SD reports submitted: ${asyncResult.queued} queued`);
+        // P5: async mode
+      } else {
       const results = await this.client.submitAndWaitMultipleReports(batchRequests, 300000, 2000);
       // @ts-ignore
       for (const result of results) {
@@ -531,6 +540,7 @@ AmazonSyncService.prototype.syncSdTargeting = async function(this: AmazonSyncSer
         } else if (result.error) {
           log.warn(`[v413] ${result.name}失败: ${result.error}`);
         }
+      }
       }
     }
 

@@ -49,10 +49,20 @@ const AUTO_CORRECTION_CONFIG = {
   maxRollbackPerRun: 200,
   
   // API同步失败重试的最大次数
-  maxRetryAttempts: 3,
+  // v640: 从3次增加到5次，配合指数退避策略提高成功率
+  maxRetryAttempts: 5,
   
   // 认为优化事件“过期”的天数（超过此天数不再重试）
   retryExpiryDays: 7,
+  
+  // v640: 指数退避重试配置
+  retryBaseDelayMs: 5000,      // 基础延迟5秒
+  retryMaxDelayMs: 300000,     // 最大延迟5分钟
+  retryBackoffMultiplier: 2,   // 指数退避倍数
+  
+  // v640: 死信队列配置 — 达到最大重试次数后移入DLQ
+  dlqMaxRetries: 5,            // 达到此次数后移入死信队列
+  dlqRetentionDays: 30,        // 死信队列保留天数
   
   // v328: 出价容差基准值（USD）— 从$0.01提升到$0.03
   // 根因：$0.01容差太小，导致AutoCorrector在803个关键词上与优化器形成“拉锯战”（最高23次/周），
@@ -621,19 +631,68 @@ async function retryFailedBidAdjustments(database: unknown, accountId: number): 
       return results;
     }
     
-    try {
-      const syncResult: unknown = await amazonApiHelper.syncBidAdjustmentsToAmazon(
-        accountId,
-        retryItems
+    // v640: 指数退避重试 — 每个关键词独立重试，而非批量重试
+    // 这样单个关键词的失败不会影响其他关键词的重试
+    for (const item of retryItems) {
+      const event = Array.from(latestByKeyword.values()).find(e => e.keywordId === item.keywordId);
+      // @ts-ignore
+      if (!event) continue;
+      
+      // v640: 计算当前重试次数（从事件的apiSyncDetail中提取）
+      let currentRetryCount = 0;
+      try {
+        const detail = event.actionDetail ? JSON.parse(String(event.actionDetail)) : {};
+        currentRetryCount = detail.retryCount || 0;
+      } catch { /* ignore parse error */ }
+      
+      // v640: 死信队列检查 — 超过最大重试次数则移入DLQ
+      if (currentRetryCount >= AUTO_CORRECTION_CONFIG.dlqMaxRetries) {
+        log.warn(`v640: 账户${accountId} 关键词${item.keywordId} 已达到最大重试次数(${currentRetryCount})，移入死信队列`);
+        // @ts-ignore
+        await database
+          .update(optimizationEvents)
+          .set({
+            apiSyncStatus: 'dead_letter',
+            apiSyncDetail: JSON.stringify({
+              movedToDLQ: true,
+              dlqReason: `达到最大重试次数 ${AUTO_CORRECTION_CONFIG.dlqMaxRetries}`,
+              totalRetries: currentRetryCount,
+              lastRetryAt: new Date().toISOString(),
+              retryBy: 'AutoCorrector_v640_DLQ',
+            }),
+          })
+          .where(eq(optimizationEvents.id, event.id));
+        results.push({
+          type: 'bid_retry',
+          accountId,
+          targetId: item.keywordId,
+          targetType: 'keyword',
+          previousValue: String(event.previousBid || ''),
+          correctedValue: 'dead_letter',
+          reason: `v640: 达到最大重试次数(${currentRetryCount})，移入死信队列`,
+          success: false,
+          errorMessage: 'Moved to Dead Letter Queue',
+        });
+        continue;
+      }
+      
+      // v640: 指数退避延迟计算
+      const backoffDelay = Math.min(
+        AUTO_CORRECTION_CONFIG.retryBaseDelayMs * Math.pow(AUTO_CORRECTION_CONFIG.retryBackoffMultiplier, currentRetryCount),
+        AUTO_CORRECTION_CONFIG.retryMaxDelayMs
       );
       
-      // v425: 修复成功判断Bug - 使用itemResults逐条判断每个keyword的同步结果
-      // 旧逻辑: const success = syncResult.success > 0 (全局判断，只要有一个成功就认为全部成功)
-      // 新逻辑: 使用itemResults Map逐条判断
-      for (const item of retryItems) {
-        const event = Array.from(latestByKeyword.values()).find(e => e.keywordId === item.keywordId);
-        // @ts-ignore
-        if (!event) continue;
+      // v640: 在重试之前等待退避延迟（仅当重试次数>0时）
+      if (currentRetryCount > 0) {
+        log.info(`v640: 账户${accountId} 关键词${item.keywordId} 第${currentRetryCount + 1}次重试，指数退避延迟${Math.round(backoffDelay / 1000)}秒`);
+        await new Promise(resolve => setTimeout(resolve, backoffDelay));
+      }
+      
+      try {
+        const syncResult: unknown = await amazonApiHelper.syncBidAdjustmentsToAmazon(
+          accountId,
+          [item]  // v640: 逐条重试而非批量
+        );
         
         // v425: 逐条判断每个keyword的同步结果
         // @ts-ignore
@@ -647,33 +706,36 @@ async function retryFailedBidAdjustments(database: unknown, accountId: number): 
           targetType: 'keyword',
           previousValue: String(event.previousBid || ''),
           correctedValue: String(item.newBid),
-          reason: `重试失败的出价调整 (原事件: ${event.id})`,
+          reason: `重试失败的出价调整 (原事件: ${event.id}, 第${currentRetryCount + 1}次重试)`,
           success,
           errorMessage: success ? undefined : (itemResult?.error || '重试仍然失败'),
         // @ts-ignore
         });
         
-        // 更新optimization_events的api_sync_status
         if (success) {
           // @ts-ignore
           await database
             .update(optimizationEvents)
             .set({ 
               apiSyncStatus: 'synced',
-              apiSyncDetail: JSON.stringify({ correctedBy: 'AutoCorrector_v425', correctedAt: new Date().toISOString(), apiResponseId: itemResult?.apiResponseId }),
+              apiSyncDetail: JSON.stringify({ 
+                correctedBy: 'AutoCorrector_v640', 
+                correctedAt: new Date().toISOString(), 
+                apiResponseId: itemResult?.apiResponseId,
+                retryCount: currentRetryCount + 1,
+              }),
               // @ts-ignore
               apiSyncedAt: new Date(),
             })
             .where(eq(optimizationEvents.id, event.id));
           
-          // 同时更新keywords表的bid
           // @ts-ignore
           await database
             .update(keywords)
             .set({ bid: String(item.newBid) })
             .where(eq(keywords.id, item.keywordId));
         } else {
-          // v425: 记录逐条失败原因，便于下次纠错时诊断
+          // v640: 记录重试次数和失败原因，下次纠错时可计算退避延迟
           // @ts-ignore
           await database
             .update(optimizationEvents)
@@ -681,15 +743,36 @@ async function retryFailedBidAdjustments(database: unknown, accountId: number): 
               apiSyncDetail: JSON.stringify({ 
                 lastRetryAt: new Date().toISOString(), 
                 retryError: itemResult?.error || 'unknown',
-                retryBy: 'AutoCorrector_v425',
+                retryCount: currentRetryCount + 1,
+                retryBy: 'AutoCorrector_v640',
+                nextRetryBackoffMs: Math.min(
+                  AUTO_CORRECTION_CONFIG.retryBaseDelayMs * Math.pow(AUTO_CORRECTION_CONFIG.retryBackoffMultiplier, currentRetryCount + 1),
+                  AUTO_CORRECTION_CONFIG.retryMaxDelayMs
+                ),
               }),
             })
             .where(eq(optimizationEvents.id, event.id));
         }
-      }
-    } catch (apiError: unknown) {
-      log.warn(`v178: 账户${accountId} 出价重试API调用失败: ${(apiError as Error).message}`);
-      for (const item of retryItems) {
+      } catch (apiError: unknown) {
+        // v640: 单条API调用失败，记录并继续处理下一个
+        const errMsg = (apiError as Error).message || '';
+        log.warn(`v640: 账户${accountId} 关键词${item.keywordId} 重试API调用失败(${currentRetryCount + 1}/${AUTO_CORRECTION_CONFIG.dlqMaxRetries}): ${errMsg}`);
+        
+        // v640: 记录失败信息和重试计数
+        // @ts-ignore
+        await database
+          .update(optimizationEvents)
+          .set({
+            apiSyncDetail: JSON.stringify({ 
+              lastRetryAt: new Date().toISOString(), 
+              retryError: errMsg,
+              retryCount: currentRetryCount + 1,
+              retryBy: 'AutoCorrector_v640',
+              errorCategory: errMsg.includes('429') ? 'rate_limit' : errMsg.includes('5') ? 'server_error' : 'unknown',
+            }),
+          })
+          .where(eq(optimizationEvents.id, event.id));
+        
         results.push({
           type: 'bid_retry',
           accountId,
@@ -697,7 +780,7 @@ async function retryFailedBidAdjustments(database: unknown, accountId: number): 
           targetType: 'keyword',
           previousValue: '',
           correctedValue: String(item.newBid),
-          reason: `重试失败的出价调整`,
+          reason: `重试失败的出价调整 (${currentRetryCount + 1}/${AUTO_CORRECTION_CONFIG.dlqMaxRetries})`,
           success: false,
           errorMessage: (apiError as Error).message,
         });

@@ -45,6 +45,7 @@ import {
   shouldAbortAutoSync,
 } from './syncCoordinator';
 import { getBulkhead, type TaskCategory } from '../services/bulkheadService';
+import * as redisSyncQueue from './redisSyncQueue';
 // v384: 移除Leader选举依赖，改为单实例直接启动模式
 // import { startLeaderElection, isCurrentLeader, getLeaderStatus, stopLeaderElection } from '../utils/leaderElection';
 
@@ -818,6 +819,20 @@ async function executeLayeredSync(tier: SyncTier): Promise<void> {
  * 添加请求到队列
  */
 function addToQueue(request: QueuedRequest): void {
+  // v640: 优先使用Redis持久化队列，同时保留内存队列作为备份
+  redisSyncQueue.enqueue({
+    accountId: request.accountId,
+    userId: request.userId,
+    tier: request.tier,
+    priority: request.tier === 'high' ? redisSyncQueue.SYNC_PRIORITY.HIGH_FREQ
+            : request.tier === 'medium' ? redisSyncQueue.SYNC_PRIORITY.MED_FREQ
+            : request.tier === 'full' ? redisSyncQueue.SYNC_PRIORITY.FULL
+            : redisSyncQueue.SYNC_PRIORITY.NIGHTLY,
+    timestamp: request.timestamp,
+  }).catch((err) => {
+    log.warn(`[DataSyncScheduler] v640: Redis入队失败，使用内存队列: ${(err as Error).message}`);
+  });
+  // 内存队列作为降级备份
   requestQueue.push(request);
 }
 
@@ -874,6 +889,29 @@ async function processQueue(): Promise<void> {
 }
 
 /**
+ * v640: 进程启动时恢复Redis中的孤儿任务
+ */
+export async function recoverOrphanSyncTasks(): Promise<number> {
+  try {
+    const recovered = await redisSyncQueue.recoverOrphanTasks();
+    if (recovered > 0) {
+      log.info(`[DataSyncScheduler] v640: 恢复了 ${recovered} 个孤儿同步任务`);
+    }
+    return recovered;
+  } catch (err) {
+    log.warn(`[DataSyncScheduler] v640: 恢复孤儿任务失败: ${(err as Error).message}`);
+    return 0;
+  }
+}
+
+/**
+ * v640: 获取Redis队列状态
+ */
+export async function getRedisQueueStatus() {
+  return redisSyncQueue.getQueueStatus();
+}
+
+/**
  * 为指定账号执行分层同步
  */
 async function executeTieredSyncForAccount(request: QueuedRequest): Promise<void> {
@@ -905,6 +943,54 @@ async function executeTieredSyncForAccount(request: QueuedRequest): Promise<void
   const credentials = await db.getAmazonApiCredentials(accountId);
   if (!credentials) {
     log.warn(`[DataSyncScheduler] v194: 账号 ${accountId} 未配置API凭证，跳过${tier}层同步`);
+    return;
+  }
+
+  // v640: 空账户预检机制 — 在同步前检查账户是否有活跃广告活动
+  // 如果账户没有任何广告活动（如MX/BR站点无实际运营），跳过耗时的绩效报告请求
+  let isEmptyAccount = false;
+  try {
+    const campaignCounts = await db.getCampaignStatusCounts(accountId);
+    if (campaignCounts.total === 0) {
+      isEmptyAccount = true;
+      log.info(`[DataSyncScheduler] v640: 账户${accountId} 无任何广告活动，标记为空账户`);
+    } else if (campaignCounts.enabled === 0) {
+      isEmptyAccount = true;
+      log.info(`[DataSyncScheduler] v640: 账户${accountId} 无活跃广告活动(total=${campaignCounts.total}, enabled=0)，标记为空账户`);
+    }
+  } catch (preCheckErr: unknown) {
+    log.warn(`[DataSyncScheduler] v640: 账户${accountId} 预检失败: ${(preCheckErr as Error).message}，继续正常同步`);
+  }
+
+  // v640: 空账户仅同步广告活动列表（检查是否有新广告活动创建），跳过绩效报告和搜索词等耗时操作
+  if (isEmptyAccount && (tier === 'low' || tier === 'full')) {
+    log.info(`[DataSyncScheduler] v640: 空账户${accountId} 仅执行广告活动同步（跳过绩效/搜索词/建议竞价），节省API Quota和系统资源`);
+    logSync('DataSyncScheduler', `空账户${accountId}仅同步广告活动`, { accountId, tier, isEmptyAccount: true });
+    
+    const syncService = await AmazonSyncService.createFromCredentials(
+      {
+        clientId: credentials.clientId || '',
+        clientSecret: credentials.clientSecret || '',
+        // @ts-ignore
+        refreshToken: credentials.refreshToken || '',
+        profileId: account.profileId || '',
+        region: (credentials.region as 'NA' | 'EU' | 'FE') || 'NA'
+      },
+      accountId,
+      userId,
+      account.marketplace || 'US'
+    );
+    
+    // 空账户只同步Layer 0（广告活动列表），检查是否有新广告活动创建
+    const result = await syncService.syncAll({ syncMode: 'daily', layers: [0] });
+    
+    // 如果发现了新的广告活动，下次将执行完整同步
+    if (result.campaigns > 0) {
+      log.info(`[DataSyncScheduler] v640: 空账户${accountId} 发现${result.campaigns}个广告活动，下次将执行完整同步`);
+    }
+    
+    // v525: 同步成功，记录账户健康
+    bulkhead.recordAccountSuccess(accountId);
     return;
   }
 
@@ -1984,11 +2070,16 @@ export async function startOptimizationScheduler(): Promise<void> {
   log.debug('  | 预算分配       | 4小时   | 4小时   | 4小时   |');
   
   // v167: 启动自动纠错服务
-  try {
-    startAutoCorrector();
-    log.info('[OptimizationScheduler] v167: 自动纠错服务已启动');
-  } catch (correctorErr: unknown) {
-    log.warn('[OptimizationScheduler] v167: 自动纠错服务启动失败:', (correctorErr as Error).message);
+  // P5: 当 Worker 进程启用时，主进程跳过 AutoCorrector（由 Worker 进程运行）
+  if (process.env.P5_WORKER_ENABLED === 'true') {
+    log.info('[P5] AutoCorrector delegated to Worker process, skipping in main process');
+  } else {
+    try {
+      startAutoCorrector();
+      log.info('[OptimizationScheduler] v167: 自动纠错服务已启动');
+    } catch (correctorErr: unknown) {
+      log.warn('[OptimizationScheduler] v167: 自动纠错服务启动失败:', (correctorErr as Error).message);
+    }
   }
 
   // v523.2: 启动实体状态对齐独立调度器（每30分钟增量扫描）
@@ -2114,6 +2205,10 @@ export async function startOptimizationScheduler(): Promise<void> {
   }, 60 * 60 * 1000));  log.info(`[OptimizationScheduler] v350: 自动数据清理已启动，执行时间: 每日凌昨晨4:00 (EST)`);
 
   // v503: 启动自动止血扫描 - 每4小时执行一次，启动后5分钟执行首次扫描
+  // P5: 当 Worker 进程启用时，主进程跳过 AutoStopLoss（由 Worker 进程运行）
+  if (process.env.P5_WORKER_ENABLED === 'true') {
+    log.info('[P5] AutoStopLoss delegated to Worker process, skipping in main process');
+  } else
   try {
     const { executeFullStopLossScan } = await import('../automation/autoStopLossService');
     const { getAdAccounts } = await import('../db/accounts');

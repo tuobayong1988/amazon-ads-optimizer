@@ -11,6 +11,10 @@
 import axios, { AxiosInstance } from 'axios';
 import JSONBig from 'json-bigint';
 import { createModuleLogger } from '../utils/logger';
+// P5: 导入数据库连接用于异步报告队列
+import { getDb } from '../db';
+// P5: 静态导入reportJobs表（避免动态import在esbuild中无法解析）
+import { reportJobs } from '@db/schema';
 // v360: 集成统一限流服务
 import { acquireApiPermit, classifyEndpoint, getApiRateLimitService } from '../services/apiRateLimitService';
 // v374: 集成动态并发控制反馈回路
@@ -3976,7 +3980,12 @@ export class AmazonAdsApiClient {
    */
   async getReportStatus(reportId: string): Promise<{ status: string; url?: string; failureReason?: string }> {
     try {
-      const response = await this.axiosInstance.get(`/reporting/reports/${reportId}`);
+      // P5: V3 Reporting API 需要特定的 Accept header
+      const response = await this.axiosInstance.get(`/reporting/reports/${reportId}`, {
+        headers: {
+          'Accept': 'application/vnd.createasyncreportresponse.v3+json',
+        },
+      });
       log.info(`[Amazon API] 报告状态响应:`, JSON.stringify(response.data, null, 2));
       return {
         status: response.data.status,
@@ -6717,6 +6726,142 @@ export class AmazonAdsApiClient {
     }
     
     return results;
+  }
+
+  /**
+   * P5: 异步报告提交 - 将报告请求提交到异步队列，由 ReportJobScheduler 异步轮询处理
+   * 替代 submitAndWaitMultipleReports 的同步阻塞等待模式
+   * 
+   * @param reportRequests 报告请求数组
+   * @param context 上下文信息（accountId, profileId, 日期范围等）
+   * @returns 提交结果，包含 jobIds 和状态
+   */
+  async submitReportsToAsyncQueue(
+    reportRequests: Array<{
+      name: string;
+      requestFn: () => Promise<string>;
+      _retried?: boolean;
+    }>,
+    context: {
+      accountId?: number;
+      profileId?: string;
+      startDate?: string;
+      endDate?: string;
+      syncType?: string;
+    } = {}
+  ): Promise<{
+    results: Array<{ name: string; data: null; jobId?: number; reportId?: string; queued?: boolean; error?: string }>;
+    jobIds: number[];
+    queued: number;
+    failed: number;
+  }> {
+    const startTime = Date.now();
+    const results: Array<{ name: string; data: null; jobId?: number; reportId?: string; queued?: boolean; error?: string }> = 
+      new Array(reportRequests.length).fill(null);
+    const jobIds: number[] = [];
+
+    for (let i = 0; i < reportRequests.length; i++) {
+      const req = reportRequests[i];
+      try {
+        // 提交到 Amazon API 获取 reportId
+        const reportId = await req.requestFn();
+        log.info(`[P5:AsyncQueue] Report submitted [${req.name}]: reportId=${reportId}`);
+
+        // 存储到 report_jobs 表，由 ReportJobScheduler 异步处理
+        try {
+          const db = await getDb();
+          if (db) {
+            // P5: 使用顶部静态导入的reportJobs（已由esbuild正确打包）
+            const adType = req.name.includes('SP') ? 'SP' : req.name.includes('SB') ? 'SB' : 'SD';
+            const [insertResult] = await db.insert(reportJobs).values({
+              accountId: context.accountId || this.accountId || 0,
+              profileId: context.profileId || String(this.credentials.profileId) || '',
+              reportType: req.name,
+              adProduct: adType === 'SP' ? 'SPONSORED_PRODUCTS' : adType === 'SB' ? 'SPONSORED_BRANDS' : 'SPONSORED_DISPLAY',
+              status: 'submitted',
+              reportId: reportId,
+              startDate: context.startDate || '',
+              endDate: context.endDate || '',
+              requestPayload: JSON.stringify({
+                source: 'P5_async_queue',
+                adType: adType.toLowerCase(),
+                reportName: req.name,
+                startDate: context.startDate || '',
+                endDate: context.endDate || '',
+                syncType: context.syncType || 'performance',
+                accountId: context.accountId || this.accountId || 0,
+              }),
+              retryCount: 0,
+              maxRetries: 5,
+              submittedAt: new Date().toISOString(),
+            });
+            const jobId = (insertResult as { insertId: number }).insertId;
+            jobIds.push(jobId);
+            log.info(`[P5:AsyncQueue] Report job created: jobId=${jobId}, reportId=${reportId} [${req.name}]`);
+            results[i] = { name: req.name, data: null, jobId, reportId, queued: true };
+          }
+        } catch (dbErr: unknown) {
+          log.warn(`[P5:AsyncQueue] Failed to create report job [${req.name}]: ${(dbErr as Error).message}`);
+          results[i] = { name: req.name, data: null, error: `queue_failed: ${(dbErr as Error).message}` };
+        }
+
+        // 提交间隔，避免触发限流
+        if (i < reportRequests.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+      } catch (submitErr: unknown) {
+        const errMsg = (submitErr as Error).message || '';
+        // @ts-expect-error - Axios error response access
+        const errBody = (submitErr as Error & { response?: unknown }).response?.data;
+        const errDetail = errBody ? ` | response: ${JSON.stringify(errBody).slice(0, 300)}` : '';
+
+        // 处理数据保留期限制错误
+        if (errDetail.includes('retention') || errDetail.includes('configuration date')) {
+          log.info(`[P5:AsyncQueue] Report exceeds retention period [${req.name}], returning empty`);
+          results[i] = { name: req.name, data: null };
+          continue;
+        }
+
+        // 处理 429 限流重试
+        // @ts-expect-error - Axios error response access
+        const is429 = (submitErr as Error & { response?: unknown }).response?.status === 429 || errMsg.includes('429');
+        if (is429 && !req._retried) {
+          req._retried = true;
+          const retryDelay = 10000 + Math.random() * 5000;
+          log.info(`[P5:AsyncQueue] Rate limited (429), retrying in ${Math.round(retryDelay / 1000)}s [${req.name}]`);
+          await new Promise(resolve => setTimeout(resolve, retryDelay));
+          try {
+            const retryReportId = await req.requestFn();
+            results[i] = { name: req.name, data: null, reportId: retryReportId, queued: true };
+            log.info(`[P5:AsyncQueue] Retry succeeded [${req.name}]: reportId=${retryReportId}`);
+          } catch (retryErr: unknown) {
+            log.warn(`[P5:AsyncQueue] Retry failed [${req.name}]: ${(retryErr as Error).message}`);
+            results[i] = { name: req.name, data: null, error: (retryErr as Error).message };
+          }
+          continue;
+        }
+
+        log.warn(`[P5:AsyncQueue] Report submit failed [${req.name}]: ${errMsg}${errDetail}`);
+        results[i] = { name: req.name, data: null, error: errMsg };
+      }
+    }
+
+    const elapsed = Math.round((Date.now() - startTime) / 1000);
+    const queued = results.filter(r => r?.queued).length;
+    const failed = results.filter(r => r?.error).length;
+    log.info(`[P5:AsyncQueue] Batch complete: ${queued} queued, ${failed} failed, ${elapsed}s elapsed, jobIds=[${jobIds.join(',')}]`);
+
+    // 通过 Redis 通知新任务可用
+    try {
+      const { getRedis, isRedisAvailable } = await import('../../utils/redisClient');
+      if (isRedisAvailable() && getRedis()) {
+        await getRedis()!.publish('report:jobs:new', JSON.stringify({ jobIds, source: 'P5_async_queue' }));
+      }
+    } catch (_pubErr) {
+      // Redis 通知失败不影响主流程
+    }
+
+    return { results, jobIds, queued, failed };
   }
 
   // ==================== v424: SP Campaign Budget Rules API ====================

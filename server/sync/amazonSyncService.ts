@@ -368,15 +368,47 @@ export class AmazonSyncService {
     const LAYER_TRANSITION_DELAY_MS = 2000;
     const MAX_CONCURRENT_PER_LAYER = 8; // v360: 每层最大并发数
 
+    // v640: 步骤级独立超时配置 — 不同类型的步骤有不同的超时时间
+    // 替代全局150分钟硬超时，按步骤类型精细控制
+    const STEP_TIMEOUT_CONFIG: Record<string, number> = {
+      // 广告活动/广告组/关键词等列表API：通常几秒完成，给5分钟
+      'default': 5 * 60 * 1000,
+      // 否定词同步：数据量小，3分钟
+      'negative': 3 * 60 * 1000,
+      // 搜索词/定向报告：需要异步报告，给15分钟
+      'report': 15 * 60 * 1000,
+      // 绩效数据同步：最耗时，需要多天报告，给20分钟
+      'performance': 20 * 60 * 1000,
+      // 建议竞价：批量API调用，给10分钟
+      'bidRecommendation': 10 * 60 * 1000,
+      // 广告位绩效：异步报告，给15分钟
+      'placement': 15 * 60 * 1000,
+    };
+
+    // v640: 根据步骤名称自动匹配超时类型
+    const getStepTimeout = (stepName: string): number => {
+      if (stepName.includes('绩效') || stepName.includes('performance')) return STEP_TIMEOUT_CONFIG.performance;
+      if (stepName.includes('搜索词') || stepName.includes('定向报告') || stepName.includes('自动定向')) return STEP_TIMEOUT_CONFIG.report;
+      if (stepName.includes('否定') || stepName.includes('negative')) return STEP_TIMEOUT_CONFIG.negative;
+      if (stepName.includes('建议竞价') || stepName.includes('bidRecommendation')) return STEP_TIMEOUT_CONFIG.bidRecommendation;
+      if (stepName.includes('广告位') || stepName.includes('placement')) return STEP_TIMEOUT_CONFIG.placement;
+      return STEP_TIMEOUT_CONFIG.default;
+    };
+
     const runStep = async <T>(stepName: string, fn: () => Promise<T>): Promise<T | null> => {
       totalSteps++;
       const stepStart = Date.now();
-      log.info(`[syncAll] 📌 账户${this.accountId} 步骤[${totalSteps}] ${stepName} 开始...`);
+      const stepTimeoutMs = getStepTimeout(stepName);
+      log.info(`[syncAll] 📌 账户${this.accountId} 步骤[${totalSteps}] ${stepName} 开始... (超时: ${Math.round(stepTimeoutMs / 60000)}分钟)`);
       
       // v345: 步骤级重试 — 对可重试错误(429/5xx)自动重试一次
       for (let attempt = 0; attempt <= STEP_RETRY_CONFIG.maxRetries; attempt++) {
         try {
-          const result = await fn();
+          // v640: 步骤级独立超时 — 使用Promise.race实现
+          const timeoutPromise = new Promise<never>((_, reject) => {
+            setTimeout(() => reject(new Error(`v640: 步骤[${stepName}]超时(${Math.round(stepTimeoutMs / 60000)}分钟)，跳过此步骤继续执行后续步骤`)), stepTimeoutMs);
+          });
+          const result = await Promise.race([fn(), timeoutPromise]);
           const durationMs = Date.now() - stepStart;
           let synced = 0;
           if (typeof result === 'number') synced = result;
@@ -391,7 +423,8 @@ export class AmazonSyncService {
           return result;
         } catch (error: unknown) {
           const errMsg = (error as Error).message || '';
-          const isRetryable = errMsg.includes('429') || errMsg.includes('503') || errMsg.includes('502') || errMsg.includes('ETIMEDOUT') || errMsg.includes('ECONNRESET');
+          const isTimeout = errMsg.includes('v640: 步骤') && errMsg.includes('超时');
+          const isRetryable = !isTimeout && (errMsg.includes('429') || errMsg.includes('503') || errMsg.includes('502') || errMsg.includes('ETIMEDOUT') || errMsg.includes('ECONNRESET'));
           
           if (isRetryable && attempt < STEP_RETRY_CONFIG.maxRetries) {
             const delay = STEP_RETRY_CONFIG.baseDelayMs * Math.pow(2, attempt);
@@ -402,8 +435,13 @@ export class AmazonSyncService {
           
           const durationMs = Date.now() - stepStart;
           failedSteps++;
-          results._syncDiagnostics!.push({ stepName, synced: 0, durationMs, error: errMsg });
-          log.warn(`[syncAll] ❌ 账户${this.accountId} 步骤[${totalSteps}] ${stepName} 失败(${durationMs}ms): ${errMsg}`);
+          // v640: 超时的步骤标记为timeout而非error，便于后续分析
+          results._syncDiagnostics!.push({ stepName, synced: 0, durationMs, error: isTimeout ? `TIMEOUT(${Math.round(stepTimeoutMs / 60000)}min)` : errMsg });
+          if (isTimeout) {
+            log.warn(`[syncAll] ⏰ 账户${this.accountId} 步骤[${totalSteps}] ${stepName} 超时(${Math.round(durationMs / 60000)}分钟)，跳过继续执行后续步骤（断点续传）`);
+          } else {
+            log.warn(`[syncAll] ❌ 账户${this.accountId} 步骤[${totalSteps}] ${stepName} 失败(${durationMs}ms): ${errMsg}`);
+          }
           return null;
         }
       }
@@ -932,6 +970,15 @@ AmazonSyncService.prototype.syncSearchTerms = async function(this: AmazonSyncSer
           });
         }
         log.info(`[v413] SP搜索词: ${batches}批次批量提交开始`);
+        // P5: 异步报告模式
+        if (process.env.P5_ASYNC_REPORTS === 'true') {
+          const asyncResult = await this.client.submitReportsToAsyncQueue(batchRequests, {
+            accountId: this.accountId,
+            syncType: 'search_term_sync',
+          });
+          log.info(`[P5] Async search term reports submitted: ${asyncResult.queued} queued`);
+          // P5: async mode
+        } else {
         const results = await this.client.submitAndWaitMultipleReports(batchRequests, 300000, 2000);
         // @ts-ignore
         for (const result of results) {
@@ -940,6 +987,7 @@ AmazonSyncService.prototype.syncSearchTerms = async function(this: AmazonSyncSer
           } else if (result.error) {
             log.warn(`[v413] ${result.name}失败: ${result.error}`);
           }
+        }
         }
       }
 
@@ -1194,6 +1242,15 @@ AmazonSyncService.prototype.syncAutoTargeting = async function(this: AmazonSyncS
           });
         }
         log.info(`[v413] SP自动定向: ${batches}批次批量提交开始`);
+        // P5: 异步报告模式
+        if (process.env.P5_ASYNC_REPORTS === 'true') {
+          const asyncResult = await this.client.submitReportsToAsyncQueue(batchRequests, {
+            accountId: this.accountId,
+            syncType: 'search_term_sync',
+          });
+          log.info(`[P5] Async search term reports submitted: ${asyncResult.queued} queued`);
+          // P5: async mode
+        } else {
         const results = await this.client.submitAndWaitMultipleReports(batchRequests, 300000, 2000);
         for (const result of results) {
           if (result.data && result.data.length > 0) {
@@ -1202,6 +1259,7 @@ AmazonSyncService.prototype.syncAutoTargeting = async function(this: AmazonSyncS
             log.warn(`[v413] ${result.name}失败: ${result.error}`);
           // @ts-ignore
           }
+        }
         }
       }
 

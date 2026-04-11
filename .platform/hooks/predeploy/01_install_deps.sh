@@ -2,38 +2,28 @@
 set -eo pipefail
 cd /var/app/staging
 
-# v519: Robust npm install with retry and proper error handling
-# Previous v449 version used `npm install 2>&1 | tail -10` which masked errors
-# due to pipefail not being set, causing silent deployment failures
-MAX_RETRIES=3
-RETRY_DELAY=10
+# v630: node_modules is pre-bundled in the deployment package
+# No need to run npm install - just verify key modules exist
+echo "v630: Verifying pre-bundled dependencies..."
 
-for attempt in $(seq 1 $MAX_RETRIES); do
-  echo "v519: Installing production dependencies (attempt $attempt/$MAX_RETRIES)..."
-  
-  if npm install --production --legacy-peer-deps 2>&1 | tee /tmp/npm_install_output.log | tail -20; then
-    # Verify npm install actually succeeded by checking key modules exist
-    if [ -d "node_modules/mysql2" ] && [ -d "node_modules/drizzle-orm" ]; then
-      echo "Dependencies installed successfully (verified: mysql2 and drizzle-orm present)"
-      exit 0
-    else
-      echo "WARNING: npm install appeared to succeed but key modules are missing"
-      echo "mysql2 exists: $(test -d node_modules/mysql2 && echo YES || echo NO)"
-      echo "drizzle-orm exists: $(test -d node_modules/drizzle-orm && echo YES || echo NO)"
-    fi
-  else
-    echo "npm install failed on attempt $attempt"
-    cat /tmp/npm_install_output.log | grep -i "error" | head -10
-  fi
-  
-  if [ $attempt -lt $MAX_RETRIES ]; then
-    echo "Retrying in ${RETRY_DELAY}s..."
-    sleep $RETRY_DELAY
-    RETRY_DELAY=$((RETRY_DELAY * 2))
-  fi
-done
+# Clean up disk space first to prevent issues
+rm -rf /tmp/npm_install_output.log 2>/dev/null || true
+find /tmp/ -type f -mtime +1 -delete 2>/dev/null || true
+npm cache clean --force 2>/dev/null || true
+journalctl --vacuum-time=1d 2>/dev/null || true
+find /var/log/ -name "*.gz" -delete 2>/dev/null || true
 
-echo "FATAL: npm install failed after $MAX_RETRIES attempts"
-echo "Last npm output:"
-cat /tmp/npm_install_output.log | tail -30
-exit 1
+# Report disk space
+echo "v630: Disk space before deployment:"
+df -h / | tail -1
+
+# Verify key modules exist
+if [ -d "node_modules/mysql2" ] && [ -d "node_modules/drizzle-orm" ]; then
+  echo "v630: Pre-bundled dependencies verified (mysql2 and drizzle-orm present)"
+  exit 0
+else
+  echo "ERROR: Pre-bundled node_modules missing key dependencies"
+  echo "mysql2 exists: $(test -d node_modules/mysql2 && echo YES || echo NO)"
+  echo "drizzle-orm exists: $(test -d node_modules/drizzle-orm && echo YES || echo NO)"
+  exit 1
+fi
