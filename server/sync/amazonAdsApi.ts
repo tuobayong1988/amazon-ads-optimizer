@@ -688,10 +688,29 @@ export class AmazonAdsApiClient {
           const data = (error as Error & { response?: unknown }).response.data;
           
           // @ts-ignore
-          if (contentType.includes('text/html') || (typeof data === 'string' && data.startsWith('<'))) {
+            if (contentType.includes('text/html') || (typeof data === 'string' && data.startsWith('<'))) {
             log.warn('[Amazon API] Token refresh returned HTML instead of JSON');
             this.accessToken = null;
             this.tokenExpiry = null;
+            
+            // v643: HTML响应也标记账户为需要重新授权
+            try {
+              const db = await getDb();
+              if (db && this.accountId) {
+                const { amazonApiCredentials } = await import('@db/schema');
+                const { eq } = await import('drizzle-orm');
+                await db.update(amazonApiCredentials)
+                  .set({
+                    syncStatus: 'auth_expired',
+                    syncErrorMessage: `Token刷新返回HTML而非JSON，Refresh Token可能已过期 (检测时间: ${new Date().toISOString()})`,
+                  })
+                  .where(eq(amazonApiCredentials.id, this.accountId));
+                log.warn(`[Amazon API] v643: 账户 ${this.accountId} Token刷新返回HTML，已标记为auth_expired`);
+              }
+            } catch (dbErr: unknown) {
+              log.warn(`[Amazon API] v643: 更新账户授权状态失败: ${(dbErr as Error).message}`);
+            }
+            
             throw new Error('Token刷新失败，请重新授权。可能原因：Refresh Token已过期或无效');
           }
           
@@ -703,6 +722,25 @@ export class AmazonAdsApiClient {
               this.accessToken = null;
               // @ts-ignore
               this.tokenExpiry = null;
+              
+              // v643: 主动更新数据库中的账户状态，标记为需要重新授权
+              try {
+                const db = await getDb();
+                if (db && this.accountId) {
+                  const { amazonApiCredentials } = await import('@db/schema');
+                  const { eq } = await import('drizzle-orm');
+                  await db.update(amazonApiCredentials)
+                    .set({
+                      syncStatus: 'auth_expired',
+                      syncErrorMessage: `Refresh Token已过期(invalid_grant)，请在Amazon API管理页面重新授权 (检测时间: ${new Date().toISOString()})`,
+                    })
+                    .where(eq(amazonApiCredentials.id, this.accountId));
+                  log.warn(`[Amazon API] v643: 账户 ${this.accountId} Refresh Token已过期，已标记为auth_expired`);
+                }
+              } catch (dbErr: unknown) {
+                log.warn(`[Amazon API] v643: 更新账户授权状态失败: ${(dbErr as Error).message}`);
+              }
+              
               throw new Error('Refresh Token已过期或无效，请重新授权');
             }
           }

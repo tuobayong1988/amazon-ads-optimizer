@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 642;  // v642: 优化锁队列化重试 + 无效目标30015自动清理 + Refresh Token过期检测与账户标记 + SP Budget Rules API属性名修复
+export const SYSTEM_VERSION = 643;  // v643: 步骤级自动重试(3次指数退避) + 算法正向率判定优化 + 高ACoS动态降价上限 + Token过期主动标记

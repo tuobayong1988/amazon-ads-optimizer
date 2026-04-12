@@ -1501,6 +1501,12 @@ export async function syncAccount(
         }
       }
 
+      // v643: 步骤级自动重试机制 — 对可重试错误(429/5xx/网络超时)自动重试最多2次
+      // 参考amazonSyncService.ts的成熟重试模式，使用指数退避策略
+      const STEP_MAX_RETRIES = 2;
+      const STEP_RETRY_BASE_DELAY_MS = 5000; // 5s -> 10s 指数退避
+      
+      for (let retryAttempt = 0; retryAttempt <= STEP_MAX_RETRIES; retryAttempt++) {
       try {
         // v220: 记录API调用（每个步骤通常包含1-3个API调用）
         rateController.recordApiCall();
@@ -1592,6 +1598,12 @@ export async function syncAccount(
           success: stepResult.success,
           synced: stepResult.synced,
         };
+        
+        // v643: 步骤执行成功（无论是否重试过），跳出重试循环
+        if (retryAttempt > 0) {
+          log.info(`[UnifiedSync] v643: 账户 ${account.accountId} 步骤 ${step.name} 第${retryAttempt}次重试成功`);
+        }
+        break; // 成功，跳出重试循环
 
       } catch (error: unknown) {
         // v408: 异常时也清除心跳定时器
@@ -1602,36 +1614,55 @@ export async function syncAccount(
           // @ts-ignore
           heartbeatTimer = null;
         }
-        // 步骤级错误隔离：单步失败不影响后续步骤
-        result.failedSteps++;
-        context.failedSteps.push(step.id);
-        context.totalErrors++;
-        result.errors.push(`${step.name}: ${(error as Error).message}`);
-        result.stepResults[step.id] = { success: false, synced: 0, errors: [(error as Error).message] };
         
-        // v220: 检测是否为API限流错误
-        const isThrottle = (error as Error).message?.includes('429') || 
-                          (error as Error).message?.includes('限流') || 
-                          (error as Error).message?.includes('TooManyRequests') ||
-                          (error as Error).message?.includes('throttl');
-        if (isThrottle) {
-          rateController.recordThrottle();
-          // 限流后额外等待
-          const throttleDelay = rateController.getStepDelay();
-          log.warn(`[UnifiedSync] 账户 ${account.accountId} 步骤 ${step.name} 触发限流，等待${throttleDelay}ms后继续`);
-          await sleep(throttleDelay);
-        }
-        
-        // v642: 检测是否为Refresh Token过期错误 — 标记账户需要重新授权并终止后续步骤
         const errMsg = (error as Error).message || '';
+        
+        // v643: 检测是否为可重试错误(429/5xx/网络超时)
+        const isRetryableError = errMsg.includes('429') || 
+                                errMsg.includes('503') || errMsg.includes('502') ||
+                                errMsg.includes('ETIMEDOUT') || errMsg.includes('ECONNRESET') ||
+                                errMsg.includes('TooManyRequests') || errMsg.includes('throttl') ||
+                                errMsg.includes('限流') || errMsg.includes('socket hang up') ||
+                                errMsg.includes('ECONNREFUSED') || errMsg.includes('network');
+        
+        // v642: 检测是否为Refresh Token过期错误 — 不可重试
         const isTokenExpired = errMsg.includes('Refresh Token已过期') ||
                               errMsg.includes('invalid_grant') ||
                               errMsg.includes('重新授权') ||
                               errMsg.includes('Token刷新失败') ||
                               errMsg.includes('Token刷新认证失败');
+        
+        // v643: 可重试错误且未达到最大重试次数 — 自动重试
+        if (isRetryableError && !isTokenExpired && retryAttempt < STEP_MAX_RETRIES) {
+          const retryDelay = STEP_RETRY_BASE_DELAY_MS * Math.pow(2, retryAttempt);
+          // 限流错误记录到速率控制器
+          if (errMsg.includes('429') || errMsg.includes('TooManyRequests') || errMsg.includes('throttl') || errMsg.includes('限流')) {
+            rateController.recordThrottle();
+          }
+          log.warn(`[UnifiedSync] v643: 账户 ${account.accountId} 步骤 ${step.name} 失败(可重试): ${errMsg}, ${retryDelay}ms后第${retryAttempt + 1}次重试...`);
+          await sleep(retryDelay);
+          continue; // 重试当前步骤
+        }
+        
+        // 步骤级错误隔离：单步失败不影响后续步骤
+        result.failedSteps++;
+        context.failedSteps.push(step.id);
+        context.totalErrors++;
+        const retryInfo = retryAttempt > 0 ? ` (已重试${retryAttempt}次)` : '';
+        result.errors.push(`${step.name}: ${errMsg}${retryInfo}`);
+        result.stepResults[step.id] = { success: false, synced: 0, errors: [`${errMsg}${retryInfo}`] };
+        
+        // v220: 限流后额外等待
+        if (errMsg.includes('429') || errMsg.includes('TooManyRequests') || errMsg.includes('throttl') || errMsg.includes('限流')) {
+          rateController.recordThrottle();
+          const throttleDelay = rateController.getStepDelay();
+          log.warn(`[UnifiedSync] 账户 ${account.accountId} 步骤 ${step.name} 触发限流，等待${throttleDelay}ms后继续`);
+          await sleep(throttleDelay);
+        }
+        
+        // v642: Token过期 — 标记账户并终止后续步骤
         if (isTokenExpired) {
           log.error(`[UnifiedSync] v642: 账户 ${account.accountId} Refresh Token已过期，终止后续同步步骤`);
-          // 标记账户需要重新授权
           try {
             await db.updateAmazonApiCredentials(account.accountId, {
               syncStatus: 'auth_expired',
@@ -1640,7 +1671,6 @@ export async function syncAccount(
           } catch (dbErr: unknown) {
             log.warn(`[UnifiedSync] v642: 更新账户授权状态失败: ${(dbErr as Error).message}`);
           }
-          // 将剩余步骤全部标记为跳过
           const remainingSteps = steps.slice(i + 1);
           result.skippedSteps += remainingSteps.length;
           for (const skippedStep of remainingSteps) {
@@ -1650,8 +1680,10 @@ export async function syncAccount(
           break; // 终止后续步骤
         }
         
-        log.warn(`[UnifiedSync] 账户 ${account.accountId} 步骤 ${step.name} 异常: ${(error as Error).message}`);
+        log.warn(`[UnifiedSync] 账户 ${account.accountId} 步骤 ${step.name} 异常${retryInfo}: ${errMsg}`);
+        break; // v643: 不可重试错误，跳出重试循环继续下一个步骤
       }
+      } // v643: 结束重试for循环
     }
 
     // 更新最后同步时间

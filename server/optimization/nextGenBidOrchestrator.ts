@@ -575,7 +575,7 @@ export interface SafetyConfig {
 
 const DEFAULT_SAFETY: SafetyConfig = {
   maxBidChangePercent: 0.15, // v510: 从30%收紧至15%，落实竞价锚定原则
-  minBid: 0.02,
+  minBid: 0.10, // v643: 从$0.02提升到$0.10，与v641的全局最低出价保护保持一致
   maxBid: 10.00,
   targetAcos: 0.30,
 };
@@ -595,7 +595,8 @@ function safetyValidate(
   currentBid: number,
   proposedBid: number,
   config: SafetyConfig,
-  maxBidLimit?: number
+  maxBidLimit?: number,
+  acosRatio?: number // v643: 可选的ACoS比率参数，用于动态调整降价上限
 ): number {
   // v231: NaN/Infinity防御 - 确保输入有效
   if (!isFinite(proposedBid) || isNaN(proposedBid)) {
@@ -613,9 +614,23 @@ function safetyValidate(
   // 2. 单次变化幅度限制
   if (currentBid > 0) {
     const maxIncrease = currentBid * (1 + config.maxBidChangePercent);
-    // v510: 移除紧急降价放宽逻辑，严格执行15%单次降价上限
-    // 原版允许紧急降价时放宽到 50%，但这会导致位置骤降和死亡螺旋
-    const maxDecrease = currentBid * (1 - config.maxBidChangePercent);
+    
+    // v643: 动态降价上限 — 当ACoS严重超标时允许更大幅度的降价
+    // 这是对v510严格15%上限的安全放宽，仅在有明确的ACoS超标数据时才激活
+    let effectiveMaxDecreasePercent = config.maxBidChangePercent; // 默认15%
+    if (acosRatio && acosRatio > 1.0) {
+      if (acosRatio > 3.0) {
+        // ACoS超过目标的300%以上（如140% vs 40%）— 允许最大降价30%
+        effectiveMaxDecreasePercent = Math.min(0.30, config.maxBidChangePercent * 2.0);
+      } else if (acosRatio > 2.0) {
+        // ACoS超过目标的200%以上 — 允许最大降价25%
+        effectiveMaxDecreasePercent = Math.min(0.25, config.maxBidChangePercent * 1.67);
+      } else if (acosRatio > 1.5) {
+        // ACoS超过目标的150%以上 — 允许最大降价20%
+        effectiveMaxDecreasePercent = Math.min(0.20, config.maxBidChangePercent * 1.33);
+      }
+    }
+    const maxDecrease = currentBid * (1 - effectiveMaxDecreasePercent);
 
     safeBid = Math.max(maxDecrease, Math.min(maxIncrease, safeBid));
   }
@@ -1172,6 +1187,17 @@ export async function calculateNextGenBid(
     targetAcos: normalizedTargetAcos,
   };
   
+  // v643: 计算ACoS比率，用于动态调整降价上限
+  // acosRatio = 实际ACoS / 目标ACoS，大于1表示超标
+  let acosRatio: number | undefined;
+  if (target.sales > 0 && target.spend > 0 && normalizedTargetAcos > 0) {
+    const actualAcos = target.spend / target.sales;
+    acosRatio = actualAcos / normalizedTargetAcos;
+  } else if (target.spend > 0 && target.sales === 0 && normalizedTargetAcos > 0) {
+    // 有花费无销售，视为极端超标
+    acosRatio = 5.0;
+  }
+  
   // ===== 第1层：尝试高级算法 =====
   try {
     const keywordId = target.type === 'keyword' ? target.id : undefined;
@@ -1222,7 +1248,7 @@ export async function calculateNextGenBid(
     const hasValidBid = metaDecision.recommendedBid > 0 && metaDecision.confidence > evolvedThreshold;
     
     if ((isAdvancedAlgorithm || isUcbExploration) && hasValidBid) {
-      const safeBid = safetyValidate(target.currentBid, metaDecision.recommendedBid, safetyConfig, maxBidLimit);
+      const safeBid = safetyValidate(target.currentBid, metaDecision.recommendedBid, safetyConfig, maxBidLimit, acosRatio);
       
       // v515: 修复RL数据记录参数传递 — 确保campaignId(string)和adGroupId(number)正确传入
       const advRlCampaignId = String((target as Record<string, unknown>).amazonCampaignId || (target as Record<string, unknown>).campaignId || '');
@@ -1327,7 +1353,7 @@ export async function calculateNextGenBid(
     
     if (coldStartResult) {
       const safeBid = safetyValidate(
-        target.currentBid, coldStartResult.recommendedBid, safetyConfig, maxBidLimit
+        target.currentBid, coldStartResult.recommendedBid, safetyConfig, maxBidLimit, acosRatio
       );
       
       log.info(`[NextGenOrchestrator] v490冷启动驱动: target=${target.id}, ` +
@@ -1393,7 +1419,7 @@ export async function calculateNextGenBid(
   // ===== 第2层：规则引擎 =====
   try {
     const ruleResult = ruleEngineDecision(target, normalizedConfig);
-    let safeBid = safetyValidate(target.currentBid, ruleResult.bid, safetyConfig, maxBidLimit);
+    let safeBid = safetyValidate(target.currentBid, ruleResult.bid, safetyConfig, maxBidLimit, acosRatio);
     let finalReason = ruleResult.reason;
     
     // v257: 最小调整幅度检查 — 忽略微小的无意义变动
@@ -1439,7 +1465,7 @@ export async function calculateNextGenBid(
         // @ts-ignore
         if (cbResult.guardrailInfo.recoveryBid && cbResult.guardrailInfo.recoveryBid > target.currentBid) {
           // @ts-ignore
-          safeBid = safetyValidate(target.currentBid, cbResult.guardrailInfo.recoveryBid, safetyConfig, maxBidLimit);
+          safeBid = safetyValidate(target.currentBid, cbResult.guardrailInfo.recoveryBid, safetyConfig, maxBidLimit, acosRatio);
           finalReason = `[v259提价恢复] ${cbResult.reason}`;
         } else {
           safeBid = target.currentBid; // 安全回退: 维持当前出价
@@ -1516,7 +1542,7 @@ export async function calculateNextGenBid(
           : safeBid * (1 - perturbRatio);
       }
       
-      safeBid = safetyValidate(target.currentBid, explorationBid, safetyConfig, maxBidLimit);
+      safeBid = safetyValidate(target.currentBid, explorationBid, safetyConfig, maxBidLimit, acosRatio);
       const exploreType = isEffectivelyHold ? 'RL探索' : 'RL扰动';
       const exploreDir = directionHash < 50 ? '上探' : '下探';
       finalReason += ` | v257${exploreType}: ${exploreDir}${(explorationRatio * 100).toFixed(1)}%`;
@@ -1881,7 +1907,7 @@ export async function batchCalculateNextGenBids(
         targetAcos: groupConfig.targetAcos && groupConfig.targetAcos > 1 
           ? groupConfig.targetAcos / 100 : (groupConfig.targetAcos || DEFAULT_SAFETY.targetAcos),
       };
-      const safeBid = safetyValidate(target.currentBid, gtoCorrectedBid, safetyConfig, maxBidLimit);
+      const safeBid = safetyValidate(target.currentBid, gtoCorrectedBid, safetyConfig, maxBidLimit, acosRatio);
       
       // 更新结果
       result.newBid = safeBid;

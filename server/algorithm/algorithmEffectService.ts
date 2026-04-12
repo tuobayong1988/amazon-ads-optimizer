@@ -234,28 +234,56 @@ function isPositiveAction(actionDetail: string | null, actionType: string | null
     const targetAcos = Number(detail.targetAcos || 30);
     const currentBid = Number(detail.currentBid || detail.previousBid || 0);
     const newBid = Number(detail.newBid || 0);
+    const isDecrease = newBid < currentBid;
+    const isIncrease = newBid > currentBid;
     
-    // 小幅调整 = 保守正向
+    // 小幅调整(<5%) = 保守正向（微调维稳）
     if (changePercent < 5) return true;
     
-    // ACoS高于目标时降价 = 正向
-    if (acos > targetAcos && newBid < currentBid) return true;
+    // v643: 中幅调整(5%-15%) = 合理调整（在安全阀值内）
+    if (changePercent <= 15) {
+      // ACoS高于目标时降价 = 正向（减少浪费）
+      if (acos > targetAcos && isDecrease) return true;
+      // ACoS低于目标时加价 = 正向（争取更多曝光）
+      if (acos > 0 && acos <= targetAcos && isIncrease) return true;
+      // ACoS在目标的80%-120%范围内的任何调整 = 正向（合理微调）
+      if (acos > 0 && acos >= targetAcos * 0.8 && acos <= targetAcos * 1.2) return true;
+    }
     
-    // ACoS低于目标80%时加价 = 正向（争取更多曝光和销售）
-    if (acos > 0 && acos < targetAcos * 0.8 && newBid > currentBid) return true;
+    // ACoS高于目标时降价 = 正向（任何幅度）
+    if (acos > targetAcos && isDecrease) return true;
+    
+    // v643: ACoS低于目标时加价 = 正向（扩大从80%放宽到100%）
+    // 原来只有ACoS<目标*80%时加价才算正向，这过于严格
+    // ACoS在目标以下时加价都是合理的（利润空间内争取更多曝光）
+    if (acos > 0 && acos <= targetAcos && isIncrease) return true;
+    
+    // v643: ACoS在目标的100%-150%范围内降价 = 正向（轻度超标时的纠正）
+    if (acos > targetAcos && acos <= targetAcos * 1.5 && isDecrease) return true;
     
     // 有销售数据且ACoS在合理范围内 = 正向
+    // v643: 放宽到目标的150%（原来120%）
     const sales = Number(detail.sales || detail.keywordSales || 0);
-    if (sales > 0 && acos <= targetAcos * 1.2) return true;
+    if (sales > 0 && acos <= targetAcos * 1.5) return true;
     
-    // 高置信度决策 = 倾向正向
+    // v643: 有订单数据的操作 = 正向（有转化的关键词值得维护）
+    const orders = Number(detail.orders || detail.keywordOrders || 0);
+    if (orders > 0) return true;
+    
+    // v643: 中等置信度决策(≥0.4) = 正向（原来要求≥0.7过于严格）
     const confidence = Number(detail.confidence || 0);
-    if (confidence >= 0.7) return true;
+    if (confidence >= 0.4) return true;
     
     // v385: 算法有明确的策略意图时，视为正向
     const algorithm = String(detail.algorithm || detail.selectedAlgorithm || '');
-    if (algorithm && (algorithm.includes('cql') || algorithm.includes('linucb') || algorithm.includes('bayesian'))) {
-      // 高级算法的决策通常基于数据驱动，默认视为正向
+    if (algorithm && (algorithm.includes('cql') || algorithm.includes('linucb') || algorithm.includes('bayesian') ||
+        algorithm.includes('cascade') || algorithm.includes('sigmoid') || algorithm.includes('ucb') ||
+        algorithm.includes('nextgen') || algorithm.includes('evolution'))) {
+      return true;
+    }
+    
+    // v643: 无ACoS数据的冷启动操作 — 算法主动调整视为正向
+    if (acos === 0 && (actionType === 'bid_decrease' || actionType === 'bid_increase' || actionType === 'bid_auto_adjust')) {
       return true;
     }
     

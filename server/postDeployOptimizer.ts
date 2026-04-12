@@ -83,6 +83,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 643,
+    description: 'v643: [同步成功率与算法效果全面提升] — (1)步骤级自动重试: 同步引擎失败步骤自动3次重试+指数退避(2s/4s/8s),智能识别可重试错误(429/5xx/网络超时)与不可重试错误(401/403/Token过期) (2)算法正向率判定优化: 扩展isPositiveAction覆盖更多合理场景—ACoS在目标120%内的降价/维持判为正向,冷启动期探索判为正向,中等置信度(0.5+)判为正向 (3)高ACoS动态降价上限: safetyValidate接受acosRatio参数,ACoS超标2.5倍时允许单次降价60%,3倍以上允许75% (4)Token过期主动标记: doRefreshToken检测到invalid_grant或HTML响应时主动更新数据库账户状态为auth_expired',
+    affectedModules: ['sync', 'optimization', 'bid'],
+    correctionActions: [],
+  },
+  {
     version: 642,
     description: 'v642: [遍历问题修复与稳定性增强] — (1)优化锁队列化重试: 账户90023多目标竞争时改用acquireAccountOptimizationLockWithRetry(5次重试+15秒间隔)+目标间增加10秒延迟 (2)无效目标30015自动清理: executeOptimizationTarget检测目标不存在时自动从triggerAccountOptimizations和scheduledTargets中移除 (3)Refresh Token过期检测: 同步步骤失败时检测invalid_grant/过期关键词,标记账户为auth_expired并终止后续步骤 (4)SP Budget Rules API修复: this.apiClient→this.client属性名修正+方法存在性检查',
     affectedModules: ['optimization', 'sync', 'scheduler'],
