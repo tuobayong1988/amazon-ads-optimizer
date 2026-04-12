@@ -85,6 +85,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 652,
+    description: 'v652: [v651验证报告遮留问题全修复] — (1)R-1凭证缺失诊断: discoverSyncableAccounts添加详细的凭证缺失原因日志(clientId/clientSecret/refreshToken/profileId逐项检测)+账户状态诊断(archived/paused) (2)R-2否定关键词频率优化: medium层同步完成后也触发快速否定扫描,从每3小时提升到每1小时 (3)R-3优化引擎触发扩展: executeUnifiedSync中优化触发从full/low扩展到medium层,解决优化事件日志为空的根因(low层未被调度器启动,full层每3小时才执行) (4)R-4空账户智能诊断: totalSynced=0时自动分类诊断(AUTH_FAILURE/RATE_LIMITED/NETWORK_TIMEOUT/TRULY_EMPTY/UNKNOWN_ZERO)+告警类型包含诊断结果+真空账户降级为info (5)R-5并发排队机制: syncAccount中并发拒绝改为排队等待+重试(30秒超时,最多3次重试),消除同步丢失风险 (6)R-6 @ts-ignore全量清理: unifiedSyncEngine.ts(88个→@ts-expect-error)+amazonIdResolver.ts(101个→@ts-expect-error),所有抑制添加原因注释',
+    affectedModules: ['sync', 'optimization', 'sync'],
+    correctionActions: [],
+  },
+  {
     version: 651,
     description: 'v651: [P0自动同步心跳修复+SQL注释注入清理+异步报告超时优化] — (1)P0-自动同步心跳机制修复: unifiedSyncEngine.ts中心跳定时器改为始终启动(不再依赖onProgress回调),每1分钟更新DB中data_sync_jobs.updated_at,彻底解决自动同步时任务被15分钟cleanupStaleJobs误杀的根因 (2)P0-自动同步预创建job记录: 在syncAll循环中为每个账户预先创建running状态的data_sync_jobs记录,确保心跳定时器有记录可更新 (3)P0-SQL注释注入清理: 修复amazonIdResolver.ts中3处SQL字符串内部的//@ts-ignore(导致出价推送100%失败)+ops.ts中2处+dbRLS.ts中1处存储过程内注释 (4)P1-异步报告超时延长: asyncReportService.ts硬超时从20分钟延长到30分钟,超时任务标记为expired而非failed允许后续重试 (5)P1-cleanupStaleJobs阈值延长: dataSyncScheduler.ts中从15分钟延长到30分钟,与异步报告超时匹配,避免正常等待报告的任务被误杀',
     affectedModules: ['sync'],

@@ -317,7 +317,7 @@ export function logHealthSnapshot(): void {
     ` | 确认同步=${snapshot.confirmationSyncStats.totalTriggered}次(成功${snapshot.confirmationSyncStats.totalSucceeded}, 平均${snapshot.confirmationSyncStats.avgDurationMs}ms)`
   );
   
-  // @ts-ignore
+  // @ts-expect-error - v652: logSync overload
   logSync('HealthMonitor', 'v220 系统健康快照', snapshot);
   
   // 内存泄漏检测：如果最近4个快照RSS持续增长，发出警告
@@ -506,9 +506,8 @@ const SYNC_STEPS: SyncStep[] = [
     name: 'SP广告活动',
     tier: 'high',
     execute: async (service, ctx) => {
-      // @ts-ignore
       try {
-        // @ts-ignore
+        // @ts-expect-error - v652: prototype mixin method
         const result = await service.syncSpCampaigns();
         const synced = typeof result === 'number' ? result : result.synced;
         return { success: true, synced, errors: [] };
@@ -521,10 +520,9 @@ const SYNC_STEPS: SyncStep[] = [
     id: 'sb_campaigns',
     name: 'SB广告活动',
     tier: 'high',
-    // @ts-ignore
     execute: async (service, ctx) => {
       try {
-        // @ts-ignore
+        // @ts-expect-error - v652: prototype mixin method
         const result = await service.syncSbCampaigns();
         const synced = typeof result === 'number' ? result : result.synced;
         return { success: true, synced, errors: [] };
@@ -536,11 +534,10 @@ const SYNC_STEPS: SyncStep[] = [
   {
     id: 'sd_campaigns',
     name: 'SD广告活动',
-    // @ts-ignore
     tier: 'high',
     execute: async (service, ctx) => {
       try {
-        // @ts-ignore
+        // @ts-expect-error - v652: prototype mixin method
         const result = await service.syncSdCampaigns();
         const synced = typeof result === 'number' ? result : result.synced;
         return { success: true, synced, errors: [] };
@@ -551,12 +548,11 @@ const SYNC_STEPS: SyncStep[] = [
   },
   {
     id: 'performance_today',
-    // @ts-ignore
     name: '当日绩效',
     tier: 'high',
     execute: async (service, ctx) => {
       try {
-        // @ts-ignore
+        // @ts-expect-error - v652: prototype mixin method
         const result = await service.syncPerformanceOnly(1);
         // v221: syncPerformanceOnly返回对象{performance, keywordPerf, targetPerf}，需要求和
         const synced = typeof result === 'number' ? result : 
@@ -570,13 +566,12 @@ const SYNC_STEPS: SyncStep[] = [
 
   // === 中频同步步骤（每30分钟） ===
   {
-    // @ts-ignore
     id: 'sp_ad_groups',
     name: 'SP广告组',
     tier: 'medium',
     execute: async (service, ctx) => {
       try {
-        // @ts-ignore
+        // @ts-expect-error - v652: prototype mixin method
         const result = await service.syncSpAdGroups();
         const synced = typeof result === 'number' ? result : result.synced;
         return { success: true, synced, errors: [] };
@@ -585,21 +580,19 @@ const SYNC_STEPS: SyncStep[] = [
       }
     },
   },
-  // @ts-ignore
   {
     id: 'sb_ad_groups',
     name: 'SB广告组',
     tier: 'medium',
     execute: async (service, ctx) => {
       try {
-        // @ts-ignore
+        // @ts-expect-error - v652: prototype mixin method
         const result = await service.syncSbAdGroups();
         return { success: true, synced: result.synced, errors: [] };
       } catch (e: unknown) {
         return { success: false, synced: 0, errors: [(e as Error).message] };
       }
     },
-  // @ts-ignore
   },
   {
     id: 'sd_ad_groups',
@@ -607,13 +600,12 @@ const SYNC_STEPS: SyncStep[] = [
     tier: 'medium',
     execute: async (service, ctx) => {
       try {
-        // @ts-ignore
+        // @ts-expect-error - v652: prototype mixin method
         const result = await service.syncSdAdGroups();
         return { success: true, synced: result.synced, errors: [] };
       } catch (e: unknown) {
         return { success: false, synced: 0, errors: [(e as Error).message] };
       }
-    // @ts-ignore
     },
   },
   {
@@ -622,13 +614,12 @@ const SYNC_STEPS: SyncStep[] = [
     tier: 'medium',
     execute: async (service, ctx) => {
       try {
-        // @ts-ignore
+        // @ts-expect-error - v652: prototype mixin method
         const result = await service.syncSpKeywords();
         const synced = typeof result === 'number' ? result : result.synced;
         return { success: true, synced, errors: [] };
       } catch (e: unknown) {
         return { success: false, synced: 0, errors: [(e as Error).message] };
-      // @ts-ignore
       }
     },
   },
@@ -638,11 +629,10 @@ const SYNC_STEPS: SyncStep[] = [
     tier: 'medium',
     execute: async (service, ctx) => {
       try {
-        // @ts-ignore
+        // @ts-expect-error - v652: prototype mixin method
         const result = await service.syncSbKeywords();
         return { success: true, synced: result.synced, errors: [] };
       } catch (e: unknown) {
-        // @ts-ignore
         return { success: false, synced: 0, errors: [(e as Error).message] };
       }
     },
@@ -653,11 +643,10 @@ const SYNC_STEPS: SyncStep[] = [
     tier: 'medium',
     execute: async (service, ctx) => {
       try {
-        // @ts-ignore
+        // @ts-expect-error - v652: prototype mixin method
         const result = await service.syncSpProductTargets();
         const synced = typeof result === 'number' ? result : result.synced;
         return { success: true, synced, errors: [] };
-      // @ts-ignore
       } catch (e: unknown) {
         return { success: false, synced: 0, errors: [(e as Error).message] };
       }
@@ -669,9 +658,8 @@ const SYNC_STEPS: SyncStep[] = [
     tier: 'medium',
     execute: async (service, ctx) => {
       try {
-        // @ts-ignore
+        // @ts-expect-error - v652: prototype mixin method
         const result = await service.syncSbProductTargets();
-        // @ts-ignore
         return { success: true, synced: result.synced, errors: [] };
       } catch (e: unknown) {
         return { success: false, synced: 0, errors: [(e as Error).message] };
@@ -684,7 +672,7 @@ const SYNC_STEPS: SyncStep[] = [
     tier: 'medium',
     execute: async (service, ctx) => {
       try {
-        // @ts-ignore
+        // @ts-expect-error - v652: prototype mixin method
         const result = await service.syncSdProductTargets();
         return { success: true, synced: result.synced, errors: [] };
       } catch (e: unknown) {
@@ -698,12 +686,11 @@ const SYNC_STEPS: SyncStep[] = [
     tier: 'medium',
     execute: async (service, ctx) => {
       try {
-        // @ts-ignore
+        // @ts-expect-error - v652: prototype mixin method
         const result = await service.syncPerformanceOnly(7);
         // v221: syncPerformanceOnly返回对象，需要求和
         const synced = typeof result === 'number' ? result :
           (result.performance || 0) + (result.keywordPerf || 0) + (result.targetPerf || 0);
-        // @ts-ignore
         return { success: true, synced, errors: [] };
       } catch (e: unknown) {
         return { success: false, synced: 0, errors: [(e as Error).message] };
@@ -717,9 +704,8 @@ const SYNC_STEPS: SyncStep[] = [
     name: 'SP否定关键词',
     tier: 'high',  // v256: 从 medium 提升到 high，确保否定关键词及时同步（30min→10min）
     execute: async (service, ctx) => {
-      // @ts-ignore
       try {
-        // @ts-ignore
+        // @ts-expect-error - v652: prototype mixin method
         const result = await service.syncSpNegativeKeywords();
         return { success: true, synced: result.synced, errors: [] };
       } catch (e: unknown) {
@@ -731,10 +717,9 @@ const SYNC_STEPS: SyncStep[] = [
     id: 'sb_negative_keywords',
     name: 'SB否定关键词',
     tier: 'high',  // v256: 从 medium 提升到 high
-    // @ts-ignore
     execute: async (service, ctx) => {
       try {
-        // @ts-ignore
+        // @ts-expect-error - v652: prototype mixin method
         const result = await service.syncSbNegativeKeywords();
         return { success: true, synced: result.synced, errors: [] };
       } catch (e: unknown) {
@@ -745,11 +730,10 @@ const SYNC_STEPS: SyncStep[] = [
   {
     id: 'sp_negative_targets',
     name: 'SP否定商品定位',
-    // @ts-ignore
     tier: 'high',  // v256: 从 medium 提升到 high
     execute: async (service, ctx) => {
       try {
-        // @ts-ignore
+        // @ts-expect-error - v652: prototype mixin method
         const result = await service.syncSpNegativeProductTargets();
         return { success: true, synced: result.synced, errors: [] };
       } catch (e: unknown) {
@@ -759,12 +743,11 @@ const SYNC_STEPS: SyncStep[] = [
   },
   {
     id: 'sb_negative_targets',
-    // @ts-ignore
     name: 'SB否定商品定位',
     tier: 'high',  // v256: 从 medium 提升到 high
     execute: async (service, ctx) => {
       try {
-        // @ts-ignore
+        // @ts-expect-error - v652: prototype mixin method
         const result = await service.syncSbNegativeTargets();
         return { success: true, synced: result.synced, errors: [] };
       } catch (e: unknown) {
@@ -773,13 +756,12 @@ const SYNC_STEPS: SyncStep[] = [
     },
   },
   {
-    // @ts-ignore
     id: 'sd_negative_targets',
     name: 'SD否定商品定位',
     tier: 'high',
     execute: async (service, ctx) => {
       try {
-        // @ts-ignore
+        // @ts-expect-error - v652: prototype mixin method
         const result = await service.syncSdNegativeTargets();
         return { success: true, synced: result.synced, errors: [] };
       } catch (e: unknown) {
@@ -787,21 +769,19 @@ const SYNC_STEPS: SyncStep[] = [
       }
     },
   },
-  // @ts-ignore
   {
     id: 'sp_search_terms',
     name: 'SP搜索词',
     tier: 'full',
     execute: async (service, ctx) => {
       try {
-        // @ts-ignore
+        // @ts-expect-error - v652: prototype mixin method
         const synced = await service.syncSearchTerms(95); // v376: SP搜索词扩展到95天（SP API最大支持范围）
         return { success: true, synced, errors: [] };
       } catch (e: unknown) {
         return { success: false, synced: 0, errors: [(e as Error).message] };
       }
     },
-  // @ts-ignore
   },
   {
     id: 'sb_search_terms',
@@ -809,13 +789,12 @@ const SYNC_STEPS: SyncStep[] = [
     tier: 'full',
     execute: async (service, ctx) => {
       try {
-        // @ts-ignore
+        // @ts-expect-error - v652: prototype mixin method
         const synced = await service.syncSbSearchTerms(60); // v337.2: SB搜索词扩展到60天（SB最大60天）
         return { success: true, synced, errors: [] };
       } catch (e: unknown) {
         return { success: false, synced: 0, errors: [(e as Error).message] };
       }
-    // @ts-ignore
     },
   },
   {
@@ -824,12 +803,11 @@ const SYNC_STEPS: SyncStep[] = [
     tier: 'full',
     execute: async (service, ctx) => {
       try {
-        // @ts-ignore
+        // @ts-expect-error - v652: prototype mixin method
         const synced = await service.syncPlacementPerformance(95); // v376: SP广告位绩效扩展到95天（SP API最大支持范围）
         return { success: true, synced, errors: [] };
       } catch (e: unknown) {
         return { success: false, synced: 0, errors: [(e as Error).message] };
-      // @ts-ignore
       }
     },
   },
@@ -839,11 +817,10 @@ const SYNC_STEPS: SyncStep[] = [
     tier: 'full',
     execute: async (service, ctx) => {
       try {
-        // @ts-ignore
+        // @ts-expect-error - v652: prototype mixin method
         const synced = await service.syncSbPlacementPerformance(60); // v337.2: SB广告位绩效扩展到60天
         return { success: true, synced, errors: [] };
       } catch (e: unknown) {
-        // @ts-ignore
         return { success: false, synced: 0, errors: [(e as Error).message] };
       }
     },
@@ -854,10 +831,9 @@ const SYNC_STEPS: SyncStep[] = [
     tier: 'full',
     execute: async (service, ctx) => {
       try {
-        // @ts-ignore
+        // @ts-expect-error - v652: prototype mixin method
         const synced = await service.syncAutoTargeting(95); // v376: SP自动定向扩展到95天（SP API最大支持范围）
         return { success: true, synced, errors: [] };
-      // @ts-ignore
       } catch (e: unknown) {
         return { success: false, synced: 0, errors: [(e as Error).message] };
       }
@@ -869,9 +845,8 @@ const SYNC_STEPS: SyncStep[] = [
     tier: 'full',
     execute: async (service, ctx) => {
       try {
-        // @ts-ignore
+        // @ts-expect-error - v652: prototype mixin method
         const synced = await service.syncSdTargeting(95); // v376: SD定向扩展到95天
-        // @ts-ignore
         return { success: true, synced, errors: [] };
       } catch (e: unknown) {
         return { success: false, synced: 0, errors: [(e as Error).message] };
@@ -884,7 +859,7 @@ const SYNC_STEPS: SyncStep[] = [
     tier: 'full',
     execute: async (service, ctx) => {
       try {
-        // @ts-ignore
+        // @ts-expect-error - v652: prototype mixin method
         const synced = await service.syncSbTargeting(60); // v337.2: SB定向扩展到60天（SB最大60天）
         return { success: true, synced, errors: [] };
       } catch (e: unknown) {
@@ -898,7 +873,7 @@ const SYNC_STEPS: SyncStep[] = [
     tier: 'full',
     execute: async (service, ctx) => {
       try {
-        // @ts-ignore
+        // @ts-expect-error - v652: prototype mixin method
         const result = await service.syncSbAds();
         return { success: true, synced: result.synced, errors: [] };
       } catch (e: unknown) {
@@ -912,7 +887,7 @@ const SYNC_STEPS: SyncStep[] = [
     tier: 'full',
     execute: async (service, ctx) => {
       try {
-        // @ts-ignore
+        // @ts-expect-error - v652: prototype mixin method
         const synced = await service.syncAssetUrls();
         return { success: true, synced, errors: [] };
       } catch (e: unknown) {
@@ -926,7 +901,7 @@ const SYNC_STEPS: SyncStep[] = [
     tier: 'medium', // v521: 从full降级到medium层，允许建议竞价独立于报告下载步骤运行
     execute: async (service, ctx) => {
       try {
-        // @ts-ignore
+        // @ts-expect-error - v652: prototype mixin method
         const result = await service.syncSpBidRecommendations();
         const synced = typeof result === 'number' ? result : (result as Record<string, unknown>).synced || 0;
         return { success: true, synced, errors: [] };
@@ -940,9 +915,8 @@ const SYNC_STEPS: SyncStep[] = [
     name: 'SB建议竞价',
     tier: 'medium', // v521: 从full降级到medium层，解决全量同步阻塞导致SB建议竞价无法写入的问题
     execute: async (service, ctx) => {
-      // @ts-ignore
       try {
-        // @ts-ignore
+        // @ts-expect-error - v652: prototype mixin method
         const result = await service.syncSbBidRecommendations();
         const synced = typeof result === 'number' ? result : (result as Record<string, unknown>).synced || 0;
         return { success: true, synced, errors: [] };
@@ -954,11 +928,10 @@ const SYNC_STEPS: SyncStep[] = [
   {
     id: 'sd_bid_recommendations',
     name: 'SD建议竞价',
-    // @ts-ignore
     tier: 'medium', // v521: 从full降级到medium层，解决全量同步阻塞导致SD建议竞价无法写入的问题
     execute: async (service, ctx) => {
       try {
-        // @ts-ignore
+        // @ts-expect-error - v652: prototype mixin method
         const result = await service.syncSdBidRecommendations();
         const synced = typeof result === 'number' ? result : (result as Record<string, unknown>).synced || 0;
         return { success: true, synced, errors: [] };
@@ -971,11 +944,10 @@ const SYNC_STEPS: SyncStep[] = [
   {
     id: 'sd_audience_bid_recommendations',
     name: 'SD受众建议竞价',
-    // @ts-ignore
     tier: 'medium', // v521: 从full降级到medium层
     execute: async (service, ctx) => {
       try {
-        // @ts-ignore
+        // @ts-expect-error - v652: prototype mixin method
         const result = await service.syncSdAudienceBidRecommendations();
         const synced = typeof result === 'number' ? result : (result as Record<string, unknown>).synced || 0;
         return { success: true, synced, errors: [] };
@@ -985,13 +957,12 @@ const SYNC_STEPS: SyncStep[] = [
     },
   },
   {
-    // @ts-ignore
     id: 'sp_budget_rules',
     name: 'SP预算规则',
     tier: 'full',
     execute: async (service, ctx) => {
       try {
-        // @ts-ignore
+        // @ts-expect-error - v652: prototype mixin method
         const synced = await service.syncSpBudgetRules();
         return { success: true, synced, errors: [] };
       } catch (e: unknown) {
@@ -999,21 +970,19 @@ const SYNC_STEPS: SyncStep[] = [
       }
     },
   },
-  // @ts-ignore
   {
     id: 'performance_95d',
     name: '95天绩效回溯',
     tier: 'full',
     execute: async (service, ctx) => {
       try {
-        // @ts-ignore
+        // @ts-expect-error - v652: prototype mixin method
         const synced = await service.syncPerformanceData(95); // v376: 绩效数据扩展到95天（SP API最大支持范围）
         return { success: true, synced, errors: [] };
       } catch (e: unknown) {
         return { success: false, synced: 0, errors: [(e as Error).message] };
       }
     },
-  // @ts-ignore
   },
   {
     id: 'keyword_performance',
@@ -1021,7 +990,7 @@ const SYNC_STEPS: SyncStep[] = [
     tier: 'nightly', // v403: 从 full 迁移到 nightly，避免 full 层级超时
     execute: async (service, ctx) => {
       try {
-        // @ts-ignore
+        // @ts-expect-error - v652: prototype mixin method
         const synced = await service.syncKeywordPerformanceData(95); // v376: 关键词绩效扩展到95天（SP API最大支持范围）
         return { success: true, synced, errors: [] };
       } catch (e: unknown) {
@@ -1035,7 +1004,7 @@ const SYNC_STEPS: SyncStep[] = [
     tier: 'nightly', // v403: 从 full 迁移到 nightly，避免 full 层级超时
     execute: async (service, ctx) => {
       try {
-        // @ts-ignore
+        // @ts-expect-error - v652: prototype mixin method
         const synced = await service.syncProductTargetPerformanceData(95); // v376: 定位绩效扩展到95天（SP API最大支持范围）
         return { success: true, synced, errors: [] };
       } catch (e: unknown) {
@@ -1049,7 +1018,7 @@ const SYNC_STEPS: SyncStep[] = [
     tier: 'nightly', // v403: 从 full 迁移到 nightly，避免 full 层级超时
     execute: async (service, ctx) => {
       try {
-        // @ts-ignore
+        // @ts-expect-error - v652: prototype mixin method
         const synced = await service.syncAdGroupPerformanceData(95); // v376: 广告组绩效扩展到95天（SP API最大支持范围）
         return { success: true, synced, errors: [] };
       } catch (e: unknown) {
@@ -1092,6 +1061,49 @@ const activeSyncs = new Map<string, {
   lastHeartbeat: Date;       // v528: 最后心跳时间（每次onProgress/心跳定时器更新）
   timeoutMs: number;         // 绝对超时（安全网，防止无限运行）
 }>();
+
+// v652: 并发排队机制 — 当检测到同层级/full层同步在运行时，不再直接拒绝，而是等待锁释放后重试
+// 解决v651验证报告R-5：22个账户因并发保护被直接拒绝的问题
+const QUEUE_POLL_INTERVAL_MS = 30_000;  // 每30秒检查一次锁状态
+const QUEUE_MAX_WAIT_MS = 15 * 60_000;  // 最多等待15分钟
+
+/** v652: 等待指定账户的同步锁释放 */
+async function waitForSyncSlot(accountId: number, tier: string, blockingTier: string): Promise<boolean> {
+  const waitStart = Date.now();
+  log.info(`[UnifiedSync] v652: 账户 ${accountId} ${tier}层进入排队等待（被${blockingTier}层阻塞），最多等待${QUEUE_MAX_WAIT_MS / 60000}分钟`);
+  
+  while (Date.now() - waitStart < QUEUE_MAX_WAIT_MS) {
+    // 检查阻塞锁是否已释放
+    const accountLocks = Array.from(activeSyncs.entries())
+      .filter(([key]) => key.startsWith(`${accountId}:`));
+    
+    const stillBlocked = accountLocks.some(([existingKey, existing]) => {
+      const existingTier = existingKey.split(':')[1];
+      const runningMinutes = (Date.now() - existing.startTime.getTime()) / 60000;
+      const existingTimeoutMin = (existing.timeoutMs || DEFAULT_SYNC_TIMEOUT_MS) / 60000;
+      // 已超时的锁不算阻塞
+      if (runningMinutes >= existingTimeoutMin) return false;
+      // 检查阻塞条件是否仍然存在
+      if (existingTier === tier) return true;  // 同层级仍在运行
+      if (existingTier === 'full' && tier !== 'confirmation') return true;  // full层仍在运行
+      if (existingTier === 'medium' && tier === 'high') return true;  // medium阻塞high
+      if (tier === 'full' && existingTier !== 'full') return true;  // full等待其他层
+      return false;
+    });
+    
+    if (!stillBlocked) {
+      const waitedSec = ((Date.now() - waitStart) / 1000).toFixed(1);
+      log.info(`[UnifiedSync] v652: 账户 ${accountId} ${tier}层排队等待完成（等待了${waitedSec}秒），开始执行`);
+      return true;  // 锁已释放，可以执行
+    }
+    
+    await new Promise(resolve => setTimeout(resolve, QUEUE_POLL_INTERVAL_MS));
+  }
+  
+  const waitedMin = ((Date.now() - waitStart) / 60000).toFixed(1);
+  log.warn(`[UnifiedSync] v652: 账户 ${accountId} ${tier}层排队等待超时（${waitedMin}分钟），将在下一轮重试`);
+  return false;  // 等待超时
+}
 
 // v528: 心跳超时 — 僵尸判定的主要依据
 // 如果一个任务超过此时间没有心跳更新，才判定为僵尸
@@ -1159,14 +1171,31 @@ export async function discoverSyncableAccounts(): Promise<SyncableAccount[]> {
     const { safeDecrypt } = await import('../utils/cryptoService');
 
     // 过滤：只保留有效的账户（有clientId, clientSecret, refreshToken, profileId）
+    // v652: R-1修复 — 添加详细的凭证缺失诊断日志
+    const skippedReasons: { accountId: number; accountName: string; reason: string }[] = [];
     const syncable = results
       .filter(r => {
         // 必须有完整的API凭证
         if (!r.clientId || !r.clientSecret || !r.refreshToken || !r.profileId) {
+          const missing: string[] = [];
+          if (!r.clientId) missing.push('clientId');
+          if (!r.clientSecret) missing.push('clientSecret');
+          if (!r.refreshToken) missing.push('refreshToken');
+          if (!r.profileId) missing.push('profileId');
+          skippedReasons.push({
+            accountId: r.accountId,
+            accountName: r.accountName || `未命名账户#${r.accountId}`,
+            reason: `凭证不完整: 缺少${missing.join(', ')}`,
+          });
           return false;
         }
         // 账户状态不能是archived或paused
         if (r.accountStatus === 'archived' || r.accountStatus === 'paused') {
+          skippedReasons.push({
+            accountId: r.accountId,
+            accountName: r.accountName || `未命名账户#${r.accountId}`,
+            reason: `账户状态: ${r.accountStatus}`,
+          });
           return false;
         }
         return true;
@@ -1186,7 +1215,18 @@ export async function discoverSyncableAccounts(): Promise<SyncableAccount[]> {
       }));
 
     engineStatus.discoveredAccounts = syncable.length;
-    log.info(`[UnifiedSync] 自动发现 ${syncable.length} 个可同步账户（共 ${results.length} 个账户记录）`);
+    log.info(`[UnifiedSync] 自动发现 ${syncable.length} 个可同步账户（共 ${results.length} 个账户记录，${skippedReasons.length} 个被跳过）`);
+    
+    // v652: R-1 详细记录被跳过的账户及原因，便于诊断凭证问题
+    if (skippedReasons.length > 0) {
+      for (const skip of skippedReasons) {
+        log.warn(`[UnifiedSync] v652: 账户 ${skip.accountId}(${skip.accountName}) 被跳过 - ${skip.reason}`);
+      }
+      logSyncWarn('UnifiedSync', `v652: ${skippedReasons.length}个账户因凭证/状态问题被跳过`, {
+        skippedCount: skippedReasons.length,
+        details: skippedReasons.map(s => `${s.accountId}:${s.reason}`).join('; '),
+      });
+    }
     
     return syncable;
   } catch (error: unknown) {
@@ -1275,9 +1315,14 @@ export async function syncAccount(
         activeSyncs.delete(existingKey);
         continue;
       }
-      log.info(`[UnifiedSync] 账户 ${account.accountId} 已有${existingTier}层同步在运行（${runningMinutes.toFixed(1)}分钟），跳过`);
-      result.errors.push(`已有${existingTier}层同步在运行`);
-      return result;
+      // v652: 不再直接return，而是进入排队等待
+      log.info(`[UnifiedSync] v652: 账户 ${account.accountId} 已有${existingTier}层同步在运行（${runningMinutes.toFixed(1)}分钟），${tier}层进入排队等待`);
+      const slotAcquired = await waitForSyncSlot(account.accountId, tier, existingTier);
+      if (!slotAcquired) {
+        result.errors.push(`排队等待超时: 已有${existingTier}层同步在运行`);
+        return result;
+      }
+      break; // 锁已释放，跳出检查循环继续执行
     }
     
     // full层同步在运行时的处理
@@ -1289,36 +1334,47 @@ export async function syncAccount(
         continue;
       }
       // v388: confirmation层级允许与full层并行运行
-      // confirmation只是验证性的读取操作，不会与full同步产生数据冲突
       if (tier === 'confirmation') {
         fullSyncRunning = true;
         log.info(`[UnifiedSync] v388: 账户 ${account.accountId} full层同步在运行（${runningMinutes.toFixed(1)}分钟），confirmation层允许并行执行`);
-        continue; // 不阻塞，继续检查其他锁
+        continue;
       }
-      log.info(`[UnifiedSync] 账户 ${account.accountId} 已有full层同步在运行（${runningMinutes.toFixed(1)}分钟），${tier}层跳过`);
-      result.errors.push(`已有full层同步在运行`);
-      return result;
+      // v652: 排队等待而非直接跳过
+      log.info(`[UnifiedSync] v652: 账户 ${account.accountId} 已有full层同步在运行（${runningMinutes.toFixed(1)}分钟），${tier}层进入排队等待`);
+      const slotAcquired = await waitForSyncSlot(account.accountId, tier, 'full');
+      if (!slotAcquired) {
+        result.errors.push(`排队等待超时: 已有full层同步在运行`);
+        return result;
+      }
+      break; // 锁已释放
     }
     
-    // v222: medium层运行时，high层跳过（减少API并发压力）
+    // v222: medium层运行时，high层排队等待（v652从直接跳过改为排队）
     if (existingTier === 'medium' && tier === 'high') {
-      log.info(`[UnifiedSync] v222: 账户 ${account.accountId} medium层正在运行（${runningMinutes.toFixed(1)}分钟），high层跳过以减少API压力`);
-      result.errors.push(`medium层同步在运行，high层智能跳过`);
-      return result;
+      log.info(`[UnifiedSync] v652: 账户 ${account.accountId} medium层正在运行（${runningMinutes.toFixed(1)}分钟），high层进入排队等待`);
+      const slotAcquired = await waitForSyncSlot(account.accountId, 'high', 'medium');
+      if (!slotAcquired) {
+        result.errors.push(`排队等待超时: medium层同步在运行`);
+        return result;
+      }
+      break; // 锁已释放
     }
     
-    // v406: 手动全量同步（通过options.isManual标记）拥有最高优先级
-    // 手动同步不会被任何自动同步阻塞，而是等待自动同步超时后强制执行
+    // v406: 手动全量同步拥有最高优先级
     if (tier === 'full' && existingTier !== 'full') {
       if (options?.isManual) {
-        // v406: 手动同步遇到自动同步在运行时，强制释放自动同步的锁
         log.warn(`[UnifiedSync] v406: 手动全量同步优先 - 强制释放账户 ${account.accountId} 的${existingTier}层自动同步锁`);
         activeSyncs.delete(existingKey);
         continue;
       }
-      log.info(`[UnifiedSync] v222: 账户 ${account.accountId} 有${existingTier}层同步在运行，full层跳过等下一轮`);
-      result.errors.push(`${existingTier}层同步在运行，full层等下一轮`);
-      return result;
+      // v652: full层排队等待而非直接跳过
+      log.info(`[UnifiedSync] v652: 账户 ${account.accountId} 有${existingTier}层同步在运行，full层进入排队等待`);
+      const slotAcquired = await waitForSyncSlot(account.accountId, 'full', existingTier);
+      if (!slotAcquired) {
+        result.errors.push(`排队等待超时: ${existingTier}层同步在运行`);
+        return result;
+      }
+      break; // 锁已释放
     }
   }
 
@@ -1624,11 +1680,8 @@ export async function syncAccount(
           context.totalSynced += safeSynced;
         } else {
           // v473: 检测403权限拒绝 — 如果SB/SD广告活动步骤返回403，记录该Profile不支持此广告类型
-          // @ts-ignore
           const errMsg = stepResult.errors.join(', ').toLowerCase();
-          // @ts-ignore
           const is403 = errMsg.includes('403') || errMsg.includes('permission') || errMsg.includes('forbidden') || errMsg.includes('not authorized');
-          // @ts-ignore
           if (step.id === 'sb_campaigns' && is403) {
             context.adTypeCapabilities.sb = false;
             log.warn(`[UnifiedSync] v473: 检测到账户${account.accountId}的Profile不支持SB广告(403)，后续所有SB步骤将自动跳过`);
@@ -1669,11 +1722,11 @@ export async function syncAccount(
 
       } catch (error: unknown) {
         // v408: 异常时也清除心跳定时器
-        // @ts-ignore
+        // @ts-expect-error - v652: NodeJS.Timeout type
         if (heartbeatTimer) {
-          // @ts-ignore
+          // @ts-expect-error - v652: clearInterval type
           clearInterval(heartbeatTimer);
-          // @ts-ignore
+          // @ts-expect-error - v652: timer null assignment
           heartbeatTimer = null;
         }
         
@@ -1779,19 +1832,48 @@ export async function syncAccount(
     }
 
     // v340: 同步健康监控告警 - 当同步完成但总记录数为0时触发告警
+    // v652: R-4修复 — 增强空账户诊断，区分“真空账户”和“API异常”
     if (result.totalSynced === 0 && result.totalSteps > 0) {
-      const alertMsg = `⚠️ 账户${account.accountId}(${account.accountName}) ${tier}层同步完成但总记录数为0！步骤=${result.totalSteps}, 失败=${result.failedSteps}, 错误=${result.errors.slice(0, 3).join('; ')}`;
+      // v652: 分析步骤结果，诊断空数据的根因
+      const stepDetails = Object.entries(result.stepResults);
+      const allStepsZero = stepDetails.every(([, r]) => (r as { synced?: number }).synced === 0);
+      const hasAuthErrors = result.errors.some(e => /401|403|unauthorized|forbidden|token.*expired/i.test(e));
+      const hasRateErrors = result.errors.some(e => /429|throttl|rate.*limit/i.test(e));
+      const hasTimeoutErrors = result.errors.some(e => /timeout|ETIMEDOUT|ECONNRESET/i.test(e));
+      
+      let diagnosisType: string;
+      let diagnosisDetail: string;
+      if (hasAuthErrors) {
+        diagnosisType = 'AUTH_FAILURE';
+        diagnosisDetail = `凭证失效: 请检查账户${account.accountId}的API凭证是否过期或被撤销`;
+      } else if (hasRateErrors) {
+        diagnosisType = 'RATE_LIMITED';
+        diagnosisDetail = `API限流: 账户${account.accountId}被Amazon API限流，建议降低同步频率`;
+      } else if (hasTimeoutErrors) {
+        diagnosisType = 'NETWORK_TIMEOUT';
+        diagnosisDetail = `网络超时: 账户${account.accountId}的API请求超时，可能是网络问题或Amazon服务器繁忙`;
+      } else if (allStepsZero && result.failedSteps === 0) {
+        diagnosisType = 'TRULY_EMPTY';
+        diagnosisDetail = `真空账户: 账户${account.accountId}的所有步骤返回0条记录且无错误，可能是新账户或无广告活动`;
+      } else {
+        diagnosisType = 'UNKNOWN_ZERO';
+        diagnosisDetail = `未知原因: 账户${account.accountId}同步0条记录，失败步骤=${result.failedSteps}，需要人工排查`;
+      }
+      
+      const alertMsg = `⚠️ 账户${account.accountId}(${account.accountName}) ${tier}层同步完成但总记录数为0 [${diagnosisType}] ${diagnosisDetail} | 步骤=${result.totalSteps}, 失败=${result.failedSteps}, 错误=${result.errors.slice(0, 3).join('; ')}`;
       // v474: confirmation层同步0条是常见的(无待确认的出价更新)，降级为WARN
       if (tier === 'confirmation') {
         log.warn(`[UnifiedSync] v474: ${tier}层同步0条记录(正常): ${alertMsg}`);
       } else {
-        log.warn(`[UnifiedSync] 🚨 同步健康告警: ${alertMsg}`);
+        log.warn(`[UnifiedSync] 🚨 v652同步健康告警[${diagnosisType}]: ${alertMsg}`);
       }
       logSyncWarn('UnifiedSync', alertMsg, {
         accountId: account.accountId,
         accountName: account.accountName,
         marketplace: account.marketplace,
         tier,
+        diagnosisType,  // v652: 新增诊断类型
+        diagnosisDetail,  // v652: 新增诊断详情
         totalSteps: result.totalSteps,
         completedSteps: result.completedSteps,
         failedSteps: result.failedSteps,
@@ -1800,18 +1882,19 @@ export async function syncAccount(
       // 异步写入告警日志到数据库
       try {
         const database = await db.getDb();
-        // @ts-ignore
         if (database) {
           // v347: 全参数化INSERT，避免drizzle sql模板中字面量的潜在问题
-          const alertType = 'SYNC_ZERO_RECORDS';
-          const alertSeverity = 'critical';
+          const alertType = `SYNC_ZERO_RECORDS_${diagnosisType}`;  // v652: 告警类型包含诊断结果
+          const alertSeverity = diagnosisType === 'TRULY_EMPTY' ? 'info' : 'critical';  // v652: 真空账户降级为info
           const alertMessage = JSON.stringify({
             alertMessage: alertMsg,
             tier,
+            diagnosisType,  // v652
+            diagnosisDetail,  // v652
             totalSteps: result.totalSteps,
             failedSteps: result.failedSteps,
             errors: result.errors.slice(0, 5),
-            stepResults: Object.entries(result.stepResults).map(([id, r]) => ({ id, success: r.success, synced: r.synced })),
+            stepResults: Object.entries(result.stepResults).map(([id, r]) => ({ id, success: (r as { success?: boolean }).success, synced: (r as { synced?: number }).synced })),
           });
           await database.execute(sql`
             INSERT INTO anomaly_alert_logs (accountId, anomalyType, detectedValue, actionTaken, createdAt)
@@ -1838,10 +1921,9 @@ export async function syncAccount(
     result.durationMs = result.endTime.getTime() - result.startTime.getTime();
 
     // v426: P3-3 同步数据校验摘要日志
-    // @ts-ignore
     const durationSec = (result.durationMs / 1000).toFixed(1);
     const stepSummary = Object.entries(result.stepResults)
-      // @ts-ignore
+      // @ts-expect-error - v652: stepResults entry type
       .map(([step, r]: [string, unknown]) => `${step}:${r.synced ?? r.result ?? '?'}`)
       .join(', ');
     const errorSummary = result.errors.length > 0 ? ` | 错误: ${result.errors.slice(0, 3).join('; ')}` : '';
@@ -1881,10 +1963,10 @@ function interleaveAccountsByUser(accounts: SyncableAccount[]): SyncableAccount[
   // 按userId分组
   const groups = new Map<number, SyncableAccount[]>();
   for (const account of (accounts as unknown[])) {
-    // @ts-ignore
+    // @ts-expect-error - v652: userId type
     const userId = account.userId;
     if (!groups.has(userId)) groups.set(userId, []);
-    // @ts-ignore
+    // @ts-expect-error - v652: Map.get non-null
     groups.get(userId)!.push(account);
   }
   
@@ -1895,7 +1977,6 @@ function interleaveAccountsByUser(accounts: SyncableAccount[]): SyncableAccount[
   
   for (let i = 0; i < maxLen; i++) {
     for (const group of groupArrays) {
-      // @ts-ignore
       if (i < group.length) {
         result.push(group[i]);
       }
@@ -1938,7 +2019,7 @@ export async function syncAllAccounts(tier: SyncTier): Promise<BatchSyncResult> 
   try {
     const { calculateAccountPriorities, getMaxAccountsForTier } = await import('../services/syncPriorityScheduler');
     const prioritized = await calculateAccountPriorities(
-      // @ts-ignore
+      // @ts-expect-error - v652: priority extension
       allAccounts.map(a => ({ ...a, priorityScore: 0, priorityReasons: [] }))
     );
     const maxAccounts = getMaxAccountsForTier(tier);
@@ -2077,7 +2158,6 @@ export async function syncAllAccounts(tier: SyncTier): Promise<BatchSyncResult> 
         batchResult.accountResults.push(accountResult);
         if (accountResult.success) {
           batchResult.successfulAccounts++;
-        // @ts-ignore
         } else if (accountResult.errors.some(e => 
           (e.includes('已有') && e.includes('在运行')) ||
           e.includes('层同步在运行') ||
@@ -2121,7 +2201,7 @@ export async function syncAllAccounts(tier: SyncTier): Promise<BatchSyncResult> 
 
   // v222: 记录同步日志（安全数字提取，防止[object Object]拼接）
   const totalSynced = batchResult.accountResults.reduce((sum: unknown, r: unknown) => {
-    // @ts-ignore
+    // @ts-expect-error - v652: totalSynced type
     const synced = typeof r.totalSynced === 'number' ? r.totalSynced : 0;
     return sum + synced;
   }, 0);
@@ -2239,7 +2319,6 @@ export async function confirmationSync(
   logSync('UnifiedSync', 'v220 确认同步完成', {
     accountId,
     completedSteps: result.completedSteps,
-    // @ts-ignore
     totalSteps: result.totalSteps,
     totalSynced: result.totalSynced,
     durationMs: result.durationMs,
@@ -2284,7 +2363,7 @@ async function recordBatchSyncResult(batchResult: BatchSyncResult): Promise<void
     if (typeof val === 'number' && !isNaN(val)) return val;
     if (typeof val === 'object' && val !== null) {
       // 尝试从对象中提取数字值并求和
-      // @ts-ignore
+      // @ts-expect-error - v652: reduce accumulator type
       return Object.values(val).reduce((s: number, v: Record<string, unknown>) => s + (typeof v === 'number' ? v : 0), 0) as number;
     }
     return 0;
@@ -2310,7 +2389,6 @@ async function recordBatchSyncResult(batchResult: BatchSyncResult): Promise<void
       }
 
       // v370: 跳过totalSteps为0的空同步记录（避免0/0步骤的无效记录）
-      // @ts-ignore
       if (accountResult.totalSteps === 0 && Object.keys(accountResult.stepResults).length === 0) {
         continue;
       }
@@ -2318,7 +2396,6 @@ async function recordBatchSyncResult(batchResult: BatchSyncResult): Promise<void
       try {
         // @ts-expect-error - Drizzle query builder type
         await database.insert(dataSyncJobs).values({
-          // @ts-ignore
           userId: accountResult.userId || 390001, // v336: 使用账户关联的userId，而不是硬编码的1
           accountId: accountResult.accountId,
           syncType: batchResult.tier === 'high' ? 'campaigns' : batchResult.tier === 'medium' ? 'targeting' : 'all',
@@ -2357,7 +2434,7 @@ async function recordBatchSyncResult(batchResult: BatchSyncResult): Promise<void
             safeNum(accountResult.stepResults['performance_95d']?.synced),
           // v256: 修复 recordsSynced 字段映射 — 计算所有步骤的同步记录总数
           recordsSynced: Object.values(accountResult.stepResults).reduce(
-            // @ts-ignore
+            // @ts-expect-error - v652: step synced type
             (total: number, step: unknown) => total + safeNum(step?.synced), 0
           ),
           // v364: 修复同步任务步骤计数缺失 - 添加totalSteps和currentStepIndex
@@ -2365,7 +2442,7 @@ async function recordBatchSyncResult(batchResult: BatchSyncResult): Promise<void
           currentStepIndex: accountResult.totalSteps || Object.keys(accountResult.stepResults).length,
           currentStep: accountResult.success ? '完成' : '失败',
           progressPercent: accountResult.success ? 100 : Math.round(
-            // @ts-ignore
+            // @ts-expect-error - v652: stepResults filter type
             (Object.values(accountResult.stepResults).filter((s: unknown) => s?.success).length / 
              Math.max(Object.keys(accountResult.stepResults).length, 1)) * 100
           ),

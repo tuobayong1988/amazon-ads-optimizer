@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 651;  // v651: P0修复自动同步心跳机制(DB层心跳定时器始终启动) + P0清理SQL注释注入(amazonIdResolver/ops/dbRLS) + P1异步报告超时延长到30分钟 + cleanupStaleJobs阈值30分钟
+export const SYSTEM_VERSION = 652;  // v652: R-1凭证缺失诊断 + R-2否定关键词medium层触发 + R-3优化引擎medium层触发 + R-4空账户智能诊断 + R-5并发排队机制 + R-6 @ts-ignore全量清理

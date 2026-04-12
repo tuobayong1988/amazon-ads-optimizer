@@ -707,39 +707,44 @@ async function executeUnifiedSync(tier: SyncTier): Promise<void> {
       `${batchResult.failedAccounts} 失败, ${batchResult.skippedAccounts} 跳过, ` +
       `耗时 ${batchResult.durationMs}ms`);
 
-    // v219: 完整同步完成后触发优化目标执行
-    if (tier === 'full' || tier === 'low') {
+    // v652: R-3修复 — 扩展优化触发到medium层，解决优化事件日志为空的问题
+    // v219原始设计只在full/low层触发，但low层未被调度器启动，full层每3小时才执行一次
+    // 现在medium层（每60分钟）也触发优化，确保优化引擎每小时至少执行一次
+    if (tier === 'full' || tier === 'low' || tier === 'medium') {
       for (const accountResult of batchResult.accountResults) {
         if (!accountResult.success) continue;
         try {
           const { triggerAccountOptimizations } = await import('../optimization/optimizationScheduler');
-          await triggerAccountOptimizations(accountResult.accountId, 'unified_sync_complete');
-          log.info(`[DataSyncScheduler] v219: 账户 ${accountResult.accountId} 优化目标触发完成`);
+          const triggerSource = tier === 'medium' ? 'medium_sync_complete' : 'unified_sync_complete';
+          await triggerAccountOptimizations(accountResult.accountId, triggerSource);
+          log.info(`[DataSyncScheduler] v652: 账户 ${accountResult.accountId} 优化目标触发完成 (${tier}层)`);
         } catch (optErr: unknown) {
-          log.warn(`[DataSyncScheduler] v219: 账户 ${accountResult.accountId} 优化目标触发失败: ${(optErr as Error).message}`);
+          log.warn(`[DataSyncScheduler] v652: 账户 ${accountResult.accountId} 优化目标触发失败: ${(optErr as Error).message}`);
         }
       }
       
-      // v337.4: 数据同步完成后触发快速否定扫描
-      // 不等待定时任务，立即检查是否有高风险搜索词需要否定
+      // v652: R-2修复 — medium层同步完成后也触发快速否定扫描
+      // 否定关键词步骤在medium tier中同步，同步后应立即扫描而非等待full层
       try {
-        log.info(`[DataSyncScheduler] v337.4: 数据同步完成，触发快速否定扫描...`);
+        log.info(`[DataSyncScheduler] v652: ${tier}层同步完成，触发快速否定扫描...`);
         await executeOptimizationTask('daily_search_term_negation');
-        log.info(`[DataSyncScheduler] v337.4: 快速否定扫描完成`);
+        log.info(`[DataSyncScheduler] v652: 快速否定扫描完成 (${tier}层触发)`);
       } catch (negErr: unknown) {
-        log.warn(`[DataSyncScheduler] v337.4: 快速否定扫描失败: ${(negErr as Error).message}`);
+        log.warn(`[DataSyncScheduler] v652: 快速否定扫描失败: ${(negErr as Error).message}`);
       }
       
-      // v523: 实体状态对齐 — 扫描 entityNotFoundError 并标记本地实体为 amazon_deleted
-      try {
-        log.info(`[DataSyncScheduler] v523: 数据同步完成，触发实体状态对齐...`);
-        const { alignAllAccountEntityStates } = await import('./entityStateAlignment');
-        const alignResult = await alignAllAccountEntityStates();
-        log.info(`[DataSyncScheduler] v523: 实体状态对齐完成: ${alignResult.totalAccounts}个账户, ` +
-          `keywords=${alignResult.totalKeywordsAligned}, targets=${alignResult.totalTargetsAligned}, ` +
-          `cancelled=${alignResult.totalTasksCancelled}`);
-      } catch (alignErr: unknown) {
-        log.warn(`[DataSyncScheduler] v523: 实体状态对齐失败: ${(alignErr as Error).message}`);
+      // v523: 实体状态对齐 — 仅在full/low层执行（耗时较长，不需要每小时执行）
+      if (tier === 'full' || tier === 'low') {
+        try {
+          log.info(`[DataSyncScheduler] v523: 数据同步完成，触发实体状态对齐...`);
+          const { alignAllAccountEntityStates } = await import('./entityStateAlignment');
+          const alignResult = await alignAllAccountEntityStates();
+          log.info(`[DataSyncScheduler] v523: 实体状态对齐完成: ${alignResult.totalAccounts}个账户, ` +
+            `keywords=${alignResult.totalKeywordsAligned}, targets=${alignResult.totalTargetsAligned}, ` +
+            `cancelled=${alignResult.totalTasksCancelled}`);
+        } catch (alignErr: unknown) {
+          log.warn(`[DataSyncScheduler] v523: 实体状态对齐失败: ${(alignErr as Error).message}`);
+        }
       }
     }
 
