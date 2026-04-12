@@ -465,7 +465,7 @@ async function fixNullApiSyncStatusRecords(database: unknown): Promise<number> {
     // 处理 optimization_logs 表
     let batchAffected = 0;
     do {
-      // @ts-ignore
+      // @ts-expect-error v653: drizzle/mysql2 untyped query result
       const updateResult = await database.execute(sql`
         UPDATE optimization_logs 
         SET api_sync_status = 'legacy_unsynced'
@@ -482,9 +482,8 @@ async function fixNullApiSyncStatusRecords(database: unknown): Promise<number> {
     
     // 处理 optimization_events 表
     let batchAffected2 = 0;
-    // @ts-ignore
     do {
-      // @ts-ignore
+      // @ts-expect-error v653: drizzle/mysql2 untyped query result
       const updateResult2 = await database.execute(sql`
         UPDATE optimization_events 
         SET api_sync_status = 'legacy_unsynced'
@@ -517,10 +516,9 @@ async function retryFailedBidAdjustments(database: unknown, accountId: number): 
   
   try {
     // 查找最近7天内API同步失败的出价调整事件
-    // @ts-ignore
     const expiryDateStr = new Date(Date.now() - AUTO_CORRECTION_CONFIG.retryExpiryDays * 24 * 60 * 60 * 1000).toISOString().slice(0, 19).replace('T', ' ');
     
-    // @ts-ignore
+    // @ts-expect-error v653: drizzle/mysql2 untyped query result
     const failedEvents = await database
       .select({
         id: optimizationEvents.id,
@@ -568,7 +566,7 @@ async function retryFailedBidAdjustments(database: unknown, accountId: number): 
     const invalidKwIds = new Set<number>();
     if (kwIds.length > 0) {
       try {
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         const kwStatusRows = await database
           .select({ id: keywords.id, keywordStatus: keywords.keywordStatus })
           .from(keywords)
@@ -588,7 +586,7 @@ async function retryFailedBidAdjustments(database: unknown, accountId: number): 
             .filter((e: any) => e.keywordId && invalidKwIds.has(e.keywordId))
             .map((e: any) => e.id);
           if (invalidEventIds.length > 0) {
-            // @ts-ignore
+            // @ts-expect-error v653: drizzle/mysql2 untyped query result
             await database.execute(sql`
               UPDATE optimization_events 
               SET api_sync_status = 'permanently_failed',
@@ -635,7 +633,6 @@ async function retryFailedBidAdjustments(database: unknown, accountId: number): 
     // 这样单个关键词的失败不会影响其他关键词的重试
     for (const item of retryItems) {
       const event = Array.from(latestByKeyword.values()).find(e => e.keywordId === item.keywordId);
-      // @ts-ignore
       if (!event) continue;
       
       // v640: 计算当前重试次数（从事件的apiSyncDetail中提取）
@@ -648,7 +645,7 @@ async function retryFailedBidAdjustments(database: unknown, accountId: number): 
       // v640: 死信队列检查 — 超过最大重试次数则移入DLQ
       if (currentRetryCount >= AUTO_CORRECTION_CONFIG.dlqMaxRetries) {
         log.warn(`v640: 账户${accountId} 关键词${item.keywordId} 已达到最大重试次数(${currentRetryCount})，移入死信队列`);
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         await database
           .update(optimizationEvents)
           .set({
@@ -695,7 +692,7 @@ async function retryFailedBidAdjustments(database: unknown, accountId: number): 
         );
         
         // v425: 逐条判断每个keyword的同步结果
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         const itemResult = syncResult.itemResults?.get(item.keywordId);
         const success = itemResult?.status === 'synced';
         
@@ -709,11 +706,10 @@ async function retryFailedBidAdjustments(database: unknown, accountId: number): 
           reason: `重试失败的出价调整 (原事件: ${event.id}, 第${currentRetryCount + 1}次重试)`,
           success,
           errorMessage: success ? undefined : (itemResult?.error || '重试仍然失败'),
-        // @ts-ignore
         });
         
         if (success) {
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           await database
             .update(optimizationEvents)
             .set({ 
@@ -724,19 +720,18 @@ async function retryFailedBidAdjustments(database: unknown, accountId: number): 
                 apiResponseId: itemResult?.apiResponseId,
                 retryCount: currentRetryCount + 1,
               }),
-              // @ts-ignore
               apiSyncedAt: new Date(),
             })
             .where(eq(optimizationEvents.id, event.id));
           
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           await database
             .update(keywords)
             .set({ bid: String(item.newBid) })
             .where(eq(keywords.id, item.keywordId));
         } else {
           // v640: 记录重试次数和失败原因，下次纠错时可计算退避延迟
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           await database
             .update(optimizationEvents)
             .set({
@@ -759,7 +754,7 @@ async function retryFailedBidAdjustments(database: unknown, accountId: number): 
         log.warn(`v640: 账户${accountId} 关键词${item.keywordId} 重试API调用失败(${currentRetryCount + 1}/${AUTO_CORRECTION_CONFIG.dlqMaxRetries}): ${errMsg}`);
         
         // v640: 记录失败信息和重试计数
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         await database
           .update(optimizationEvents)
           .set({
@@ -852,7 +847,7 @@ async function correctBidMismatches(database: unknown, accountId: number): Promi
  LIMIT ${sql.raw(String(AUTO_CORRECTION_CONFIG.maxBidCorrectionsPerRun))}
  `;
     
-    // @ts-ignore
+    // @ts-expect-error v653: drizzle/mysql2 untyped query result
     const mismatches = await database.execute(mismatchQuery);
     const rows = (mismatches as Record<string, unknown>[])[0] || mismatches;
     
@@ -865,11 +860,9 @@ async function correctBidMismatches(database: unknown, accountId: number): Promi
     // 如果rule_engine已经做出了新的决策（包括冷却保持、熔断保持等），
     // 则以最新决策为准，不再将出价纠正回旧值
     // 这解决了：rule_engine降价 → 数据同步更新bid → AutoCorrector误判为“不一致”拉回 的恶性循环
-    // @ts-ignore
     const arbitratedRows: unknown[] = [];
     let arbitrationSkipped = 0;
     
-    // @ts-ignore
     for (const row of (rows as unknown[])) {
       // 检查该keyword是否有比当前参考事件更新的优化决策
       const newerDecisionQuery = sql`
@@ -882,20 +875,19 @@ async function correctBidMismatches(database: unknown, accountId: number): Promi
  ORDER BY id DESC
  LIMIT 1
  `;
-      // @ts-ignore
+      // @ts-expect-error v653: drizzle/mysql2 untyped query result
       const newerResult = await database.execute(newerDecisionQuery);
       const newerRows = (newerResult as Record<string, unknown>[])[0] || newerResult;
       
       if (Array.isArray(newerRows) && newerRows.length > 0) {
         const newerDecision = newerRows[0] as unknown;
         // 存在更新的决策，跳过纠正
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         log.info(`v258仲裁: 跳过keyword=${row.keyword_id}的纠正, ` +
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           `原参考事件#${row.event_id}(bid=$${row.expected_bid}), ` +
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           `更新决策事件#${newerDecision.id}(bid=$${newerDecision.new_bid}, ${newerDecision.change_reason?.substring(0, 80)})`);
-        // @ts-ignore
         arbitrationSkipped++;
         continue;
       }
@@ -910,16 +902,14 @@ async function correctBidMismatches(database: unknown, accountId: number): Promi
  ORDER BY id DESC
  LIMIT 1
  `;
-      // @ts-ignore
+      // @ts-expect-error v653: drizzle/mysql2 untyped query result
       const holdResult = await database.execute(recentHoldQuery);
       const holdRows = (holdResult as Record<string, unknown>[])[0] || holdResult;
       
-      // @ts-ignore
       if (Array.isArray(holdRows) && holdRows.length > 0) {
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         log.info(`v258仲裁: 跳过keyword=${row.keyword_id}的纠正, 当前处于冷却/熔断保护期`);
         arbitrationSkipped++;
-        // @ts-ignore
         continue;
       }
       
@@ -933,12 +923,12 @@ async function correctBidMismatches(database: unknown, accountId: number): Promi
  ORDER BY id DESC
  LIMIT 1
  `;
-      // @ts-ignore
+      // @ts-expect-error v653: drizzle/mysql2 untyped query result
       const recentCorrResult = await database.execute(recentCorrectionQuery);
       const recentCorrRows = (recentCorrResult as Record<string, unknown>[])[0] || recentCorrResult;
       
       if (Array.isArray(recentCorrRows) && recentCorrRows.length > 0) {
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         log.info(`v328冷却: 跳过keyword=${row.keyword_id}的纠正, 8小时内已纠正过(event#${recentCorrRows[0].id})`);
         arbitrationSkipped++;
         continue;
@@ -952,7 +942,7 @@ async function correctBidMismatches(database: unknown, accountId: number): Promi
     if (arbitratedRows.length === 0) return results;
     
     // v172: 批量重新发送到Amazon - 但确保纠正值不超过max_bid红线
-    // @ts-ignore
+    // @ts-expect-error v653: drizzle/mysql2 untyped query result
     const correctionItems = arbitratedRows.map((row: Record<string, unknown>) => {
       let targetBid = parseFloat(String(row.expected_bid));
       const maxBid = row.max_bid ? parseFloat(String(row.max_bid)) : 0;
@@ -975,7 +965,6 @@ async function correctBidMismatches(database: unknown, accountId: number): Promi
         newBid: targetBid,
         campaignId: row.amazon_campaign_id || row.campaign_id || 0,
         reason: `[自动纠错] 出价不一致纠正: 期望$${targetBid.toFixed(2)}, 当前$${row.current_bid}${maxBid > 0 ? ` (max_bid=$${maxBid})` : ''}`,
-      // @ts-ignore
       };
     // @ts-expect-error - array method type inference
     }).filter((item: Record<string, unknown>): item is NonNullable<typeof item> => item !== null);
@@ -986,7 +975,6 @@ async function correctBidMismatches(database: unknown, accountId: number): Promi
     }
     
     try {
-      // @ts-ignore
       const syncResult: unknown = await amazonApiHelper.syncBidAdjustmentsToAmazon(
         accountId,
         // @ts-expect-error - runtime type mismatch
@@ -998,38 +986,34 @@ async function correctBidMismatches(database: unknown, accountId: number): Promi
       const correctionMap = new Map(correctionItems.map((item: Record<string, unknown>) => [item.keywordId, item.newBid]));
       
       for (const row of (arbitratedRows as unknown[])) {
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         const actualTargetBid = correctionMap.get(row.keyword_id);
         if (actualTargetBid === undefined) continue; // 该关键词已被过滤（max_bid限制后无需纠正）
         
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         const success = syncResult.success > 0;
         
-        // @ts-ignore
         results.push({
-          // @ts-ignore
           type: 'bid_mismatch',
-          // @ts-ignore
           accountId,
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           targetId: row.keyword_id,
           targetType: 'keyword',
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           previousValue: String(row.current_bid),
           correctedValue: String(actualTargetBid),
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           reason: `出价不一致: 纠正到$${actualTargetBid.toFixed(2)}, 当前$${row.current_bid}`,
           success,
         });
         
         if (success) {
           // v172: 更新keywords表的bid为受max_bid限制后的纠正值
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           await database
-            // @ts-ignore
             .update(keywords)
             .set({ bid: String(actualTargetBid) })
-            // @ts-ignore
+            // @ts-expect-error v653: drizzle/mysql2 untyped query result
             .where(eq(keywords.id, row.keyword_id));
           
           // v257: 记录纠错事件，并关联原始优化事件
@@ -1037,22 +1021,21 @@ async function correctBidMismatches(database: unknown, accountId: number): Promi
             accountId,
             eventCategory: 'bid_adjustment',
             actionType: 'auto_correction',
-            // @ts-ignore
+            // @ts-expect-error v653: drizzle/mysql2 untyped query result
             keywordId: row.keyword_id,
-            // @ts-ignore
+            // @ts-expect-error v653: drizzle/mysql2 untyped query result
             keywordText: row.keyword_text,
-            // @ts-ignore
+            // @ts-expect-error v653: drizzle/mysql2 untyped query result
             campaignId: row.amazon_campaign_id || row.campaign_id,
-            // @ts-ignore
+            // @ts-expect-error v653: drizzle/mysql2 untyped query result
             campaignName: row.campaign_name,
-            // @ts-ignore
+            // @ts-expect-error v653: drizzle/mysql2 untyped query result
             previousBid: String(row.current_bid),
             newBid: String(actualTargetBid),
-            // @ts-ignore
+            // @ts-expect-error v653: drizzle/mysql2 untyped query result
             changeReason: `[AutoCorrector] 出价不一致纠正: 纠正到$${actualTargetBid.toFixed(2)}, 当前$${row.current_bid}${row.max_bid ? ` (max_bid=$${row.max_bid})` : ''}`,
-            // @ts-ignore
+            // @ts-expect-error v653: drizzle/mysql2 untyped query result
             sourceEventId: row.event_id,
-            // @ts-ignore
             correctionType: 'bid_mismatch',
           });
         }
@@ -1063,12 +1046,12 @@ async function correctBidMismatches(database: unknown, accountId: number): Promi
         results.push({
           type: 'bid_mismatch',
           accountId,
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           targetId: row.keyword_id,
           targetType: 'keyword',
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           previousValue: String(row.current_bid),
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           correctedValue: String(row.expected_bid),
           reason: `出价不一致纠正失败`,
           success: false,
@@ -1091,7 +1074,7 @@ async function retryFailedBudgetAdjustments(database: unknown, accountId: number
   try {
     const expiryDateStr = new Date(Date.now() - AUTO_CORRECTION_CONFIG.retryExpiryDays * 24 * 60 * 60 * 1000).toISOString().slice(0, 19).replace('T', ' ');
     
-    // @ts-ignore
+    // @ts-expect-error v653: drizzle/mysql2 untyped query result
     const failedEvents = await database
       .select({
         id: optimizationEvents.id,
@@ -1115,7 +1098,6 @@ async function retryFailedBudgetAdjustments(database: unknown, accountId: number
           gte(optimizationEvents.createdAt, expiryDateStr)
         )
       )
-      // @ts-ignore
       .orderBy(desc(optimizationEvents.createdAt))
       .limit(AUTO_CORRECTION_CONFIG.maxRetryPerRun);
     
@@ -1125,7 +1107,6 @@ async function retryFailedBudgetAdjustments(database: unknown, accountId: number
     
     // 按campaign分组，只保留最新的一条
     // v441: campaignId现在存储的是Amazon ID（字符串），不再是本地自增ID
-    // @ts-ignore
     const latestByCampaign = new Map<string, typeof failedEvents[0]>();
     for (const event of failedEvents) {
       const cid = event.campaignId != null ? String(event.campaignId) : '';
@@ -1145,7 +1126,6 @@ async function retryFailedBudgetAdjustments(database: unknown, accountId: number
         const amazonCampaignId = String(campId);
         
         const syncResult: unknown = await amazonApiHelper.syncBudgetAdjustmentToAmazon(
-          // @ts-ignore
           accountId,
           String(amazonCampaignId),
           newBudget,
@@ -1157,7 +1137,7 @@ async function retryFailedBudgetAdjustments(database: unknown, accountId: number
         results.push({
           type: 'budget_retry',
           accountId,
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           targetId: campId,
           targetType: 'campaign',
           previousValue: String(event.previousValue || ''),
@@ -1167,7 +1147,7 @@ async function retryFailedBudgetAdjustments(database: unknown, accountId: number
         });
         
         if (success) {
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           await database
             .update(optimizationEvents)
             .set({ 
@@ -1178,7 +1158,7 @@ async function retryFailedBudgetAdjustments(database: unknown, accountId: number
             .where(eq(optimizationEvents.id, event.id));
           
           // v441: 更新campaigns表的dailyBudget（使用Amazon campaignId匹配）
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           await database
             .update(campaigns)
             .set({ dailyBudget: String(newBudget) })
@@ -1188,7 +1168,7 @@ async function retryFailedBudgetAdjustments(database: unknown, accountId: number
         results.push({
           type: 'budget_retry',
           accountId,
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           targetId: campId,
           targetType: 'campaign',
           previousValue: String(event.previousValue || ''),
@@ -1209,7 +1189,6 @@ async function retryFailedBudgetAdjustments(database: unknown, accountId: number
 // ==================== 4. 检测并纠正预算不一致 ====================
 
 async function correctBudgetMismatches(database: unknown, accountId: number): Promise<CorrectionResult[]> {
-  // @ts-ignore
   const results: CorrectionResult[] = [];
   
   try {
@@ -1220,7 +1199,6 @@ async function correctBudgetMismatches(database: unknown, accountId: number): Pr
     // v178: 排除启用分时预算的campaigns（分时系统自行管理预算，AutoCorrector不应干预）
     // v178: 排除AutoCorrector自身产生的纠正事件（避免纠正循环）
     // v436: 添加MAX_EXECUTION_TIME防止僵尸查询（最多60秒）
-    // @ts-ignore
     const mismatchQuery = sql`
  SELECT /*+ MAX_EXECUTION_TIME(60000) */
  oe.id as event_id,
@@ -1254,46 +1232,41 @@ async function correctBudgetMismatches(database: unknown, accountId: number): Pr
  LIMIT ${sql.raw(String(AUTO_CORRECTION_CONFIG.maxBudgetCorrectionsPerRun))}
  `;
     
-    // @ts-ignore
+    // @ts-expect-error v653: drizzle/mysql2 untyped query result
     const mismatches = await database.execute(mismatchQuery);
     const rows = (mismatches as Record<string, unknown>[])[0] || mismatches;
     
     if (!Array.isArray(rows) || rows.length === 0) return results;
     
-    // @ts-ignore
     log.info(`v204: 账户${accountId} (${currencyCode}) 发现${rows.length}条预算不一致需要纠正 (budgetTolerance=${budgetTolerance.toFixed(2)})`);
     
     for (const row of (rows as unknown[])) {
       try {
         // v175: 移除$符号后解析预算值，并取整（Amazon API只接受整数预算）
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         const rawExpected = String(row.expected_budget || '0').replace(/[^0-9.\-]/g, '');
-        // @ts-ignore
         const expectedBudget = Math.round(parseFloat(rawExpected));
-        // @ts-ignore
         if (isNaN(expectedBudget) || expectedBudget <= 0) {
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           log.warn(`v175: 跳过无效预算值: campaign=${row.campaign_id}, raw=${row.expected_budget}`);
           continue;
         }
         
         // v204: 使用动态货币容差检查
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         const currentBudgetNum = parseFloat(String(row.current_budget || '0').replace(/[^0-9.\-]/g, ''));
-        // @ts-ignore
         if (!isNaN(currentBudgetNum) && Math.abs(expectedBudget - currentBudgetNum) <= budgetTolerance) {
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           log.debug(`v204: 取整后预算差异在${currencyCode}容差${budgetTolerance.toFixed(2)}内: campaign=${row.campaign_id}, expected=$${expectedBudget}, current=$${currentBudgetNum}`);
-          // @ts-ignore
           continue;
         }
         
         const syncResult: unknown = await amazonApiHelper.syncBudgetAdjustmentToAmazon(
           accountId,
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           String(row.amazon_campaign_id),
           expectedBudget,
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           `[自动纠错] 预算不一致纠正: 期望$${row.expected_budget}, 当前$${row.current_budget}`
         );
         
@@ -1302,38 +1275,38 @@ async function correctBudgetMismatches(database: unknown, accountId: number): Pr
         results.push({
           type: 'budget_mismatch',
           accountId,
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           targetId: row.campaign_id,
           targetType: 'campaign',
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           previousValue: String(row.current_budget),
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           correctedValue: String(row.expected_budget),
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           reason: `预算不一致: 期望$${row.expected_budget}, 当前$${row.current_budget}`,
           success,
         });
         
         if (success) {
           // v441: row.campaign_id 现在是Amazon ID，使用campaignId匹配
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           await database
             .update(campaigns)
             .set({ dailyBudget: String(expectedBudget) })
-            // @ts-ignore
+            // @ts-expect-error v653: drizzle/mysql2 untyped query result
             .where(eq(campaigns.campaignId, String(row.campaign_id)));
           
           await logCorrectionEvent(database, {
             accountId,
             eventCategory: 'budget_adjustment',
             actionType: 'auto_correction',
-            // @ts-ignore
+            // @ts-expect-error v653: drizzle/mysql2 untyped query result
             campaignId: row.campaign_id,
-            // @ts-ignore
+            // @ts-expect-error v653: drizzle/mysql2 untyped query result
             campaignName: row.campaign_name,
-            // @ts-ignore
+            // @ts-expect-error v653: drizzle/mysql2 untyped query result
             previousValue: String(row.current_budget),
-            // @ts-ignore
+            // @ts-expect-error v653: drizzle/mysql2 untyped query result
             newValue: String(row.expected_budget),
             changeReason: `[AutoCorrector] 预算不一致纠正`,
           });
@@ -1342,22 +1315,19 @@ async function correctBudgetMismatches(database: unknown, accountId: number): Pr
         results.push({
           type: 'budget_mismatch',
           accountId,
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           targetId: row.campaign_id,
-          // @ts-ignore
           targetType: 'campaign',
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           previousValue: String(row.current_budget),
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           correctedValue: String(row.expected_budget),
           reason: `预算不一致纠正失败`,
           success: false,
           errorMessage: (apiError as Error).message,
         });
       }
-    // @ts-ignore
     }
-  // @ts-ignore
   } catch (error: unknown) {
     log.warn(`v178: 账户${accountId} correctBudgetMismatches失败: ${(error as Error).message}`);
   }
@@ -1367,7 +1337,6 @@ async function correctBudgetMismatches(database: unknown, accountId: number): Pr
 
 // ==================== 5. 检测并纠正位置倾斜不一致 ====================
 
-// @ts-ignore
 async function correctPlacementMismatches(database: unknown, accountId: number): Promise<CorrectionResult[]> {
   const results: CorrectionResult[] = [];
   
@@ -1400,7 +1369,7 @@ async function correctPlacementMismatches(database: unknown, accountId: number):
  LIMIT ${sql.raw(String(AUTO_CORRECTION_CONFIG.maxPlacementCorrectionsPerRun))}
  `;
     
-    // @ts-ignore
+    // @ts-expect-error v653: drizzle/mysql2 untyped query result
     const mismatches = await database.execute(mismatchQuery);
     const rows = (mismatches as Record<string, unknown>[])[0] || mismatches;
     
@@ -1412,10 +1381,10 @@ async function correctPlacementMismatches(database: unknown, accountId: number):
         let expectedTop: number | null = null;
         let expectedProduct: number | null = null;
         
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         if (row.action_detail) {
           try {
-            // @ts-ignore
+            // @ts-expect-error v653: drizzle/mysql2 untyped query result
             const detail = typeof row.action_detail === 'string' ? JSON.parse(row.action_detail) : row.action_detail;
             expectedTop = detail.newTopOfSearch ?? detail.suggestedTopMultiplier ?? null;
             expectedProduct = detail.newProductPage ?? detail.suggestedProductMultiplier ?? null;
@@ -1424,9 +1393,9 @@ async function correctPlacementMismatches(database: unknown, accountId: number):
         
         if (expectedTop === null && expectedProduct === null) continue;
         
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         const currentTop = parseFloat(String(row.current_top || '0'));
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         const currentProduct = parseFloat(String(row.current_product || '0'));
         
         const topMismatch = expectedTop !== null && Math.abs(currentTop - expectedTop) > AUTO_CORRECTION_CONFIG.placementTolerancePercent;
@@ -1436,7 +1405,7 @@ async function correctPlacementMismatches(database: unknown, accountId: number):
         
         const syncResult: unknown = await amazonApiHelper.syncPlacementAdjustmentToAmazon(
           accountId,
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           String(row.amazon_campaign_id),
           expectedTop ?? currentTop,
           expectedProduct ?? currentProduct,
@@ -1448,7 +1417,7 @@ async function correctPlacementMismatches(database: unknown, accountId: number):
         results.push({
           type: 'placement_mismatch',
           accountId,
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           targetId: row.campaign_id,
           targetType: 'campaign',
           previousValue: `Top:${currentTop}%, Product:${currentProduct}%`,
@@ -1464,23 +1433,22 @@ async function correctPlacementMismatches(database: unknown, accountId: number):
           if (expectedProduct !== null) updateData.placementProductPageBidAdjustment = String(expectedProduct);
           
           // v441: row.campaign_id 现在是Amazon ID，使用campaignId匹配
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           await database
             .update(campaigns)
             .set(updateData)
-            // @ts-ignore
+            // @ts-expect-error v653: drizzle/mysql2 untyped query result
             .where(eq(campaigns.campaignId, String(row.campaign_id)));
         }
       } catch (apiError: unknown) {
         results.push({
           type: 'placement_mismatch',
           accountId,
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           targetId: row.campaign_id,
           targetType: 'campaign',
           previousValue: '',
           correctedValue: '',
-          // @ts-ignore
           reason: `位置倾斜纠正失败`,
           success: false,
           errorMessage: (apiError as Error).message,
@@ -1497,19 +1465,17 @@ async function correctPlacementMismatches(database: unknown, accountId: number):
 // ==================== 6. 执行未完成的回滚 ====================
 
 async function executeUnfinishedRollbacks(database: unknown, accountId: number): Promise<CorrectionResult[]> {
-  // @ts-ignore
   const results: CorrectionResult[] = [];
   
   try {
     // 查找标记为rolled_back但rolled_back_at为NULL的记录（回滚未真正执行）
-    // @ts-ignore
+    // @ts-expect-error v653: drizzle/mysql2 untyped query result
     const unfinishedRollbacks = await database
       .select({
         id: optimizationEvents.id,
         keywordId: optimizationEvents.keywordId,
         keywordText: optimizationEvents.keywordText,
         campaignId: optimizationEvents.campaignId,
-        // @ts-ignore
         campaignName: optimizationEvents.campaignName,
         previousBid: optimizationEvents.previousBid,
         newBid: optimizationEvents.newBid,
@@ -1534,7 +1500,6 @@ async function executeUnfinishedRollbacks(database: unknown, accountId: number):
     // 按keyword分组，只保留最新的一条
     const latestByKeyword = new Map<number, typeof unfinishedRollbacks[0]>();
     for (const event of unfinishedRollbacks) {
-      // @ts-ignore
       if (event.keywordId && !latestByKeyword.has(event.keywordId)) {
         latestByKeyword.set(event.keywordId, event);
       }
@@ -1558,7 +1523,7 @@ async function executeUnfinishedRollbacks(database: unknown, accountId: number):
         rollbackItems
       );
       
-      // @ts-ignore
+      // @ts-expect-error v653: drizzle/mysql2 untyped query result
       const success = syncResult.success > 0;
       
       for (const [kwId, event] of latestByKeyword) {
@@ -1575,7 +1540,7 @@ async function executeUnfinishedRollbacks(database: unknown, accountId: number):
         
         if (success) {
           // 更新optimization_events的rolled_back_at
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           await database
             .update(optimizationEvents)
             .set({ 
@@ -1587,7 +1552,7 @@ async function executeUnfinishedRollbacks(database: unknown, accountId: number):
             .where(eq(optimizationEvents.id, event.id));
           
           // 更新keywords表的bid为previousBid
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           await database
             .update(keywords)
             .set({ bid: String(event.previousBid) })
@@ -1595,7 +1560,6 @@ async function executeUnfinishedRollbacks(database: unknown, accountId: number):
         }
       }
     } catch (apiError: unknown) {
-      // @ts-ignore
       log.warn(`v178: 账户${accountId} 回滚执行API调用失败: ${(apiError as Error).message}`);
     }
   } catch (error: unknown) {
@@ -1613,13 +1577,12 @@ async function retryFailedSettingsChanges(database: unknown, accountId: number):
   try {
     const expiryDateStr = new Date(Date.now() - AUTO_CORRECTION_CONFIG.retryExpiryDays * 24 * 60 * 60 * 1000).toISOString().slice(0, 19).replace('T', ' ');
     
-    // @ts-ignore
+    // @ts-expect-error v653: drizzle/mysql2 untyped query result
     const failedEvents = await database
       .select({
         id: optimizationEvents.id,
         campaignId: optimizationEvents.campaignId,
         campaignName: optimizationEvents.campaignName,
-        // @ts-ignore
         actionType: optimizationEvents.actionType,
         actionDetail: optimizationEvents.actionDetail,
         previousValue: optimizationEvents.previousValue,
@@ -1661,7 +1624,7 @@ async function retryFailedSettingsChanges(database: unknown, accountId: number):
     if (internalEvents.length > 0) {
       const internalIds = internalEvents.map((e: any) => e.id);
       try {
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         await database.execute(sql`
           UPDATE optimization_events 
           SET api_sync_status = 'internal',
@@ -1726,7 +1689,7 @@ async function retryFailedSettingsChanges(database: unknown, accountId: number):
               accountId,
               [{ keywordId: kwId, newBid: parseFloat(String(event.newValue || '0').replace(/[^0-9.\-]/g, '')), reason: `v329 AutoCorrector: 重试失败的${actionType}操作` }]
             );
-            // @ts-ignore
+            // @ts-expect-error v653: drizzle/mysql2 untyped query result
             success = syncResult.success > 0;
           }
         }
@@ -1750,7 +1713,7 @@ async function retryFailedSettingsChanges(database: unknown, accountId: number):
         // 4. v513: 内部设置变更标记为 'internal'（替代旧的 not_applicable）
         else if (['system_deploy', 'target_reoptimized', 'algorithm_config', 'strategy_update', 'system_config'].includes(detailType)) {
           // 这些是内部事件，不需要Amazon API同步
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           await database
             .update(optimizationEvents)
             .set({ 
@@ -1773,10 +1736,9 @@ async function retryFailedSettingsChanges(database: unknown, accountId: number):
         });
         
         if (success) {
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           await database
             .update(optimizationEvents)
-            // @ts-ignore
             .set({ 
               apiSyncStatus: 'synced',
               apiSyncDetail: JSON.stringify({ correctedBy: 'AutoCorrector', correctedAt: new Date().toISOString() }),
@@ -1785,17 +1747,14 @@ async function retryFailedSettingsChanges(database: unknown, accountId: number):
             .where(eq(optimizationEvents.id, event.id));
         }
       } catch (retryError: unknown) {
-        // @ts-ignore
         results.push({
           type: 'settings_retry',
           accountId,
           targetId: event.campaignId || 0,
           targetType: 'campaign',
           previousValue: '',
-          // @ts-ignore
           correctedValue: '',
           reason: `设置变更重试失败`,
-          // @ts-ignore
           success: false,
           errorMessage: (retryError as Error).message,
         });
@@ -1803,11 +1762,9 @@ async function retryFailedSettingsChanges(database: unknown, accountId: number):
     }
   } catch (error: unknown) {
     log.warn(`v178: 账户${accountId} retryFailedSettingsChanges失败: ${(error as Error).message}`);
-  // @ts-ignore
   }
   
   return results;
-// @ts-ignore
 }
 
 // ==================== 8. 重试失败/pending的关键词创建 ====================
@@ -1819,10 +1776,9 @@ async function retryFailedKeywordCreations(database: unknown, accountId: number)
     const expiryDateStr = new Date(Date.now() - AUTO_CORRECTION_CONFIG.retryExpiryDays * 24 * 60 * 60 * 1000).toISOString().slice(0, 19).replace('T', ' ');
     
     // 查找失败/pending的keyword_create事件
-    // @ts-ignore
+    // @ts-expect-error v653: drizzle/mysql2 untyped query result
     const failedEvents = await database
       .select({
-        // @ts-ignore
         id: optimizationEvents.id,
         keywordId: optimizationEvents.keywordId,
         keywordText: optimizationEvents.keywordText,
@@ -1831,25 +1787,18 @@ async function retryFailedKeywordCreations(database: unknown, accountId: number)
         actionDetail: optimizationEvents.actionDetail,
         createdAt: optimizationEvents.createdAt,
       })
-      // @ts-ignore
       .from(optimizationEvents)
       .where(
-        // @ts-ignore
         and(
-          // @ts-ignore
           eq(optimizationEvents.accountId, accountId),
-          // @ts-ignore
           eq(optimizationEvents.actionType, 'keyword_create'),
           or(
             eq(optimizationEvents.apiSyncStatus, 'failed'),
-            // @ts-ignore
             eq(optimizationEvents.apiSyncStatus, 'pending')
           ),
           gte(optimizationEvents.createdAt, expiryDateStr)
-        // @ts-ignore
         )
       )
-      // @ts-ignore
       .orderBy(desc(optimizationEvents.createdAt))
       .limit(AUTO_CORRECTION_CONFIG.maxRetryPerRun);
     
@@ -1862,7 +1811,6 @@ async function retryFailedKeywordCreations(database: unknown, accountId: number)
         // 从 action_detail 中提取关键信息
         let detail: Record<string, unknown> = {};
         if (event.actionDetail) {
-          // @ts-ignore
           try { detail = typeof event.actionDetail === 'string' ? JSON.parse(event.actionDetail) : event.actionDetail; } catch (e: any) { log.debug(`[AutoCorrector] 非关键操作失败: ${(e as Error)?.message}`); }
         }
         
@@ -1873,28 +1821,26 @@ async function retryFailedKeywordCreations(database: unknown, accountId: number)
         }
         
         // 检查本地关键词是否已有Amazon keywordId（可能已通过其他方式创建成功）
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         const kwRows = await database
           .select({ id: keywords.id, keywordId: keywords.keywordId, adGroupId: keywords.internalAdGroupId, keywordText: keywords.keywordText, matchType: keywords.matchType, bid: keywords.bid })
-          // @ts-ignore
           .from(keywords)
-          // @ts-ignore
           .where(eq(keywords.id, localKeywordId))
           .limit(1);
         
         if (kwRows.length === 0) {
           // 关键词已被删除，标记为not_applicable
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           await database.update(optimizationEvents).set({ apiSyncStatus: 'not_applicable', apiSyncDetail: JSON.stringify({ reason: 'keyword_deleted' }) }).where(eq(optimizationEvents.id, event.id));
           continue;
         }
         
         const kw = kwRows[0] as unknown;
         
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         if (kw.keywordId) {
           // 已有Amazon ID，直接标记为synced
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           await database.update(optimizationEvents).set({ apiSyncStatus: 'synced', apiSyncDetail: JSON.stringify({ amazonKeywordId: kw.keywordId, correctedBy: 'AutoCorrector' }) }).where(eq(optimizationEvents.id, event.id));
           // @ts-expect-error - type assertion
           results.push({ type: 'keyword_create_retry' as unknown, accountId, targetId: localKeywordId, targetType: 'keyword', previousValue: '', correctedValue: kw.keywordId, reason: '关键词已存在Amazon ID，直接标记为synced', success: true });
@@ -1902,11 +1848,11 @@ async function retryFailedKeywordCreations(database: unknown, accountId: number)
         }
         
         // 获取adGroup的Amazon adGroupId和campaignId
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         const agRows = await database
           .select({ adGroupId: adGroups.adGroupId, campaignId: adGroups.campaignId })
           .from(adGroups)
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           .where(eq(adGroups.id, kw.internalAdGroupId))
           .limit(1);
         
@@ -1918,11 +1864,11 @@ async function retryFailedKeywordCreations(database: unknown, accountId: number)
         const ag = agRows[0] as unknown;
         
         // 获取campaign的Amazon campaignId
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         const campRows = await database
           .select({ campaignId: campaigns.campaignId })
           .from(campaigns)
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           .where(eq(campaigns.campaignId, ag.campaignId))
           .limit(1);
         
@@ -1931,45 +1877,44 @@ async function retryFailedKeywordCreations(database: unknown, accountId: number)
         // 调用Amazon API创建关键词
         const syncResult: unknown = await amazonApiHelper.syncNewKeywordsToAmazon(accountId, [{
           localKeywordId: localKeywordId,
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           adGroupId: Number(ag.adGroupId),
           campaignId: campRows[0].campaignId,  // v201: 保持字符串避免精度丢失
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           keywordText: kw.keywordText,
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           matchType: kw.matchType as 'exact' | 'phrase' | 'broad',
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           bid: parseFloat(String(kw.bid)) || 0.75,
         }]);
         
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         const success = syncResult.success > 0;
         
         if (success) {
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           await database.update(optimizationEvents).set({
             apiSyncStatus: 'synced',
-            // @ts-ignore
+            // @ts-expect-error v653: drizzle/mysql2 untyped query result
             apiSyncDetail: JSON.stringify({ correctedBy: 'AutoCorrector', amazonKeywordId: syncResult.createdKeywords[0]?.amazonKeywordId }),
             apiSyncedAt: new Date(),
           }).where(eq(optimizationEvents.id, event.id));
           
           // 同步更新optimization_logs
           if (event.id) {
-            // @ts-ignore
+            // @ts-expect-error v653: drizzle/mysql2 untyped query result
             await database.execute(sql`
               UPDATE optimization_logs SET api_sync_status = 'synced' 
               WHERE id = (SELECT source_id FROM optimization_events WHERE id = ${event.id} AND source_table = 'optimization_logs')
             `).catch(() => {});
           }
         } else {
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           await database.update(optimizationEvents).set({
             apiSyncStatus: 'failed',
-            // @ts-ignore
+            // @ts-expect-error v653: drizzle/mysql2 untyped query result
             apiSyncDetail: JSON.stringify({ error: syncResult.errors.join('; '), retryBy: 'AutoCorrector' }),
           }).where(eq(optimizationEvents.id, event.id));
-        // @ts-ignore
         }
         
         results.push({
@@ -1979,12 +1924,12 @@ async function retryFailedKeywordCreations(database: unknown, accountId: number)
           targetId: localKeywordId,
           targetType: 'keyword',
           previousValue: '',
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           correctedValue: kw.keywordText,
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           reason: `重试创建关键词: ${kw.keywordText}`,
           success,
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           errorMessage: success ? undefined : syncResult.errors.join('; '),
         });
       } catch (retryError: unknown) {
@@ -2007,7 +1952,7 @@ async function retryFailedNegativeKeywordAdds(database: unknown, accountId: numb
   try {
     const expiryDateStr = new Date(Date.now() - AUTO_CORRECTION_CONFIG.retryExpiryDays * 24 * 60 * 60 * 1000).toISOString().slice(0, 19).replace('T', ' ');
     
-    // @ts-ignore
+    // @ts-expect-error v653: drizzle/mysql2 untyped query result
     const failedEvents = await database
       .select({
         id: optimizationEvents.id,
@@ -2015,7 +1960,6 @@ async function retryFailedNegativeKeywordAdds(database: unknown, accountId: numb
         campaignName: optimizationEvents.campaignName,
         keywordText: optimizationEvents.keywordText,
         actionDetail: optimizationEvents.actionDetail,
-        // @ts-ignore
         apiSyncDetail: optimizationEvents.apiSyncDetail,
         createdAt: optimizationEvents.createdAt,
       })
@@ -2025,7 +1969,6 @@ async function retryFailedNegativeKeywordAdds(database: unknown, accountId: numb
           eq(optimizationEvents.accountId, accountId),
           eq(optimizationEvents.actionType, 'negative_keyword_add'),
           or(
-            // @ts-ignore
             eq(optimizationEvents.apiSyncStatus, 'failed'),
             eq(optimizationEvents.apiSyncStatus, 'pending')
           ),
@@ -2066,10 +2009,8 @@ async function retryFailedNegativeKeywordAdds(database: unknown, accountId: numb
         // v201: 获取Amazon Campaign ID（增强诊断日志）
         let resolvedCampaignId = amazonCampaignId;
         // v441: event.campaignId 现在已经是Amazon ID，直接使用
-        // @ts-ignore
         if (!resolvedCampaignId && event.campaignId) {
           resolvedCampaignId = String(event.campaignId);
-          // @ts-ignore
           log.debug(`v441: 否定词campaignId: 直接使用event.campaignId=${resolvedCampaignId}作为Amazon ID`);
         }
         
@@ -2078,7 +2019,7 @@ async function retryFailedNegativeKeywordAdds(database: unknown, accountId: numb
           continue;
         }
         
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         const normalizedMatchType = matchType.includes('exact') ? 'negativeExact' as const : 'negativePhrase' as const;
         
         // v174: 读取apiSyncDetail中的重试次数
@@ -2086,7 +2027,6 @@ async function retryFailedNegativeKeywordAdds(database: unknown, accountId: numb
         if (event.apiSyncDetail) {
           try {
             const syncDetail = typeof event.apiSyncDetail === 'string' ? JSON.parse(event.apiSyncDetail) : event.apiSyncDetail;
-            // @ts-ignore
             retryCount = syncDetail.retryCount || 0;
           } catch (e: any) { log.debug(`[AutoCorrector] 非关键操作失败: ${(e as Error)?.message}`); }
         }
@@ -2099,14 +2039,12 @@ async function retryFailedNegativeKeywordAdds(database: unknown, accountId: numb
           matchType: normalizedMatchType,
           level: amazonAdGroupId ? 'adgroup' : 'campaign',
           retryCount,
-        // @ts-ignore
         };
         // @ts-expect-error - runtime type mismatch
         negKeywordsToSync.push(nkEntry);
       } catch (parseErr: unknown) {
         log.warn(`v178: 解析否定关键词事件失败: eventId=${event.id}, ${(parseErr as Error).message}`);
       }
-    // @ts-ignore
     }
     
     if (negKeywordsToSync.length === 0) return results;
@@ -2119,7 +2057,6 @@ async function retryFailedNegativeKeywordAdds(database: unknown, accountId: numb
     for (const nk of negKeywordsToSync) {
       // @ts-expect-error - dynamic property access
       if ((nk as unknown as Record<string, unknown>).retryCount >= maxRetries) {
-        // @ts-ignore
         toPermanentlyFail.push(nk);
       } else {
         toRetry.push(nk);
@@ -2128,7 +2065,7 @@ async function retryFailedNegativeKeywordAdds(database: unknown, accountId: numb
     
     // 标记超过重试次数的事件为not_applicable
     for (const nk of toPermanentlyFail) {
-      // @ts-ignore
+      // @ts-expect-error v653: drizzle/mysql2 untyped query result
       await database.update(optimizationEvents).set({
         apiSyncStatus: 'not_applicable',
         apiSyncDetail: JSON.stringify({ 
@@ -2136,10 +2073,9 @@ async function retryFailedNegativeKeywordAdds(database: unknown, accountId: numb
           retryCount: (nk as unknown as Record<string, unknown>).retryCount,
           lastRetryAt: new Date().toISOString()
         }),
-      // @ts-ignore
       }).where(eq(optimizationEvents.id, nk.eventId));
       
-      // @ts-ignore
+      // @ts-expect-error v653: drizzle/mysql2 untyped query result
       await database.execute(sql`
         UPDATE optimization_logs SET api_sync_status = 'not_applicable'
         WHERE id = (SELECT source_id FROM optimization_events WHERE id = ${nk.eventId} AND source_table = 'optimization_logs')
@@ -2147,7 +2083,6 @@ async function retryFailedNegativeKeywordAdds(database: unknown, accountId: numb
       
       results.push({
         type: 'settings_retry',
-        // @ts-ignore
         accountId,
         targetId: nk.campaignId,
         targetType: 'campaign',
@@ -2156,7 +2091,6 @@ async function retryFailedNegativeKeywordAdds(database: unknown, accountId: numb
         reason: `否定关键词超过最大重试次数，放弃: ${nk.keywordText}`,
         success: false,
         errorMessage: `超过最大重试次数(${maxRetries})`,
-      // @ts-ignore
       });
     }
     
@@ -2166,12 +2100,10 @@ async function retryFailedNegativeKeywordAdds(database: unknown, accountId: numb
     log.info(`v201: 准备同步${toRetry.length}个否定关键词到Amazon:`);
     for (const nk of toRetry) {
       log.debug(`  - eventId=${nk.eventId}, campaignId=${nk.campaignId}, keyword="${nk.keywordText}", matchType=${nk.matchType}, level=${nk.level}`);
-    // @ts-ignore
     }
     
     // 批量调用Amazon API
     const syncResult: unknown = await amazonApiHelper.syncNegativeKeywordsToAmazon(
-      // @ts-ignore
       accountId,
       toRetry.map(nk => ({
         campaignId: String(nk.campaignId),  // v356: 统一使用String类型传递Amazon ID
@@ -2183,12 +2115,12 @@ async function retryFailedNegativeKeywordAdds(database: unknown, accountId: numb
     );
     
     // v201: 详细记录同步结果
-    // @ts-ignore
+    // @ts-expect-error v653: drizzle/mysql2 untyped query result
     log.warn(`v201: 否定关键词同步结果: 成功=${syncResult.success}, 失败=${syncResult.failed}, 错误数=${syncResult.errors.length}`);
-    // @ts-ignore
+    // @ts-expect-error v653: drizzle/mysql2 untyped query result
     if (syncResult.errors.length > 0) {
       log.warn(`v201: 否定关键词同步错误详情:`);
-      // @ts-ignore
+      // @ts-expect-error v653: drizzle/mysql2 untyped query result
       for (const err of syncResult.errors) {
         log.debug(`  - ${err}`);
       }
@@ -2197,17 +2129,16 @@ async function retryFailedNegativeKeywordAdds(database: unknown, accountId: numb
     // v175b: 正确处理部分成功 - 根据每个关键词的实际结果更新状态
     // syncResult.errors 现在包含具体的关键词信息，格式: "Campaign否定词失败[keyword]: error"
     const failedKeywords = new Set<string>();
-    // @ts-ignore
+    // @ts-expect-error v653: drizzle/mysql2 untyped query result
     for (const err of syncResult.errors) {
       // 从错误信息中提取失败的关键词文本
       const match = err.match(/\[(.+?)\]/);
       if (match) failedKeywords.add(match[1].toLowerCase());
-    // @ts-ignore
     }
     
     for (const nk of toRetry) {
       const keywordFailed = failedKeywords.has(nk.keywordText.toLowerCase());
-      // @ts-ignore
+      // @ts-expect-error v653: drizzle/mysql2 untyped query result
       const success = !keywordFailed && syncResult.success > 0;
       // @ts-expect-error - dynamic property access
       const newRetryCount = ((nk as unknown as Record<string, unknown>).retryCount || 0) + 1;
@@ -2220,14 +2151,14 @@ async function retryFailedNegativeKeywordAdds(database: unknown, accountId: numb
       );
       
       if (success) {
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         await database.update(optimizationEvents).set({
           apiSyncStatus: 'synced',
           apiSyncDetail: JSON.stringify({ correctedBy: 'AutoCorrector', correctedAt: new Date().toISOString(), retryCount: newRetryCount }),
           apiSyncedAt: new Date(),
         }).where(eq(optimizationEvents.id, nk.eventId));
         
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         await database.execute(sql`
           UPDATE optimization_logs SET api_sync_status = 'synced' 
           WHERE id = (SELECT source_id FROM optimization_events WHERE id = ${nk.eventId} AND source_table = 'optimization_logs')
@@ -2238,10 +2169,10 @@ async function retryFailedNegativeKeywordAdds(database: unknown, accountId: numb
         const mapKey = negLevel === 'campaign' 
           ? `campaign:${nk.campaignId}:${nk.keywordText.toLowerCase()}`
           : `adgroup:${nk.internalAdGroupId}:${nk.keywordText.toLowerCase()}`;
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         const amazonNegId = syncResult.keywordIdMap?.get(mapKey);
         if (amazonNegId) {
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           await database.execute(sql`
  UPDATE negative_keywords 
  SET amazon_negative_keyword_id = ${amazonNegId}
@@ -2258,7 +2189,7 @@ async function retryFailedNegativeKeywordAdds(database: unknown, accountId: numb
         }
       } else if (isPermanentError) {
         // v175b: Amazon拒绝的无效关键词，直接标记为not_applicable，不再重试
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         await database.update(optimizationEvents).set({
           apiSyncStatus: 'not_applicable',
           apiSyncDetail: JSON.stringify({ 
@@ -2269,7 +2200,7 @@ async function retryFailedNegativeKeywordAdds(database: unknown, accountId: numb
           }),
         }).where(eq(optimizationEvents.id, nk.eventId));
         
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         await database.execute(sql`
           UPDATE optimization_logs SET api_sync_status = 'not_applicable'
           WHERE id = (SELECT source_id FROM optimization_events WHERE id = ${nk.eventId} AND source_table = 'optimization_logs')
@@ -2278,7 +2209,7 @@ async function retryFailedNegativeKeywordAdds(database: unknown, accountId: numb
         log.debug(`v178: 否定词Amazon永久拒绝，停止重试: "${nk.keywordText}"`);
         
         // v176: 标记negative_keywords表中的记录为removed
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         await database.execute(sql`
           UPDATE negative_keywords SET negativeStatus = 'removed'
           WHERE negativeText = ${nk.keywordText}
@@ -2288,12 +2219,12 @@ async function retryFailedNegativeKeywordAdds(database: unknown, accountId: numb
         });
       } else {
         // 临时失败，记录重试次数
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         await database.update(optimizationEvents).set({
           apiSyncDetail: JSON.stringify({ 
             retryCount: newRetryCount,
             lastRetryAt: new Date().toISOString(),
-            // @ts-ignore
+            // @ts-expect-error v653: drizzle/mysql2 untyped query result
             lastError: syncResult.errors.join('; ').substring(0, 200)
           }),
         }).where(eq(optimizationEvents.id, nk.eventId));
@@ -2310,7 +2241,7 @@ async function retryFailedNegativeKeywordAdds(database: unknown, accountId: numb
           ? `否定关键词Amazon永久拒绝: ${nk.keywordText}`
           : `重试添加否定关键词(${newRetryCount}/${maxRetries}): ${nk.keywordText}`,
         success,
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         errorMessage: success ? undefined : syncResult.errors.join('; '),
       });
     }
@@ -2325,41 +2256,30 @@ async function retryFailedNegativeKeywordAdds(database: unknown, accountId: numb
 
 async function getActiveAccountIds(database: unknown): Promise<number[]> {
   try {
-    // @ts-ignore
+    // @ts-expect-error v653: drizzle/mysql2 untyped query result
     const result = await database.execute(sql`
       SELECT DISTINCT account_id FROM optimization_events 
       WHERE created_at > DATE_SUB(NOW(), INTERVAL 7 DAY) 
         AND account_id IS NOT NULL
     `);
     const rows = (result as Record<string, unknown>[][])[0] || result;
-    // @ts-ignore
+    // @ts-expect-error v653: drizzle/mysql2 untyped query result
     return Array.isArray(rows) ? rows.map((r: Record<string, unknown>) => r.account_id).filter(Boolean) : [];
   } catch {
-    // @ts-ignore
     return [];
-  // @ts-ignore
   }
-// @ts-ignore
 }
 
-// @ts-ignore
 async function logCorrectionEvent(database: unknown, data: {
-  // @ts-ignore
   accountId: number;
-  // @ts-ignore
   eventCategory: string;
-  // @ts-ignore
   actionType: string;
-  // @ts-ignore
   keywordId?: number;
-  // @ts-ignore
   keywordText?: string;
-  // @ts-ignore
   targetId?: number;
   targetName?: string;
   campaignId?: number | string;  // v438: 支持Amazon原始ID（字符串）和本地ID（数字）
   campaignName?: string;
-  // @ts-ignore
   previousBid?: string;
   newBid?: string;
   previousValue?: string;
@@ -2383,7 +2303,7 @@ async function logCorrectionEvent(database: unknown, data: {
         : 'standalone_correction',
     });
     
-    // @ts-ignore
+    // @ts-expect-error v653: drizzle/mysql2 untyped query result
     await database.insert(optimizationEvents).values({
       accountId: data.accountId,
       eventCategory: data.eventCategory,
@@ -2471,32 +2391,32 @@ function buildScanResult(
   };
   
   for (const c of (corrections as unknown[])) {
-    // @ts-ignore
+    // @ts-expect-error v653: drizzle/mysql2 untyped query result
     const key = c.type === 'bid_retry' ? 'bidRetries'
-      // @ts-ignore
+      // @ts-expect-error v653: drizzle/mysql2 untyped query result
       : c.type === 'bid_mismatch' ? 'bidMismatches'
-      // @ts-ignore
+      // @ts-expect-error v653: drizzle/mysql2 untyped query result
       : c.type === 'budget_retry' ? 'budgetRetries'
-      // @ts-ignore
+      // @ts-expect-error v653: drizzle/mysql2 untyped query result
       : c.type === 'budget_mismatch' ? 'budgetMismatches'
-      // @ts-ignore
+      // @ts-expect-error v653: drizzle/mysql2 untyped query result
       : c.type === 'placement_mismatch' ? 'placementMismatches'
-      // @ts-ignore
+      // @ts-expect-error v653: drizzle/mysql2 untyped query result
       : c.type === 'rollback_execution' ? 'rollbackExecutions'
-      // @ts-ignore
+      // @ts-expect-error v653: drizzle/mysql2 untyped query result
       : c.type === 'keyword_create_retry' ? 'keywordCreateRetries'
-      // @ts-ignore
+      // @ts-expect-error v653: drizzle/mysql2 untyped query result
       : c.type === 'max_bid_violation' ? 'maxBidViolations'
-      // @ts-ignore
+      // @ts-expect-error v653: drizzle/mysql2 untyped query result
       : c.type === 'orphan_keyword_cleanup' ? 'orphanKeywordCleanups'
-      // @ts-ignore
+      // @ts-expect-error v653: drizzle/mysql2 untyped query result
       : c.type === 'nextgen_quality_audit' ? 'nextgenQualityAudits'
-      // @ts-ignore
+      // @ts-expect-error v653: drizzle/mysql2 untyped query result
       : c.type === 'status_change_retry' ? 'statusChangeRetries'
       : 'settingsRetries';
     
     details[key].found++;
-    // @ts-ignore
+    // @ts-expect-error v653: drizzle/mysql2 untyped query result
     if (c.success) details[key].corrected++;
     else details[key].failed++;
   }
@@ -2653,7 +2573,6 @@ async function evaluateSyncHealth(database: unknown, scanResult: CorrectionScanR
     if (overallSyncRate < 70 || (correctionSuccessRate < 50 && scanResult.totalIssuesFound > 10)) {
       level = 'emergency';
     } else if (overallSyncRate < 90 || failed > 50) {
-      // @ts-ignore
       level = 'critical';
     } else if (overallSyncRate < 98 || pending > 10 || alerts.length > 0) {
       level = 'warning';
@@ -2664,17 +2583,12 @@ async function evaluateSyncHealth(database: unknown, scanResult: CorrectionScanR
       level,
       overallSyncRate,
       bidSyncRate,
-      // @ts-ignore
       budgetSyncRate,
-      // @ts-ignore
       negativeKeywordSyncRate,
       keywordCreateSyncRate,
-      // @ts-ignore
       pendingCount: pending,
       failedCount: failed,
-      // @ts-ignore
       alerts,
-      // @ts-ignore
       evaluatedAt: new Date(),
       correctionSuccessRate,
     };
@@ -2683,19 +2597,15 @@ async function evaluateSyncHealth(database: unknown, scanResult: CorrectionScanR
     
     // 8. 输出健康报告日志
     const levelEmoji = level === 'healthy' ? '✅' : level === 'warning' ? '⚠️' : level === 'critical' ? '🚨' : '🔴';
-    // @ts-ignore
     log.info(`[SyncHealth] v204: ${levelEmoji} 同步健康度: ${level.toUpperCase()}`);
     log.info(`[SyncHealth] v204: 总体同步率=${overallSyncRate.toFixed(1)}% | 出价=${bidSyncRate.toFixed(1)}% | 预算=${budgetSyncRate.toFixed(1)}% | 否定词=${negativeKeywordSyncRate.toFixed(1)}% | 关键词创建=${keywordCreateSyncRate.toFixed(1)}%`);
     log.warn(`[SyncHealth] v204: 待处理=${pending} | 失败=${failed} | 纠错成功率=${correctionSuccessRate.toFixed(1)}%`);
     
     if (alerts.length > 0) {
-      // @ts-ignore
       log.debug(`[SyncHealth] v204: === 告警信息 (${alerts.length}条) ===`);
       for (const alert of alerts) {
-        // @ts-ignore
         log.debug(`[SyncHealth] v204: ${alert}`);
       }
-    // @ts-ignore
     }
     
     // 9. 如果是紧急状态，输出详细诊断信息
@@ -2704,7 +2614,6 @@ async function evaluateSyncHealth(database: unknown, scanResult: CorrectionScanR
       log.warn(`[SyncHealth] v204: 请检查: 1) Amazon API凭证是否过期 2) API速率限制 3) 网络连接 4) 数据库状态`);
       
       // 输出最近失败事件的典型错误模式
-      // @ts-ignore
       try {
         // @ts-expect-error - Drizzle raw SQL execution
         const [recentErrors] = await database.execute(sql`
@@ -2745,7 +2654,6 @@ export function getLatestHealthReport(): SyncHealthReport | null {
 /**
  * 获取扫描历史
  */
-// @ts-ignore
 export function getScanHistory(): CorrectionScanResult[] {
   return [...scanHistory];
 }
@@ -2753,10 +2661,8 @@ export function getScanHistory(): CorrectionScanResult[] {
 /**
  * 获取最近一次扫描结果
  */
-// @ts-ignore
 export function getLastScanResult(): CorrectionScanResult | null {
   return scanHistory[0] || null;
-// @ts-ignore
 }
 
 /**
@@ -2804,11 +2710,10 @@ async function correctMaxBidViolations(database: unknown, accountId: number): Pr
       LIMIT 100
     `;
     
-    // @ts-ignore
+    // @ts-expect-error v653: drizzle/mysql2 untyped query result
     const violations = await database.execute(violationQuery);
     const rows = (violations as unknown as Record<string, unknown>)[0] || violations;
     
-    // @ts-ignore
     if (!Array.isArray(rows) || rows.length === 0) return results;
     
     log.info(`v178: 账户${accountId} 发现${rows.length}个关键词出价超出max_bid`);
@@ -2816,40 +2721,39 @@ async function correctMaxBidViolations(database: unknown, accountId: number): Pr
     // 批量修正：将出价回退到max_bid
     const correctionItems: unknown[] = [];
     for (const row of (rows as unknown[])) {
-      // @ts-ignore
+      // @ts-expect-error v653: drizzle/mysql2 untyped query result
       const maxBid = parseFloat(String(row.max_bid));
-      // @ts-ignore
+      // @ts-expect-error v653: drizzle/mysql2 untyped query result
       if (row.amazon_keyword_id) {
         correctionItems.push({
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           keywordId: row.keyword_id,
           newBid: maxBid,
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           campaignId: row.campaign_id,
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           reason: `[AutoCorrector v172] 出价$${row.current_bid}超出max_bid$${maxBid}，回退到max_bid`,
         });
       }
       
       // 无论是否有Amazon ID，都先更新本地数据库
-      // @ts-ignore
+      // @ts-expect-error v653: drizzle/mysql2 untyped query result
       await database
-        // @ts-ignore
         .update(keywords)
         .set({ bid: String(maxBid) })
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         .where(eq(keywords.id, row.keyword_id));
       
       results.push({
         type: 'max_bid_violation',
         accountId,
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         targetId: row.keyword_id,
         targetType: 'keyword',
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         previousValue: String(row.current_bid),
         correctedValue: String(maxBid),
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         reason: `出价$${row.current_bid}超出max_bid$${maxBid} (优化目标: ${row.pg_name})`,
         success: true,
       });
@@ -2858,9 +2762,9 @@ async function correctMaxBidViolations(database: unknown, accountId: number): Pr
     // 批量同步到Amazon
     if (correctionItems.length > 0) {
       try {
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         const syncResult: unknown = await amazonApiHelper.syncBidAdjustmentsToAmazon(accountId, correctionItems);
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         log.warn(`v178: 账户${accountId} max_bid纠正同步到Amazon: 成功${syncResult.success}, 失败${syncResult.failed}`);
       } catch (syncError: unknown) {
         log.warn(`v178: 账户${accountId} max_bid纠正同步失败: ${(syncError as Error).message}`);
@@ -2890,32 +2794,32 @@ async function correctMaxBidViolations(database: unknown, accountId: number): Pr
  LIMIT 50
  `;
     
-    // @ts-ignore
+    // @ts-expect-error v653: drizzle/mysql2 untyped query result
     const ptViolations = await database.execute(ptViolationQuery);
     const ptRows = (ptViolations as unknown as Record<string, unknown>)[0] || ptViolations;
     
     if (Array.isArray(ptRows) && ptRows.length > 0) {
       log.info(`v178: 账户${accountId} 发现${ptRows.length}个商品定向出价超出max_bid`);
       for (const row of (ptRows as unknown[])) {
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         const maxBid = parseFloat(String(row.max_bid));
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         await database
           .update(productTargets)
           .set({ bid: String(maxBid) })
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           .where(eq(productTargets.id, row.target_id));
         
         results.push({
           type: 'max_bid_violation',
           accountId,
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           targetId: row.target_id,
           targetType: 'product_target',
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           previousValue: String(row.current_bid),
           correctedValue: String(maxBid),
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           reason: `商品定向出价$${row.current_bid}超出max_bid$${maxBid} (优化目标: ${row.pg_name})`,
           success: true,
         });
@@ -2931,7 +2835,6 @@ async function correctMaxBidViolations(database: unknown, accountId: number): Pr
         changeReason: `[AutoCorrector v172] 纠正${results.length}个超出max_bid的出价`,
       });
     }
-  // @ts-ignore
   } catch (error: unknown) {
     log.warn(`v178: 账户${accountId} correctMaxBidViolations失败: ${(error as Error).message}`);
   }
@@ -2968,7 +2871,7 @@ async function cleanupOrphanKeywords(database: unknown, accountId: number): Prom
  LIMIT 200
  `;
     
-    // @ts-ignore
+    // @ts-expect-error v653: drizzle/mysql2 untyped query result
     const orphans = await database.execute(orphanQuery);
     const rows = (orphans as unknown as Record<string, unknown>)[0] || orphans;
     
@@ -2977,53 +2880,46 @@ async function cleanupOrphanKeywords(database: unknown, accountId: number): Prom
     log.info(`v178: 账户${accountId} 发现${rows.length}个缺少Amazon ID的孤儿关键词，标记为paused`);
     
     // 检查关键词文本是否包含特殊字符（导致Amazon API创建失败的根因）
-    // @ts-ignore
     for (const row of (rows as unknown[])) {
-      // @ts-ignore
+      // @ts-expect-error v653: drizzle/mysql2 untyped query result
       const keywordText = String(row.keyword_text || '');
       const hasSpecialChars = /[\uFFFC\uFFFD\u0000-\u001F]/.test(keywordText) || keywordText.length > 200;
       
       // 标记为paused，避免干扰优化算法
-      // @ts-ignore
+      // @ts-expect-error v653: drizzle/mysql2 untyped query result
       await database
         .update(keywords)
         .set({ keywordStatus: 'paused' })
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         .where(eq(keywords.id, row.keyword_id));
       
       results.push({
-        // @ts-ignore
         type: 'orphan_keyword_cleanup',
         accountId,
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         targetId: row.keyword_id,
         targetType: 'keyword',
         previousValue: `enabled (no Amazon ID${hasSpecialChars ? ', has special chars' : ''})`,
         correctedValue: 'paused',
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         reason: `孤儿关键词清理: "${keywordText.substring(0, 50)}..." 缺少Amazon ID${hasSpecialChars ? '，包含特殊字符' : ''} (优化目标: ${row.pg_name || 'N/A'})`,
         success: true,
       });
-    // @ts-ignore
     }
     
     // 记录纠错事件
     if (results.length > 0) {
       await logCorrectionEvent(database, {
-        // @ts-ignore
         accountId,
         eventCategory: 'auto_correction',
         actionType: 'auto_correction',
         changeReason: `[AutoCorrector v172] 清理${results.length}个缺少Amazon ID的孤儿关键词`,
       });
-    // @ts-ignore
     }
   } catch (error: unknown) {
-    // @ts-ignore
     log.warn(`v178: 账户${accountId} cleanupOrphanKeywords失败: ${(error as Error).message}`);
   }
   
-  // @ts-ignore
   return results;
 }
 
@@ -3051,14 +2947,12 @@ async function cleanupOrphanKeywords(database: unknown, accountId: number): Prom
  */
 async function retryHistoricalFailedKeywordHarvests(database: unknown, accountId: number): Promise<CorrectionResult[]> {
   const results: CorrectionResult[] = [];
-  // @ts-ignore
   const MAX_PER_RUN = 20; // 每次扫描最多处理的数量
   
-  // @ts-ignore
   try {
     // v202: 查找历史失败的 keyword_create 事件
     // 扩展条件: 包含 not_applicable, failed, pending 状态 (覆盖所有需要重试的类型)
-    // @ts-ignore
+    // @ts-expect-error v653: drizzle/mysql2 untyped query result
     const failedEvents = await database.execute(sql`
  SELECT id, account_id, campaign_id, campaign_name, keyword_id, keyword_text,
  action_detail, api_sync_status, api_sync_detail, created_at
@@ -3076,11 +2970,9 @@ async function retryHistoricalFailedKeywordHarvests(database: unknown, accountId
     const events = (failedEvents as unknown as Record<string, unknown>)[0] || failedEvents;
     if (!events || events.length === 0) return results;
     
-    // @ts-ignore
     log.warn(`v178: 账户${accountId} 发现${events.length}条历史失败的搜索词收割需要重试`);
     
     // 按 campaign 分组，减少重复查询
-    // @ts-ignore
     const byCampaign = new Map<number, Array<{ eventId: number; searchTerm: string; matchType: string; campaignName: string }>>();
     
     for (const event of events) {
@@ -3090,17 +2982,15 @@ async function retryHistoricalFailedKeywordHarvests(database: unknown, accountId
         if (raw) detail = typeof raw === 'string' ? JSON.parse(raw) : raw;
       } catch (e: any) { log.debug(`[AutoCorrector] 非关键操作失败: ${(e as Error)?.message}`); }
       
-      // @ts-ignore
       const searchTerm = detail.searchTerm || event.keyword_text || event.keywordText;
       const matchType = detail.matchType || 'phrase';
-      // @ts-ignore
       const campaignId = event.campaign_id || event.campaignId;
       const campaignName = detail.campaignName || event.campaign_name || event.campaignName || '';
       const eventId = event.id;
       
       if (!searchTerm || !campaignId) {
         // 无法提取关键信息，标记为 invalid_legacy
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         await database.execute(sql`
           UPDATE optimization_events SET api_sync_status = 'invalid_legacy',
             api_sync_detail = ${JSON.stringify({ reason: 'v178: 无法提取searchTerm或campaignId', fixedAt: new Date().toISOString() })}
@@ -3110,7 +3000,7 @@ async function retryHistoricalFailedKeywordHarvests(database: unknown, accountId
       }
       
       if (!byCampaign.has(campaignId)) byCampaign.set(campaignId, []);
-      // @ts-ignore
+      // @ts-expect-error v653: drizzle/mysql2 untyped query result
       byCampaign.get(campaignId)!.push({ eventId, searchTerm, matchType, campaignName });
     }
     
@@ -3121,9 +3011,8 @@ async function retryHistoricalFailedKeywordHarvests(database: unknown, accountId
         // PT campaign不支持keyword操作，直接标记为invalid_legacy而不是反复重试
         const firstCampaignName = kwEvents[0]?.campaignName || '';
         if (isProductTargetingCampaign(firstCampaignName)) {
-          // @ts-ignore
           for (const kw of (kwEvents as unknown[])) {
-            // @ts-ignore
+            // @ts-expect-error v653: drizzle/mysql2 untyped query result
             await database.execute(sql`
  UPDATE optimization_events SET api_sync_status = 'invalid_legacy',
  api_sync_detail = ${JSON.stringify({ reason: 'v311: Product Targeting campaign不支持keyword操作', fixedAt: new Date().toISOString() })}
@@ -3136,7 +3025,7 @@ async function retryHistoricalFailedKeywordHarvests(database: unknown, accountId
         }
         
         // 获取 campaign 的 Amazon ID
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         const campRows = await database
           .select({ campaignId: campaigns.campaignId, accountId: campaigns.accountId })
           .from(campaigns)
@@ -3146,15 +3035,14 @@ async function retryHistoricalFailedKeywordHarvests(database: unknown, accountId
         if (campRows.length === 0) {
           // Campaign 不存在，标记所有事件为 invalid_legacy
           for (const kw of (kwEvents as unknown[])) {
-            // @ts-ignore
+            // @ts-expect-error v653: drizzle/mysql2 untyped query result
             await database.execute(sql`
  UPDATE optimization_events SET api_sync_status = 'invalid_legacy',
  api_sync_detail = ${JSON.stringify({ reason: 'v178: campaign不存在', fixedAt: new Date().toISOString() })}
  WHERE id = ${(kw as any).eventId}
  `).catch(() => {});
-            // @ts-ignore
+            // @ts-expect-error v653: drizzle/mysql2 untyped query result
             results.push({ type: 'keyword_create_retry', accountId, targetId: localCampaignId, targetType: 'campaign', previousValue: '', correctedValue: kw.searchTerm, reason: `Campaign不存在，放弃重试: ${kw.searchTerm}`, success: false, errorMessage: 'campaign_not_found' });
-          // @ts-ignore
           }
           continue;
         }
@@ -3162,64 +3050,59 @@ async function retryHistoricalFailedKeywordHarvests(database: unknown, accountId
         const amazonCampaignId = campRows[0].campaignId;  // v201: 保持字符串避免精度丢失
         
         // 获取第一个活跃的 adGroup
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         const agRows = await database
-          // @ts-ignore
           .select({ id: adGroups.id, adGroupId: adGroups.adGroupId })
           .from(adGroups)
-          // @ts-ignore
           .where(and(
             eq(adGroups.campaignId, String(localCampaignId)),
             eq(adGroups.adGroupStatus, 'enabled')
           ))
-          // @ts-ignore
           .limit(1);
         
-        // @ts-ignore
         if (agRows.length === 0) {
           for (const kw of (kwEvents as unknown[])) {
-            // @ts-ignore
+            // @ts-expect-error v653: drizzle/mysql2 untyped query result
             await database.execute(sql`
  UPDATE optimization_events SET api_sync_status = 'invalid_legacy',
  api_sync_detail = ${JSON.stringify({ reason: 'v178: 无活跃adGroup', fixedAt: new Date().toISOString() })}
  WHERE id = ${(kw as any).eventId}
  `).catch(() => {});
-            // @ts-ignore
+            // @ts-expect-error v653: drizzle/mysql2 untyped query result
             results.push({ type: 'keyword_create_retry', accountId, targetId: localCampaignId, targetType: 'campaign', previousValue: '', correctedValue: kw.searchTerm, reason: `无活跃adGroup，放弃重试: ${kw.searchTerm}`, success: false, errorMessage: 'no_active_adgroup' });
           }
           continue;
         }
         
-        // @ts-ignore
         const localAdGroupId = agRows[0].id;
         const amazonAdGroupId = agRows[0].adGroupId;  // v202: 保持字符串避免精度丢失
         
         // 获取该 adGroup 中已有的关键词（用于幂等性去重）
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         const existingKws = await database
           .select({ keywordText: keywords.keywordText, keywordId: keywords.keywordId, matchType: keywords.matchType })
           .from(keywords)
           .where(eq(keywords.internalAdGroupId, localAdGroupId));
         
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         const existingSet = new Set(existingKws.map((k: Record<string, unknown>) => k.keywordText?.toLowerCase()));
         
         // 过滤已存在的关键词
         const toCreate: typeof kwEvents = [];
         for (const kw of (kwEvents as unknown[])) {
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           if (existingSet.has(kw.searchTerm.toLowerCase())) {
             // 已存在，直接标记为 synced
-            // @ts-ignore
+            // @ts-expect-error v653: drizzle/mysql2 untyped query result
             await database.execute(sql`
  UPDATE optimization_events SET api_sync_status = 'synced',
  api_sync_detail = ${JSON.stringify({ reason: 'v178: 关键词已存在于目标广告组', fixedAt: new Date().toISOString() })}
  WHERE id = ${(kw as any).eventId}
  `).catch(() => {});
-            // @ts-ignore
+            // @ts-expect-error v653: drizzle/mysql2 untyped query result
             results.push({ type: 'keyword_create_retry', accountId, targetId: localCampaignId, targetType: 'campaign', previousValue: '', correctedValue: kw.searchTerm, reason: `关键词已存在，标记为synced: ${kw.searchTerm}`, success: true });
           } else {
-            // @ts-ignore
+            // @ts-expect-error v653: drizzle/mysql2 untyped query result
             toCreate.push(kw);
           }
         }
@@ -3241,48 +3124,45 @@ async function retryHistoricalFailedKeywordHarvests(database: unknown, accountId
         }> = [];
         
         for (const kw of (toCreate as unknown[])) {
-          // @ts-ignore
           try {
             // v204: 关键词预验证 — 在重试前清洗特殊字符并检查Amazon限制
-            // @ts-ignore
+            // @ts-expect-error v653: drizzle/mysql2 untyped query result
             const kwValidation = sanitizeAndValidateKeyword(kw.searchTerm, 'positive');
             if (!kwValidation.isValid) {
-              // @ts-ignore
+              // @ts-expect-error v653: drizzle/mysql2 untyped query result
               log.warn(`v204: 关键词预验证失败，标记为invalid_legacy: "${kw.searchTerm}" → ${kwValidation.reasonMessage}`);
-              // @ts-ignore
+              // @ts-expect-error v653: drizzle/mysql2 untyped query result
               await database.execute(sql`
  UPDATE optimization_events SET api_sync_status = 'invalid_legacy',
  api_sync_detail = ${JSON.stringify({ reason: `v204: 关键词预验证失败: ${kwValidation.reasonMessage}`, fixedAt: new Date().toISOString() })}
  WHERE id = ${(kw as any).eventId}
  `).catch(() => {});
-              // @ts-ignore
+              // @ts-expect-error v653: drizzle/mysql2 untyped query result
               results.push({ type: 'keyword_create_retry', accountId, targetId: localCampaignId, targetType: 'keyword', previousValue: '', correctedValue: kw.searchTerm, reason: `预验证失败: ${kwValidation.reasonMessage}`, success: false, errorMessage: kwValidation.reasonCode || 'VALIDATION_FAILED' });
               continue;
             }
             // v204: 使用清洗后的文本
             const cleanedSearchTerm = kwValidation.sanitizedText;
             
-            // @ts-ignore
+            // @ts-expect-error v653: drizzle/mysql2 untyped query result
             const normalizedMatchType = (kw.matchType === 'exact' || kw.matchType === 'phrase' || kw.matchType === 'broad') 
-              // @ts-ignore
+              // @ts-expect-error v653: drizzle/mysql2 untyped query result
               ? kw.matchType as 'exact' | 'phrase' | 'broad'
               : 'phrase'; // 默认为 phrase
             
             // 在本地数据库创建关键词记录 (v204: 使用清洗后的文本)
-            // @ts-ignore
+            // @ts-expect-error v653: drizzle/mysql2 untyped query result
             const insertResult = await database.execute(sql`
               INSERT INTO keywords (internal_ad_group_id, keywordText, matchType, bid, keywordStatus, createdAt, updatedAt)
               VALUES (${localAdGroupId}, ${cleanedSearchTerm}, ${normalizedMatchType}, '0.50', 'enabled', NOW(), NOW())
             `);
-            // @ts-ignore
+            // @ts-expect-error v653: drizzle/mysql2 untyped query result
             const localKeywordId = (insertResult as Record<string, unknown>[])[0]?.insertId || (insertResult as Record<string, unknown>[])?.insertId;
             
             keywordsToSync.push({
-              // @ts-ignore
+              // @ts-expect-error v653: drizzle/mysql2 untyped query result
               eventId: kw.eventId,
-              // @ts-ignore
               localKeywordId,
-              // @ts-ignore
               adGroupId: amazonAdGroupId,
               campaignId: amazonCampaignId,
               keywordText: cleanedSearchTerm,
@@ -3290,16 +3170,16 @@ async function retryHistoricalFailedKeywordHarvests(database: unknown, accountId
               bid: 0.50,
             });
           } catch (insertErr: unknown) {
-            // @ts-ignore
+            // @ts-expect-error v653: drizzle/mysql2 untyped query result
             log.warn(`v178: 本地创建关键词失败: "${kw.searchTerm}" - ${(insertErr as Error).message}`);
             // 可能是重复插入，标记为 invalid_legacy
-            // @ts-ignore
+            // @ts-expect-error v653: drizzle/mysql2 untyped query result
             await database.execute(sql`
  UPDATE optimization_events SET api_sync_status = 'invalid_legacy',
  api_sync_detail = ${JSON.stringify({ reason: `v178: 本地创建失败: ${(insertErr as Error).message}`, fixedAt: new Date().toISOString() })}
  WHERE id = ${(kw as any).eventId}
  `).catch(() => {});
-            // @ts-ignore
+            // @ts-expect-error v653: drizzle/mysql2 untyped query result
             results.push({ type: 'keyword_create_retry', accountId, targetId: localCampaignId, targetType: 'campaign', previousValue: '', correctedValue: kw.searchTerm, reason: `本地创建失败: ${kw.searchTerm}`, success: false, errorMessage: (insertErr as Error).message });
           }
         }
@@ -3312,7 +3192,6 @@ async function retryHistoricalFailedKeywordHarvests(database: unknown, accountId
           keywordsToSync.map(k => ({
             localKeywordId: k.localKeywordId,
             adGroupId: k.adGroupId,  // v421: 这里是Amazon adGroupId，传给Amazon API
-            // @ts-ignore
             campaignId: k.campaignId,
             keywordText: k.keywordText,
             matchType: k.matchType,
@@ -3323,13 +3202,13 @@ async function retryHistoricalFailedKeywordHarvests(database: unknown, accountId
         // 根据结果更新每个事件的状态
         // syncResult.createdKeywords 包含成功创建的关键词
         const successKeywords = new Set(
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           syncResult.createdKeywords.map((k: Record<string, unknown>) => k.keywordText?.toLowerCase())
         );
         
         // 从错误信息中提取失败的关键词
         const failedKeywordErrors = new Map<string, string>();
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         for (const err of syncResult.errors) {
           // 错误格式: "关键词创建失败: \"keyword_text\" - code=XXX"
           const match = err.match(/关键词创建失败: "(.+?)"\s*-\s*code=(\S+)/);
@@ -3339,16 +3218,16 @@ async function retryHistoricalFailedKeywordHarvests(database: unknown, accountId
         }
         
         for (const kw of (keywordsToSync as unknown[])) {
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           const isSuccess = successKeywords.has(kw.keywordText.toLowerCase());
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           const errorCode = failedKeywordErrors.get(kw.keywordText.toLowerCase());
           
           // 检查是否是永久性错误（DUPLICATE表示Amazon上已存在，也算成功）
           const isDuplicate = errorCode === 'DUPLICATE_VALUE' || errorCode === 'DUPLICATE';
           
           if (isSuccess || isDuplicate) {
-            // @ts-ignore
+            // @ts-expect-error v653: drizzle/mysql2 untyped query result
             await database.execute(sql`
  UPDATE optimization_events SET api_sync_status = 'synced',
  api_sync_detail = ${JSON.stringify({ 
@@ -3361,13 +3240,13 @@ async function retryHistoricalFailedKeywordHarvests(database: unknown, accountId
  WHERE id = ${(kw as any).eventId}
  `).catch(() => {});
             
-            // @ts-ignore
+            // @ts-expect-error v653: drizzle/mysql2 untyped query result
             results.push({ type: 'keyword_create_retry', accountId, targetId: localCampaignId, targetType: 'keyword', previousValue: '', correctedValue: kw.keywordText, reason: isDuplicate ? `关键词Amazon已存在: ${kw.keywordText}` : `重试创建关键词成功: ${kw.keywordText}`, success: true });
-            // @ts-ignore
+            // @ts-expect-error v653: drizzle/mysql2 untyped query result
             log.info(`v178: ✅ 关键词创建成功: "${kw.keywordText}" (campaign=${localCampaignId}${isDuplicate ? ', 已存在' : ''})`);
           } else {
             // 失败 - 标记为 invalid_legacy（不再重试）
-            // @ts-ignore
+            // @ts-expect-error v653: drizzle/mysql2 untyped query result
             await database.execute(sql`
  UPDATE optimization_events SET api_sync_status = 'invalid_legacy',
  api_sync_detail = ${JSON.stringify({ 
@@ -3380,17 +3259,17 @@ async function retryHistoricalFailedKeywordHarvests(database: unknown, accountId
  `).catch(() => {});
             
             // 删除本地创建的无效关键词记录
-            // @ts-ignore
+            // @ts-expect-error v653: drizzle/mysql2 untyped query result
             if (kw.localKeywordId) {
-              // @ts-ignore
+              // @ts-expect-error v653: drizzle/mysql2 untyped query result
               await database.execute(sql`
  DELETE FROM keywords WHERE id = ${(kw as any).localKeywordId} AND keywordId IS NULL
  `).catch(() => {});
             }
             
-            // @ts-ignore
+            // @ts-expect-error v653: drizzle/mysql2 untyped query result
             results.push({ type: 'keyword_create_retry', accountId, targetId: localCampaignId, targetType: 'keyword', previousValue: '', correctedValue: kw.keywordText, reason: `关键词Amazon拒绝创建: ${kw.keywordText} (code=${errorCode || 'UNKNOWN'})`, success: false, errorMessage: errorCode || syncResult.errors.join('; ') });
-            // @ts-ignore
+            // @ts-expect-error v653: drizzle/mysql2 untyped query result
             log.warn(`v178: ❌ 关键词创建失败: "${kw.keywordText}" (code=${errorCode || 'UNKNOWN'})`);
           }
         }
@@ -3401,7 +3280,7 @@ async function retryHistoricalFailedKeywordHarvests(database: unknown, accountId
       } catch (campError: unknown) {
         log.warn(`v178: Campaign ${localCampaignId} 关键词收割重试失败: ${(campError as Error).message}`);
         for (const kw of (kwEvents as unknown[])) {
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           results.push({ type: 'keyword_create_retry', accountId, targetId: localCampaignId, targetType: 'campaign', previousValue: '', correctedValue: kw.searchTerm, reason: `Campaign处理异常: ${kw.searchTerm}`, success: false, errorMessage: (campError as Error).message });
         }
       }
@@ -3557,11 +3436,10 @@ let daypartingCleanupInterval: ReturnType<typeof setInterval> | null = null;
 async function backfillNegativeKeywordIds(database: unknown, accountId: number): Promise<CorrectionResult[]> {
   const results: CorrectionResult[] = [];
   
-  // @ts-ignore
   try {
     // v507: 查找缺少amazon_negative_keyword_id的活跃否定词
     // 过滤掉campaignId为NULL的记录（这些无法回填，需要先修复campaignId）
-    // @ts-ignore
+    // @ts-expect-error v653: drizzle/mysql2 untyped query result
     const [missingIdRows] = await database.execute(sql`
       SELECT id, campaignId, internal_ad_group_id as adGroupId, negativeText, negativeMatchType, negativeLevel
       FROM negative_keywords
@@ -3575,7 +3453,7 @@ async function backfillNegativeKeywordIds(database: unknown, accountId: number):
     
     // v507: 尝试通过adGroup回填campaignId为NULL的否定词
     try {
-      // @ts-ignore
+      // @ts-expect-error v653: drizzle/mysql2 untyped query result
       const [nullCampaignRows] = await database.execute(sql`
         SELECT nk.id, nk.internal_ad_group_id
         FROM negative_keywords nk
@@ -3592,15 +3470,15 @@ async function backfillNegativeKeywordIds(database: unknown, accountId: number):
           try {
             // v507: 通过ad_groups表直接获取Amazon campaignId
             // ad_groups.campaignId 存储的就是Amazon Campaign ID (varchar)
-            // @ts-ignore
+            // @ts-expect-error v653: drizzle/mysql2 untyped query result
             const agRows = await database
               .select({ campaignId: adGroups.campaignId })
               .from(adGroups)
-              // @ts-ignore
+              // @ts-expect-error v653: drizzle/mysql2 untyped query result
               .where(eq(adGroups.id, Number(row.internal_ad_group_id)))
               .limit(1);
             if (agRows.length > 0 && agRows[0].campaignId) {
-              // @ts-ignore
+              // @ts-expect-error v653: drizzle/mysql2 untyped query result
               await database.execute(sql`
  UPDATE negative_keywords SET campaignId = ${String(agRows[0].campaignId)}
  WHERE id = ${(row as any).id}
@@ -3611,7 +3489,6 @@ async function backfillNegativeKeywordIds(database: unknown, accountId: number):
         }
         if (backfilledCount > 0) {
           log.info(`v507: 已回填${backfilledCount}个否定词的campaignId (通过adGroup关联)`);
-        // @ts-ignore
         }
       }
     } catch (backfillErr: unknown) {
@@ -3637,7 +3514,7 @@ async function backfillNegativeKeywordIds(database: unknown, accountId: number):
       const rawIdStr = String(rawId);
       
       // v507: 优先作为Amazon Campaign ID查找（这是最常见的情况）
-      // @ts-ignore
+      // @ts-expect-error v653: drizzle/mysql2 untyped query result
       const campByAmazonId = await database
         .select({ id: campaigns.id, campaignId: campaigns.campaignId })
         .from(campaigns)
@@ -3650,13 +3527,12 @@ async function backfillNegativeKeywordIds(database: unknown, accountId: number):
         // fallback: 尝试作为本地自增ID查找
         const localId = Number(rawId);
         if (!isNaN(localId) && localId > 0 && localId < 2147483647) {
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           const campRows = await database
             .select({ campaignId: campaigns.campaignId })
             .from(campaigns)
             .where(eq(campaigns.id, localId))
             .limit(1);
-          // @ts-ignore
           if (campRows.length > 0 && campRows[0].campaignId) {
             campaignIdToAmazonIdMap.set(rawIdStr, String(campRows[0].campaignId));
             log.debug(`v507: 否定词回填campaignId解析(本地ID匹配): localId=${localId} -> amazonId=${campRows[0].campaignId}`);
@@ -3673,7 +3549,7 @@ async function backfillNegativeKeywordIds(database: unknown, accountId: number):
     const amazonNegMap = new Map<string, string>(); // key: amazonCampaignId:text:matchType -> amazonId
     for (const [rawId, amazonCampaignId] of campaignIdToAmazonIdMap.entries()) {
       try {
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         const existing = await (syncService as unknown as Record<string, unknown>).client.listSpCampaignNegativeKeywords(amazonCampaignId);
         for (const neg of existing) {
           const key = `${amazonCampaignId}:${(neg.keywordText || '').toLowerCase()}:${(neg.matchType || '').toLowerCase()}`;
@@ -3689,64 +3565,63 @@ async function backfillNegativeKeywordIds(database: unknown, accountId: number):
     // 匹配并回填
     for (const row of (missingIdRows as unknown[])) {
       // v507: 使用String确保类型一致（raw SQL返回的campaignId可能是string或number）
-      // @ts-ignore
+      // @ts-expect-error v653: drizzle/mysql2 untyped query result
       const amazonCampaignId = campaignIdToAmazonIdMap.get(String(row.campaignId));
       if (!amazonCampaignId) {
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         log.warn(`v507: 跳过否定词回填: id=${row.id}, campaignId=${row.campaignId} 无法解析Amazon Campaign ID`);
         continue;
       }
-      // @ts-ignore
+      // @ts-expect-error v653: drizzle/mysql2 untyped query result
       const matchType = (row.negativeMatchType || '').replace('negative_', 'negative').toLowerCase();
-      // @ts-ignore
+      // @ts-expect-error v653: drizzle/mysql2 untyped query result
       const key = `${amazonCampaignId}:${(row.negativeText || '').toLowerCase()}:${matchType}`;
       const amazonId = amazonNegMap.get(key);
       
       if (amazonId) {
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         await database.execute(sql`
  UPDATE negative_keywords SET amazon_negative_keyword_id = ${amazonId} WHERE id = ${(row as any).id}
  `);
         results.push({
           type: 'settings_retry',
           accountId,
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           targetId: row.id,
           targetType: 'negative_keyword',
           previousValue: 'null',
           correctedValue: amazonId,
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           reason: `v196: 回填否定词 Amazon ID: "${row.negativeText}"`,
           success: true,
         });
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         log.debug(`v196: ✅ 回填否定词ID: "${row.negativeText}" -> ${amazonId}`);
       } else {
         // Amazon上不存在，重新创建（使用Amazon campaignId）
         try {
           // v204: 否定词预验证 — 在重新创建前清洗特殊字符
           const negMode = matchType.includes('exact') ? 'negative_exact' as const : 'negative_phrase' as const;
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           let negValidation = sanitizeAndValidateKeyword(row.negativeText, negMode);
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           let cleanedNegText = negValidation.sanitizedText || row.negativeText;
           let finalMatchType: 'negativeExact' | 'negativePhrase' = matchType.includes('exact') ? 'negativeExact' : 'negativePhrase';
           
           // v204: 如果negative_phrase超过4词，自动升级为negative_exact
           if (!negValidation.isValid && negMode === 'negative_phrase' && negValidation.reasonCode === 'EXCEEDS_MAX_WORDS_NEG_PHRASE') {
-            // @ts-ignore
+            // @ts-expect-error v653: drizzle/mysql2 untyped query result
             negValidation = sanitizeAndValidateKeyword(row.negativeText, 'negative_exact');
-            // @ts-ignore
             if (negValidation.isValid) {
               cleanedNegText = negValidation.sanitizedText;
               finalMatchType = 'negativeExact';
-              // @ts-ignore
+              // @ts-expect-error v653: drizzle/mysql2 untyped query result
               log.debug(`v204: 否定词回填"${row.negativeText}"超过4词限制，自动升级为negativeExact`);
             }
           }
           
           if (!negValidation.isValid) {
-            // @ts-ignore
+            // @ts-expect-error v653: drizzle/mysql2 untyped query result
             log.warn(`v204: 否定词回填预验证失败，跳过重新创建: "${row.negativeText}" → ${negValidation.reasonMessage}`);
             continue;
           }
@@ -3755,27 +3630,27 @@ async function backfillNegativeKeywordIds(database: unknown, accountId: number):
             campaignId: amazonCampaignId,  // v203: 使用Amazon campaignId而非本地ID
             keywordText: cleanedNegText,
             matchType: finalMatchType,
-            // @ts-ignore
+            // @ts-expect-error v653: drizzle/mysql2 untyped query result
             level: (row.negativeLevel || 'campaign') as 'campaign' | 'adgroup',
           }]);
           
           const mapKey = `campaign:${amazonCampaignId}:${(cleanedNegText || '').toLowerCase()}`;
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           const newId = syncResult.keywordIdMap?.get(mapKey);
           if (newId) {
-            // @ts-ignore
+            // @ts-expect-error v653: drizzle/mysql2 untyped query result
             await database.execute(sql`
  UPDATE negative_keywords SET amazon_negative_keyword_id = ${newId} WHERE id = ${(row as any).id}
  `);
             results.push({
               type: 'settings_retry',
               accountId,
-              // @ts-ignore
+              // @ts-expect-error v653: drizzle/mysql2 untyped query result
               targetId: row.id,
               targetType: 'negative_keyword',
               previousValue: 'null',
               correctedValue: newId,
-              // @ts-ignore
+              // @ts-expect-error v653: drizzle/mysql2 untyped query result
               reason: `v196: 重新创建并回填否定词 Amazon ID: "${row.negativeText}"`,
               success: true,
             });
@@ -3811,10 +3686,9 @@ async function verifyBiddingLogsExecution(database: unknown, accountId: number):
     // bidding_logs表无显式映射的列在DB中为camelCase（drizzle-kit push不会重命名已有列）
     // 显式映射的列为snake_case: execution_status, api_response_id, error_message
     let recentBidLogs: unknown;
-    // @ts-ignore
     try {
       // 首选camelCase列名（旧表实际列名），显式映射的列用snake_case
-      // @ts-ignore
+      // @ts-expect-error v653: drizzle/mysql2 untyped query result
       recentBidLogs = await database.execute(sql`
  SELECT bl.id, bl.logTargetType as log_target_type, bl.targetId as target_id, bl.targetName as target_name,
  bl.previousBid as previous_bid, bl.newBid as new_bid, bl.createdAt as created_at,
@@ -3831,10 +3705,9 @@ async function verifyBiddingLogsExecution(database: unknown, accountId: number):
  LIMIT 200
  `);
     } catch (camelErr: unknown) {
-      // @ts-ignore
       log.warn(`v200: camelCase查询失败，尝试snake_case列名: ${(camelErr as Error).message?.substring(0, 100)}`);
       // 回退到snake_case列名（如果表在casing配置后被重建）
-      // @ts-ignore
+      // @ts-expect-error v653: drizzle/mysql2 untyped query result
       recentBidLogs = await database.execute(sql`
  SELECT bl.id, bl.log_target_type, bl.target_id, bl.target_name,
  bl.previous_bid, bl.new_bid, bl.created_at,
@@ -3850,7 +3723,6 @@ async function verifyBiddingLogsExecution(database: unknown, accountId: number):
  ) latest ON bl.id = latest.max_id
  LIMIT 200
  `);
-    // @ts-ignore
     }
     
     const rows = (recentBidLogs as Record<string, unknown>[])?.[0] || recentBidLogs;
@@ -3872,16 +3744,15 @@ async function verifyBiddingLogsExecution(database: unknown, accountId: number):
       let currentBid: number | null = null;
       
       if (targetType === 'keyword') {
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         const [kw] = await database
           .select({ bid: keywords.bid })
           .from(keywords)
           .where(eq(keywords.id, targetId))
           .limit(1);
         if (kw) currentBid = parseFloat(String(kw.bid || '0'));
-      // @ts-ignore
       } else if (targetType === 'product_target') {
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         const [pt] = await database
           .select({ bid: productTargets.bid })
           .from(productTargets)
@@ -3890,19 +3761,16 @@ async function verifyBiddingLogsExecution(database: unknown, accountId: number):
         if (pt) currentBid = parseFloat(String(pt.bid || '0'));
       }
       
-      // @ts-ignore
       if (currentBid === null) continue;
       
       // v204: 使用基于货币的动态容差，替代固定20%比例容差
       // 这样可以更精确地区分货币转换差异和真正的执行失败
-      // @ts-ignore
       const absDiff = Math.abs(currentBid - expectedBid);
       const relDiff = expectedBid > 0 ? absDiff / expectedBid : 0;
       const { absTolerance: verifyAbsTol, relTolerance: verifyRelTol } = getBidVerifyTolerance(currencyCode);
       
       if (absDiff <= verifyAbsTol || relDiff <= verifyRelTol) {
         verified++;
-        // @ts-ignore
         if (absDiff > 0.01) {
           // v204: 记录有差异但在货币容差范围内的情况
           log.debug(`v204: 出价确认(${currencyCode}容差内): ${targetType} id=${targetId} expected=$${expectedBid.toFixed(2)} actual=$${currentBid.toFixed(2)} diff=${(relDiff*100).toFixed(1)}%`);
@@ -3911,22 +3779,19 @@ async function verifyBiddingLogsExecution(database: unknown, accountId: number):
       }
       
       // 发现不一致（超出容差范围）— 记录并尝试纠正
-      // @ts-ignore
       mismatched++;
       log.warn(`v204: 出价执行确认失败(${currencyCode}): ${targetType} id=${targetId} expected=$${expectedBid.toFixed(2)} actual=$${currentBid.toFixed(2)} diff=${(relDiff*100).toFixed(1)}% (absTol=${verifyAbsTol.toFixed(3)}, relTol=${(verifyRelTol*100).toFixed(0)}%)`);
       
       // 将本地DB更新为最新的成功出价（因为API已经成功，本地可能被同步覆盖了）
-      // @ts-ignore
       try {
         if (targetType === 'keyword') {
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           await database
-            // @ts-ignore
             .update(keywords)
             .set({ bid: String(expectedBid) })
             .where(eq(keywords.id, targetId));
         } else if (targetType === 'product_target') {
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           await database
             .update(productTargets)
             .set({ bid: String(expectedBid) })
@@ -3948,7 +3813,6 @@ async function verifyBiddingLogsExecution(database: unknown, accountId: number):
         log.warn(`v196: 出价执行确认纠正失败: ${(corrErr as Error).message}`);
         results.push({
           type: 'bid_execution_verify',
-          // @ts-ignore
           accountId,
           targetId,
           targetType,
@@ -4008,7 +3872,7 @@ async function auditAlgorithmDecisionQuality(database: unknown, accountId: numbe
     // 列名规则: 旧表列名为camelCase（drizzle-kit push不会重命名已有列）
     // 显式映射的列为snake_case（如 max_bid, daily_budget, execution_status）
     // optimization_events表所有列都有显式映射，为snake_case
-    // @ts-ignore
+    // @ts-expect-error v653: drizzle/mysql2 untyped query result
     const auditCandidates = await database.execute(sql`
       SELECT 
         k.id as keyword_id,
@@ -4084,17 +3948,17 @@ async function auditAlgorithmDecisionQuality(database: unknown, accountId: numbe
     // 按performance_group分组，构建bidConfig
     const groupConfigs = new Map<number, { optimizationGoal: string; targetAcos?: number; dailyBudget?: number; maxBid?: number }>();
     for (const row of (rows as unknown[])) {
-      // @ts-ignore
+      // @ts-expect-error v653: drizzle/mysql2 untyped query result
       if (!groupConfigs.has(row.perf_group_id)) {
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         groupConfigs.set(row.perf_group_id, {
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           optimizationGoal: row.optimization_goal || 'balanced',
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           targetAcos: row.target_acos ? parseFloat(String(row.target_acos)) : undefined,
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           dailyBudget: row.daily_budget ? parseFloat(String(row.daily_budget)) : undefined,
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           maxBid: row.max_bid ? parseFloat(String(row.max_bid)) : undefined,
         });
       }
@@ -4102,7 +3966,6 @@ async function auditAlgorithmDecisionQuality(database: unknown, accountId: numbe
     
     let audited = 0;
     let deviationsFound = 0;
-    // @ts-ignore
     let corrected = 0;
     
     // 收集需要API同步的出价调整
@@ -4110,34 +3973,34 @@ async function auditAlgorithmDecisionQuality(database: unknown, accountId: numbe
     
     for (const row of (rows as unknown[])) {
       try {
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         const currentBid = parseFloat(String(row.current_bid || '0'));
         if (currentBid <= 0) continue;
         
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         const bidConfig = groupConfigs.get(row.perf_group_id);
         if (!bidConfig) continue;
         
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         const maxBidLimit = row.max_bid ? parseFloat(String(row.max_bid)) : 2.00;
         
         // 构建OptimizationTarget
         const target = {
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           id: row.keyword_id,
           type: 'keyword' as const,
           currentBid,
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           impressions: row.impressions || 0,
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           clicks: row.clicks || 0,
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           spend: parseFloat(String(row.spend || '0')),
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           sales: parseFloat(String(row.sales || '0')),
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           orders: row.orders || 0,
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           matchType: row.match_type,
         };
         
@@ -4159,7 +4022,6 @@ async function auditAlgorithmDecisionQuality(database: unknown, accountId: numbe
           } else if (adjustedBid < currentBid - maxChange) {
             adjustedBid = Math.round((currentBid - maxChange) * 100) / 100;
           }
-          // @ts-ignore
           adjustedBid = Math.max(adjustedBid, 0.02);
           adjustedBid = Math.min(adjustedBid, maxBidLimit);
           adjustedBid = Math.round(adjustedBid * 100) / 100;
@@ -4167,10 +4029,10 @@ async function auditAlgorithmDecisionQuality(database: unknown, accountId: numbe
           // 再次确认调整后的偏差仍然有意义（>$0.01）
           if (Math.abs(adjustedBid - currentBid) > 0.01) {
             bidAdjustments.push({
-              // @ts-ignore
+              // @ts-expect-error v653: drizzle/mysql2 untyped query result
               keywordId: row.keyword_id,
               newBid: adjustedBid,
-              // @ts-ignore
+              // @ts-expect-error v653: drizzle/mysql2 untyped query result
               campaignId: row.campaign_id,
               reason: `[v198质量审计] NextGen建议$${nextGenResult.newBid.toFixed(2)}(${nextGenResult.algorithmUsed}), 旧出价$${currentBid.toFixed(2)}, 偏差${(deviation * 100).toFixed(1)}%, 安全调整到$${adjustedBid.toFixed(2)}`,
               isProductTarget: false,
@@ -4179,20 +4041,19 @@ async function auditAlgorithmDecisionQuality(database: unknown, accountId: numbe
             results.push({
               type: 'nextgen_quality_audit',
               accountId,
-              // @ts-ignore
+              // @ts-expect-error v653: drizzle/mysql2 untyped query result
               targetId: row.keyword_id,
-              // @ts-ignore
               targetType: 'keyword',
               previousValue: String(currentBid),
               correctedValue: String(adjustedBid),
-              // @ts-ignore
+              // @ts-expect-error v653: drizzle/mysql2 untyped query result
               reason: `[v198质量审计] "${row.keyword_text}" 旧算法出价$${currentBid.toFixed(2)} → NextGen建议$${adjustedBid.toFixed(2)} (${nextGenResult.algorithmUsed}, 偏差${(deviation * 100).toFixed(1)}%)`,
               success: true, // 暂标记为true，API同步后更新
             });
           }
         }
       } catch (kwErr: unknown) {
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         log.warn(`v198: 关键词${row.keyword_id}质量审计失败: ${(kwErr as Error).message}`);
       }
     }
@@ -4201,17 +4062,17 @@ async function auditAlgorithmDecisionQuality(database: unknown, accountId: numbe
     if (bidAdjustments.length > 0) {
       try {
         const syncResult: unknown = await amazonApiHelper.syncBidAdjustmentsToAmazon(accountId, bidAdjustments);
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         corrected = syncResult.success;
         
         // 更新本地DB中的出价
         for (const adj of bidAdjustments) {
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           const itemResult = syncResult.itemResults?.get(adj.keywordId);
           const synced = itemResult?.status === 'synced';
           
           if (synced) {
-            // @ts-ignore
+            // @ts-expect-error v653: drizzle/mysql2 untyped query result
             await database
               .update(keywords)
               .set({ bid: String(adj.newBid) })
@@ -4234,22 +4095,19 @@ async function auditAlgorithmDecisionQuality(database: unknown, accountId: numbe
           const resultItem = results.find(r => r.targetId === adj.keywordId);
           if (resultItem && !synced) {
             resultItem.success = false;
-            // @ts-ignore
             resultItem.errorMessage = itemResult?.error || 'API sync failed';
           }
         }
         
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         log.warn(`v198: 账户${accountId} NextGen质量审计API同步完成: 成功=${syncResult.success}, 失败=${syncResult.failed}`);
       } catch (apiErr: unknown) {
         log.warn(`v198: 账户${accountId} NextGen质量审计API同步失败: ${(apiErr as Error).message}`);
         // 标记所有结果为失败
         for (const r of results) {
-          // @ts-ignore
           if (r.type === 'nextgen_quality_audit') {
             r.success = false;
             r.errorMessage = (apiErr as Error).message;
-          // @ts-ignore
           }
         }
       }
@@ -4257,7 +4115,6 @@ async function auditAlgorithmDecisionQuality(database: unknown, accountId: numbe
     
     log.info(`v198: 账户${accountId} NextGen质量审计完成: 审计=${audited}, 偏差=${deviationsFound}, 纠正=${corrected}`);
     
-  // @ts-ignore
   } catch (err: unknown) {
     log.warn(`v199: 账户${accountId} NextGen质量审计异常: ${(err as Error).message}`);
     // @ts-expect-error - runtime type mismatch
@@ -4275,7 +4132,6 @@ async function auditAlgorithmDecisionQuality(database: unknown, accountId: numbe
 
 export function startAutoCorrector(): void {
   if (correctionInterval) {
-    // @ts-ignore
     log.debug('定时纠错服务已在运行中');
     return;
   }
@@ -4294,7 +4150,6 @@ export function startAutoCorrector(): void {
           totalCleaned += cleanups.length;
         }
         if (totalCleaned > 0) {
-          // @ts-ignore
           log.warn(`[v426] 独立 dayparting 清理完成: ${totalCleaned}个账户有清理操作`);
         }
       } catch (err: unknown) {
@@ -4327,7 +4182,6 @@ export function startAutoCorrector(): void {
         const { executeRiskActions } = await import('./riskActionEngine');
         const riskResult = await executeRiskActions();
         if (riskResult.actionsTriggered > 0) {
-          // @ts-ignore
           log.warn(`v235 风险行动引擎: 触发${riskResult.actionsTriggered}个行动, ` +
             `critical账户=${riskResult.accountRisks.filter(a => a.riskLevel === 'critical').length}, ` +
             `同步健康=${riskResult.syncHealth.healthStatus}`);
@@ -4370,15 +4224,11 @@ export async function runDaypartingCleanup(): Promise<{ accountsCleaned: number;
   for (const accId of accountIds) {
     const cleanups = await cleanupExpiredDaypartingBids(database, accId);
     if (cleanups.length > 0) {
-      // @ts-ignore
       accountsCleaned++;
-      // @ts-ignore
       totalRecordsCleaned += cleanups.reduce((sum, c) => sum + parseInt(c.previousValue.match(/\d+/)?.[0] || '0'), 0);
     }
   }
-  // @ts-ignore
   log.warn(`[v426] 手动dayparting清理完成: ${accountsCleaned}个账户, ${totalRecordsCleaned}条记录`);
-  // @ts-ignore
   return { accountsCleaned, totalRecordsCleaned };
 }
 
@@ -4403,7 +4253,7 @@ async function retryFailedTargetStatusChanges(database: unknown, accountId: numb
   try {
     const expiryDateStr = new Date(Date.now() - AUTO_CORRECTION_CONFIG.retryExpiryDays * 24 * 60 * 60 * 1000).toISOString().slice(0, 19).replace('T', ' ');
     
-    // @ts-ignore
+    // @ts-expect-error v653: drizzle/mysql2 untyped query result
     const failedEvents = await database
       .select({
         id: optimizationEvents.id,
@@ -4413,24 +4263,20 @@ async function retryFailedTargetStatusChanges(database: unknown, accountId: numb
         keywordText: optimizationEvents.keywordText,
         actionType: optimizationEvents.actionType,
         actionDetail: optimizationEvents.actionDetail,
-        // @ts-ignore
         newValue: optimizationEvents.newValue,
         apiSyncDetail: optimizationEvents.apiSyncDetail,
         createdAt: optimizationEvents.createdAt,
       })
       .from(optimizationEvents)
-      // @ts-ignore
       .where(
         and(
           eq(optimizationEvents.accountId, accountId),
           or(
-            // @ts-ignore
             eq(optimizationEvents.actionType, 'target_enable'),
             eq(optimizationEvents.actionType, 'target_pause')
           ),
           or(
             eq(optimizationEvents.apiSyncStatus, 'failed'),
-            // @ts-ignore
             eq(optimizationEvents.apiSyncStatus, 'pending')
           ),
           gte(optimizationEvents.createdAt, expiryDateStr)
@@ -4455,7 +4301,7 @@ async function retryFailedTargetStatusChanges(database: unknown, accountId: numb
     const invalidStatusKwIds = new Set<number>();
     if (statusKwIds.length > 0) {
       try {
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         const kwStatusRows = await database
           .select({ id: keywords.id, keywordStatus: keywords.keywordStatus })
           .from(keywords)
@@ -4478,7 +4324,7 @@ async function retryFailedTargetStatusChanges(database: unknown, accountId: numb
             })
             .map((e: any) => e.id);
           if (invalidEventIds.length > 0) {
-            // @ts-ignore
+            // @ts-expect-error v653: drizzle/mysql2 untyped query result
             await database.execute(sql`
               UPDATE optimization_events 
               SET api_sync_status = 'permanently_failed',
@@ -4527,13 +4373,12 @@ async function retryFailedTargetStatusChanges(database: unknown, accountId: numb
         let detail: Record<string, unknown> = {};
         if (event.actionDetail) {
           try { detail = typeof event.actionDetail === 'string' ? JSON.parse(event.actionDetail) : event.actionDetail; } catch (e: any) { log.debug(`[AutoCorrector] 非关键操作失败: ${(e as Error)?.message}`); }
-        // @ts-ignore
         }
                 // 从 action_detail中提取本地keywordId
         const localKeywordId = detail.keywordId || event.keywordId;
         if (!localKeywordId) {
           // 无法确定关键词，标记为invalid_legacy
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           await database.update(optimizationEvents).set({
             apiSyncStatus: 'invalid_legacy',
             apiSyncDetail: JSON.stringify({ reason: 'v202: 无法确定keywordId', fixedAt: new Date().toISOString() }),
@@ -4560,7 +4405,7 @@ async function retryFailedTargetStatusChanges(database: unknown, accountId: numb
         }
         
         if (retryCount >= AUTO_CORRECTION_CONFIG.maxRetryAttempts) {
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           await database.update(optimizationEvents).set({
             apiSyncStatus: 'not_applicable',
             apiSyncDetail: JSON.stringify({ 
@@ -4589,11 +4434,9 @@ async function retryFailedTargetStatusChanges(database: unknown, accountId: numb
           keywordId: localKeywordId,
           newStatus: newStatus as 'enabled' | 'paused',
           campaignId: event.campaignId || 0,
-          // @ts-ignore
           reason: `[AutoCorrector v202] 重试关键词状态变更`,
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           isProductTarget,
-        // @ts-ignore
         });
       } catch (parseErr: unknown) {
         log.warn(`v202: 解析状态变更事件失败: eventId=${event.id}, ${(parseErr as Error).message}`);
@@ -4616,43 +4459,39 @@ async function retryFailedTargetStatusChanges(database: unknown, accountId: numb
       }))
     );
     
-    // @ts-ignore
+    // @ts-expect-error v653: drizzle/mysql2 untyped query result
     log.warn(`v202: 关键词状态变更同步结果: 成功=${syncResult.success}, 失败=${syncResult.failed}`);
     
     // 更新事件状态
     const failedKeywordIds = new Set<number>();
-    // @ts-ignore
+    // @ts-expect-error v653: drizzle/mysql2 untyped query result
     for (const err of syncResult.errors) {
       const match = err.match(/关键词\s*(\d+)/);
       if (match) failedKeywordIds.add(Number(match[1]));
     }
     
     for (const sc of statusChanges) {
-      // @ts-ignore
+      // @ts-expect-error v653: drizzle/mysql2 untyped query result
       const success = !failedKeywordIds.has(sc.keywordId) && syncResult.success > 0;
       
       if (success) {
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         await database.update(optimizationEvents).set({
           apiSyncStatus: 'synced',
-          // @ts-ignore
           apiSyncDetail: JSON.stringify({ correctedBy: 'AutoCorrector v202', correctedAt: new Date().toISOString() }),
           apiSyncedAt: new Date(),
         }).where(eq(optimizationEvents.id, sc.eventId));
         
         // 同步更新optimization_logs
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         await database.execute(sql`
           UPDATE optimization_logs SET api_sync_status = 'synced'
           WHERE id = (SELECT source_id FROM optimization_events WHERE id = ${sc.eventId} AND source_table = 'optimization_logs')
         `).catch(() => {});
       } else {
         // 记录重试次数
-        // @ts-ignore
         let retryCount = 0;
-        // @ts-ignore
         try {
-          // @ts-ignore
           const event = failedEvents.find((e: Record<string, unknown>) => e.id === sc.eventId);
           if (event?.apiSyncDetail) {
             const syncDetail = typeof event.apiSyncDetail === 'string' ? JSON.parse(event.apiSyncDetail) : event.apiSyncDetail;
@@ -4662,12 +4501,12 @@ async function retryFailedTargetStatusChanges(database: unknown, accountId: numb
           }
         } catch (e: any) { log.debug(`[AutoCorrector] 非关键操作失败: ${(e as Error)?.message}`); }
         
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         await database.update(optimizationEvents).set({
           apiSyncDetail: JSON.stringify({ 
             retryCount,
             lastRetryAt: new Date().toISOString(),
-            // @ts-ignore
+            // @ts-expect-error v653: drizzle/mysql2 untyped query result
             lastError: syncResult.errors.join('; ').substring(0, 200)
           }),
         }).where(eq(optimizationEvents.id, sc.eventId));
@@ -4682,7 +4521,7 @@ async function retryFailedTargetStatusChanges(database: unknown, accountId: numb
         correctedValue: sc.newStatus,
         reason: `重试关键词状态变更(${sc.newStatus}): keywordId=${sc.keywordId}`,
         success,
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         errorMessage: success ? undefined : syncResult.errors.join('; '),
       });
     }
@@ -4715,7 +4554,7 @@ async function retryFailedProductTargetCreations(database: unknown, accountId: n
     const expiryDateStr = new Date(Date.now() - AUTO_CORRECTION_CONFIG.retryExpiryDays * 24 * 60 * 60 * 1000).toISOString().slice(0, 19).replace('T', ' ');
     
     // 查找缺少Amazon targetId的product_targets记录
-    // @ts-ignore
+    // @ts-expect-error v653: drizzle/mysql2 untyped query result
     const [missingTargets] = await database.execute(sql`
  SELECT pt.id, pt.internal_ad_group_id, pt.targetType, pt.targetExpression, pt.bid, pt.targetStatus,
  ag.adGroupId as amazon_ad_group_id, ag.campaignId as amazon_campaign_id
@@ -4743,7 +4582,6 @@ async function retryFailedProductTargetCreations(database: unknown, accountId: n
       campaignId: string;
       asin: string;
       targetingType: 'exact' | 'expanded';
-      // @ts-ignore
       bid: number;
     }> = [];
     
@@ -4756,19 +4594,18 @@ async function retryFailedProductTargetCreations(database: unknown, accountId: n
         
         // 从expression中提取ASIN
         let asin = '';
-        // @ts-ignore
         let targetingType: 'exact' | 'expanded' = 'exact';
         
         for (const expr of expression) {
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           if (expr.type === 'asinSameAs' && expr.value) {
-            // @ts-ignore
+            // @ts-expect-error v653: drizzle/mysql2 untyped query result
             asin = expr.value;
             targetingType = 'exact';
             break;
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           } else if (expr.type === 'asinExpandedFrom' && expr.value) {
-            // @ts-ignore
+            // @ts-expect-error v653: drizzle/mysql2 untyped query result
             asin = expr.value;
             targetingType = 'expanded';
             break;
@@ -4803,24 +4640,24 @@ async function retryFailedProductTargetCreations(database: unknown, accountId: n
     // 调用Amazon API创建
     const syncResult: unknown = await amazonApiHelper.syncNewProductTargetsToAmazon(accountId, targetsToCreate);
     
-    // @ts-ignore
+    // @ts-expect-error v653: drizzle/mysql2 untyped query result
     log.warn(`v310: 商品定向创建结果: 成功=${syncResult.success}, 失败=${syncResult.failed}`);
     
     // 更新本地targetId
     for (const target of targetsToCreate) {
       const mapKey = `${target.adGroupId}:${target.asin}`;
-      // @ts-ignore
+      // @ts-expect-error v653: drizzle/mysql2 untyped query result
       const amazonTargetId = syncResult.targetIdMap.get(mapKey);
       
       if (amazonTargetId) {
         // 更新product_targets表的targetId
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         await database.execute(sql`
           UPDATE product_targets SET targetId = ${String(amazonTargetId)} WHERE id = ${target.localTargetId}
         `);
         
         // v324: 修复 - 更新optimization_events表（使用正确的列名target_id）
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         await database.execute(sql`
           UPDATE optimization_events SET api_sync_status = 'synced', error_message = 'v324: AutoCorrector创建成功'
           WHERE target_id = ${target.localTargetId} AND api_sync_status = 'pending'
@@ -4848,7 +4685,7 @@ async function retryFailedProductTargetCreations(database: unknown, accountId: n
           correctedValue: target.asin,
           reason: `v310: 创建商品定向失败 ASIN=${target.asin}`,
           success: false,
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           errorMessage: syncResult.errors.join('; ').substring(0, 200),
         });
       }
@@ -4877,7 +4714,7 @@ async function revalidateStalePendingCommands(database: unknown, accountId: numb
   
   try {
     // v324: 修复SQL - 使用optimization_events表的正确列名（keyword_id/target_id而非entity_type/entity_id）
-    // @ts-ignore
+    // @ts-expect-error v653: drizzle/mysql2 untyped query result
     const [stalePending] = await database.execute(sql`
       SELECT oe.id, oe.action_type, oe.keyword_id, oe.target_id,
              oe.previous_value, oe.new_value, oe.previous_bid, oe.new_bid,
@@ -4907,13 +4744,13 @@ async function revalidateStalePendingCommands(database: unknown, accountId: numb
     
     for (const row of (stalePending as unknown[])) {
       try {
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         const actionType = row.action_type;
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         const newValue = parseFloat(String(row.new_bid || row.new_value || 0));
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         const prevValue = parseFloat(String(row.previous_bid || row.previous_value || 0));
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         const currentBid = parseFloat(String(row.kw_current_bid || row.pt_current_bid || 0));
         
         let shouldCancel = false;
@@ -4949,14 +4786,14 @@ async function revalidateStalePendingCommands(database: unknown, accountId: numb
         }
         
         // target_pause/target_enable: 缺少Amazon ID
-        // @ts-ignore
+        // @ts-expect-error v653: drizzle/mysql2 untyped query result
         if ((actionType === 'target_pause' || actionType === 'target_enable') && !row.amazon_keyword_id && !row.amazon_target_id) {
           shouldCancel = true;
           cancelReason = '缺少Amazon ID，无法执行';
         }
         
         if (shouldCancel) {
-          // @ts-ignore
+          // @ts-expect-error v653: drizzle/mysql2 untyped query result
           await database.execute(sql`
  UPDATE optimization_events 
  SET api_sync_status = 'not_applicable',
@@ -4969,11 +4806,11 @@ async function revalidateStalePendingCommands(database: unknown, accountId: numb
             // @ts-expect-error - type assertion
             type: 'bid_execution_verify' as unknown,
             accountId,
-            // @ts-ignore
+            // @ts-expect-error v653: drizzle/mysql2 untyped query result
             targetId: row.keyword_id || row.target_id,
-            // @ts-ignore
+            // @ts-expect-error v653: drizzle/mysql2 untyped query result
             targetType: row.keyword_id ? 'keyword' : (row.target_id ? 'product_target' : 'unknown'),
-            // @ts-ignore
+            // @ts-expect-error v653: drizzle/mysql2 untyped query result
             previousValue: String(row.new_value),
             correctedValue: 'cancelled',
             reason: `v310: 取消过时pending指令(${actionType}): ${cancelReason}`,
@@ -5017,7 +4854,7 @@ async function cleanupExpiredDaypartingBids(database: unknown, accountId: number
   
   try {
     // 查找超过24小时的 dayparting_bid 失败/pending 记录
-    // @ts-ignore
+    // @ts-expect-error v653: drizzle/mysql2 untyped query result
     const [expiredRecords] = await database.execute(sql`
       SELECT id, keyword_id, action_type, api_sync_status, new_bid, previous_bid, created_at
       FROM optimization_events
@@ -5037,13 +4874,13 @@ async function cleanupExpiredDaypartingBids(database: unknown, accountId: number
     log.info(`v425: 账户${accountId} 发现${expiredRecords.length}条过期的dayparting_bid失败/pending记录`);
     
     // 批量更新为 superseded
-    // @ts-ignore
+    // @ts-expect-error v653: drizzle/mysql2 untyped query result
     const expiredIds = (expiredRecords as unknown[]).map((r: unknown) => r.id);
     
     // 分批处理（每批500条）
     for (let i = 0; i < expiredIds.length; i += 500) {
       const batch = expiredIds.slice(i, i + 500);
-      // @ts-ignore
+      // @ts-expect-error v653: drizzle/mysql2 untyped query result
       await database.execute(sql`
         UPDATE optimization_events 
         SET api_sync_status = 'superseded',
@@ -5067,7 +4904,7 @@ async function cleanupExpiredDaypartingBids(database: unknown, accountId: number
     });
     
     // 同时清理超过7天的其他类型的 failed 记录（标记为 permanently_failed）
-    // @ts-ignore
+    // @ts-expect-error v653: drizzle/mysql2 untyped query result
     const [oldFailedRecords] = await database.execute(sql`
       SELECT COUNT(*) as cnt
       FROM optimization_events
@@ -5078,10 +4915,10 @@ async function cleanupExpiredDaypartingBids(database: unknown, accountId: number
         AND created_at > DATE_SUB(NOW(), INTERVAL 60 DAY)
     `);
     
-    // @ts-ignore
+    // @ts-expect-error v653: drizzle/mysql2 untyped query result
     const oldFailedCount = (oldFailedRecords as unknown[])?.[0]?.cnt || 0;
     if (oldFailedCount > 0) {
-      // @ts-ignore
+      // @ts-expect-error v653: drizzle/mysql2 untyped query result
       await database.execute(sql`
         UPDATE optimization_events 
         SET api_sync_status = 'permanently_failed',

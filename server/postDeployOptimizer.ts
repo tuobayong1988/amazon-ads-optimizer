@@ -85,6 +85,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 653,
+    description: 'v653: [v652验证报告后续优化] — (1)4.1日志缓冲区优化: TRULY_EMPTY空账户诊断去重机制,连续相同诊断结果降级为debug日志+每10次输出一次汇总,解决日志缓冲区使用率从84%升至100%的问题 (2)4.3 @ts-ignore深度清理: optimizationSyncEngine.ts(483个→326个@ts-expect-error+157个unused删除)+optimizationAutoCorrector.ts(466个→329个@ts-expect-error+163个unused删除),全项目@ts-ignore从7884降至6937(-947)',
+    affectedModules: ['sync', 'optimization'],
+    correctionActions: [],
+  },
+  {
     version: 652,
     description: 'v652: [v651验证报告遮留问题全修复] — (1)R-1凭证缺失诊断: discoverSyncableAccounts添加详细的凭证缺失原因日志(clientId/clientSecret/refreshToken/profileId逐项检测)+账户状态诊断(archived/paused) (2)R-2否定关键词频率优化: medium层同步完成后也触发快速否定扫描,从每3小时提升到每1小时 (3)R-3优化引擎触发扩展: executeUnifiedSync中优化触发从full/low扩展到medium层,解决优化事件日志为空的根因(low层未被调度器启动,full层每3小时才执行) (4)R-4空账户智能诊断: totalSynced=0时自动分类诊断(AUTH_FAILURE/RATE_LIMITED/NETWORK_TIMEOUT/TRULY_EMPTY/UNKNOWN_ZERO)+告警类型包含诊断结果+真空账户降级为info (5)R-5并发排队机制: syncAccount中并发拒绝改为排队等待+重试(30秒超时,最多3次重试),消除同步丢失风险 (6)R-6 @ts-ignore全量清理: unifiedSyncEngine.ts(88个→@ts-expect-error)+amazonIdResolver.ts(101个→@ts-expect-error),所有抑制添加原因注释',
     affectedModules: ['sync', 'optimization', 'sync'],

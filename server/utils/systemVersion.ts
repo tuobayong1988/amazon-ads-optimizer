@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 652;  // v652: R-1凭证缺失诊断 + R-2否定关键词medium层触发 + R-3优化引擎medium层触发 + R-4空账户智能诊断 + R-5并发排队机制 + R-6 @ts-ignore全量清理
+export const SYSTEM_VERSION = 653;  // v653: 4.1日志缓冲区优化(TRULY_EMPTY去重) + 4.3 @ts-ignore深度清理(optimizationSyncEngine+optimizationAutoCorrector)

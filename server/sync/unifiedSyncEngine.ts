@@ -1062,6 +1062,11 @@ const activeSyncs = new Map<string, {
   timeoutMs: number;         // 绝对超时（安全网，防止无限运行）
 }>();
 
+// v653: 空账户诊断去重缓存 — 连续相同诊断结果的账户不再重复输出warn日志
+// 解决v652验证报告4.1：日志缓冲区使用率从84%升至100%的问题
+const emptyAccountDiagCache = new Map<number, { diagnosisType: string; count: number; firstSeen: Date }>();
+const DIAG_DEDUP_LOG_INTERVAL = 10;  // 每10次相同诊断才输出一次汇总日志
+
 // v652: 并发排队机制 — 当检测到同层级/full层同步在运行时，不再直接拒绝，而是等待锁释放后重试
 // 解决v651验证报告R-5：22个账户因并发保护被直接拒绝的问题
 const QUEUE_POLL_INTERVAL_MS = 30_000;  // 每30秒检查一次锁状态
@@ -1861,48 +1866,81 @@ export async function syncAccount(
       }
       
       const alertMsg = `⚠️ 账户${account.accountId}(${account.accountName}) ${tier}层同步完成但总记录数为0 [${diagnosisType}] ${diagnosisDetail} | 步骤=${result.totalSteps}, 失败=${result.failedSteps}, 错误=${result.errors.slice(0, 3).join('; ')}`;
+      
+      // v653: 空账户诊断去重 — TRULY_EMPTY连续相同时降级为debug，每10次输出一次汇总
+      // 解决v652验证报告4.1：11个TRULY_EMPTY账户每30分钟输出11条warn导致缓冲区溢出
+      let shouldLogWarn = true;
+      let shouldLogOps = true;
+      let shouldWriteDb = true;
+      
+      if (diagnosisType === 'TRULY_EMPTY') {
+        const cached = emptyAccountDiagCache.get(account.accountId);
+        if (cached && cached.diagnosisType === 'TRULY_EMPTY') {
+          cached.count++;
+          // 连续相同诊断：降级为debug日志，不写opsLogger，不写DB
+          shouldLogWarn = false;
+          shouldLogOps = false;
+          shouldWriteDb = false;
+          // 每DIAG_DEDUP_LOG_INTERVAL次输出一次汇总
+          if (cached.count % DIAG_DEDUP_LOG_INTERVAL === 0) {
+            const ageMins = Math.round((Date.now() - cached.firstSeen.getTime()) / 60000);
+            log.info(`[UnifiedSync] v653: 账户${account.accountId}(${account.accountName}) 已连续${cached.count}次诊断为TRULY_EMPTY（距首次发现${ageMins}分钟），已降级日志`);
+          }
+        } else {
+          // 首次或诊断类型变化：记录并正常输出
+          emptyAccountDiagCache.set(account.accountId, { diagnosisType: 'TRULY_EMPTY', count: 1, firstSeen: new Date() });
+        }
+      } else {
+        // 非TRULY_EMPTY诊断：清除缓存（账户状态变化）
+        emptyAccountDiagCache.delete(account.accountId);
+      }
+      
       // v474: confirmation层同步0条是常见的(无待确认的出价更新)，降级为WARN
       if (tier === 'confirmation') {
         log.warn(`[UnifiedSync] v474: ${tier}层同步0条记录(正常): ${alertMsg}`);
-      } else {
+      } else if (shouldLogWarn) {
         log.warn(`[UnifiedSync] 🚨 v652同步健康告警[${diagnosisType}]: ${alertMsg}`);
       }
-      logSyncWarn('UnifiedSync', alertMsg, {
-        accountId: account.accountId,
-        accountName: account.accountName,
-        marketplace: account.marketplace,
-        tier,
-        diagnosisType,  // v652: 新增诊断类型
-        diagnosisDetail,  // v652: 新增诊断详情
-        totalSteps: result.totalSteps,
-        completedSteps: result.completedSteps,
-        failedSteps: result.failedSteps,
-        errors: result.errors,
-      });
+      if (shouldLogOps) {
+        logSyncWarn('UnifiedSync', alertMsg, {
+          accountId: account.accountId,
+          accountName: account.accountName,
+          marketplace: account.marketplace,
+          tier,
+          diagnosisType,  // v652: 新增诊断类型
+          diagnosisDetail,  // v652: 新增诊断详情
+          totalSteps: result.totalSteps,
+          completedSteps: result.completedSteps,
+          failedSteps: result.failedSteps,
+          errors: result.errors,
+        });
+      }
       // 异步写入告警日志到数据库
-      try {
-        const database = await db.getDb();
-        if (database) {
-          // v347: 全参数化INSERT，避免drizzle sql模板中字面量的潜在问题
-          const alertType = `SYNC_ZERO_RECORDS_${diagnosisType}`;  // v652: 告警类型包含诊断结果
-          const alertSeverity = diagnosisType === 'TRULY_EMPTY' ? 'info' : 'critical';  // v652: 真空账户降级为info
-          const alertMessage = JSON.stringify({
-            alertMessage: alertMsg,
-            tier,
-            diagnosisType,  // v652
-            diagnosisDetail,  // v652
-            totalSteps: result.totalSteps,
-            failedSteps: result.failedSteps,
-            errors: result.errors.slice(0, 5),
-            stepResults: Object.entries(result.stepResults).map(([id, r]) => ({ id, success: (r as { success?: boolean }).success, synced: (r as { synced?: number }).synced })),
-          });
-          await database.execute(sql`
-            INSERT INTO anomaly_alert_logs (accountId, anomalyType, detectedValue, actionTaken, createdAt)
-            VALUES (${account.accountId}, ${alertType}, ${alertSeverity}, ${alertMessage}, NOW())
-          `);
+      if (shouldWriteDb) {
+        try {
+          const database = await db.getDb();
+          if (database) {
+            // v347: 全参数化INSERT，避免drizzle sql模板中字面量的潜在问题
+            const alertType = `SYNC_ZERO_RECORDS_${diagnosisType}`;  // v652: 告警类型包含诊断结果
+            const alertSeverity = diagnosisType === 'TRULY_EMPTY' ? 'info' : 'critical';  // v652: 真空账户降级为info
+            const alertMessage = JSON.stringify({
+              alertMessage: alertMsg,
+              tier,
+              diagnosisType,  // v652
+              diagnosisDetail,  // v652
+              totalSteps: result.totalSteps,
+              failedSteps: result.failedSteps,
+              errors: result.errors.slice(0, 5),
+              stepResults: Object.entries(result.stepResults).map(([id, r]) => ({ id, success: (r as { success?: boolean }).success, synced: (r as { synced?: number }).synced })),
+            });
+            await database.execute(sql`
+              INSERT INTO anomaly_alert_logs (accountId, anomalyType, detectedValue, actionTaken, createdAt)
+              VALUES (${account.accountId}, ${alertType}, ${alertSeverity}, ${alertMessage}, NOW())
+            `);
+          }
+        } catch (alertDbErr: unknown) {
+          log.warn(`[UnifiedSync] 同步健康告警写入DB失败: ${(alertDbErr as Error).message}`);
         }
-      } catch (alertDbErr: unknown) {
-        log.warn(`[UnifiedSync] 同步健康告警写入DB失败: ${(alertDbErr as Error).message}`);
       }
     }
 
