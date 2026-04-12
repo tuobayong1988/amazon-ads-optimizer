@@ -122,7 +122,7 @@ export async function syncSbKeywords(service: SyncContext,): Promise<{ synced: n
       if (!adGroup) continue;
 
       // 检查是否已存在
-      const [existing] = await db
+      let [existing] = await db
         .select()
         .from(keywords)
         .where(
@@ -132,6 +132,30 @@ export async function syncSbKeywords(service: SyncContext,): Promise<{ synced: n
           )
         )
         .limit(1);
+      
+      // v647: 二次匹配 — 通过adGroupId+keywordText+matchType修复被污染的keywordId
+      if (!existing && (apiKeyword.keywordText || apiKeyword.keyword)) {
+        const kwText = apiKeyword.keywordText || apiKeyword.keyword || '';
+        const normalizedMatch = (apiKeyword.matchType || 'broad').toLowerCase();
+        const [textMatched] = await db
+          .select()
+          .from(keywords)
+          .where(
+            and(
+              eq(keywords.internalAdGroupId, adGroup.id),
+              eq(keywords.keywordText, kwText),
+              eq(keywords.matchType, normalizedMatch)
+            )
+          )
+          .limit(1);
+        if (textMatched) {
+          const oldKwId = textMatched.keywordId || '';
+          if (oldKwId !== String(apiKeyword.keywordId)) {
+            log.info(`[v647] 修复SB keywordId(keywordSync): keyword="${kwText.substring(0, 40)}" 旧ID="${oldKwId.substring(0, 50)}" → 新ID="${String(apiKeyword.keywordId)}"`);
+          }
+          existing = textMatched;
+        }
+      }
 
       const normalizedMatchType = (apiKeyword.matchType || 'broad').toLowerCase() as 'broad' | 'phrase' | 'exact';
       const normalizedState = (apiKeyword.state || 'enabled').toLowerCase() as 'enabled' | 'paused' | 'archived';
@@ -230,7 +254,7 @@ export async function syncSpKeywords(service: SyncContext,lastSyncTime?: string 
       if (!adGroup) continue;
 
       // 检查是否已存在
-      const [existing] = await db
+      let [existing] = await db
         .select()
         .from(keywords)
         .where(
@@ -240,6 +264,29 @@ export async function syncSpKeywords(service: SyncContext,lastSyncTime?: string 
           )
         )
         .limit(1);
+      
+      // v647: 二次匹配 — 通过adGroupId+keywordText+matchType修复被污染的keywordId
+      if (!existing && apiKeyword.keywordText) {
+        const normalizedMatch = (apiKeyword.matchType || 'broad').toLowerCase();
+        const [textMatched] = await db
+          .select()
+          .from(keywords)
+          .where(
+            and(
+              eq(keywords.internalAdGroupId, adGroup.id),
+              eq(keywords.keywordText, apiKeyword.keywordText),
+              eq(keywords.matchType, normalizedMatch)
+            )
+          )
+          .limit(1);
+        if (textMatched) {
+          const oldKwId = textMatched.keywordId || '';
+          if (oldKwId !== String(apiKeyword.keywordId)) {
+            log.info(`[v647] 修复SP keywordId(keywordSync): keyword="${apiKeyword.keywordText?.substring(0, 40)}" 旧ID="${oldKwId.substring(0, 50)}" → 新ID="${String(apiKeyword.keywordId)}"`);
+          }
+          existing = textMatched;
+        }
+      }
 
       // 增量同步：如果有上次同步时间且记录已存在，检查是否需要更新
       // v215修复: 移除错误的updatedAt跳过逻辑
@@ -536,11 +583,23 @@ export async function syncKeywordPerformanceData(service: SyncContext,days: numb
     log.info(`v196: 关键词绩效同步完成 - 匹配${synced}条, 未匹配${notMatched}条, 写入${dbWritten}条`);
     log.debug(`v196: 匹配统计 - keywordId:${matchStats.byKeywordId}, adGroup+text+match:${matchStats.byAdGroupTextMatch}, adGroup+text:${matchStats.byAdGroupText}, text:${matchStats.byText}, targetId:${matchStats.byTargetId}, expression:${matchStats.byExpression}`);
     
-    // v196: 同步时顺便回填keywordId（如果通过文本匹配到了但keywordId不一致）
+    // v196+v647: 同步时顺便回填keywordId（如果通过文本匹配到了但keywordId不一致）
+    // v647: 只允许纯数字ID回填，防止text:前缀表达式或ASIN表达式污染keywordId字段
     let backfilled = 0;
+    let backfillSkipped = 0;
     for (const row of (reportData as unknown[])) {
       const reportTargetId = String(row.targetId || row.keywordId || '');
       if (!reportTargetId || !row.targetingText) continue;
+      
+      // v647: 严格验证 - 只有纯数字的reportTargetId才能回填到keywordId
+      // 防止text:前缀关键词表达式（如"text:+ski +jumpsuit"）和ASIN表达式（如"asin=B0FM8LDVTD"）污染keywordId
+      if (!/^\d+$/.test(reportTargetId.trim())) {
+        backfillSkipped++;
+        if (backfillSkipped <= 3) {
+          log.info(`[v647] 跳过非数字keywordId回填: reportTargetId="${reportTargetId.substring(0, 60)}", text="${(row.targetingText || '').substring(0, 40)}"`);
+        }
+        continue;
+      }
       
       // 检查是否有通过文本匹配到的keyword缺少keywordId
       const kw = kwByText.get(row.targetingText.toLowerCase());
@@ -554,7 +613,10 @@ export async function syncKeywordPerformanceData(service: SyncContext,days: numb
       }
     }
     if (backfilled > 0) {
-      log.debug(`v196: 回填了${backfilled}个关键词的keywordId`);
+      log.debug(`v647: 回填了${backfilled}个关键词的keywordId`);
+    }
+    if (backfillSkipped > 0) {
+      log.info(`[v647] 回填时跳过了${backfillSkipped}个非数字reportTargetId，防止keywordId字段污染`);
     }
     
     return synced;

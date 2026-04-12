@@ -497,10 +497,25 @@ export async function executeBidOptimization(
     const keywords = await db.getKeywordsByCampaignId(campaignAmazonId);
     const keywordTargets: bidOptimizer.EnhancedOptimizationTarget[] = [];
     
+    let skippedInactive = 0;
     for (const keyword of keywords) {
-      // v454: 跳过Amazon端已不存在的关键词，避免无效同步
-      if (keyword.keywordStatus === 'amazon_deleted') continue;
-      if (keyword.keywordStatus !== 'enabled') continue;
+      // v454+v647: 跳过已归档、已删除、已暂停的关键词，避免生成无效的出价调整指令浪费API配额
+      // v647: 明确过滤archived和amazon_deleted状态，这些实体在Amazon端已无法修改出价
+      if (keyword.keywordStatus === 'amazon_deleted' || keyword.keywordStatus === 'archived') {
+        skippedInactive++;
+        continue;
+      }
+      if (keyword.keywordStatus !== 'enabled') {
+        skippedInactive++;
+        continue;
+      }
+      
+      // v647: 跳过keywordId为非数字的关键词，这些记录的keywordId已被污染，无法通过Amazon API调整出价
+      if (keyword.keywordId && !/^\d+$/.test(String(keyword.keywordId).trim())) {
+        log.debug(`[v647] 跳过非数字keywordId关键词: id=${keyword.id}, keywordId="${String(keyword.keywordId).substring(0, 50)}", text="${keyword.keywordText?.substring(0, 30)}"`);
+        skippedInactive++;
+        continue;
+      }
       const currentBid = parseFloat(keyword.bid || '0');
       if (currentBid <= 0) continue;
       
@@ -548,6 +563,11 @@ export async function executeBidOptimization(
         // v515: 传入internalAdGroupId供RLDataRecorder和冷启动引擎使用
         internalAdGroupId: keyword.internalAdGroupId,
       });
+    }
+    
+    // v647: 记录跳过的无效关键词数量
+    if (skippedInactive > 0) {
+      log.info(`[v647] Campaign ${campaignLocalId}: 跳过${skippedInactive}个无效关键词(归档/删除/暂停/非数字ID), 保留${keywordTargets.length}个有效关键词`);
     }
     
     // v198: NextGen统一出价引擎 — 100%使用NextGen算法，内部自动降级，无需回退到旧算法
@@ -660,8 +680,17 @@ export async function executeBidOptimization(
     const adGroupIds = adGroupsList.map(ag => ag.id);
     const allTargetsFromDb = await db.getProductTargetsByAdGroupIds(adGroupIds);
     
+    let ptSkippedInactive = 0;
     for (const target of allTargetsFromDb) {
-      if (target.targetStatus !== 'enabled') continue;
+      // v647: 明确过滤archived和amazon_deleted状态的商品定向，避免无效API调用
+      if (target.targetStatus === 'amazon_deleted' || target.targetStatus === 'archived') {
+        ptSkippedInactive++;
+        continue;
+      }
+      if (target.targetStatus !== 'enabled') {
+        ptSkippedInactive++;
+        continue;
+      }
       let currentBid = parseFloat(target.bid || '0');
       
       // v512: 对于bid=0的记录，检查是否是自动广告匹配对象或SB/SD投放对象
@@ -877,6 +906,11 @@ export async function executeBidOptimization(
           if (!dryRun) adjustmentsCount++;
         }
       }
+    }
+    
+    // v647: 记录跳过的无效商品定向数量
+    if (ptSkippedInactive > 0) {
+      log.info(`[v647] Campaign ${campaignLocalId}: 跳过${ptSkippedInactive}个无效商品定向(归档/删除/暂停), 保留${productTargets.length}个有效商品定向`);
     }
     
     // v198: 商品定向也使用NextGen统一出价引擎 — 100%覆盖，无回退

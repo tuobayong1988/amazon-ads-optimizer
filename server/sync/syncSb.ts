@@ -442,13 +442,54 @@ AmazonSyncService.prototype.syncSbKeywords = async function(this: AmazonSyncServ
       ? await db.select().from(keywords).where(and(eq(keywords.accountId, this.accountId), inArray(keywords.keywordId, sbKwIds)))
       : [];
     const existingSbKwMap = new Map(existingSbKwRows.map(r => [`${r.internalAdGroupId}:${r.keywordId}`, r]));  // v421: 使用internalAdGroupId
+    
+    // v647: 二次匹配索引 — 通过 adGroupId+keywordText+matchType 匹配已有记录
+    // 用于修复已有记录的keywordId字段被污染为text:前缀表达式的情况
+    const sbAdGroupInternalIds = sbKwAdGroupRows.map(r => r.id);
+    const allSbAccountKwRows = sbAdGroupInternalIds.length > 0
+      ? await db.select().from(keywords).where(and(eq(keywords.accountId, this.accountId), inArray(keywords.internalAdGroupId, sbAdGroupInternalIds)))
+      : [];
+    const sbTextMatchMap = new Map<string, typeof allSbAccountKwRows[0]>();
+    let sbCorruptedCount = 0;
+    for (const r of allSbAccountKwRows) {
+      if (r.keywordText && r.internalAdGroupId && r.matchType) {
+        const key = `${r.internalAdGroupId}:${r.keywordText.toLowerCase().trim()}:${r.matchType.toLowerCase()}`;
+        sbTextMatchMap.set(key, r);
+      }
+      if (r.keywordId && !/^\d+$/.test(r.keywordId.trim())) {
+        sbCorruptedCount++;
+      }
+    }
+    if (sbCorruptedCount > 0) {
+      log.warn(`[v647] SB关键词发现${sbCorruptedCount}个非数字keywordId记录，将在同步时修复`);
+    }
+    let sbKeywordIdRepaired = 0;
 
     for (const apiKeyword of apiKeywords) {
       // v363: 使用批量预查询结果
       // @ts-ignore
       const adGroup = sbKwAdGroupMap.get(String(apiKeyword.adGroupId));
       if (!adGroup) continue;
-      const existing = existingSbKwMap.get(`${String(adGroup.id)}:${String(apiKeyword.keywordId)}`) || null;
+      let existing = existingSbKwMap.get(`${String(adGroup.id)}:${String(apiKeyword.keywordId)}`) || null;
+      
+      // v647: 二次匹配 — 当通过keywordId匹配不到时，通过adGroupId+keywordText+matchType匹配
+      if (!existing) {
+        const kwText = apiKeyword.keywordText || apiKeyword.keyword || '';
+        const normalizedMatch = (apiKeyword.matchType || 'broad').toLowerCase();
+        if (kwText) {
+          const textKey = `${adGroup.id}:${kwText.toLowerCase().trim()}:${normalizedMatch}`;
+          const textMatched = sbTextMatchMap.get(textKey);
+          if (textMatched) {
+            const oldKwId = textMatched.keywordId || '';
+            const newKwId = String(apiKeyword.keywordId);
+            if (oldKwId !== newKwId) {
+              log.info(`[v647] 修复SB keywordId: keyword="${kwText.substring(0, 40)}" 旧ID="${oldKwId.substring(0, 50)}" → 新ID="${newKwId}"`);
+              sbKeywordIdRepaired++;
+            }
+            existing = textMatched;
+          }
+        }
+      }
 
       // @ts-ignore
       const normalizedMatchType = (apiKeyword.matchType || 'broad').toLowerCase() as 'broad' | 'phrase' | 'exact';
@@ -490,6 +531,9 @@ AmazonSyncService.prototype.syncSbKeywords = async function(this: AmazonSyncServ
     }
 
     log.info(`SB关键词同步完成: synced=${synced}, skipped=${skipped}`);
+    if (sbKeywordIdRepaired > 0) {
+      log.info(`[v647] SB关键词同步完成: 修复了${sbKeywordIdRepaired}个被污染的keywordId`);
+    }
     return { synced, skipped };
   } catch (error: unknown) {
     // v332: 增强SB错误日志，记录详细的HTTP状态码和错误信息

@@ -479,15 +479,40 @@ AmazonSyncService.prototype.syncSpKeywords = async function(this: AmazonSyncServ
     // v529: 分段批量查询所有已存在的keyword
     const apiKeywordIds = apiKeywords.map(ak => String(ak.keywordId));
     const existingKeywordRows = await batchInArrayQuery(
-      (ids) => db.select({ id: keywords.id, keywordId: keywords.keywordId, adGroupId: keywords.internalAdGroupId, bid: keywords.bid, keywordText: keywords.keywordText }).from(keywords)
+      (ids) => db.select({ id: keywords.id, keywordId: keywords.keywordId, adGroupId: keywords.internalAdGroupId, bid: keywords.bid, keywordText: keywords.keywordText, matchType: keywords.matchType }).from(keywords)
         .where(and(eq(keywords.accountId, this.accountId), inArray(keywords.keywordId, ids))),
       apiKeywordIds
     );
     const existingKeywordMap = new Map(existingKeywordRows.map(r => [`${r.adGroupId}:${r.keywordId}`, r]));
+    
+    // v647: 二次匹配索引 — 通过 adGroupId+keywordText+matchType 匹配已有记录
+    // 用于修复已有记录的keywordId字段被污染为text:前缀表达式的情况
+    const allAccountKeywordRows = await batchInArrayQuery(
+      (ids) => db.select({ id: keywords.id, keywordId: keywords.keywordId, adGroupId: keywords.internalAdGroupId, bid: keywords.bid, keywordText: keywords.keywordText, matchType: keywords.matchType }).from(keywords)
+        .where(and(eq(keywords.accountId, this.accountId), inArray(keywords.internalAdGroupId, ids.map(Number).filter(n => !isNaN(n))))),
+      [...new Set(adGroupRows.map(r => String(r.id)))]
+    );
+    const textMatchMap = new Map<string, typeof allAccountKeywordRows[0]>();
+    let corruptedKeywordIdCount = 0;
+    for (const r of allAccountKeywordRows) {
+      if (r.keywordText && r.adGroupId && r.matchType) {
+        const key = `${r.adGroupId}:${r.keywordText.toLowerCase().trim()}:${r.matchType.toLowerCase()}`;
+        textMatchMap.set(key, r);
+      }
+      // v647: 统计已污染的keywordId
+      if (r.keywordId && !/^\d+$/.test(r.keywordId.trim())) {
+        corruptedKeywordIdCount++;
+      }
+    }
+    if (corruptedKeywordIdCount > 0) {
+      log.warn(`[v647] 发现${corruptedKeywordIdCount}个非数字keywordId记录，将在同步时修复`);
+    }
+    
     const allExistingKeywordIds = existingKeywordRows.map(r => r.id);
     const protectedKeywordIds = await getRecentlyOptimizedKeywordIds(allExistingKeywordIds, SYNC_PROTECTION_CONFIG.BID_PROTECTION_HOURS);
     const protectionStats = createSyncProtectionStats();
-    log.info(`syncSpKeywords: 批量查询完成, ${apiKeywords.length}个API关键词, ${existingKeywordRows.length}个已存在, ${protectedKeywordIds.size}个有近期出价优化事件`);
+    let keywordIdRepaired = 0;
+    log.info(`syncSpKeywords: 批量查询完成, ${apiKeywords.length}个API关键词, ${existingKeywordRows.length}个已存在, ${protectedKeywordIds.size}个有近期出价优化事件, ${corruptedKeywordIdCount}个待修复keywordId`);
 
     for (const apiKeyword of apiKeywords) {
       // v363: 使用批量预查询结果替代循环内查询
@@ -496,7 +521,25 @@ AmazonSyncService.prototype.syncSpKeywords = async function(this: AmazonSyncServ
       const adGroup = adGroupInfo;
 
       // v363: 使用批量预查询结果
-      const existing = existingKeywordMap.get(`${adGroup.id}:${String(apiKeyword.keywordId)}`) || null;
+      let existing = existingKeywordMap.get(`${adGroup.id}:${String(apiKeyword.keywordId)}`) || null;
+      
+      // v647: 二次匹配 — 当通过keywordId匹配不到时，通过adGroupId+keywordText+matchType匹配
+      // 这可以修复keywordId被污染为text:前缀表达式的记录
+      if (!existing && apiKeyword.keywordText) {
+        const normalizedMatch = (apiKeyword.matchType || 'broad').toLowerCase();
+        const textKey = `${adGroup.id}:${apiKeyword.keywordText.toLowerCase().trim()}:${normalizedMatch}`;
+        const textMatched = textMatchMap.get(textKey);
+        if (textMatched) {
+          // 找到了通过文本匹配的记录，检查其keywordId是否需要修复
+          const oldKwId = textMatched.keywordId || '';
+          const newKwId = String(apiKeyword.keywordId);
+          if (oldKwId !== newKwId) {
+            log.info(`[v647] 修复keywordId: keyword="${apiKeyword.keywordText?.substring(0, 40)}" 旧ID="${oldKwId.substring(0, 50)}" → 新ID="${newKwId}" (adGroup=${adGroup.id})`);
+            keywordIdRepaired++;
+          }
+          existing = textMatched;
+        }
+      }
 
       // 增量同步：如果有上次同步时间且记录已存在，检查是否需要更新
       // v215修复: 移除错误的updatedAt跳过逻辑
@@ -565,6 +608,9 @@ AmazonSyncService.prototype.syncSpKeywords = async function(this: AmazonSyncServ
     }
 
     logSyncProtectionSummary('syncSpKeywords', protectionStats);
+    if (keywordIdRepaired > 0) {
+      log.info(`[v647] SP关键词同步完成: 修复了${keywordIdRepaired}个被污染的keywordId`);
+    }
     return { synced, skipped };
   } catch (error: any) {
     const _cause = (error as Record<string, unknown>)?.cause as Record<string, unknown> | undefined;

@@ -1215,13 +1215,25 @@ AmazonSyncService.prototype.syncKeywordPerformanceData = async function(this: Am
     // @ts-ignore
     log.debug(`v196: 匹配统计 - keywordId:${matchStats.byKeywordId}, adGroup+text+match:${matchStats.byAdGroupTextMatch}, adGroup+text:${matchStats.byAdGroupText}, text:${matchStats.byText}, targetId:${matchStats.byTargetId}, expression:${matchStats.byExpression}`);
     
-    // v196: 同步时顺便回填keywordId（如果通过文本匹配到了但keywordId不一致）
+    // v196+v647: 同步时顺便回填keywordId（如果通过文本匹配到了但keywordId不一致）
+    // v647: 只允许纯数字ID回填，防止text:前缀表达式或ASIN表达式污染keywordId字段
     let backfilled = 0;
+    let backfillSkipped = 0;
     for (const row of (reportData as unknown[])) {
       // @ts-ignore
       const reportTargetId = String(row.targetId || row.keywordId || '');
       // @ts-ignore
       if (!reportTargetId || !row.targetingText) continue;
+      
+      // v647: 严格验证 - 只有纯数字的reportTargetId才能回填到keywordId
+      // 防止text:前缀关键词表达式（如"text:+ski +jumpsuit"）和ASIN表达式（如"asin=B0FM8LDVTD"）污染keywordId
+      if (!/^\d+$/.test(reportTargetId.trim())) {
+        backfillSkipped++;
+        if (backfillSkipped <= 3) {
+          log.info(`[v647] 跳过非数字keywordId回填(syncPerf): reportTargetId="${reportTargetId.substring(0, 60)}", text="${((row as any).targetingText || '').substring(0, 40)}"`);
+        }
+        continue;
+      }
       
       // 检查是否有通过文本匹配到的keyword缺少keywordId
       // @ts-ignore
@@ -1236,7 +1248,10 @@ AmazonSyncService.prototype.syncKeywordPerformanceData = async function(this: Am
       }
     }
     if (backfilled > 0) {
-      log.debug(`v196: 回填了${backfilled}个关键词的keywordId`);
+      log.debug(`v647: 回填了${backfilled}个关键词的keywordId(syncPerf)`);
+    }
+    if (backfillSkipped > 0) {
+      log.info(`[v647] syncPerf回填时跳过了${backfillSkipped}个非数字reportTargetId，防止keywordId字段污染`);
     }
     
     return synced;

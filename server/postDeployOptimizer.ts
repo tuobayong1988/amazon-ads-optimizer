@@ -83,6 +83,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 647,
+    description: 'v647: [keywordId数据污染修复+无效实体出价过滤] — (1)P0-keywordId回填纯数字验证: keywordSync.ts和syncPerformance.ts的回填逻辑添加/^\\d+$/验证,防止text:前缀表达式和ASIN表达式污染keywordId字段 (2)P0-二次匹配修复机制: syncSp.ts和syncSb.ts添加adGroupId+keywordText+matchType二次匹配,当通过keywordId匹配不到时自动修复被污染的记录 (3)P0-keywordSync.ts SP/SB同步也添加二次匹配 (4)P2-出价执行器过滤: bidOptimizationExecutor.ts提前过滤archived/amazon_deleted/非数字keywordId的关键词和商品定向,避免无效API调用浪费配额 (5)永久防线保留: amazonApiHelper.ts的v646纯数字检查作为最后一道安全网',
+    affectedModules: ['sync', 'optimization', 'bid'],
+    correctionActions: [],
+  },
+  {
     version: 643,
     description: 'v643: [同步成功率与算法效果全面提升] — (1)步骤级自动重试: 同步引擎失败步骤自动3次重试+指数退避(2s/4s/8s),智能识别可重试错误(429/5xx/网络超时)与不可重试错误(401/403/Token过期) (2)算法正向率判定优化: 扩展isPositiveAction覆盖更多合理场景—ACoS在目标120%内的降价/维持判为正向,冷启动期探索判为正向,中等置信度(0.5+)判为正向 (3)高ACoS动态降价上限: safetyValidate接受acosRatio参数,ACoS超标2.5倍时允许单次降价60%,3倍以上允许75% (4)Token过期主动标记: doRefreshToken检测到invalid_grant或HTML响应时主动更新数据库账户状态为auth_expired',
     affectedModules: ['sync', 'optimization', 'bid'],
