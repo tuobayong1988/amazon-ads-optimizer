@@ -487,6 +487,12 @@ export async function scanAccountHealth(accountId: number): Promise<ScanResult> 
     for (const [groupId, groupCampaigns] of byGroup) {
       const groupName = groupCampaigns[0].performanceGroupName || `优化目标#${groupId}`;
       
+      // v642: 目标间延迟，避免同一账户的多个目标同时竞争优化锁
+      if (autoOptResults.length > 0) {
+        log.info(`[v642智能推荐] 目标间延迟10秒，避免锁竞争...`);
+        await new Promise(resolve => setTimeout(resolve, 10000));
+      }
+      
       // v269.4核心升级：自动执行补充优化
       const autoOptResult = await executeAutoOptimizationForTarget(groupId, groupName, groupCampaigns);
       autoOptTriggered = true;

@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 641;  // v641: 监控报告优化 — 同步虚假成功修复 + paused/archived账户过滤 + Worker内存保护 + 健康API异步化 + Assets API修复 + getDashboard空指针修复 + 出价拦截器 + 最低出价$0.10 + 预算闭环修复 + 算法激进度调整
+export const SYSTEM_VERSION = 642;  // v642: 优化锁队列化重试 + 无效目标30015自动清理 + Refresh Token过期检测与账户标记 + SP Budget Rules API属性名修复

@@ -1522,8 +1522,14 @@ AmazonSyncService.prototype.syncSpBudgetRules = async function(this: AmazonSyncS
 
     // 2. 批量获取budget rules
     const campaignIds = spCampaigns.map(c => String(c.campaignId));
+    // v642: 修复属性名错误 (this.apiClient → this.client) 并添加方法存在性检查
     // @ts-ignore
-    const budgetRulesMap = await this.apiClient.listSpCampaignsBudgetRules(
+    if (!this.client.listSpCampaignsBudgetRules) {
+      log.warn(`[v642] SP Budget Rules API方法不存在，跳过budget rules同步`);
+      return { success: true, synced: 0, errors: [], message: 'Budget Rules API方法不可用，已跳过' };
+    }
+    // @ts-ignore
+    const budgetRulesMap = await this.client.listSpCampaignsBudgetRules(
       campaignIds,
       // @ts-ignore
       (completed, total) => {

@@ -474,7 +474,13 @@ export const autoOperationService = {
       let totalOptimized = 0;
       let totalAdjustments = 0;
       
-      for (const target of accountTargets) {
+      for (let tIdx = 0; tIdx < accountTargets.length; tIdx++) {
+        const target = accountTargets[tIdx];
+        // v642: 目标间延迟，避免同一账户的多个目标同时竞争优化锁
+        if (tIdx > 0) {
+          log.info(`[AutoOperation] v642: 目标间延迟10秒，避免锁竞争...`);
+          await new Promise(resolve => setTimeout(resolve, 10000));
+        }
         try {
           const result = await executeOptimizationTarget(target.id, {
             dryRun: false,

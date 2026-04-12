@@ -1622,6 +1622,34 @@ export async function syncAccount(
           await sleep(throttleDelay);
         }
         
+        // v642: 检测是否为Refresh Token过期错误 — 标记账户需要重新授权并终止后续步骤
+        const errMsg = (error as Error).message || '';
+        const isTokenExpired = errMsg.includes('Refresh Token已过期') ||
+                              errMsg.includes('invalid_grant') ||
+                              errMsg.includes('重新授权') ||
+                              errMsg.includes('Token刷新失败') ||
+                              errMsg.includes('Token刷新认证失败');
+        if (isTokenExpired) {
+          log.error(`[UnifiedSync] v642: 账户 ${account.accountId} Refresh Token已过期，终止后续同步步骤`);
+          // 标记账户需要重新授权
+          try {
+            await db.updateAmazonApiCredentials(account.accountId, {
+              syncStatus: 'auth_expired',
+              syncErrorMessage: `Refresh Token已过期，请在Amazon API管理页面重新授权 (发现于${new Date().toISOString()})`,
+            });
+          } catch (dbErr: unknown) {
+            log.warn(`[UnifiedSync] v642: 更新账户授权状态失败: ${(dbErr as Error).message}`);
+          }
+          // 将剩余步骤全部标记为跳过
+          const remainingSteps = steps.slice(i + 1);
+          result.skippedSteps += remainingSteps.length;
+          for (const skippedStep of remainingSteps) {
+            result.stepResults[skippedStep.id] = { success: false, synced: 0, errors: ['token_expired_skipped'] };
+          }
+          result.errors.push(`Refresh Token已过期，跳过剩余${remainingSteps.length}个步骤`);
+          break; // 终止后续步骤
+        }
+        
         log.warn(`[UnifiedSync] 账户 ${account.accountId} 步骤 ${step.name} 异常: ${(error as Error).message}`);
       }
     }

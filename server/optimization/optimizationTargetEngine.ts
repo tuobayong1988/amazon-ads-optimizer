@@ -27,7 +27,7 @@ import { optimizeBudgetPortfolio } from "../budget/budgetPortfolioOptimizer";
 import * as bidCoordinator from "../services/bidCoordinator";
 import * as nextGenOrchestrator from "./nextGenBidOrchestrator";
 import * as amazonApiHelper from "../services/amazonApiHelper";
-import { acquireAccountOptimizationLock, releaseAccountOptimizationLock, getModuleLockGroup } from "../utils/lockManager";
+import { acquireAccountOptimizationLock, acquireAccountOptimizationLockWithRetry, releaseAccountOptimizationLock, getModuleLockGroup } from "../utils/lockManager";
 import * as amazonIdResolver from "../services/amazonIdResolver";
 import { getLocalHour, getLocalDayOfWeek, isNewKeyword, getExplorationStrategy, isProtectedKeyword } from "../algorithm/algorithmUtils";
 import * as campaignLifecycleService from "../services/campaignLifecycleService";
@@ -344,17 +344,38 @@ export async function executeOptimizationTarget(
   
   const config = await getOptimizationTargetConfig(targetId);
   if (!config) {
-    throw new Error(`优化目标 ${targetId} 不存在`);
+    // v642: 优化目标不存在时记录详细日志，并尝试自动清理无效引用
+    log.warn(`[OptimizationTargetEngine] v642: 优化目标 ${targetId} 不存在，可能已被删除。尝试从调度器中清理...`);
+    try {
+      const { removeScheduledTarget } = await import('./optimizationScheduler');
+      if (removeScheduledTarget) {
+        await removeScheduledTarget(targetId);
+        log.info(`[OptimizationTargetEngine] v642: 已从调度器中移除无效目标 ${targetId}`);
+      }
+    } catch (cleanupErr: unknown) {
+      log.debug(`[OptimizationTargetEngine] v642: 清理无效目标引用失败: ${(cleanupErr as Error).message}`);
+    }
+    throw new Error(`优化目标 ${targetId} 不存在（可能已被删除，已自动清理无效引用）`);
   }
   
   if (!config.isEnabled && !forceExecution) {
     throw new Error(`优化目标 ${config.name} 未启用`);
   }
   
-  // v181: 获取账户+模块级优化锁，不同模块类型可以并行执行
+  // v181+v642: 获取账户+模块级优化锁，不同模块类型可以并行执行
+  // v642: 改用带重试的锁获取，避免多个优化目标同时竞争同一账户的锁时频繁失败
   const moduleLockGroup = getModuleLockGroup(specificModules);
-  if (!dryRun && !(await acquireAccountOptimizationLock(config.accountId, `optimizationTarget:${targetId}`, moduleLockGroup))) {
-    throw new Error(`账户 ${config.accountId} 模块组 ${moduleLockGroup} 优化锁已被占用，跳过本次执行`);
+  if (!dryRun) {
+    const lockAcquired = await acquireAccountOptimizationLockWithRetry(
+      config.accountId,
+      `optimizationTarget:${targetId}`,
+      moduleLockGroup,
+      5,    // v642: 最多重试5次（原来0次直接失败）
+      15000 // v642: 重试间隔15秒（指数退避+抖动）
+    );
+    if (!lockAcquired) {
+      throw new Error(`账户 ${config.accountId} 模块组 ${moduleLockGroup} 优化锁在5次重试后仍被占用，跳过本次执行`);
+    }
   }
   const shouldReleaseLock = !dryRun;
   

@@ -691,6 +691,21 @@ export async function triggerAccountOptimizations(
     // 逐个触发优化目标执行（串行执行，避免资源争用）
     for (const target of activeTargets) {
       try {
+        // v642: 目标有效性预检查 — 跳过已删除的目标
+        const targetConfig = await optimizationTargetEngine.getOptimizationTargetConfig(target.id);
+        if (!targetConfig) {
+          log.warn(`[OptScheduler] v642: 目标 ${target.id}(${target.name}) 已不存在，从调度器中移除`);
+          removeScheduledTarget(target.id);
+          result.skippedCount++;
+          result.details.push({
+            targetId: target.id,
+            targetName: target.name,
+            status: 'skipped',
+            reason: '目标已删除，已自动清理',
+          });
+          continue;
+        }
+
         // 检查是否在冷却期内（最近执行过的跳过）
         const lastExecution = scheduledTargets.get(target.id);
         if (lastExecution?.lastExecutionTime) {
@@ -765,4 +780,22 @@ export async function triggerAccountOptimizations(
   }
   
   return result;
+}
+
+
+/**
+ * v642: 移除无效的优化目标（从调度器中清理已删除的目标引用）
+ * 当 executeOptimizationTarget 检测到目标不存在时自动调用
+ */
+export function removeScheduledTarget(targetId: number): void {
+  const existing = scheduledTargets.get(targetId);
+  if (existing) {
+    if (existing.timer) {
+      clearInterval(existing.timer);
+    }
+    scheduledTargets.delete(targetId);
+    log.info(`[OptScheduler] v642: 已从调度器中移除无效目标 ${targetId} (${existing.targetName})`);
+  } else {
+    log.debug(`[OptScheduler] v642: 目标 ${targetId} 不在调度器中，无需清理`);
+  }
 }

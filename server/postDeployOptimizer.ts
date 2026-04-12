@@ -83,6 +83,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 642,
+    description: 'v642: [遍历问题修复与稳定性增强] — (1)优化锁队列化重试: 账户90023多目标竞争时改用acquireAccountOptimizationLockWithRetry(5次重试+15秒间隔)+目标间增加10秒延迟 (2)无效目标30015自动清理: executeOptimizationTarget检测目标不存在时自动从triggerAccountOptimizations和scheduledTargets中移除 (3)Refresh Token过期检测: 同步步骤失败时检测invalid_grant/过期关键词,标记账户为auth_expired并终止后续步骤 (4)SP Budget Rules API修复: this.apiClient→this.client属性名修正+方法存在性检查',
+    affectedModules: ['optimization', 'sync', 'scheduler'],
+    correctionActions: [],
+  },
+  {
     version: 641,
     description: 'v641: [监控报告优化全面升级] — (1)P0-同步虚假成功修复: 严格要求所有步骤完成才标记成功,超时标记为partial_success (2)P0-paused/archived账户过滤: 同步调度器跳过非活跃账户 (3)P0-Worker内存保护: 增加到4096MB+内存泄漏检测+自动GC (4)P1-健康分析API异步化: 后台定时计算+缓存读取 (5)P1-Assets API修复: assetId格式验证+超时保护+404区分 (6)P1-getDashboard空指针修复: 安全解构防止查询返回null (7)P1-出价变更拦截器: 跳过相同出价更新节省API配额 (8)P1-最低出价保护: 从$0.02提高到$0.10 (9)P1-预算闭环修复: SP/SB/SD全类型查询+重试增加到5次 (10)P1-算法激进度调整: ACoS严重超标时允许更大降价幅度',
     affectedModules: ['sync', 'scheduler', 'optimization', 'api', 'correction'],
