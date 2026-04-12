@@ -85,6 +85,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 649,
+    description: 'v649: [P2-3 Async Report API迁移升级] — (1)P0-processReportData多类型路由器: scheduling/asyncReportService.ts完全重写,根据syncType分发到5种处理函数(campaign绩效/关键词绩效/搜索词/定向/广告位) (2)P0-submitPendingJobs修复: 跳过已有reportId的任务避免重复提交+根据syncType/reportName调用正确的报告请求方法 (3)P0-N+1查询消除: 所有处理函数使用批量预加载Map替代逐行查询 (4)P1-搜索词P5异步分支: searchTermSync.ts的syncSbSearchTerms+syncSearchTerms添加P5_ASYNC_REPORTS分支 (5)P1-定向P5异步分支: targetingSync.ts的syncAutoTargeting+syncSdTargeting+syncSbTargeting添加P5_ASYNC_REPORTS分支 (6)P1-20分钟硬超时: checkSubmittedJobs自动标记超时任务 (7)P2-API客户端缓存: 5分钟缓存避免重复初始化',
+    affectedModules: ['sync'],
+    correctionActions: [],
+  },
+  {
     version: 648,
     description: 'v648: [全面监控排查修复+优化算法增强] — (1)P0-位置倾斜API推送: advancedPlacementService.ts的placement_adjustment分支补充Amazon SP API调用(updateSpCampaign+dynamicBidding.placementBidding),修复位置调整仅更新本地DB未传递到亚马逊的问题 (2)P0-bid_set状态修正: bidAdjustment.ts和optimizationEvents.ts中bidChange===0时apiSyncStatus标记为not_applicable而非synced,消除永久积压 (3)P1-大账号动态超时: unifiedSyncEngine.ts根据实体数量动态计算超时阈值(base+每100实体60s,上限3600s) (4)P1-空账号预检查: 同步引擎SP+SB+SD广告活动数均为0时跳过报告步骤 (5)P1-仪表板聚合修复: healthMetrics跨账号聚合显示 (6)P1-AutoCorrector过滤: 跳过archived/amazon_deleted实体 (7)P2-搜索词收割校验: 前置检查广告活动类型,SB/SD直接标记not_applicable (8)P2-积压清理: bid_set/搜索词收割历史积压一次性清理 (9)P2-状态变更修复: 检查并修复100%失败的根因',
     affectedModules: ['sync', 'optimization', 'bid', 'placement', 'dashboard', 'correction'],

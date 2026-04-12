@@ -1850,9 +1850,9 @@ AmazonSyncService.prototype.syncPlacementPerformance = async function(this: Amaz
       if (process.env.P5_ASYNC_REPORTS === 'true') {
         const asyncResult = await this.client.submitReportsToAsyncQueue(batchRequests, {
           accountId: this.accountId,
-          syncType: 'keyword_performance',
+          syncType: 'placement_sync', // v649: 修正为 placement_sync（原来错误标记为 keyword_performance）
         });
-        log.info(`[P5] Async keyword reports submitted: ${asyncResult.queued} queued`);
+        log.info(`[P5] Async SP placement reports submitted: ${asyncResult.queued} queued`);
         // P5: async mode - skip sync processing
       } else {
       const results = await this.client.submitAndWaitMultipleReports(batchRequests, 600000, 2000);

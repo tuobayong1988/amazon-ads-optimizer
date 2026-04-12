@@ -18,6 +18,7 @@ import {
   optimizationEvents,
 } from '../../drizzle/schema';
 import { createModuleLogger } from '../utils/logger';
+import { getMarketplaceDateRange } from '../utils/timezone';
 import type { AmazonAdsApiClient } from './amazonAdsApi';
 
 /** 同步服务上下文 - 从AmazonSyncService传入 */
@@ -41,6 +42,16 @@ export async function syncAutoTargeting(service: SyncContext,days: number = 14):
   try {
     const { startDate, endDate } = getMarketplaceDateRange(service.marketplace, days);
     log.info(`开始同步自动定向数据: ${startDate} - ${endDate}`);
+
+    // v649: P5 异步报告模式 — 提交到队列后立即返回
+    if (process.env.P5_ASYNC_REPORTS === 'true') {
+      const asyncResult = await service.client.submitReportsToAsyncQueue(
+        [{ name: `SP自动定向(${startDate}~${endDate})`, requestFn: () => service.client.requestSpAutoTargetingReport(startDate, endDate) }],
+        { accountId: service.accountId, syncType: 'targeting_sync', startDate, endDate }
+      );
+      log.info(`[v649:P5] Async SP auto targeting report submitted: ${asyncResult.queued} queued, ${asyncResult.failed} failed`);
+      return 0; // 异步模式下由 ReportJobScheduler 处理数据
+    }
 
     // 请求SP自动定向报告
     const reportId = await service.client.requestSpAutoTargetingReport(startDate, endDate);
@@ -228,6 +239,16 @@ export async function syncSdTargeting(service: SyncContext,days: number = 14): P
     const { startDate, endDate } = getMarketplaceDateRange(service.marketplace, days);
     log.info(`开始同步SD定向数据: ${startDate} - ${endDate}`);
 
+    // v649: P5 异步报告模式 — 提交到队列后立即返回
+    if (process.env.P5_ASYNC_REPORTS === 'true') {
+      const asyncResult = await service.client.submitReportsToAsyncQueue(
+        [{ name: `SD定向(${startDate}~${endDate})`, requestFn: () => service.client.requestSdTargetingReport(startDate, endDate) }],
+        { accountId: service.accountId, syncType: 'sd_sync', startDate, endDate }
+      );
+      log.info(`[v649:P5] Async SD targeting report submitted: ${asyncResult.queued} queued, ${asyncResult.failed} failed`);
+      return 0; // 异步模式下由 ReportJobScheduler 处理数据
+    }
+
     // 请求SD定向报告
     const reportId = await service.client.requestSdTargetingReport(startDate, endDate);
     const reportData = await service.client.waitAndDownloadReport(reportId, 300000);
@@ -411,6 +432,16 @@ export async function syncSbTargeting(service: SyncContext,days: number = 14): P
   try {
     const { startDate, endDate } = getMarketplaceDateRange(service.marketplace, days);
     log.info(`开始同步SB定向数据: ${startDate} - ${endDate}`);
+
+    // v649: P5 异步报告模式 — 提交到队列后立即返回
+    if (process.env.P5_ASYNC_REPORTS === 'true') {
+      const asyncResult = await service.client.submitReportsToAsyncQueue(
+        [{ name: `SB定向(${startDate}~${endDate})`, requestFn: () => service.client.requestSbTargetingReport(startDate, endDate) }],
+        { accountId: service.accountId, syncType: 'sb_sync', startDate, endDate }
+      );
+      log.info(`[v649:P5] Async SB targeting report submitted: ${asyncResult.queued} queued, ${asyncResult.failed} failed`);
+      return 0; // 异步模式下由 ReportJobScheduler 处理数据
+    }
 
     // 请求SB定向报告
     const reportId = await service.client.requestSbTargetingReport(startDate, endDate);

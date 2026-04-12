@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 648;  // v648: 位置倾斜API推送 + bid_set状态修正 + 大账号动态超时 + 空账号预检查 + 仪表板聚合修复 + AutoCorrector过滤 + 搜索词收割校验
+export const SYSTEM_VERSION = 649;  // v649: P2-3 Async Report API迁移 + processReportData多类型路由器 + submitPendingJobs修复 + N+1查询消除 + 搜索词/定向/广告位P5异步分支 + 20分钟硬超时
