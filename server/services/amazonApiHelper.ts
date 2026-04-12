@@ -130,6 +130,23 @@ export async function syncBidAdjustmentsToAmazon(
   
   log.info(`[AmazonApiHelper] v359: 开始批量同步出价调整: accountId=${accountId}, 总计=${adjustments.length}条`);
   
+  // v646: 查询账户marketplace信息，用于全站点动态最低竞价拦截
+  let accountMarketplace = 'US'; // 默认US
+  try {
+    const { adAccounts } = await import('../../drizzle/schema');
+    const { eq } = await import('drizzle-orm');
+    const tempDb = await db.getDb();
+    if (tempDb) {
+      const acctRows = await tempDb.select({ marketplace: adAccounts.marketplace }).from(adAccounts).where(eq(adAccounts.id, accountId)).limit(1);
+      if (acctRows.length > 0 && acctRows[0].marketplace) {
+        accountMarketplace = acctRows[0].marketplace.toUpperCase();
+      }
+    }
+    log.info(`[v646] 账户${accountId}的marketplace=${accountMarketplace}`);
+  } catch (mktErr: unknown) {
+    log.warn(`[v646] 查询账户marketplace失败，使用默认US: ${(mktErr as Error).message}`);
+  }
+  
   const syncService = await getAmazonSyncService(accountId);
   if (!syncService) {
     const errorMsg = `无法获取账号 ${accountId} 的API服务（凭证缺失或无效）`;
@@ -247,10 +264,21 @@ export async function syncBidAdjustmentsToAmazon(
         continue;
       }
       if (kw.keywordId && kw.keywordId !== '0' && kw.keywordId !== '') {
+        // v646: 第二道防线 — 检测keywordId是否为纯数字ID
+        // 如果是文本表达式（如 asin="B0FM8LDVTD"、category="..." 等），跳过关键词路径
+        const trimmedKwId = kw.keywordId.trim();
+        if (!/^\d+$/.test(trimmedKwId)) {
+          log.warn(`[AmazonApiHelper] v646: 检测到非数字keywordId="${trimmedKwId}"(keyword local_id=${kw.id})，跳过关键词API路径，需通过product target路径处理`);
+          // 将其标记为失败，并给出明确的错误原因
+          result.failed++;
+          result.errors.push(`keyword ${kw.id}: keywordId为非数字表达式"${trimmedKwId}"，应通过product target API处理`);
+          result.itemResults.set(kw.id, { status: 'failed', error: `keywordId为非数字表达式，应通过product target API处理` });
+          continue;
+        }
         // @ts-ignore
         const campType = campaignTypeMap.get(kw.campaignId) || 'sp_manual';
         kwIdMap.set(kw.id, {
-          amazonId: kw.keywordId,
+          amazonId: trimmedKwId,
           campaignId: kw.campaignId || '',
           adGroupId: kw.adGroupId || '',
           campaignType: campType,
@@ -433,6 +461,21 @@ export async function syncBidAdjustmentsToAmazon(
   // === SP关键词出价更新 ===
   // @ts-ignore
   if (spKeywordBids.length > 0) {
+    // v646: 全站点动态SP最低竞价拦截器
+    const { getBidConstraint: getSpBidConstraint } = await import('../utils/amazonBidConstraints');
+    const spConstraint = getSpBidConstraint('sp_manual', accountMarketplace, 'cpc');
+    let spBidClamped = 0;
+    for (const item of spKeywordBids) {
+      if (item.bid < spConstraint.minBid) {
+        log.warn(`[v646] SP关键词 ${item.keywordId} 出价$${item.bid}低于${accountMarketplace}站点最低$${spConstraint.minBid}，自动向上取整`);
+        item.bid = spConstraint.minBid;
+        spBidClamped++;
+      }
+    }
+    if (spBidClamped > 0) {
+      log.info(`[v646] SP出价拦截器(${accountMarketplace}): ${spBidClamped}/${spKeywordBids.length}个关键词出价被向上取整至$${spConstraint.minBid}`);
+    }
+    
     log.info(`[v502] 批量发送 ${spKeywordBids.length} 个SP关键词出价更新到Amazon`);
     try {
       const apiResult: unknown = await withRetry(
@@ -510,19 +553,22 @@ export async function syncBidAdjustmentsToAmazon(
   if (sbKeywordBids.length > 0) {
     log.info(`[v502] 批量发送 ${sbKeywordBids.length} 个SB关键词出价更新到Amazon`);
     
-    // v645: SB关键词最低竞价拦截器 — 在发送到Amazon之前确保出价不低于平台最低限制
-    // SB Standard CPC 最低 $0.10, SB Video CPC 最低 $0.25
-    const SB_MIN_BID = 0.25; // 使用SB Video的最低竞价作为安全值，因为无法区分Standard/Video
+    // v646: 全站点动态SB最低竞价拦截器 — 根据账户所在站点动态获取最低竞价
+    const { getBidConstraint } = await import('../utils/amazonBidConstraints');
+    // 使用SB Video CPC作为安全值（因为无法区分Standard/Video，取较高的最低值）
+    const sbVideoConstraint = getBidConstraint('sb', accountMarketplace, 'cpc', 'video');
+    const sbStdConstraint = getBidConstraint('sb', accountMarketplace, 'cpc', null);
+    const sbMinBid = Math.max(sbVideoConstraint.minBid, sbStdConstraint.minBid); // 取较高的作为安全值
     let sbBidClamped = 0;
     for (const item of sbKeywordBids) {
-      if (item.bid < SB_MIN_BID) {
-        log.warn(`[v645] SB关键词 ${item.keywordId} 出价$${item.bid}低于平台最低$${SB_MIN_BID}，自动向上取整至$${SB_MIN_BID}`);
-        item.bid = SB_MIN_BID;
+      if (item.bid < sbMinBid) {
+        log.warn(`[v646] SB关键词 ${item.keywordId} 出价$${item.bid}低于${accountMarketplace}站点平台最低$${sbMinBid}，自动向上取整`);
+        item.bid = sbMinBid;
         sbBidClamped++;
       }
     }
     if (sbBidClamped > 0) {
-      log.info(`[v645] SB出价拦截器: ${sbBidClamped}/${sbKeywordBids.length}个关键词出价被向上取整至平台最低竞价$${SB_MIN_BID}`);
+      log.info(`[v646] SB出价拦截器(${accountMarketplace}): ${sbBidClamped}/${sbKeywordBids.length}个关键词出价被向上取整至平台最低竞价$${sbMinBid}`);
     }
     
     // v502: SB API需要 keywordId + bid + adGroupId + campaignId
@@ -693,6 +739,21 @@ export async function syncBidAdjustmentsToAmazon(
   // === SD关键词出价更新 — 使用 updateSdKeywordBids (如果存在) ===
   // @ts-ignore
   if (sdKeywordBids.length > 0) {
+    // v646: 全站点动态SD最低竞价拦截器
+    const { getBidConstraint: getSdBidConstraint } = await import('../utils/amazonBidConstraints');
+    const sdConstraint = getSdBidConstraint('sd', accountMarketplace, 'cpc');
+    let sdBidClamped = 0;
+    for (const item of sdKeywordBids) {
+      if (item.bid < sdConstraint.minBid) {
+        log.warn(`[v646] SD关键词 ${item.keywordId} 出价$${item.bid}低于${accountMarketplace}站点最低$${sdConstraint.minBid}，自动向上取整`);
+        item.bid = sdConstraint.minBid;
+        sdBidClamped++;
+      }
+    }
+    if (sdBidClamped > 0) {
+      log.info(`[v646] SD出价拦截器(${accountMarketplace}): ${sdBidClamped}/${sdKeywordBids.length}个关键词出价被向上取整至$${sdConstraint.minBid}`);
+    }
+    
     log.info(`[v502] 批量发送 ${sdKeywordBids.length} 个SD关键词出价更新到Amazon`);
     // @ts-ignore
     try {
@@ -754,6 +815,25 @@ export async function syncBidAdjustmentsToAmazon(
   // @ts-ignore
   if (resolvedTargetBids.length > 0) {
     log.info(`[v502] 商品定向出价按类型分组: SP=${spTargetBids.length}, SB=${sbTargetBids.length}, SD=${sdTargetBids.length}`);
+    
+    // v646: 全站点动态商品定向最低竞价拦截器
+    const { getBidConstraint: getPtBidConstraint } = await import('../utils/amazonBidConstraints');
+    let ptBidClamped = 0;
+    for (const item of resolvedTargetBids) {
+      const ptCampType = (item.campaignType || '').toLowerCase();
+      let ptAdType = 'sp_manual';
+      if (ptCampType.includes('sb')) ptAdType = 'sb';
+      else if (ptCampType.includes('sd')) ptAdType = 'sd';
+      const ptConstraint = getPtBidConstraint(ptAdType, accountMarketplace, 'cpc');
+      if (item.bid < ptConstraint.minBid) {
+        log.warn(`[v646] 商品定向 ${item.targetId} (${ptAdType}) 出价$${item.bid}低于${accountMarketplace}站点最低$${ptConstraint.minBid}，自动向上取整`);
+        item.bid = ptConstraint.minBid;
+        ptBidClamped++;
+      }
+    }
+    if (ptBidClamped > 0) {
+      log.info(`[v646] 商品定向出价拦截器(${accountMarketplace}): ${ptBidClamped}/${resolvedTargetBids.length}个定向出价被向上取整`);
+    }
   }
   
   // === SP商品定向出价更新 ===

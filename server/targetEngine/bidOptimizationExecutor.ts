@@ -605,8 +605,19 @@ export async function executeBidOptimization(
             }
           }
           const keyword = keywords.find(k => k.id === nextGenResult.targetId);
+          
+          // v646: 检测keywords表中混入的targeting表达式（ASIN/类目定位）
+          // 这些记录的keywordId是文本表达式而非数字ID，需要重定向到product target API路径
+          const kwId = keyword?.keywordId || '';
+          const isTargetingExpression = kwId !== '' && !/^\d+$/.test(kwId.trim());
+          if (isTargetingExpression) {
+            log.info(`[BidOptimization] v646: 检测到keywords表中的targeting表达式 - keyword ${nextGenResult.targetId} keywordId="${kwId}"，标记为isProductTarget`);
+          }
+          
           details.push({
             keywordId: nextGenResult.targetId,
+            // v646: 如果是targeting表达式，需要通过productTargetId传递，使其走product target路径
+            ...(isTargetingExpression ? { productTargetId: nextGenResult.targetId } : {}),
             amazonKeywordId: keyword?.keywordId || '', // v255: 传入真正的Amazon keyword ID，修复PostOptVerifier验证失败
             adGroupId: keyword?.internalAdGroupId, // v421: 使用internalAdGroupId(int)用于PostOptVerifier精确回查
             keywordText: keyword?.keywordText || `关键词 ${nextGenResult.targetId}`,
@@ -617,7 +628,10 @@ export async function executeBidOptimization(
             currentBid: nextGenResult.previousBid,
             newBid: finalBid,
             changePercent: ((finalBid - nextGenResult.previousBid) / nextGenResult.previousBid * 100).toFixed(2),
-            reason: nextGenResult.reason,
+            reason: isTargetingExpression ? `商品定向(keywords表) - ${nextGenResult.reason}` : nextGenResult.reason,
+            // v646: targeting表达式标记为isProductTarget，走正确的API路径
+            // @ts-ignore
+            isProductTarget: isTargetingExpression ? true : undefined,
             algorithmUsed: nextGenResult.algorithmUsed,
             confidenceScore: nextGenResult.confidence,
             algorithmTier: nextGenResult.algorithmTier,

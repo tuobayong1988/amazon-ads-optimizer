@@ -959,6 +959,16 @@ function ruleEngineDecision(
   // v253: 引入数据置信度因子和CTR相关性感知，实现个性化调整
   // v254: 引入趋势感知 — 近期表现趋势影响调整方向和力度
   // v360: 增强ACoS偏差因子透明度 - 明确偏差方向、幅度和决策区间
+  // v646: 建议竞价底线保护 — 降价时不低于suggestedBidRangeStart的80%，防止失去市场竞争力
+  // @ts-ignore
+  const _suggestedBidRangeStart = ((target as Record<string, unknown>).suggestedBidRangeStart as number | undefined) || undefined;
+  // @ts-ignore
+  const _suggestedBid = ((target as Record<string, unknown>).suggestedBid as number | undefined) || undefined;
+  // v646: 计算建议竞价底线 — suggestedBidRangeStart的80%，或suggestedBid的60%作为兜底
+  const suggestedBidFloorForReduce = _suggestedBidRangeStart && _suggestedBidRangeStart > 0
+    ? _suggestedBidRangeStart * 0.80
+    : (_suggestedBid && _suggestedBid > 0 ? _suggestedBid * 0.60 : 0);
+  
   if (orders > 0 && sales > 0) {
     const actualAcos = spend / sales;
     const acosRatio = actualAcos / targetAcos;
@@ -1073,10 +1083,16 @@ function ruleEngineDecision(
       // v253: 低CTR时更积极地降价，高CTR时保守降价（相关性好的词值得保留）
       // v254: 趋势declining时加速降价，improving时减缓降价（正在好转的词不急于降价）
       const reduceRatio = baseReduceRatio * dataConfidence * ctrPenalty * trendReduceFactor * elasticityModifier; // v267 P3-3
+      let reducedBid = currentBid * (1 - reduceRatio);
+      // v646: 建议竞价底线保护 — 降价后不低于建议竞价下界的80%
+      if (suggestedBidFloorForReduce > 0 && reducedBid < suggestedBidFloorForReduce) {
+        reducedBid = suggestedBidFloorForReduce;
+        log.info(`[v646] 建议竞价底线保护触发: 降价后$${(currentBid * (1 - reduceRatio)).toFixed(2)}低于底线$${suggestedBidFloorForReduce.toFixed(2)}, 兜底至$${reducedBid.toFixed(2)}`);
+      }
       return {
-        bid: currentBid * (1 - reduceRatio),
+        bid: reducedBid,
         confidence: 0.5 + dataConfidence * 0.15,
-        reason: `ACOS偏高(${(actualAcos * 100).toFixed(1)}%, ${clicks}次点击, CTR=${(ctr * 100).toFixed(2)}%${trendLabel}): 降低${(reduceRatio * 100).toFixed(1)}%${rawReduceRatio < minEffectiveRatio ? '(精度放大)' : ''}`,
+        reason: `ACOS偏高(${(actualAcos * 100).toFixed(1)}%, ${clicks}次点击, CTR=${(ctr * 100).toFixed(2)}%${trendLabel}): 降低${(reduceRatio * 100).toFixed(1)}%${rawReduceRatio < minEffectiveRatio ? '(精度放大)' : ''}${suggestedBidFloorForReduce > 0 ? ` [底线$${suggestedBidFloorForReduce.toFixed(2)}]` : ''}`,
       };
     } else if (acosRatio <= 2.0) {
       // v259: ACOS超标但在2倍以内 — 温和降价，避免过度反应
@@ -1085,10 +1101,16 @@ function ruleEngineDecision(
       const baseReduceRatio = (acosRatio - 1) * 0.18;
       const rawReduceRatio = Math.min(maxReduceLimit, baseReduceRatio);
       const reduceRatio = rawReduceRatio * dataConfidence * ctrPenalty * trendReduceFactor * elasticityModifier; // v267 P3-3
+      let reducedBid = currentBid * (1 - reduceRatio);
+      // v646: 建议竞价底线保护
+      if (suggestedBidFloorForReduce > 0 && reducedBid < suggestedBidFloorForReduce) {
+        reducedBid = suggestedBidFloorForReduce;
+        log.info(`[v646] 建议竞价底线保护触发(超标): 降价后$${(currentBid * (1 - reduceRatio)).toFixed(2)}低于底线$${suggestedBidFloorForReduce.toFixed(2)}, 兜底至$${reducedBid.toFixed(2)}`);
+      }
       return {
-        bid: currentBid * (1 - reduceRatio),
+        bid: reducedBid,
         confidence: 0.5 + dataConfidence * 0.15,
-        reason: `ACOS超标(${(actualAcos * 100).toFixed(1)}%, ${clicks}次点击, CTR=${(ctr * 100).toFixed(2)}%${trendLabel}): v259温和降低${(reduceRatio * 100).toFixed(1)}%(上限${(maxReduceLimit * 100)}%)`,
+        reason: `ACOS超标(${(actualAcos * 100).toFixed(1)}%, ${clicks}次点击, CTR=${(ctr * 100).toFixed(2)}%${trendLabel}): v259温和降低${(reduceRatio * 100).toFixed(1)}%(上限${(maxReduceLimit * 100)}%)${suggestedBidFloorForReduce > 0 ? ` [底线$${suggestedBidFloorForReduce.toFixed(2)}]` : ''}`,
       };
     } else if (acosRatio <= 3.0) {
       // v259: ACOS严重超标（2-3倍）— 果断但有限降价
@@ -1099,11 +1121,17 @@ function ruleEngineDecision(
       const baseReduceRatio = (acosRatio - 1) * 0.15;
       const rawReduceRatio = Math.min(maxReduceLimit, baseReduceRatio);
       const reduceRatio = rawReduceRatio * dataConfidence * trendReduceFactor * elasticityModifier;
-
+      let reducedBid = currentBid * (1 - reduceRatio);
+      // v646: 建议竞价底线保护（严重超标时底线降至60%，给予更大降价空间）
+      const severeFloor = suggestedBidFloorForReduce > 0 ? suggestedBidFloorForReduce * 0.75 : 0;
+      if (severeFloor > 0 && reducedBid < severeFloor) {
+        reducedBid = severeFloor;
+        log.info(`[v646] 建议竞价底线保护触发(严重超标): 降价后$${(currentBid * (1 - reduceRatio)).toFixed(2)}低于底线$${severeFloor.toFixed(2)}, 兜底至$${reducedBid.toFixed(2)}`);
+      }
       return {
-        bid: currentBid * (1 - reduceRatio),
+        bid: reducedBid,
         confidence: 0.5 + dataConfidence * 0.2,
-        reason: `ACOS严重超标(${(actualAcos * 100).toFixed(1)}%, ${clicks}次点击, CTR=${(ctr * 100).toFixed(2)}%, 置信度${(dataConfidence * 100).toFixed(0)}%${trendLabel}): v259降低${(reduceRatio * 100).toFixed(1)}%(上限${(maxReduceLimit * 100)}%)`,
+        reason: `ACOS严重超标(${(actualAcos * 100).toFixed(1)}%, ${clicks}次点击, CTR=${(ctr * 100).toFixed(2)}%, 置信度${(dataConfidence * 100).toFixed(0)}%${trendLabel}): v259降低${(reduceRatio * 100).toFixed(1)}%(上限${(maxReduceLimit * 100)}%)${severeFloor > 0 ? ` [底线$${severeFloor.toFixed(2)}]` : ''}`,
       };
     } else {
       // v332: ACOS极端超标（>3倍）— 更激进的降价策略
@@ -1116,11 +1144,17 @@ function ruleEngineDecision(
       const baseReduceRatio = (acosRatio - 1) * 0.12;
       const rawReduceRatio = Math.min(maxReduceLimit, baseReduceRatio);
       const reduceRatio = rawReduceRatio * dataConfidence * trendReduceFactor * elasticityModifier;
-
+      let reducedBid = currentBid * (1 - reduceRatio);
+      // v646: 极端超标时底线降至50%（允许更大降价空间，但仍保留最低市场竞争力）
+      const extremeFloor = suggestedBidFloorForReduce > 0 ? suggestedBidFloorForReduce * 0.50 : 0;
+      if (extremeFloor > 0 && reducedBid < extremeFloor) {
+        reducedBid = extremeFloor;
+        log.info(`[v646] 建议竞价底线保护触发(极端超标): 降价后$${(currentBid * (1 - reduceRatio)).toFixed(2)}低于底线$${extremeFloor.toFixed(2)}, 兜底至$${reducedBid.toFixed(2)}`);
+      }
       return {
-        bid: currentBid * (1 - reduceRatio),
+        bid: reducedBid,
         confidence: 0.6 + dataConfidence * 0.2,
-        reason: `ACOS极端超标(${(actualAcos * 100).toFixed(1)}% vs 目标${(targetAcos * 100).toFixed(1)}%, acosRatio=${acosRatio.toFixed(1)}x, ${clicks}次点击, CTR=${(ctr * 100).toFixed(2)}%${trendLabel}): v332激进降低${(reduceRatio * 100).toFixed(1)}%(上限${(maxReduceLimit * 100)}%)`,
+        reason: `ACOS极端超标(${(actualAcos * 100).toFixed(1)}% vs 目标${(targetAcos * 100).toFixed(1)}%, acosRatio=${acosRatio.toFixed(1)}x, ${clicks}次点击, CTR=${(ctr * 100).toFixed(2)}%${trendLabel}): v332激进降低${(reduceRatio * 100).toFixed(1)}%(上限${(maxReduceLimit * 100)}%)${extremeFloor > 0 ? ` [底线$${extremeFloor.toFixed(2)}]` : ''}`,
       };
     }
   }
