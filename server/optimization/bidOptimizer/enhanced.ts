@@ -34,7 +34,7 @@ function calculateSparseDataBidAdjustment(
   target: EnhancedOptimizationTarget,
   config: PerformanceGroupConfig,
   maxBidLimit: number = 2.00,
-  minBidLimit: number = 0.02
+  minBidLimit: number = 0.10 // v641: 从$0.02提高到$0.10
 ) {
   let newBid = target.currentBid;
   let reason = "";
@@ -101,7 +101,7 @@ export function calculateEnhancedBidAdjustment(
   target: EnhancedOptimizationTarget,
   config: PerformanceGroupConfig,
   maxBidLimit: number = 2.00,
-  minBidLimit: number = 0.02,
+  minBidLimit: number = 0.10, // v641: 从$0.02提高到$0.10
   currentDate: Date = new Date()
 ): EnhancedOptimizationResult {
   const metrics = calculateMetrics(target);

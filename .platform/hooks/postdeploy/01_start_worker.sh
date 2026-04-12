@@ -19,7 +19,7 @@ ExecStart=/usr/bin/node dist/worker.js
 Restart=always
 RestartSec=10
 Environment=NODE_ENV=production
-Environment=NODE_OPTIONS=--max-old-space-size=2048
+Environment=NODE_OPTIONS=--max-old-space-size=4096
 StandardOutput=append:/var/log/ads-worker.log
 StandardError=append:/var/log/ads-worker.log
 

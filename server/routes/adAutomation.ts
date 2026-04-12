@@ -336,6 +336,7 @@ export const adAutomationRouter = router({
     }),
 
   // v390: 优化getHealthAlerts，复用analyzeCampaignHealth的缓存结果
+  // v641: 健康分析API异步化 — 优先读取缓存，确保响应时间<1秒
   getHealthAlerts: protectedProcedure
     .input(z.object({
       accountId: z.number(),
@@ -347,16 +348,33 @@ export const adAutomationRouter = router({
       // @ts-ignore
       await verifyAccountAccess(ctx.user.id, input.accountId);
       
-      // v390: 复用缓存的健康分析结果，避免重复查询和计算
+      // v641: 优先从缓存读取，缓存有效期延长到10分钟（后台定时计算更新）
       const healthCacheKey = `health.analyze:${ctx.user.id}:${input.accountId}`;
       let healthResult = apiCache.get<unknown>(healthCacheKey);
       
       if (!healthResult) {
-        const campaigns = await db.getCampaignHealthMetrics(input.accountId);
-        const healthScores = adAutomation.analyzeCampaignHealth(campaigns);
-        // @ts-ignore
-        healthResult = { campaigns: healthScores };
-      // @ts-ignore
+        // v641: 缓存未命中时，设置超时保护防止长时间阻塞
+        try {
+          const healthPromise = (async () => {
+            const campaigns = await db.getCampaignHealthMetrics(input.accountId);
+            return { campaigns: adAutomation.analyzeCampaignHealth(campaigns) };
+          })();
+          
+          // v641: 15秒超时保护 — 如果计算太慢则返回空结果而不是无限等待
+          const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 15000));
+          healthResult = await Promise.race([healthPromise, timeoutPromise]);
+          
+          if (healthResult) {
+            // 缓存10分钟
+            apiCache.set(healthCacheKey, healthResult, 10 * 60 * 1000);
+          } else {
+            log.warn(`[v641] getHealthAlerts 超时(15s)，返回空结果，账户=${input.accountId}`);
+            return { totalAlerts: 0, criticalCount: 0, warningCount: 0, infoCount: 0, alerts: [], _timeout: true };
+          }
+        } catch (computeErr: unknown) {
+          log.warn(`[v641] getHealthAlerts 计算异常: ${(computeErr as Error).message}`);
+          return { totalAlerts: 0, criticalCount: 0, warningCount: 0, infoCount: 0, alerts: [], _error: (computeErr as Error).message };
+        }
       }
       
       // @ts-ignore

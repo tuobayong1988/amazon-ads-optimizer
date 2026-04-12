@@ -946,6 +946,14 @@ async function executeTieredSyncForAccount(request: QueuedRequest): Promise<void
     return;
   }
 
+  // v641: 状态过滤机制 — 跳过paused和archived账户，节省系统资源
+  const accountStatus = (account as Record<string, unknown>).status as string | undefined;
+  if (accountStatus === 'paused' || accountStatus === 'archived') {
+    log.info(`[DataSyncScheduler] v641: 账户${accountId} 状态为${accountStatus}，跳过${tier}层同步，节省系统资源`);
+    logSync('DataSyncScheduler', `跳过${accountStatus}账户${accountId}的${tier}层同步`, { accountId, tier, status: accountStatus });
+    return;
+  }
+
   // v640: 空账户预检机制 — 在同步前检查账户是否有活跃广告活动
   // 如果账户没有任何广告活动（如MX/BR站点无实际运营），跳过耗时的绩效报告请求
   let isEmptyAccount = false;

@@ -94,9 +94,9 @@ const PROPAGATION_CONFIGS: Record<string, PropagationConfig> = {
     maxDelayMs: 60000,
   },
   budget_change: {
-    initialDelayMs: 10000,      // 预算变更传播较慢
-    retryIncrementMs: 10000,
-    maxDelayMs: 60000,
+    initialDelayMs: 15000,      // v641: 预算变更传播延迟增加到15秒（Amazon预算变更传播更慢）
+    retryIncrementMs: 15000,    // v641: 重试间隔增加到15秒
+    maxDelayMs: 120000,         // v641: 最大等待时间增加到2分钟
   },
   keyword_create: {
     initialDelayMs: 15000,      // 新建关键词需要最长传播时间
@@ -188,7 +188,7 @@ export class CommandConfirmationService {
       createdAt: new Date(),
       expectedReadyAt: new Date(Date.now() + adaptiveDelay),
       retryCount: 0,
-      maxRetries: 3,
+      maxRetries: 5, // v641: 从3次增加到5次，特别是预算调整需要更多重试机会
       status: 'waiting',
     };
     

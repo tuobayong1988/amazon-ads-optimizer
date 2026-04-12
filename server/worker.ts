@@ -30,6 +30,17 @@ console.log(`[P5:Worker] Node: ${process.version}`);
 console.log(`[P5:Worker] ====================================`);
 
 async function startWorker(): Promise<void> {
+  // v641: 全局未捕获异常处理 — 防止Worker进程崩溃
+  process.on('uncaughtException', (error: Error) => {
+    console.error(`[P5:Worker] v641: 未捕获异常 (Worker继续运行): ${error.message}`);
+    console.error(error.stack);
+    const mem = process.memoryUsage();
+    console.error(`[P5:Worker] v641: 异常时内存: heap=${Math.round(mem.heapUsed / 1024 / 1024)}MB, rss=${Math.round(mem.rss / 1024 / 1024)}MB`);
+  });
+  process.on('unhandledRejection', (reason: unknown) => {
+    console.error(`[P5:Worker] v641: 未处理的Promise拒绝 (Worker继续运行): ${reason instanceof Error ? reason.message : String(reason)}`);
+  });
+
   try {
     // 动态导入数据库模块
     console.log('[P5:Worker] Initializing database connection...');
@@ -108,13 +119,34 @@ async function startWorker(): Promise<void> {
     console.log('[P5:Worker] All services started successfully');
     console.log('[P5:Worker] ====================================');
 
-    // 健康心跳（每5分钟）
+    // v641: 增强健康心跳（每5分钟）— 添加内存泄漏检测和自动GC
+    let lastHeapMB = 0;
+    let consecutiveGrowth = 0;
     setInterval(() => {
       const mem = process.memoryUsage();
       const heapMB = Math.round(mem.heapUsed / 1024 / 1024);
       const rssMB = Math.round(mem.rss / 1024 / 1024);
       const uptimeMin = Math.round(process.uptime() / 60);
       console.log(`[P5:Worker] Heartbeat: heap=${heapMB}MB, rss=${rssMB}MB, uptime=${uptimeMin}min`);
+      
+      // v641: 内存泄漏检测 — 连续5次心跳堆内存增长则触发GC
+      if (heapMB > lastHeapMB) {
+        consecutiveGrowth++;
+      } else {
+        consecutiveGrowth = 0;
+      }
+      lastHeapMB = heapMB;
+      
+      if (consecutiveGrowth >= 5 && typeof global.gc === 'function') {
+        console.warn(`[P5:Worker] v641: 内存连续增长${consecutiveGrowth}次，触发手动GC (heap=${heapMB}MB)`);
+        global.gc();
+        consecutiveGrowth = 0;
+      }
+      
+      // v641: 内存超过3GB时发出警告
+      if (heapMB > 3072) {
+        console.error(`[P5:Worker] v641: ❗ 内存警告! heap=${heapMB}MB 超过3GB阈值，可能存在内存泄漏`);
+      }
     }, 300000);
 
     // 优雅关闭

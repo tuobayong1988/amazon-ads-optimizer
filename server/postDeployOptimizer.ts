@@ -83,6 +83,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 641,
+    description: 'v641: [监控报告优化全面升级] — (1)P0-同步虚假成功修复: 严格要求所有步骤完成才标记成功,超时标记为partial_success (2)P0-paused/archived账户过滤: 同步调度器跳过非活跃账户 (3)P0-Worker内存保护: 增加到4096MB+内存泄漏检测+自动GC (4)P1-健康分析API异步化: 后台定时计算+缓存读取 (5)P1-Assets API修复: assetId格式验证+超时保护+404区分 (6)P1-getDashboard空指针修复: 安全解构防止查询返回null (7)P1-出价变更拦截器: 跳过相同出价更新节省API配额 (8)P1-最低出价保护: 从$0.02提高到$0.10 (9)P1-预算闭环修复: SP/SB/SD全类型查询+重试增加到5次 (10)P1-算法激进度调整: ACoS严重超标时允许更大降价幅度',
+    affectedModules: ['sync', 'scheduler', 'optimization', 'api', 'correction'],
+    correctionActions: [],
+  },
+  {
     version: 528,
     description: 'v528: [基于心跳活跃度的统一僵尸清理机制] — (1)P0-HealthMonitor僵尸判定重写: 从startTime固定超时→基于lastHeartbeat心跳活跃度判定,10分钟无心跳才判定为僵尸,保留6小时绝对超时安全网 (2)P0-三层超时统一: HealthMonitor/DataSyncScheduler/ShardOrchestrator的大账户超时值统一为3小时(5000+)/2.5小时(3000+)/2小时(1000+) (3)P0-心跳双写: 每次心跳同时更新DB(updated_at)和内存(activeSyncs.lastHeartbeat),确保三层清理机制都能感知任务活跃 (4)P1-DataSyncScheduler定期清理: 从45分钟一刀切→15分钟心跳超时,与心跳机制对齐',
     affectedModules: ['sync', 'scheduler'],

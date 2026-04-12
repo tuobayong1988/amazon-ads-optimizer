@@ -11,7 +11,7 @@ import { type BidChangeRecord, type UCBBidSuggestion, type HolidayConfig } from 
 export const DEFAULT_MAX_BID_CPC = 2.00;
 
 /** 默认最低出价限制 ($) */
-export const DEFAULT_MIN_BID = 0.02;
+export const DEFAULT_MIN_BID = 0.10; // v641: 从$0.02提高到$0.10，与安全护栏保持一致
 
 /** 默认组平均CVR回退值 (当无数据时使用) */
 export const DEFAULT_GROUP_AVG_CVR = 0.05;

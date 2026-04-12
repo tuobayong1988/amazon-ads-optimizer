@@ -27,7 +27,7 @@ export const SAFETY_LIMITS = {
   bid: {
     maxSingleChangePercent: 0.15,     // v510: 单次最大调整幅度从20%收紧至15%
     maxDailyChangePercent: 0.25,      // v510: 每日累计最大调整幅度从30%收紧至25%
-    minBid: 0.02,                     // 最低出价 $0.02
+    minBid: 0.10,                     // v641: 最低出价从$0.02提高到$0.10，防止无效的极低出价
     maxBid: 100,                      // 最高出价 $100（绝对上限）
     consecutiveSameDirectionSlowdown: 3, // 连续同方向调整N次后降速
     slowdownFactor: 0.5,              // 降速因子（调整幅度减半）

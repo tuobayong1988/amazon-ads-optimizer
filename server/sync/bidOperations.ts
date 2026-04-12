@@ -51,6 +51,13 @@ export async function applyBidAdjustment(service: SyncContext,
   // v222: 使用统一的 campaignId 解析器确保写入正确的 Amazon ID
   let resolvedCampaignId: string = '';
   
+  // v641: 出价变更拦截器 — 快速预检查新出价是否有效
+  const roundedNewBid = Number(newBid.toFixed(2));
+  if (roundedNewBid <= 0) {
+    log.warn(`[applyBidAdjustment] v641: 拦截无效出价 $${roundedNewBid}，${targetType} id=${targetId}`);
+    return false;
+  }
+  
   try {
 
     if (targetType === 'keyword') {
@@ -110,6 +117,12 @@ export async function applyBidAdjustment(service: SyncContext,
       oldBid = parseFloat(kw.bid);
       targetName = kw.keywordText;
       adGroupId = kw.internalAdGroupId;
+      
+      // v641: 出价变更拦截器 — 如果新出价等于旧出价，跳过API调用，节省API配额
+      if (Math.abs(roundedNewBid - oldBid) < 0.005) {
+        log.info(`[applyBidAdjustment] v641: 拦截相同出价更新 keyword id=${targetId} "${kw.keywordText}": $${oldBid} -> $${roundedNewBid}，跳过API调用`);
+        return true; // 返回true因为状态已经是正确的
+      }
       
       // v222: 使用统一解析器获取正确的 Amazon campaignId
       const { safeCampaignIdForInsert } = await import('../utils/campaignIdResolver');
@@ -197,6 +210,12 @@ export async function applyBidAdjustment(service: SyncContext,
       oldBid = parseFloat(pt.bid);
       targetName = pt.targetValue || 'Product Target';
       adGroupId = pt.internalAdGroupId;
+      
+      // v641: 出价变更拦截器 — 如果新出价等于旧出价，跳过API调用
+      if (Math.abs(roundedNewBid - oldBid) < 0.005) {
+        log.info(`[applyBidAdjustment] v641: 拦截相同出价更新 product_target id=${targetId} "${pt.targetValue}": $${oldBid} -> $${roundedNewBid}，跳过API调用`);
+        return true;
+      }
       
       // v222: 使用统一解析器获取正确的 Amazon campaignId
       const { safeCampaignIdForInsert } = await import('../utils/campaignIdResolver');

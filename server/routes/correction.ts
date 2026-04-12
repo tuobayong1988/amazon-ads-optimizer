@@ -385,22 +385,9 @@ export const autoCorrectionRouter = router({
     // @ts-ignore
     const config = getAutoCorrectorConfig();
     
-    // v390: 将串6个串行SQL查询改为Promise.all并行执行，大幅提升响应速度
+    // v641: 将串6个串行SQL查询改为Promise.all并行执行 + 安全解构防止空指针
     // @ts-ignore
-    const [
-      // @ts-ignore
-      [statusStats],
-      // @ts-ignore
-      [actionStats],
-      // @ts-ignore
-      [trendData],
-      // @ts-ignore
-      [harvestRetryStats],
-      // @ts-ignore
-      [negKeywordStats],
-      // @ts-ignore
-      [recentCorrections],
-    ] = await Promise.all([
+    const queryResults = await Promise.all([
       // 2. v513: 获取事件状态统计 — 排除内部系统事件，只统计真正需要Amazon API同步的操作
       dbInstance.execute(
         sql`SELECT api_sync_status, COUNT(*) as count FROM optimization_events WHERE ${accountFilter} AND action_type NOT IN ('settings_update', 'auto_correction', 'algorithm_config', 'strategy_update', 'system_config', 'system_deploy', 'target_reoptimized') GROUP BY api_sync_status`
@@ -454,6 +441,24 @@ export const autoCorrectionRouter = router({
       ) as unknown,
     ]);
     
+    // v641: 安全解构 — 防止任何查询返回null/undefined导致空指针异常
+    const safeGet = (idx: number) => {
+      try {
+        const raw = queryResults?.[idx];
+        if (!raw) return [];
+        // MySQL2返回 [rows, fields]，取rows
+        return Array.isArray(raw) ? (Array.isArray(raw[0]) ? raw[0] : raw) : [];
+      } catch {
+        return [];
+      }
+    };
+    const statusStats = safeGet(0);
+    const actionStats = safeGet(1);
+    const trendData = safeGet(2);
+    const harvestRetryStatsArr = safeGet(3);
+    const negKeywordStats = safeGet(4);
+    const recentCorrections = safeGet(5);
+    
     const result = {
       scanStatus,
       lastScan: lastScan ? {
@@ -470,7 +475,7 @@ export const autoCorrectionRouter = router({
       statusDistribution: statusStats || [],
       actionTypeBreakdown: actionStats || [],
       trendData: trendData || [],
-      harvestRetryStats: harvestRetryStats?.[0] || { total: 0, retryable: 0 },
+      harvestRetryStats: harvestRetryStatsArr?.[0] || { total: 0, retryable: 0 },
       negKeywordStats: negKeywordStats || [],
       recentCorrections: recentCorrections || [],
     };

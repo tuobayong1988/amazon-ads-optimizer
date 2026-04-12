@@ -113,12 +113,16 @@ export function getPendingVerificationSummary(): Array<{ taskId: string; account
 
 /** 验证延迟配置（秒） */
 const VERIFICATION_DELAYS = {
-  /** 首次验证延迟：给Amazon 45秒处理时间 */
-  firstAttempt: 45,
+  /** 首次验证延迟：给Amazon 60秒处理时间 (v641: 从45s增加到60s) */
+  firstAttempt: 60,
   /** 第二次验证延迟：3分钟后 */
   secondAttempt: 180,
-  /** 第三次验证延迟：10分钟后 */
-  thirdAttempt: 600,
+  /** 第三次验证延迟：8分钟后 */
+  thirdAttempt: 480,
+  /** v641: 第四次验证延迟：15分钟后 */
+  fourthAttempt: 900,
+  /** v641: 第五次验证延迟：30分钟后 */
+  fifthAttempt: 1800,
 };
 
 /** 生成唯一任务ID */
@@ -308,7 +312,7 @@ function scheduleVerificationTask(accountId: number, items: VerificationItem[]):
     items,
     createdAt: new Date(),
     attempt: 1,
-    maxAttempts: 3,
+    maxAttempts: 5, // v641: 从3次增加到5次，特别是预算调整需要更多重试机会
     scheduledAt: new Date(Date.now() + VERIFICATION_DELAYS.firstAttempt * 1000),
   };
   
@@ -383,7 +387,9 @@ async function executeVerificationTask(taskId: string): Promise<void> {
       task.attempt++;
       task.items = unresolved.map(r => r.item); // 只重试未解决的项
       
-      const delayKey = task.attempt === 2 ? 'secondAttempt' : 'thirdAttempt';
+      // v641: 支持更多重试轮次的延迟选择
+      const delayKeys = ['firstAttempt', 'secondAttempt', 'thirdAttempt', 'fourthAttempt', 'fifthAttempt'] as const;
+      const delayKey = delayKeys[Math.min(task.attempt - 1, delayKeys.length - 1)];
       const delay = VERIFICATION_DELAYS[delayKey];
       task.scheduledAt = new Date(Date.now() + delay * 1000);
       
@@ -407,7 +413,7 @@ async function executeVerificationTask(taskId: string): Promise<void> {
     // 异常时安排重试
     if (task.attempt < task.maxAttempts) {
       task.attempt++;
-      const delay = VERIFICATION_DELAYS.thirdAttempt; // 异常时使用最长延迟
+      const delay = VERIFICATION_DELAYS.fifthAttempt; // v641: 异常时使用最长延迟(30分钟)
       const timer = setTimeout(async () => {
         await executeVerificationTask(taskId);
       }, delay * 1000);
@@ -616,21 +622,37 @@ async function verifyBudgetAdjustments(
   const results: VerificationResult[] = [];
   
   try {
-    // 查询所有SP广告活动
+    // v641: 查询所有广告类型的活动（SP + SB + SD）以解决“未找到”问题
     // @ts-ignore
-    const amazonCampaigns = await (syncService as Record<string, unknown>).client.listSpCampaigns();
+    const spCampaigns = await (syncService as Record<string, unknown>).client.listSpCampaigns().catch(() => []);
+    // @ts-ignore
+    const sbCampaigns = await (syncService as Record<string, unknown>).client.listSbCampaigns?.().catch(() => []) || [];
+    // @ts-ignore
+    const sdCampaigns = await (syncService as Record<string, unknown>).client.listSdCampaigns?.().catch(() => []) || [];
     
-    // 构建Amazon campaignId到budget的映射
+    // v641: 构建Amazon campaignId到budget的映射（包含所有广告类型）
     const amazonBudgetMap = new Map<string, number>();
-    for (const campaign of (amazonCampaigns as unknown[])) {
+    for (const campaign of (spCampaigns as unknown[])) {
       // @ts-ignore
-      amazonBudgetMap.set(String(campaign.campaignId), campaign.dailyBudget);
+      amazonBudgetMap.set(String(campaign.campaignId), campaign.dailyBudget || campaign.budget?.dailyBudget);
     }
+    for (const campaign of (sbCampaigns as unknown[])) {
+      // @ts-ignore
+      amazonBudgetMap.set(String(campaign.campaignId), campaign.dailyBudget || campaign.budget?.dailyBudget || campaign.budget?.budget);
+    }
+    for (const campaign of (sdCampaigns as unknown[])) {
+      // @ts-ignore
+      amazonBudgetMap.set(String(campaign.campaignId), campaign.dailyBudget || campaign.budget?.dailyBudget);
+    }
+    
+    log.debug(`v641: 预算验证映射已构建: SP=${(spCampaigns as unknown[]).length}, SB=${(sbCampaigns as unknown[]).length}, SD=${(sdCampaigns as unknown[]).length}, 总计=${amazonBudgetMap.size}`);
     
     for (const item of items) {
       const actualBudget = amazonBudgetMap.get(item.amazonId);
       if (actualBudget === undefined) {
-        results.push({ item, status: 'not_found', message: `Amazon中未找到campaignId=${item.amazonId}` });
+        // v641: 记录更详细的未找到信息，帮助诊断
+        log.warn(`v641: 预算验证未找到 campaignId=${item.amazonId}，已检索${amazonBudgetMap.size}个广告活动`);
+        results.push({ item, status: 'not_found', message: `Amazon中未找到campaignId=${item.amazonId}（已检索SP/SB/SD共${amazonBudgetMap.size}个活动）` });
         continue;
       }
       

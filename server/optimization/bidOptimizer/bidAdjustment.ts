@@ -45,7 +45,7 @@ function calculateSparseDataBidAdjustment(
   target: OptimizationTarget,
   config: PerformanceGroupConfig,
   maxBidLimit: number = 2.00,
-  minBidLimit: number = 0.02
+  minBidLimit: number = 0.10 // v641: 从$0.02提高到$0.10
 ): OptimizationResult {
   let newBid = target.currentBid;
   let reason = "";
@@ -183,7 +183,7 @@ export function calculateBidAdjustment(
   target: OptimizationTarget,
   config: PerformanceGroupConfig,
   maxBidLimit: number = 2.00,
-  minBidLimit: number = 0.02
+  minBidLimit: number = 0.10 // v641: 从$0.02提高到$0.10
 ): OptimizationResult {
   if (!isDataSufficient(target, config)) {
     return calculateSparseDataBidAdjustment(target, config, maxBidLimit, minBidLimit);
@@ -209,8 +209,32 @@ export function calculateBidAdjustment(
   newBid = Math.min(newBid, effectiveMaxBid);
   newBid = Math.max(newBid, minBidLimit);
   
-  const maxIncrease = target.currentBid * (1 + MAX_BID_CHANGE_PERCENT);
-  const maxDecrease = target.currentBid * (1 - MAX_BID_CHANGE_PERCENT);
+  // v641: 算法激进度调整 — 当ACoS严重超标时允许更大幅度的降价
+  let effectiveMaxChangePercent = MAX_BID_CHANGE_PERCENT;
+  if (config.targetAcos && metrics.acos > 0) {
+    const acosRatio = metrics.acos / config.targetAcos;
+    if (acosRatio > 2.5) {
+      // ACoS超过目标的250%以上，允许最大降价30%
+      effectiveMaxChangePercent = Math.min(0.30, MAX_BID_CHANGE_PERCENT * 2);
+    } else if (acosRatio > 1.8) {
+      // ACoS超过目标的180%以上，允许最大降价22.5%
+      effectiveMaxChangePercent = Math.min(0.225, MAX_BID_CHANGE_PERCENT * 1.5);
+    } else if (acosRatio > 1.3) {
+      // ACoS超过目标的130%以上，允许最大降价18.75%
+      effectiveMaxChangePercent = Math.min(0.1875, MAX_BID_CHANGE_PERCENT * 1.25);
+    }
+  }
+  if (config.targetRoas && metrics.roas > 0 && metrics.roas < config.targetRoas) {
+    const roasRatio = metrics.roas / config.targetRoas;
+    if (roasRatio < 0.4) {
+      effectiveMaxChangePercent = Math.min(0.30, MAX_BID_CHANGE_PERCENT * 2);
+    } else if (roasRatio < 0.6) {
+      effectiveMaxChangePercent = Math.min(0.225, MAX_BID_CHANGE_PERCENT * 1.5);
+    }
+  }
+  
+  const maxIncrease = target.currentBid * (1 + MAX_BID_CHANGE_PERCENT); // 提价仍用原始限制
+  const maxDecrease = target.currentBid * (1 - effectiveMaxChangePercent); // 降价使用动态限制
   
   newBid = Math.min(newBid, maxIncrease);
   newBid = Math.max(newBid, maxDecrease);
@@ -302,7 +326,7 @@ export function calculateExplorationBid(
   target: OptimizationTarget,
   config: PerformanceGroupConfig,
   maxBidLimit: number = 2.00,
-  minBidLimit: number = 0.02
+  minBidLimit: number = 0.10 // v641: 从$0.02提高到$0.10
 ): OptimizationResult {
   let newBid = target.currentBid;
   let reason = '';

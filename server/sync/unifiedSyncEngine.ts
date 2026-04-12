@@ -451,11 +451,15 @@ export interface AccountSyncResult {
   accountName: string;
   tier: SyncTier;
   success: boolean;
+  /** v641: 部分成功标记 — 超时或中断导致部分步骤被跳过时为true */
+  partialSuccess: boolean;
   startTime: Date;
   endTime: Date;
   durationMs: number;
   completedSteps: number;
   failedSteps: number;
+  /** v641: 因超时/中断被跳过的步骤数 */
+  skippedSteps: number;
   totalSteps: number;
   totalSynced: number;
   errors: string[];
@@ -1219,11 +1223,13 @@ export async function syncAccount(
     accountName: account.accountName,
     tier,
     success: false,
+    partialSuccess: false, // v641: 部分成功标记
     startTime,
     endTime: startTime,
     durationMs: 0,
     completedSteps: 0,
     failedSteps: 0,
+    skippedSteps: 0, // v641: 跳过步骤计数
     totalSteps: 0,
     totalSynced: 0,
     errors: [],
@@ -1449,10 +1455,15 @@ export async function syncAccount(
       try {
         const { isShuttingDown } = await import('../deployLifecycleManager');
         if (isShuttingDown()) {
-          const shutdownMsg = `账户${account.accountId} 同步被系统关闭中断，已完成${i}/${steps.length}步骤`;
-          log.warn(`[UnifiedSync] v405: ${shutdownMsg}`);
+          const skippedCount = steps.length - i;
+          const shutdownMsg = `账户${account.accountId} 同步被系统关闭中断，已完成${i}/${steps.length}步骤，跳过${skippedCount}个步骤`;
+          log.warn(`[UnifiedSync] v641: ${shutdownMsg}`);
           result.errors.push(shutdownMsg);
-          // 保存已完成的步骤信息到checkpoint，便于恢复
+          // v641: 记录跳过的步骤
+          result.skippedSteps += skippedCount;
+          for (const skippedStep of steps.slice(i)) {
+            result.stepResults[skippedStep.id] = { success: false, synced: 0, errors: ['shutdown_skipped'] };
+          }
           result.stepResults['_interrupted'] = { success: false, synced: 0, errors: [shutdownMsg] };
           break;
         }
@@ -1460,12 +1471,20 @@ export async function syncAccount(
         // isShuttingDown检查失败不影响同步继续
       }
 
-      // v340: 单账户同步超时保护
+      // v340+v641: 单账户同步超时保护 — 超时后精确记录跳过的步骤
       const elapsed = Date.now() - startTime.getTime();
       if (elapsed > SYNC_TIMEOUT_MS) {
-        const timeoutMsg = `账户${account.accountId} 同步超时(${Math.round(elapsed / 60000)}分钟>阈值${SYNC_TIMEOUT_MS / 60000}分钟)，已完成${i}/${steps.length}步骤，剩余步骤跳过`;
-        log.warn(`[UnifiedSync] v340: ${timeoutMsg}`);
+        const skippedCount = steps.length - i;
+        const skippedNames = steps.slice(i).map(s => s.name).join(', ');
+        const timeoutMsg = `账户${account.accountId} 同步超时(${Math.round(elapsed / 60000)}分钟>阈值${SYNC_TIMEOUT_MS / 60000}分钟)，已完成${i}/${steps.length}步骤，跳过${skippedCount}个步骤: [${skippedNames}]`;
+        log.warn(`[UnifiedSync] v641: ${timeoutMsg}`);
         result.errors.push(timeoutMsg);
+        // v641: 精确记录跳过的步骤数，用于区分“部分成功”和“完全成功”
+        result.skippedSteps += skippedCount;
+        // 为每个跳过的步骤记录状态
+        for (const skippedStep of steps.slice(i)) {
+          result.stepResults[skippedStep.id] = { success: false, synced: 0, errors: ['timeout_skipped'] };
+        }
         break;
       }
 
@@ -1608,20 +1627,34 @@ export async function syncAccount(
     }
 
     // 更新最后同步时间
+    // v641: 更新同步状态 — 区分完全成功/部分成功/失败
     try {
+      const syncStatus = result.success ? 'idle' : (result.partialSuccess ? 'partial_success' : 'error');
       await db.updateAmazonApiCredentials(account.accountId, {
         lastSyncAt: new Date().toISOString(),
-        syncStatus: result.failedSteps === 0 ? 'idle' : 'error',
+        syncStatus,
         syncErrorMessage: result.errors.length > 0 ? result.errors.slice(0, 3).join('; ') : null,
       });
     } catch (e: unknown) {
       log.warn(`[UnifiedSync] 更新账户 ${account.accountId} 同步状态失败: ${(e as Error).message}`);
     }
 
-    // v358: 收紧成功判定 - 任何步骤失败都标记为失败
-    // 旧逻辑: result.failedSteps === 0 || result.completedSteps > 0 (只要有一步成功就算成功，导致静默失败)
-    // 新逻辑: 只有所有步骤都成功才算成功
-    result.success = result.failedSteps === 0;
+    // v641: 三态成功判定 — 完全成功 / 部分成功 / 失败
+    // 完全成功: 所有步骤都成功，无失败无跳过
+    // 部分成功: 有步骤成功但有步骤被跳过(超时/中断)，不再伪装为“成功”
+    // 失败: 所有步骤都失败或无步骤完成
+    if (result.failedSteps === 0 && result.skippedSteps === 0) {
+      result.success = true;
+      result.partialSuccess = false;
+    } else if (result.completedSteps > 0 && result.skippedSteps > 0) {
+      // v641: 有步骤完成但有步骤被跳过 — 标记为“部分成功”而非“成功”
+      result.success = false;
+      result.partialSuccess = true;
+      log.warn(`[UnifiedSync] v641: 账户${account.accountId} 同步部分成功: 完成=${result.completedSteps}, 失败=${result.failedSteps}, 跳过=${result.skippedSteps}, 总步骤=${result.totalSteps}`);
+    } else {
+      result.success = result.failedSteps === 0;
+      result.partialSuccess = false;
+    }
 
     // v340: 同步健康监控告警 - 当同步完成但总记录数为0时触发告警
     if (result.totalSynced === 0 && result.totalSteps > 0) {
@@ -1690,11 +1723,13 @@ export async function syncAccount(
       .map(([step, r]: [string, unknown]) => `${step}:${r.synced ?? r.result ?? '?'}`)
       .join(', ');
     const errorSummary = result.errors.length > 0 ? ` | 错误: ${result.errors.slice(0, 3).join('; ')}` : '';
+    // v641: 三态状态显示
+    const statusEmoji = result.success ? '✅成功' : (result.partialSuccess ? '⚠️部分成功' : '❌失败');
     log.info(
-      `[v426-SyncSummary] 账户=${account.accountId}(${account.accountName}) ` +
-      `层级=${tier} 状态=${result.success ? '✅成功' : '❌失败'} ` +
+      `[v641-SyncSummary] 账户=${account.accountId}(${account.accountName}) ` +
+      `层级=${tier} 状态=${statusEmoji} ` +
       `耗时=${durationSec}s 步骤=${result.completedSteps}/${result.totalSteps} ` +
-      `同步数=${result.totalSynced} 失败步骤=${result.failedSteps}` +
+      `同步数=${result.totalSynced} 失败=${result.failedSteps} 跳过=${result.skippedSteps}` +
       `${errorSummary} | 明细: ${stepSummary}`
     );
 
@@ -2225,7 +2260,7 @@ export async function triggerManualFullSync(
       const { updateSyncJob } = await import('../db/syncJobs');
       const safeNum = (v: unknown) => (typeof v === 'number' && !isNaN(v) ? v : 0);
       await updateSyncJob(options.jobId, {
-        status: result.success ? 'completed' : 'failed',
+        status: result.success ? 'completed' : (result.partialSuccess ? 'partial_success' : 'failed'),
         errorMessage: result.errors.length > 0 ? result.errors.slice(0, 3).join('; ') : undefined,
         durationMs: result.durationMs,
         recordsSynced: result.totalSynced,

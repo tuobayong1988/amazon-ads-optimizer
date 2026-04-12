@@ -6443,6 +6443,11 @@ export class AmazonAdsApiClient {
    * 返回素材的完整URL（包括视频URL、缩略图等）
    */
   async getAssetDetails(assetId: string): Promise<unknown> {
+    // v641: assetId格式验证 — 防止无效/截断的assetId浪费API调用
+    if (!assetId || assetId.length < 10 || assetId === 'undefined' || assetId === 'null') {
+      log.debug(`[Assets API] v641: 跳过无效assetId: "${assetId}"`);
+      return null;
+    }
     try {
       const headers = await this.getHeaders();
       const response = await this.axiosInstance.get('/assets', {
@@ -6451,13 +6456,20 @@ export class AmazonAdsApiClient {
           ...headers,
           'Accept': 'application/vnd.creativeassetsgetresponse.v3+json',
         },
+        timeout: 10000, // v641: 10秒超时保护
       });
       return response.data;
     } catch (error: unknown) {
       // @ts-expect-error - Axios error response access
+      const statusCode = (error as Error & { response?: unknown }).response?.status;
+      // @ts-expect-error - Axios error response access
       const errInfo = (error as Error & { response?: unknown }).response?.data || (error as Error).message;
-      // v474: 单个素材获取失败是非关键错误，降级为WARN
-      log.warn(`[Assets API] Failed to get asset ${assetId}: ${typeof errInfo === 'object' ? JSON.stringify(errInfo).slice(0, 200) : errInfo}`);
+      // v641: 区分404(素材不存在)和其他错误
+      if (statusCode === 404 || statusCode === 400) {
+        log.debug(`[Assets API] v641: 素材${assetId}不存在或参数错误(${statusCode})，跳过`);
+      } else {
+        log.warn(`[Assets API] Failed to get asset ${assetId} (status=${statusCode}): ${typeof errInfo === 'object' ? JSON.stringify(errInfo).slice(0, 200) : errInfo}`);
+      }
       return null;
     }
   }
