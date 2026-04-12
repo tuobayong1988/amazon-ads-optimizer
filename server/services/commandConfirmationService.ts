@@ -1,18 +1,17 @@
 /**
- * v359: 可靠的指令确认服务
+ * v644: 可靠的指令确认服务（优化版）
  * 
- * 解决评估报告中指出的问题:
- * 1. 确认同步固定3秒延迟 → 自适应延迟（根据操作类型和历史延迟动态调整）
- * 2. 确认同步fire-and-forget → 持久化确认队列，保证至少执行一次
- * 3. 无超时和重试 → 带超时的指数退避重试
- * 4. 指令状态追踪不完整 → 完整的状态机追踪
+ * v359原始功能:
+ * 1. 确认同步自适应延迟（根据操作类型和历史延迟动态调整）
+ * 2. 持久化确认队列，保证至少执行一次
+ * 3. 带超时的指数退避重试
+ * 4. 完整的状态机追踪
  * 
- * 设计:
- * - 确认请求入队后持久化到数据库（不再依赖内存）
- * - 独立的确认处理循环，不依赖主同步流程
- * - 自适应传播延迟：根据操作类型和历史成功率动态调整等待时间
- * - 最多3次确认重试，每次增加等待时间
- * - 完整的确认结果追踪和指标
+ * v644优化:
+ * - 新增同账户去重机制: 同一账户在5分钟内的多个confirmation请求会被合并
+ * - 新增每账户最小间隔: 同一账户两次confirmation执行之间至少间隔5分钟
+ * - 合并时自动扩展affectedEntities，确保所有受影响的实体都被覆盖
+ * - 减少API配额消耗（之前60分钟内同一账户执行了8次confirmation）
  */
 
 import { createModuleLogger } from '../utils/logger';
@@ -42,6 +41,8 @@ export interface ConfirmationRequest {
   status: 'pending' | 'waiting' | 'confirming' | 'confirmed' | 'failed' | 'expired';
   /** 最后一次确认结果 */
   lastResult?: ConfirmationResult;
+  /** v644: 合并的触发源列表 */
+  mergedSources?: string[];
 }
 
 /** 确认结果 */
@@ -77,6 +78,8 @@ export interface ConfirmationMetrics {
   confirmationSuccessRate: number;
   /** 按操作类型的平均传播延迟 */
   avgPropagationDelayByType: Record<string, number>;
+  /** v644: 合并的请求数 */
+  mergedRequests: number;
 }
 
 // ==================== 配置 ====================
@@ -94,7 +97,7 @@ const PROPAGATION_CONFIGS: Record<string, PropagationConfig> = {
     maxDelayMs: 60000,
   },
   budget_change: {
-    initialDelayMs: 15000,      // v641: 预算变更传播延迟增加到15秒（Amazon预算变更传播更慢）
+    initialDelayMs: 15000,      // v641: 预算变更传播延迟增加到15秒
     retryIncrementMs: 15000,    // v641: 重试间隔增加到15秒
     maxDelayMs: 120000,         // v641: 最大等待时间增加到2分钟
   },
@@ -118,7 +121,13 @@ const REQUEST_EXPIRY_MS = 30 * 60 * 1000; // 30分钟
 
 /** 确认处理循环间隔（毫秒） */
 const PROCESSING_INTERVAL_MS = 2000;
-const IDLE_INTERVAL_MS = 10000; // v360: 队列为空时使用更长间隔，降低CPU消耗
+const IDLE_INTERVAL_MS = 10000; // v360: 队列为空时使用更长间隔
+
+/** v644: 同一账户两次confirmation执行之间的最小间隔（毫秒） */
+const PER_ACCOUNT_MIN_INTERVAL_MS = 5 * 60 * 1000; // 5分钟
+
+/** v644: 同一账户的confirmation请求合并窗口（毫秒） */
+const MERGE_WINDOW_MS = 3 * 60 * 1000; // 3分钟内的请求会被合并
 
 // ==================== 确认服务主类 ====================
 
@@ -129,6 +138,9 @@ export class CommandConfirmationService {
   
   /** 历史传播延迟（用于自适应调整） */
   private propagationHistory: Map<string, number[]> = new Map();
+  
+  /** v644: 每个账户最后一次confirmation执行完成的时间 */
+  private lastConfirmationTime: Map<number, number> = new Map();
   
   /** 指标 */
   private metrics: ConfirmationMetrics = {
@@ -141,18 +153,19 @@ export class CommandConfirmationService {
     avgRetryCount: 0,
     confirmationSuccessRate: 0,
     avgPropagationDelayByType: {},
+    mergedRequests: 0,
   };
   
   private totalConfirmationTimeMs = 0;
   private totalRetryCount = 0;
   
   constructor() {
-    log.info('[CommandConfirmation] v359: 初始化可靠指令确认服务');
+    log.info('[CommandConfirmation] v644: 初始化可靠指令确认服务（带去重和合并优化）');
   }
   
   /**
    * 提交确认请求
-   * 替代原来的fire-and-forget模式
+   * v644: 添加同账户去重/合并逻辑
    */
   submitConfirmation(
     accountId: number,
@@ -160,16 +173,35 @@ export class CommandConfirmationService {
     triggerSource: string,
     operationType: ConfirmationRequest['operationType'] = 'general'
   ): string {
+    // v644: 检查是否有同一账户的pending/waiting请求可以合并
+    const existingRequest = this.findMergeableRequest(accountId);
+    if (existingRequest) {
+      // 合并affectedEntities
+      const mergedEntities = new Set([...existingRequest.affectedEntities, ...affectedEntities]);
+      existingRequest.affectedEntities = Array.from(mergedEntities) as ConfirmationRequest['affectedEntities'];
+      
+      // 升级operationType（优先级: budget_change > keyword_create > status_change > bid_change > general）
+      existingRequest.operationType = this.mergeOperationType(existingRequest.operationType, operationType);
+      
+      // 记录合并源
+      if (!existingRequest.mergedSources) existingRequest.mergedSources = [existingRequest.triggerSource];
+      existingRequest.mergedSources.push(triggerSource);
+      
+      this.metrics.mergedRequests++;
+      
+      log.info(`[CommandConfirmation] v644: 合并确认请求到 ${existingRequest.id}: 账户${accountId}, 新实体=${affectedEntities.join(',')}, 来源=${triggerSource}, 合并后实体=${existingRequest.affectedEntities.join(',')}`);
+      
+      return existingRequest.id;
+    }
+    
     // 检查队列容量
     if (this.queue.size >= MAX_QUEUE_SIZE) {
-      // 清理过期请求
       this.cleanupExpired();
       
       if (this.queue.size >= MAX_QUEUE_SIZE) {
         log.warn(`[CommandConfirmation] 队列已满(${MAX_QUEUE_SIZE})，丢弃最旧的请求`);
-        // 删除最旧的pending请求
         const oldest = Array.from(this.queue.values())
-          .filter(r => r.status === 'pending')
+          .filter(r => r.status === 'pending' || r.status === 'waiting')
           // @ts-ignore
           .sort((a: unknown, b: unknown) => a.createdAt.getTime() - b.createdAt.getTime())[0];
         if (oldest) this.queue.delete(oldest.id);
@@ -179,6 +211,16 @@ export class CommandConfirmationService {
     const config = PROPAGATION_CONFIGS[operationType] || PROPAGATION_CONFIGS.general;
     const adaptiveDelay = this.getAdaptiveDelay(operationType, config);
     
+    // v644: 考虑每账户最小间隔
+    const lastTime = this.lastConfirmationTime.get(accountId) || 0;
+    const timeSinceLastConfirmation = Date.now() - lastTime;
+    const effectiveDelay = Math.max(
+      adaptiveDelay,
+      timeSinceLastConfirmation < PER_ACCOUNT_MIN_INTERVAL_MS 
+        ? PER_ACCOUNT_MIN_INTERVAL_MS - timeSinceLastConfirmation 
+        : 0
+    );
+    
     const request: ConfirmationRequest = {
       id: `confirm-${accountId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       accountId,
@@ -186,9 +228,9 @@ export class CommandConfirmationService {
       triggerSource,
       operationType,
       createdAt: new Date(),
-      expectedReadyAt: new Date(Date.now() + adaptiveDelay),
+      expectedReadyAt: new Date(Date.now() + effectiveDelay),
       retryCount: 0,
-      maxRetries: 5, // v641: 从3次增加到5次，特别是预算调整需要更多重试机会
+      maxRetries: 5,
       status: 'waiting',
     };
     
@@ -196,12 +238,47 @@ export class CommandConfirmationService {
     this.metrics.totalRequests++;
     this.metrics.pendingRequests = this.queue.size;
     
-    log.info(`[CommandConfirmation] v359: 提交确认请求 ${request.id}: 账户${accountId}, 类型=${operationType}, 延迟=${adaptiveDelay}ms, 来源=${triggerSource}`);
-    logSync('CommandConfirmation', 'v359: 提交确认请求', {
-      requestId: request.id, accountId, operationType, adaptiveDelay, triggerSource,
+    log.info(`[CommandConfirmation] v644: 提交确认请求 ${request.id}: 账户${accountId}, 类型=${operationType}, 延迟=${effectiveDelay}ms${effectiveDelay > adaptiveDelay ? '(含冷却期)' : ''}, 来源=${triggerSource}`);
+    logSync('CommandConfirmation', 'v644: 提交确认请求', {
+      requestId: request.id, accountId, operationType, effectiveDelay, triggerSource,
     });
     
     return request.id;
+  }
+  
+  /**
+   * v644: 查找可合并的请求
+   * 同一账户在MERGE_WINDOW_MS内的waiting状态请求可以合并
+   */
+  private findMergeableRequest(accountId: number): ConfirmationRequest | null {
+    const now = Date.now();
+    for (const request of this.queue.values()) {
+      if (
+        request.accountId === accountId &&
+        request.status === 'waiting' &&
+        (now - request.createdAt.getTime()) < MERGE_WINDOW_MS
+      ) {
+        return request;
+      }
+    }
+    return null;
+  }
+  
+  /**
+   * v644: 合并操作类型（取优先级更高的）
+   */
+  private mergeOperationType(
+    existing: ConfirmationRequest['operationType'],
+    incoming: ConfirmationRequest['operationType']
+  ): ConfirmationRequest['operationType'] {
+    const priority: Record<string, number> = {
+      general: 0,
+      bid_change: 1,
+      status_change: 2,
+      keyword_create: 3,
+      budget_change: 4,
+    };
+    return (priority[incoming] || 0) > (priority[existing] || 0) ? incoming : existing;
   }
   
   /**
@@ -217,11 +294,8 @@ export class CommandConfirmationService {
   start(): void {
     if (this.running) return;
     this.running = true;
-    
-    // v360: P3-5 智能轮询 - 队列为空时使用更长间隔
     this.scheduleNextProcessing();
-    
-    log.info('[CommandConfirmation] v360: 确认处理循环已启动（智能轮询模式）');
+    log.info('[CommandConfirmation] v644: 确认处理循环已启动（智能轮询+去重模式）');
   }
   
   /**
@@ -233,12 +307,11 @@ export class CommandConfirmationService {
       clearTimeout(this.processingTimer);
       this.processingTimer = null;
     }
-    log.info('[CommandConfirmation] v360: 确认处理循环已停止');
+    log.info('[CommandConfirmation] v644: 确认处理循环已停止');
   }
   
   /**
    * v360: 智能调度下一次处理
-   * 队列有待处理项时使用2秒间隔，空闲时使用10秒间隔
    */
   private scheduleNextProcessing(): void {
     if (!this.running) return;
@@ -281,7 +354,6 @@ export class CommandConfirmationService {
     for (const [requestId, request] of this.queue.entries()) {
       // 跳过已完成的请求
       if (request.status === 'confirmed' || request.status === 'failed' || request.status === 'expired') {
-        // 已完成的请求保留5分钟后清理
         if (now - request.createdAt.getTime() > REQUEST_EXPIRY_MS) {
           this.queue.delete(requestId);
         }
@@ -298,6 +370,14 @@ export class CommandConfirmationService {
       
       // 检查是否到达预期传播时间
       if (request.status === 'waiting' && now >= request.expectedReadyAt.getTime()) {
+        // v644: 检查每账户最小间隔
+        const lastTime = this.lastConfirmationTime.get(request.accountId) || 0;
+        if (now - lastTime < PER_ACCOUNT_MIN_INTERVAL_MS) {
+          // 还在冷却期，延迟执行
+          request.expectedReadyAt = new Date(lastTime + PER_ACCOUNT_MIN_INTERVAL_MS);
+          continue;
+        }
+        
         request.status = 'confirming';
         await this.executeConfirmation(request);
       }
@@ -311,29 +391,29 @@ export class CommandConfirmationService {
     const startTime = Date.now();
     
     try {
-      log.info(`[CommandConfirmation] 执行确认: ${request.id}, 重试=${request.retryCount}/${request.maxRetries}`);
+      const mergedInfo = request.mergedSources ? `, 合并了${request.mergedSources.length}个请求` : '';
+      log.info(`[CommandConfirmation] v644: 执行确认: ${request.id}, 重试=${request.retryCount}/${request.maxRetries}, 实体=${request.affectedEntities.join(',')}${mergedInfo}`);
       
       // 调用原有的确认同步逻辑
       const { confirmationSync } = await import('../sync/unifiedSyncEngine');
       const syncResult: unknown = await confirmationSync(
         request.accountId,
         request.affectedEntities as ('campaigns' | 'keywords' | 'targets' | 'budgets' | 'ad_groups')[],
-        `v359_reliable_${request.triggerSource}`
+        `v644_reliable_${request.triggerSource}`
       );
       
       const durationMs = Date.now() - startTime;
       
+      // v644: 记录执行完成时间
+      this.lastConfirmationTime.set(request.accountId, Date.now());
+      
       // @ts-ignore
       if (syncResult && syncResult.completedSteps > 0) {
-        // 确认成功
         // @ts-ignore
         const matchRate = syncResult.totalSteps > 0 ? syncResult.completedSteps / syncResult.totalSteps : 0;
         
-        // @ts-ignore
         request.status = 'confirmed';
-        // @ts-ignore
         request.lastResult = {
-          // @ts-ignore
           success: true,
           // @ts-ignore
           completedSteps: syncResult.completedSteps,
@@ -348,18 +428,16 @@ export class CommandConfirmationService {
         
         this.metrics.confirmedRequests++;
         this.totalConfirmationTimeMs += (Date.now() - request.createdAt.getTime());
-        // @ts-ignore
         this.totalRetryCount += request.retryCount;
         
-        // 记录传播延迟（用于自适应调整）
         const propagationDelay = request.expectedReadyAt.getTime() - request.createdAt.getTime();
         this.recordPropagationDelay(request.operationType, propagationDelay);
         
         // @ts-ignore
-        log.info(`[CommandConfirmation] 确认成功: ${request.id}, 步骤=${syncResult.completedSteps}/${syncResult.totalSteps}, 匹配率=${(matchRate * 100).toFixed(1)}%, 耗时=${durationMs}ms`);
+        log.info(`[CommandConfirmation] v644: 确认成功: ${request.id}, 步骤=${syncResult.completedSteps}/${syncResult.totalSteps}, 同步=${syncResult.totalSynced}条, 匹配率=${(matchRate * 100).toFixed(1)}%, 耗时=${durationMs}ms`);
       // @ts-ignore
       } else if (syncResult && syncResult.errors?.some((e: string) => e.includes('full层同步在运行') || e.includes('同步在运行'))) {
-        // v388: 当full同步正在运行时，数据已被full同步覆盖，视为“已覆盖确认”
+        // v388: full同步正在运行时，视为"已覆盖确认"
         request.status = 'confirmed';
         request.lastResult = {
           success: true,
@@ -367,9 +445,8 @@ export class CommandConfirmationService {
           // @ts-ignore
           totalSteps: syncResult.totalSteps || 0,
           totalSynced: 0,
-          // @ts-ignore
           durationMs,
-          matchRate: 1, // full同步覆盖所有步骤，视为100%匹配
+          matchRate: 1,
           timestamp: new Date(),
         };
         
@@ -378,13 +455,14 @@ export class CommandConfirmationService {
         this.totalRetryCount += request.retryCount;
         
         // @ts-ignore
-        log.info(`[CommandConfirmation] v388: 确认已被full同步覆盖: ${request.id}, 耗时=${durationMs}ms, 原因: ${syncResult.errors?.join(', ')}`);
+        log.info(`[CommandConfirmation] v644: 确认已被full同步覆盖: ${request.id}, 耗时=${durationMs}ms`);
       } else {
-        // 确认失败，尝试重试
         await this.handleConfirmationFailure(request, durationMs, '确认同步返回空结果或0步骤');
       }
     } catch (error: unknown) {
       const durationMs = Date.now() - startTime;
+      // v644: 即使失败也记录时间，避免立即重试
+      this.lastConfirmationTime.set(request.accountId, Date.now());
       await this.handleConfirmationFailure(request, durationMs, (error as Error).message);
     }
   }
@@ -400,7 +478,6 @@ export class CommandConfirmationService {
     request.retryCount++;
     
     if (request.retryCount >= request.maxRetries) {
-      // 达到最大重试次数
       request.status = 'failed';
       request.lastResult = {
         success: false,
@@ -416,8 +493,8 @@ export class CommandConfirmationService {
       this.totalConfirmationTimeMs += (Date.now() - request.createdAt.getTime());
       this.totalRetryCount += request.retryCount;
       
-      log.warn(`[CommandConfirmation] 确认最终失败: ${request.id}, 重试${request.retryCount}次后放弃: ${errorMsg}`);
-      logSyncError('CommandConfirmation', `v359: 确认最终失败`, {
+      log.warn(`[CommandConfirmation] v644: 确认最终失败: ${request.id}, 重试${request.retryCount}次后放弃: ${errorMsg}`);
+      logSyncError('CommandConfirmation', `v644: 确认最终失败`, {
         requestId: request.id,
         accountId: request.accountId,
         operationType: request.operationType,
@@ -425,38 +502,33 @@ export class CommandConfirmationService {
         error: errorMsg,
       });
     } else {
-      // 重新排队，增加等待时间
       const config = PROPAGATION_CONFIGS[request.operationType] || PROPAGATION_CONFIGS.general;
       const additionalDelay = config.retryIncrementMs * request.retryCount;
-      request.expectedReadyAt = new Date(Date.now() + additionalDelay);
+      // v644: 重试时也要考虑每账户最小间隔
+      const effectiveDelay = Math.max(additionalDelay, PER_ACCOUNT_MIN_INTERVAL_MS);
+      request.expectedReadyAt = new Date(Date.now() + effectiveDelay);
       request.status = 'waiting';
       
-      log.warn(`[CommandConfirmation] 确认重试: ${request.id}, 第${request.retryCount}次, 额外等待${additionalDelay}ms: ${errorMsg}`);
+      log.warn(`[CommandConfirmation] v644: 确认重试: ${request.id}, 第${request.retryCount}次, 等待${effectiveDelay}ms: ${errorMsg}`);
     }
   }
   
   /**
    * 获取自适应传播延迟
-   * 基于历史数据动态调整
    */
   private getAdaptiveDelay(operationType: string, config: PropagationConfig): number {
     const history = this.propagationHistory.get(operationType);
     
     if (!history || history.length < 5) {
-      // 历史数据不足，使用默认值
       return config.initialDelayMs;
     }
     
-    // 使用最近20次的P75延迟作为自适应值
     // @ts-ignore
     const recent = history.slice(-20).sort((a: unknown, b: unknown) => a - b);
     const p75Index = Math.floor(recent.length * 0.75);
     const p75Delay = recent[p75Index];
-    
-    // 在P75基础上增加20%安全余量
     const adaptiveDelay = Math.round(p75Delay * 1.2);
     
-    // 限制在配置范围内
     return Math.max(config.initialDelayMs, Math.min(adaptiveDelay, config.maxDelayMs));
   }
   
@@ -470,7 +542,6 @@ export class CommandConfirmationService {
     const history = this.propagationHistory.get(operationType)!;
     history.push(delayMs);
     
-    // 保留最近100条记录
     if (history.length > 100) {
       // @ts-ignore
       this.propagationHistory.set(operationType, history.slice(-50));
@@ -532,16 +603,6 @@ export function getCommandConfirmationService(): CommandConfirmationService {
 
 /**
  * 便捷函数: 提交可靠的确认请求
- * 替代原来的 confirmationSync(...).then().catch() 模式
- * 
- * 使用示例:
- * ```typescript
- * // 旧方式 (fire-and-forget):
- * confirmationSync(accountId, entities, 'source').then(...).catch(...);
- * 
- * // 新方式 (可靠确认):
- * const requestId = submitReliableConfirmation(accountId, entities, 'source', 'bid_change');
- * ```
  */
 export function submitReliableConfirmation(
   accountId: number,

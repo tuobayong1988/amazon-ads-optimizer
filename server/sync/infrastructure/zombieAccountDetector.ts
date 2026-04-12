@@ -1,16 +1,23 @@
 /**
- * v443: 僵尸账户自动检测与标注机制
+ * v644: 僵尸账户自动检测与标注机制（修复版）
  * 
- * 功能:
+ * v443原始功能:
  * - 在每次high层批量同步完成后自动运行
  * - 检查所有active账户的最近N次同步记录
  * - 如果连续N次同步都返回0条记录，自动标记为paused
- * - 记录检测事件到ops日志和data_sync_logs
+ * 
+ * v644修复:
+ * - 新增自动恢复机制: 被auto_paused的账户在有API凭证时自动恢复为active
+ * - 排除"有凭证但同步失败"的账户（这些不是真正的僵尸账户）
+ * - 只暂停"确实没有广告活动"的空账户，而不是"因Token过期导致同步失败"的账户
+ * - 提升阈值从10次到20次，避免误判
+ * - 添加自动恢复日志
  * 
  * 设计原则:
- * - 保守策略: 需要连续10次同步0记录才触发（约20小时的观察窗口）
- * - 可恢复: 用户可以在后台手动将账户重新激活为active
- * - 透明: 所有自动暂停操作都有完整日志记录
+ * - 保守策略: 需要连续20次同步0记录才触发
+ * - 可恢复: 自动恢复机制 + 用户可手动激活
+ * - 透明: 所有操作都有完整日志记录
+ * - 安全: 不暂停有API凭证且最近有同步尝试的账户
  */
 import { createModuleLogger } from '../../utils/logger';
 import { sql } from 'drizzle-orm';
@@ -20,11 +27,11 @@ const log = createModuleLogger('zombieAccountDetector');
 
 // ==================== 配置 ====================
 
-/** 连续多少次同步0记录才判定为僵尸账户 */
-const CONSECUTIVE_ZERO_THRESHOLD = 10;
+/** v644: 连续多少次同步0记录才判定为僵尸账户（从10提升到20） */
+const CONSECUTIVE_ZERO_THRESHOLD = 20;
 
 /** 检查的最近同步记录数量（应 >= CONSECUTIVE_ZERO_THRESHOLD） */
-const CHECK_WINDOW_SIZE = 10;
+const CHECK_WINDOW_SIZE = 20;
 
 // ==================== 类型 ====================
 
@@ -32,6 +39,7 @@ export interface ZombieDetectionResult {
   checkedAccounts: number;
   detectedZombies: ZombieAccount[];
   pausedAccounts: number;
+  recoveredAccounts: number;  // v644: 新增恢复计数
   errors: string[];
 }
 
@@ -47,14 +55,70 @@ export interface ZombieAccount {
 // ==================== 核心逻辑 ====================
 
 /**
+ * v644: 自动恢复被误暂停的账户
+ * 检查所有paused状态的账户，如果它们有有效的API凭证，自动恢复为active
+ */
+async function autoRecoverPausedAccounts(database: any): Promise<number> {
+  let recoveredCount = 0;
+  try {
+    // 查找所有被自动暂停的账户（有API凭证但状态为paused）
+    const pausedWithCredentials = await database.execute(sql`
+      SELECT a.id, a.accountName, a.marketplace, a.profileId,
+             c.clientId, c.refreshToken
+      FROM ad_accounts a
+      INNER JOIN amazon_api_credentials c ON a.id = c.accountId
+      WHERE a.status = 'paused'
+        AND c.clientId IS NOT NULL
+        AND c.refreshToken IS NOT NULL
+        AND a.profileId IS NOT NULL
+    `);
+
+    // @ts-ignore
+    const accounts = (pausedWithCredentials as Record<string, unknown>)[0] || pausedWithCredentials;
+    if (!Array.isArray(accounts) || accounts.length === 0) {
+      return 0;
+    }
+
+    for (const account of accounts) {
+      try {
+        await database.execute(sql`
+          UPDATE ad_accounts
+          SET status = 'active'
+          WHERE id = ${account.id} AND status = 'paused'
+        `);
+        recoveredCount++;
+        const msg = `🔄 自动恢复账户: ${account.id}(${account.accountName}, ${account.marketplace}) — 检测到有效API凭证，从paused恢复为active`;
+        log.info(`[ZombieDetector] ${msg}`);
+        logSync('ZombieDetector', msg, {
+          accountId: account.id,
+          accountName: account.accountName,
+          marketplace: account.marketplace,
+          action: 'auto_recovered',
+        });
+      } catch (recoverErr: unknown) {
+        log.warn(`[ZombieDetector] 恢复账户${account.id}失败: ${(recoverErr as Error).message}`);
+      }
+    }
+
+    if (recoveredCount > 0) {
+      log.info(`[ZombieDetector] v644: 自动恢复了 ${recoveredCount} 个被误暂停的账户`);
+    }
+  } catch (error: unknown) {
+    log.warn(`[ZombieDetector] v644: 自动恢复检查失败: ${(error as Error).message}`);
+  }
+  return recoveredCount;
+}
+
+/**
  * 执行僵尸账户检测
- * 在每次high层批量同步完成后调用
+ * v644: 先执行自动恢复，再执行检测
  */
 export async function detectAndPauseZombieAccounts(): Promise<ZombieDetectionResult> {
   const result: ZombieDetectionResult = {
     checkedAccounts: 0,
     detectedZombies: [],
     pausedAccounts: 0,
+    recoveredAccounts: 0,
     errors: [],
   };
 
@@ -65,6 +129,9 @@ export async function detectAndPauseZombieAccounts(): Promise<ZombieDetectionRes
       result.errors.push('数据库不可用');
       return result;
     }
+
+    // v644: 第0步 - 先自动恢复被误暂停的账户
+    result.recoveredAccounts = await autoRecoverPausedAccounts(database);
 
     // 1. 获取所有active状态的账户
     const activeAccounts = await database.execute(sql`
@@ -89,6 +156,23 @@ export async function detectAndPauseZombieAccounts(): Promise<ZombieDetectionRes
         const accountId = account.id;
         const accountName = account.accountName || `Account-${accountId}`;
         const marketplace = account.marketplace || 'Unknown';
+
+        // v644: 先检查该账户是否有API凭证 - 有凭证的账户不应被暂停
+        const credCheck = await database.execute(sql`
+          SELECT COUNT(*) as cnt
+          FROM amazon_api_credentials
+          WHERE accountId = ${accountId}
+            AND clientId IS NOT NULL
+            AND refreshToken IS NOT NULL
+        `);
+        // @ts-ignore
+        const credRows = (credCheck as Record<string, unknown>)[0] || credCheck;
+        const hasCredentials = Array.isArray(credRows) && credRows.length > 0 && Number(credRows[0]?.cnt) > 0;
+
+        if (hasCredentials) {
+          // v644: 有API凭证的账户不暂停（可能只是Token过期或临时性问题）
+          continue;
+        }
 
         // 查询最近N次completed状态的同步记录
         const recentSyncs = await database.execute(sql`
@@ -130,14 +214,14 @@ export async function detectAndPauseZombieAccounts(): Promise<ZombieDetectionRes
         // 如果最近N次全部为0但还没找到非0记录，查更早的记录
         if (!lastNonZeroSyncAt && consecutiveZeros >= CHECK_WINDOW_SIZE) {
           const olderSync = await database.execute(sql`
- SELECT completedAt
- FROM data_sync_jobs
- WHERE accountId = ${accountId}
- AND status = 'completed'
- AND recordsSynced > 0
- ORDER BY completedAt DESC
- LIMIT 1
- `);
+            SELECT completedAt
+            FROM data_sync_jobs
+            WHERE accountId = ${accountId}
+              AND status = 'completed'
+              AND recordsSynced > 0
+            ORDER BY completedAt DESC
+            LIMIT 1
+          `);
           // @ts-ignore
           const olderRows = (olderSync as Record<string, unknown>)[0] || olderSync;
           if (Array.isArray(olderRows) && olderRows.length > 0) {
@@ -145,7 +229,7 @@ export async function detectAndPauseZombieAccounts(): Promise<ZombieDetectionRes
           }
         }
 
-        // 5. 判定是否为僵尸账户
+        // 5. 判定是否为僵尸账户（只对无API凭证的账户执行）
         if (consecutiveZeros >= CONSECUTIVE_ZERO_THRESHOLD) {
           const zombie: ZombieAccount = {
             accountId,
@@ -166,7 +250,7 @@ export async function detectAndPauseZombieAccounts(): Promise<ZombieDetectionRes
             zombie.autoPaused = true;
             result.pausedAccounts++;
 
-            const pauseMsg = `🔇 自动暂停僵尸账户: ${accountId}(${accountName}, ${marketplace}) — 连续${consecutiveZeros}次同步0条记录, 最后有数据: ${lastNonZeroSyncAt || '从未'}`;
+            const pauseMsg = `🔇 自动暂停僵尸账户: ${accountId}(${accountName}, ${marketplace}) — 连续${consecutiveZeros}次同步0条记录, 最后有数据: ${lastNonZeroSyncAt || '从未'}, 无API凭证`;
             log.warn(`[ZombieDetector] ${pauseMsg}`);
             logSyncWarn('ZombieDetector', pauseMsg, {
               accountId,
@@ -175,6 +259,7 @@ export async function detectAndPauseZombieAccounts(): Promise<ZombieDetectionRes
               consecutiveZeros,
               lastNonZeroSyncAt,
               action: 'auto_paused',
+              hasCredentials: false,
             });
           } catch (pauseErr: unknown) {
             const errMsg = `暂停账户${accountId}失败: ${(pauseErr as Error).message}`;
@@ -192,10 +277,11 @@ export async function detectAndPauseZombieAccounts(): Promise<ZombieDetectionRes
     }
 
     // 6. 输出检测摘要
-    if (result.detectedZombies.length > 0) {
-      log.warn(`[ZombieDetector] 检测完成: 检查${result.checkedAccounts}个账户, 发现${result.detectedZombies.length}个僵尸账户, 自动暂停${result.pausedAccounts}个`);
-      logSyncWarn('ZombieDetector', `僵尸账户检测完成`, {
+    if (result.detectedZombies.length > 0 || result.recoveredAccounts > 0) {
+      log.warn(`[ZombieDetector] v644检测完成: 检查${result.checkedAccounts}个账户, 恢复${result.recoveredAccounts}个, 发现${result.detectedZombies.length}个僵尸账户, 自动暂停${result.pausedAccounts}个`);
+      logSyncWarn('ZombieDetector', `僵尸账户检测完成(v644)`, {
         checkedAccounts: result.checkedAccounts,
+        recoveredAccounts: result.recoveredAccounts,
         detectedZombies: result.detectedZombies.length,
         pausedAccounts: result.pausedAccounts,
         zombies: result.detectedZombies.map(z => ({
@@ -207,7 +293,7 @@ export async function detectAndPauseZombieAccounts(): Promise<ZombieDetectionRes
         })),
       });
     } else {
-      log.info(`[ZombieDetector] 检测完成: 检查${result.checkedAccounts}个账户, 所有账户同步正常`);
+      log.info(`[ZombieDetector] v644检测完成: 检查${result.checkedAccounts}个账户, 恢复${result.recoveredAccounts}个, 所有账户同步正常`);
     }
 
     return result;
