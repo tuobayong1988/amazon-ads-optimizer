@@ -630,29 +630,61 @@ async function verifyBudgetAdjustments(
     // @ts-ignore
     const sdCampaigns = await (syncService as Record<string, unknown>).client.listSdCampaigns?.().catch(() => []) || [];
     
-    // v641: 构建Amazon campaignId到budget的映射（包含所有广告类型）
+    // v645: 构建Amazon campaignId到budget的映射（包含所有广告类型）
+    // 使用标准化的ID匹配：去除前导/尾随空格，统一为字符串
     const amazonBudgetMap = new Map<string, number>();
+    const normalizeId = (id: unknown): string => String(id ?? '').trim();
+    
     for (const campaign of (spCampaigns as unknown[])) {
       // @ts-ignore
-      amazonBudgetMap.set(String(campaign.campaignId), campaign.dailyBudget || campaign.budget?.dailyBudget);
+      const cid = normalizeId(campaign.campaignId);
+      // @ts-ignore
+      if (cid) amazonBudgetMap.set(cid, campaign.dailyBudget || campaign.budget?.dailyBudget);
     }
     for (const campaign of (sbCampaigns as unknown[])) {
       // @ts-ignore
-      amazonBudgetMap.set(String(campaign.campaignId), campaign.dailyBudget || campaign.budget?.dailyBudget || campaign.budget?.budget);
+      const cid = normalizeId(campaign.campaignId);
+      // @ts-ignore
+      if (cid) amazonBudgetMap.set(cid, campaign.dailyBudget || campaign.budget?.dailyBudget || campaign.budget?.budget);
     }
     for (const campaign of (sdCampaigns as unknown[])) {
       // @ts-ignore
-      amazonBudgetMap.set(String(campaign.campaignId), campaign.dailyBudget || campaign.budget?.dailyBudget);
+      const cid = normalizeId(campaign.campaignId);
+      // @ts-ignore
+      if (cid) amazonBudgetMap.set(cid, campaign.dailyBudget || campaign.budget?.dailyBudget);
     }
     
-    log.debug(`v641: 预算验证映射已构建: SP=${(spCampaigns as unknown[]).length}, SB=${(sbCampaigns as unknown[]).length}, SD=${(sdCampaigns as unknown[]).length}, 总计=${amazonBudgetMap.size}`);
+    log.info(`v645: 预算验证映射已构建: SP=${(spCampaigns as unknown[]).length}, SB=${(sbCampaigns as unknown[]).length}, SD=${(sdCampaigns as unknown[]).length}, 总计=${amazonBudgetMap.size}`);
     
     for (const item of items) {
-      const actualBudget = amazonBudgetMap.get(item.amazonId);
+      // v645: 标准化amazonId匹配
+      const normalizedAmazonId = normalizeId(item.amazonId);
+      const actualBudget = amazonBudgetMap.get(normalizedAmazonId);
       if (actualBudget === undefined) {
-        // v641: 记录更详细的未找到信息，帮助诊断
-        log.warn(`v641: 预算验证未找到 campaignId=${item.amazonId}，已检索${amazonBudgetMap.size}个广告活动`);
-        results.push({ item, status: 'not_found', message: `Amazon中未找到campaignId=${item.amazonId}（已检索SP/SB/SD共${amazonBudgetMap.size}个活动）` });
+        // v645: 记录更详细的诊断信息，包括前3个map key以帮助定位问题
+        const sampleKeys = Array.from(amazonBudgetMap.keys()).slice(0, 3).join(', ');
+        log.warn(`v645: 预算验证未找到 campaignId="${normalizedAmazonId}" (type=${typeof item.amazonId}, raw="${item.amazonId}"), 已检索${amazonBudgetMap.size}个活动, 样本keys=[${sampleKeys}]`);
+        // v645: 尝试模糊匹配（去除前导0等）
+        let fuzzyMatch: number | undefined;
+        for (const [key, val] of amazonBudgetMap) {
+          if (key === normalizedAmazonId || key.replace(/^0+/, '') === normalizedAmazonId.replace(/^0+/, '')) {
+            fuzzyMatch = val;
+            break;
+          }
+        }
+        if (fuzzyMatch !== undefined) {
+          log.info(`v645: 模糊匹配成功 campaignId=${normalizedAmazonId}`);
+          // 继续到下面的验证逻辑
+          const expectedBudget = Number(item.expectedValue);
+          const tolerance = 0.01;
+          if (Math.abs(fuzzyMatch - expectedBudget) <= tolerance) {
+            results.push({ item, status: 'confirmed', actualValue: fuzzyMatch });
+          } else {
+            results.push({ item, status: 'conflict', actualValue: fuzzyMatch, message: `期望预算=$${expectedBudget.toFixed(2)}, Amazon实际=$${fuzzyMatch.toFixed(2)}` });
+          }
+          continue;
+        }
+        results.push({ item, status: 'not_found', message: `Amazon中未找到campaignId=${normalizedAmazonId}（已检索SP/SB/SD共${amazonBudgetMap.size}个活动，可能已归档）` });
         continue;
       }
       

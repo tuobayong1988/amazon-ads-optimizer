@@ -100,6 +100,29 @@ export async function checkAccountIntegrity(
       return result;
     }
 
+    // v645: 空账户预检 — 先查询该账户是否有任何广告活动
+    // 如果账户没有广告活动，则数据缺失是合理的，不应视为异常
+    let isEmptyAccount = false;
+    try {
+      const campaignCountResult = await database.execute(sql`
+        SELECT COUNT(*) as cnt FROM campaigns WHERE accountId = ${accountId}
+      `);
+      // @ts-ignore
+      const campaignRows = (campaignCountResult as Record<string, unknown>[])?.[0] || campaignCountResult;
+      // @ts-ignore
+      const totalCampaigns = Array.isArray(campaignRows) ? Number(campaignRows[0]?.cnt || 0) : 0;
+      if (totalCampaigns === 0) {
+        isEmptyAccount = true;
+        log.info(`[v645] 账户${accountId}无广告活动，标记为空账户，跳过完整性检查`);
+        // 空账户直接返回健康状态，不触发任何修复动作
+        result.coveragePercent = 100; // 空账户视为100%覆盖率
+        result.needsRepair = false;
+        return result;
+      }
+    } catch (e: unknown) {
+      log.debug(`[v645] 查询账户${accountId}广告活动数失败: ${(e as Error).message}`);
+    }
+
     // 1. 检查日期连续性
     const dailyData = await database.execute(sql`
       SELECT DATE(date) as report_date, 

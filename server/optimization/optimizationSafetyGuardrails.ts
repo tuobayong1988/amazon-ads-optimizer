@@ -23,6 +23,24 @@ import { getGuardrailConfigService, type AdType } from '../services/guardrailCon
 
 // ==================== 配置常量 ====================
 
+// v645: Amazon各广告类型的平台最低竞价限制（硬性限制，低于此值Amazon API会拒绝）
+export const AMAZON_PLATFORM_MIN_BIDS: Record<string, number> = {
+  sp: 0.02,   // SP广告最低竞价 $0.02
+  sb: 0.25,   // SB广告最低竞价 $0.25（Amazon硬性要求）
+  sd: 0.02,   // SD广告最低竞价 $0.02
+  default: 0.10, // 默认最低竞价（当无法确定广告类型时使用安全值）
+};
+
+/**
+ * v645: 根据广告类型获取有效的最低竞价
+ * 取系统安全护栏的minBid和Amazon平台最低竞价中的较大值
+ */
+export function getEffectiveMinBid(adType?: string): number {
+  const normalizedType = (adType || '').toLowerCase().replace('sponsored_', '').replace('_manual', '').replace('_auto', '');
+  const platformMin = AMAZON_PLATFORM_MIN_BIDS[normalizedType] || AMAZON_PLATFORM_MIN_BIDS.default;
+  return Math.max(SAFETY_LIMITS.bid.minBid, platformMin);
+}
+
 export const SAFETY_LIMITS = {
   bid: {
     maxSingleChangePercent: 0.15,     // v510: 单次最大调整幅度从20%收紧至15%
@@ -86,6 +104,9 @@ export function applyBidGuardrail(
     // 动态配置不可用时使用默认值
   }
   
+  // v645: 根据广告类型获取有效的最低竞价（取系统护栏和Amazon平台限制中的较大值）
+  const effectiveMinBid = getEffectiveMinBid(context?.adType);
+  
   // 1. 绝对范围限制
   const effectiveMaxBid = Math.min(
     userMaxBid || bidLimits.maxBid,
@@ -98,10 +119,10 @@ export function applyBidGuardrail(
     limitReason = `超过最高出价限制$${effectiveMaxBid.toFixed(2)}`;
   }
   
-  if (safeBid < bidLimits.minBid) {
-    safeBid = bidLimits.minBid;
+  if (safeBid < effectiveMinBid) {
+    safeBid = effectiveMinBid;
     wasLimited = true;
-    limitReason = `低于最低出价$${bidLimits.minBid}`;
+    limitReason = `v645: 低于${context?.adType || 'default'}广告最低竞价$${effectiveMinBid.toFixed(2)}，已自动向上取整`;
   }
   
   // 2. 单次调整幅度限制
@@ -121,7 +142,7 @@ export function applyBidGuardrail(
     limitReason = `单次提价幅度限制为${(maxChangePercent * 100).toFixed(0)}%`;
   }
   
-  if (safeBid < maxDecrease && currentBid > bidLimits.minBid) {
+  if (safeBid < maxDecrease && currentBid > effectiveMinBid) {
     safeBid = maxDecrease;
     wasLimited = true;
     limitReason = `单次降价幅度限制为${(maxChangePercent * 100).toFixed(0)}%`;
@@ -129,6 +150,13 @@ export function applyBidGuardrail(
   
   // 3. 四舍五入到分
   safeBid = Math.round(safeBid * 100) / 100;
+  
+  // v645: 最终兆底 — 确保在所有调整后仍不低于平台最低竞价
+  if (safeBid < effectiveMinBid) {
+    safeBid = effectiveMinBid;
+    wasLimited = true;
+    limitReason = `v645: 调整后仍低于${context?.adType || 'default'}广告平台最低竞价$${effectiveMinBid.toFixed(2)}，已兑底`;
+  }
   
   return {
     originalBid: proposedBid,

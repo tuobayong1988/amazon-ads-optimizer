@@ -509,6 +509,22 @@ export async function syncBidAdjustmentsToAmazon(
   // === SB关键词出价更新 — 使用 updateSbKeywordBids ===
   if (sbKeywordBids.length > 0) {
     log.info(`[v502] 批量发送 ${sbKeywordBids.length} 个SB关键词出价更新到Amazon`);
+    
+    // v645: SB关键词最低竞价拦截器 — 在发送到Amazon之前确保出价不低于平台最低限制
+    // SB Standard CPC 最低 $0.10, SB Video CPC 最低 $0.25
+    const SB_MIN_BID = 0.25; // 使用SB Video的最低竞价作为安全值，因为无法区分Standard/Video
+    let sbBidClamped = 0;
+    for (const item of sbKeywordBids) {
+      if (item.bid < SB_MIN_BID) {
+        log.warn(`[v645] SB关键词 ${item.keywordId} 出价$${item.bid}低于平台最低$${SB_MIN_BID}，自动向上取整至$${SB_MIN_BID}`);
+        item.bid = SB_MIN_BID;
+        sbBidClamped++;
+      }
+    }
+    if (sbBidClamped > 0) {
+      log.info(`[v645] SB出价拦截器: ${sbBidClamped}/${sbKeywordBids.length}个关键词出价被向上取整至平台最低竞价$${SB_MIN_BID}`);
+    }
+    
     // v502: SB API需要 keywordId + bid + adGroupId + campaignId
     const sbUpdates = sbKeywordBids.filter(r => r.adGroupId && r.campaignId).map(r => ({
       keywordId: r.keywordId,
@@ -550,6 +566,9 @@ export async function syncBidAdjustmentsToAmazon(
           }
         }
         
+        // v645: 收集因minBid失败的关键词，用于自动重试
+        const minBidRetryItems: Array<{ keywordId: string; bid: number; adGroupId: string; campaignId: string }> = [];
+        
         for (const item of sbKeywordBids.filter(r => r.adGroupId && r.campaignId)) {
           const failReason = sbFailedIds.get(item.keywordId);
           if (failReason) {
@@ -557,6 +576,19 @@ export async function syncBidAdjustmentsToAmazon(
             if (failReason.includes('DUPLICATE')) {
               result.success++;
               result.itemResults.set(item.localId, { status: 'synced' });
+            } else if (failReason.toLowerCase().includes('minbid') || failReason.toLowerCase().includes('minimum bid') || failReason.toLowerCase().includes('bid must be') || failReason.toLowerCase().includes('bid is below')) {
+              // v645: minBid错误自动重试 — 提取错误信息中的最低竞价要求
+              const minBidMatch = failReason.match(/(\d+\.\d+)/);
+              const extractedMinBid = minBidMatch ? parseFloat(minBidMatch[1]) : 0.25;
+              const retryBid = Math.max(extractedMinBid, 0.25); // 至少$0.25
+              log.warn(`[v645] SB关键词 ${item.keywordId} 因出价$${item.bid}低于最低限制失败，将以$${retryBid}重试 (原始错误: ${failReason.substring(0, 80)})`);
+              minBidRetryItems.push({
+                keywordId: item.keywordId,
+                bid: retryBid,
+                adGroupId: item.adGroupId!,
+                campaignId: item.campaignId!,
+              });
+              // 不计入失败，等待重试结果
             } else {
               result.failed++;
               result.errors.push(`SB keyword ${item.keywordId}: ${failReason}`);
@@ -586,6 +618,53 @@ export async function syncBidAdjustmentsToAmazon(
         }
         
         log.info(`[v502] SB关键词出价更新完成: 发送=${sbUpdates.length}, 成功=${sbUpdates.length - sbFailedIds.size}, 失败=${sbFailedIds.size}`);
+        
+        // v645: minBid失败自动重试 — 使用提取的最低竞价重新提交
+        if (minBidRetryItems.length > 0) {
+          log.info(`[v645] 开始重试${minBidRetryItems.length}个因minBid失败的SB关键词出价更新`);
+          try {
+            await new Promise(resolve => setTimeout(resolve, 3000)); // 重试前等待3秒
+            const retryResult: unknown = await withRetry(
+              // @ts-ignore
+              () => (syncService as unknown as Record<string, unknown>).client.updateSbKeywordBids(minBidRetryItems),
+              { maxRetries: 2, baseDelayMs: 5000, label: `retrySbKeywordBids-minBid-${minBidRetryItems.length}`, accountId }
+            );
+            
+            const retryFailedIds = new Map<string, string>();
+            // @ts-ignore
+            if (retryResult.errors && retryResult.errors.length > 0) {
+              // @ts-ignore
+              for (const err of retryResult.errors as Array<Record<string, unknown>>) {
+                retryFailedIds.set(String(err.keywordId), String(err.details || err.code || 'RETRY_FAILED'));
+              }
+            }
+            
+            let retrySuccess = 0;
+            let retryFailed = 0;
+            for (const retryItem of minBidRetryItems) {
+              const retryFailReason = retryFailedIds.get(retryItem.keywordId);
+              const localItem = sbKeywordBids.find(r => r.keywordId === retryItem.keywordId);
+              if (retryFailReason) {
+                retryFailed++;
+                result.failed++;
+                result.errors.push(`SB keyword ${retryItem.keywordId}: minBid重试仍失败 - ${retryFailReason}`);
+                if (localItem) result.itemResults.set(localItem.localId, { status: 'failed', error: `minBid重试失败: ${retryFailReason}` });
+              } else {
+                retrySuccess++;
+                result.success++;
+                if (localItem) result.itemResults.set(localItem.localId, { status: 'synced' });
+              }
+            }
+            log.info(`[v645] SB minBid重试完成: 成功=${retrySuccess}, 失败=${retryFailed}`);
+          } catch (retryErr: unknown) {
+            log.warn(`[v645] SB minBid重试异常: ${(retryErr as Error).message}`);
+            for (const retryItem of minBidRetryItems) {
+              result.failed++;
+              const localItem = sbKeywordBids.find(r => r.keywordId === retryItem.keywordId);
+              if (localItem) result.itemResults.set(localItem.localId, { status: 'failed', error: `minBid重试异常: ${(retryErr as Error).message}` });
+            }
+          }
+        }
       } catch (batchErr: unknown) {
         const batchErrMsg = (batchErr as Error).message || '';
         log.warn(`[v502] SB关键词出价批量更新异常: ${batchErrMsg}`);

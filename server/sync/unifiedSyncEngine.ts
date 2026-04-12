@@ -1391,6 +1391,27 @@ export async function syncAccount(
       log.debug(`[UnifiedSync] v340: 查询账户广告活动数失败: ${(e as Error).message}`);
     }
 
+    // v645: 空账户预检机制 — 对没有任何广告活动的账户，跳过报告类步骤以节省API配额和时间
+    // 只保留基础数据同步步骤（campaigns/ad_groups/keywords），跳过所有报告和绩效步骤
+    if (campaignCount === 0 && !options?.isManual) {
+      const REPORT_STEPS = new Set([
+        'performance_today', 'performance_7d', 'performance_95d',
+        'sp_search_terms', 'sb_search_terms',
+        'sp_placement_performance', 'sb_placement_performance',
+        'sp_auto_targeting', 'sd_targeting', 'sb_targeting',
+        'keyword_performance', 'target_performance', 'ad_group_performance',
+        'sp_budget_rules',
+      ]);
+      const originalCount = steps.length;
+      steps = steps.filter(s => !REPORT_STEPS.has(s.id));
+      const skippedCount = originalCount - steps.length;
+      if (skippedCount > 0) {
+        log.info(`[v645] 空账户预检: 账户${account.accountId}(${account.accountName})无广告活动，跳过${skippedCount}个报告步骤，仅执行${steps.length}个基础同步步骤`);
+        result.skippedSteps = (result.skippedSteps || 0) + skippedCount;
+      }
+      result.totalSteps = steps.length;
+    }
+
     // 创建同步上下文
     const context: SyncContext = {
       accountId: account.accountId,

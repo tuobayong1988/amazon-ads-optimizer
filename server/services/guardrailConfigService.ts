@@ -76,7 +76,7 @@ const HARD_LIMITS = {
   bid: {
     maxSingleChangePercent: { min: 0.05, max: 0.50 },  // 5% ~ 50%
     maxDailyChangePercent: { min: 0.10, max: 0.60 },   // 10% ~ 60%
-    minBid: { min: 0.01, max: 0.10 },                  // $0.01 ~ $0.10
+    minBid: { min: 0.01, max: 0.50 },                  // v645: $0.01 ~ $0.50 (放宽上限以支持SB广告$0.25最低竞价)
     maxBid: { min: 50, max: 500 },                      // $50 ~ $500
     consecutiveSameDirectionSlowdown: { min: 2, max: 7 },
     slowdownFactor: { min: 0.3, max: 0.8 },

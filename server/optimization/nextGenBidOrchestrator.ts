@@ -53,6 +53,7 @@ import { getColdStartBidOverride, isInColdStartPeriod, type ColdStartBidResult }
 import { batchGetParetoTiers, applyParetoWeight, type ParetoTierResult } from './paretoTierEngine';
 import { batchForecastCampaignTrends, applyTrendModifier, type TrendSignal } from './timeSeriesForecastEngine';
 import { getTransferPriorForCampaign, blendTransferWithOwn, type TransferParameters } from './crossProductTransferEngine';
+import { getEffectiveMinBid, AMAZON_PLATFORM_MIN_BIDS } from './optimizationSafetyGuardrails';
 import * as timeDecayService from '../analytics/timeDecayWeightedDataService';
 import { getConfig } from '../system/systemConfigService';
 import { startAlgorithmTrace, completeAlgorithmTrace } from '../algorithm/algorithmObservabilityService';
@@ -596,20 +597,24 @@ function safetyValidate(
   proposedBid: number,
   config: SafetyConfig,
   maxBidLimit?: number,
-  acosRatio?: number // v643: 可选的ACoS比率参数，用于动态调整降价上限
+  acosRatio?: number, // v643: 可选的ACoS比率参数，用于动态调整降价上限
+  adType?: string // v645: 广告类型，用于确定平台最低竞价
 ): number {
+  // v645: 根据广告类型获取有效的最低竞价
+  const effectiveMinBid = getEffectiveMinBid(adType);
+  
   // v231: NaN/Infinity防御 - 确保输入有效
   if (!isFinite(proposedBid) || isNaN(proposedBid)) {
-    return currentBid > 0 ? currentBid : config.minBid;
+    return currentBid > 0 ? currentBid : effectiveMinBid;
   }
   if (!isFinite(currentBid) || isNaN(currentBid)) {
-    return Math.max(config.minBid, Math.min(config.maxBid, proposedBid));
+    return Math.max(effectiveMinBid, Math.min(config.maxBid, proposedBid));
   }
   let safeBid = proposedBid;
   
-  // 1. 绝对范围限制
+  // 1. 绝对范围限制 — v645: 使用广告类型感知的最低竞价
   const effectiveMaxBid = maxBidLimit ? Math.min(config.maxBid, maxBidLimit) : config.maxBid;
-  safeBid = Math.max(config.minBid, Math.min(effectiveMaxBid, safeBid));
+  safeBid = Math.max(effectiveMinBid, Math.min(effectiveMaxBid, safeBid));
   
   // 2. 单次变化幅度限制
   if (currentBid > 0) {
@@ -638,8 +643,8 @@ function safetyValidate(
   // 3. 精度控制
   safeBid = Math.round(safeBid * 100) / 100;
   
-  // 4. 最终兜底
-  safeBid = Math.max(config.minBid, safeBid);
+  // 4. v645: 最终兆底 — 使用广告类型感知的最低竞价
+  safeBid = Math.max(effectiveMinBid, safeBid);
   
   return safeBid;
 }
