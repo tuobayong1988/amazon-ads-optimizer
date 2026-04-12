@@ -85,6 +85,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 650,
+    description: 'v650: [修复 processSearchTermData 4个P0 Bug] — (1)P0-字段名映射修复: 搜索词异步报告写入字段名从 impressions/clicks/spend/sales/orders 修正为 searchTermImpressions/searchTermClicks/searchTermSpend/searchTermSales/searchTermOrders,与 drizzle/schema.ts 的 search_terms 表定义一致 (2)P0-searchTermTargetType必填字段: insert语句补充 NOT NULL 枚举字段,通过 row.targetId/row.keywordId 判断 keyword 或 product_target (3)P0-campaignId类型修正: 从 campaign.id(内部自增int) 改为 campaign.campaignId(Amazon varchar),与 searchTermSync.ts 一致 (4)P0-移除不存在的adType字段: search_terms表无adType列,从insertion中删除 (5)P1-派生指标计算: 补充 searchTermAcos/searchTermRoas/searchTermCtr/searchTermCvr/searchTermCpc 计算逻辑',
+    affectedModules: ['sync'],
+    correctionActions: [],
+  },
+  {
     version: 649,
     description: 'v649: [P2-3 Async Report API迁移升级] — (1)P0-processReportData多类型路由器: scheduling/asyncReportService.ts完全重写,根据syncType分发到5种处理函数(campaign绩效/关键词绩效/搜索词/定向/广告位) (2)P0-submitPendingJobs修复: 跳过已有reportId的任务避免重复提交+根据syncType/reportName调用正确的报告请求方法 (3)P0-N+1查询消除: 所有处理函数使用批量预加载Map替代逐行查询 (4)P1-搜索词P5异步分支: searchTermSync.ts的syncSbSearchTerms+syncSearchTerms添加P5_ASYNC_REPORTS分支 (5)P1-定向P5异步分支: targetingSync.ts的syncAutoTargeting+syncSdTargeting+syncSbTargeting添加P5_ASYNC_REPORTS分支 (6)P1-20分钟硬超时: checkSubmittedJobs自动标记超时任务 (7)P2-API客户端缓存: 5分钟缓存避免重复初始化',
     affectedModules: ['sync'],

@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 649;  // v649: P2-3 Async Report API迁移 + processReportData多类型路由器 + submitPendingJobs修复 + N+1查询消除 + 搜索词/定向/广告位P5异步分支 + 20分钟硬超时
+export const SYSTEM_VERSION = 650;  // v650: 修复 processSearchTermData 4个P0 Bug：字段名映射(searchTermImpressions等) + searchTermTargetType必填字段 + campaignId类型修正(Amazon varchar) + 移除不存在的adType字段 + 补充派生指标计算

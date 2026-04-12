@@ -1024,40 +1024,63 @@ export class AsyncReportService {
           orders = parseInt(String(row.purchasesClicks || row.purchases || 0)) || 0;
         }
 
-        const existKey = `${campaign.id}:${adGroup.id}:${String(searchTermText).toLowerCase()}`;
+        // v650: 修复 #1 campaignId 使用 Amazon Campaign ID (varchar)，与 searchTermSync.ts 一致
+        const existKey = `${campaign.campaignId}:${adGroup.id}:${String(searchTermText).toLowerCase()}`;
         const existingId = existingMap.get(existKey);
 
+        // v650: 修复 #2 判断 searchTermTargetType（必填 NOT NULL 字段）
+        const isProductTarget = !!(row.targetId && !row.keywordId);
+        const searchTermTargetType: 'keyword' | 'product_target' = isProductTarget ? 'product_target' : 'keyword';
+
+        // v650: 计算派生指标（与 searchTermSync.ts 一致）
+        const searchTermAcos = sales > 0 ? String((spend / sales) * 100) : null;
+        const searchTermRoas = spend > 0 ? String(sales / spend) : null;
+        const searchTermCtr = impressions > 0 ? String(clicks / impressions) : null;
+        const searchTermCvr = clicks > 0 ? String(orders / clicks) : null;
+        const searchTermCpc = clicks > 0 ? String(spend / clicks) : null;
+
         if (existingId) {
-          // 更新已有搜索词
+          // v650: 修复 #3 字段名使用 searchTermImpressions 等（与 schema 一致）
           await db
             .update(searchTerms)
             .set({
-              impressions,
-              clicks,
-              spend: String(spend),
-              sales: String(sales),
-              orders,
+              searchTermImpressions: impressions,
+              searchTermClicks: clicks,
+              searchTermSpend: String(spend),
+              searchTermSales: String(sales),
+              searchTermOrders: orders,
+              searchTermAcos,
+              searchTermRoas,
+              searchTermCtr,
+              searchTermCvr,
+              searchTermCpc,
             })
             .where(eq(searchTerms.id, existingId));
         } else {
           // 插入新搜索词
           try {
+            // v650: 修复 #4 移除不存在的 adType 字段，补充 searchTermTargetType
             await db.insert(searchTerms).values({
               accountId,
-              campaignId: campaign.id,
+              campaignId: campaign.campaignId, // v650: Amazon Campaign ID (varchar)
               internalAdGroupId: adGroup.id,
               searchTerm: String(searchTermText),
-              impressions,
-              clicks,
-              spend: String(spend),
-              sales: String(sales),
-              orders,
-              adType: adType as 'SP' | 'SB' | 'SD',
+              searchTermTargetType,
+              searchTermImpressions: impressions,
+              searchTermClicks: clicks,
+              searchTermSpend: String(spend),
+              searchTermSales: String(sales),
+              searchTermOrders: orders,
+              searchTermAcos,
+              searchTermRoas,
+              searchTermCtr,
+              searchTermCvr,
+              searchTermCpc,
             });
           } catch (insertErr: unknown) {
             // 可能是重复插入，忽略
             if (!(insertErr as Error).message?.includes('Duplicate')) {
-              log.warn(`[v649:AsyncReport] Insert search term failed:`, (insertErr as Error).message);
+              log.warn(`[v650:AsyncReport] Insert search term failed:`, (insertErr as Error).message);
             }
           }
         }
