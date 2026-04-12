@@ -2071,7 +2071,9 @@ export async function syncKeywordStatusToAmazon(
           .where(eq(keywords.id, change.keywordId))
           .limit(1);
         
-        if (!kw || !kw.keywordId || kw.keywordId === '0' || kw.keywordId === '') {
+        // v648: 增强检查 - 非数字keywordId也视为无效（修复text:前缀污染问题）
+        const isInvalidKwId = !kw || !kw.keywordId || kw.keywordId === '0' || kw.keywordId === '' || !/^\d+$/.test(String(kw.keywordId));
+        if (isInvalidKwId) {
           // v429: entityIdResolver优先，amazonIdResolver降级
           try {
             const { resolveKeywordId } = await import('./entityIdResolver');
@@ -2081,7 +2083,7 @@ export async function syncKeywordStatusToAmazon(
             }
           } catch (_: any) { /* entityIdResolver未初始化 */ }
           
-          if (!kw || !kw.keywordId || kw.keywordId === '0' || kw.keywordId === '') {
+          if (!kw || !kw.keywordId || kw.keywordId === '0' || kw.keywordId === '' || !/^\d+$/.test(String(kw.keywordId))) {
             try {
               const { resolveKeywordIdOnDemand } = await import('./amazonIdResolver');
               const resolvedId = await resolveKeywordIdOnDemand(accountId, change.keywordId);
@@ -2093,9 +2095,9 @@ export async function syncKeywordStatusToAmazon(
             }
           }
           
-          if (!kw || !kw.keywordId || kw.keywordId === '0' || kw.keywordId === '') {
+          if (!kw || !kw.keywordId || kw.keywordId === '0' || kw.keywordId === '' || !/^\d+$/.test(String(kw.keywordId))) {
             result.failed++;
-            result.errors.push(`关键词 ${change.keywordId} 缺少Amazon keywordId`);
+            result.errors.push(`关键词 ${change.keywordId} 缺少有效的Amazon keywordId (current: ${kw?.keywordId || 'null'})`);
             continue;
           }
         }

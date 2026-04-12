@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 643;  // v643: 步骤级自动重试(3次指数退避) + 算法正向率判定优化 + 高ACoS动态降价上限 + Token过期主动标记
+export const SYSTEM_VERSION = 648;  // v648: 位置倾斜API推送 + bid_set状态修正 + 大账号动态超时 + 空账号预检查 + 仪表板聚合修复 + AutoCorrector过滤 + 搜索词收割校验

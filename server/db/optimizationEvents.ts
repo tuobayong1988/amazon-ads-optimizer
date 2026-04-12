@@ -615,8 +615,11 @@ export async function migrateFromBiddingLogs(accountId: number): Promise<number>
     changeReason: log.reason,
     status: log.executionStatus === 'success' ? 'success' as const : 
             log.executionStatus === 'failed' ? 'failed' as const : 'pending' as const,
-    apiSyncStatus: log.executionStatus === 'success' ? 'synced' as const :
-                   log.executionStatus === 'failed' ? 'failed' as const : 'pending' as const,
+    // v648: bid_set事件标记为not_applicable，避免积压
+    apiSyncStatus: ((log as Record<string, unknown>).actionType !== 'increase' && (log as Record<string, unknown>).actionType !== 'decrease')
+                   ? 'not_applicable' as const
+                   : log.executionStatus === 'success' ? 'synced' as const :
+                     log.executionStatus === 'failed' ? 'failed' as const : 'pending' as const,
     apiResponseId: log.apiResponseId,
     errorMessage: log.errorMessage,
     sourceTable: 'bidding_logs',

@@ -147,7 +147,7 @@ async function calculateRollbackRate(
           ELSE 0 
         END) as soft_rollback
       FROM optimization_events
-      WHERE account_id = ${accountId}
+      WHERE ${accountFilter(accountId)}
         AND event_category = 'bid_adjustment'
         AND action_type IN ('bid_increase', 'bid_decrease')
         AND created_at > DATE_SUB(NOW(), INTERVAL ${sql.raw(String(days))} DAY)
@@ -179,7 +179,7 @@ async function calculateRollbackRate(
  ELSE 0 
  END) as hard_rollback
  FROM optimization_events
- WHERE account_id = ${accountId}
+ WHERE ${accountFilter(accountId)}
  AND event_category = 'bid_adjustment'
  AND action_type IN ('bid_increase', 'bid_decrease')
  AND created_at > DATE_SUB(NOW(), INTERVAL ${sql.raw(String(days * 2))} DAY)
@@ -231,7 +231,7 @@ async function calculateAlgorithmActivation(
  action_detail,
  COUNT(*) as cnt
  FROM optimization_events
- WHERE account_id = ${accountId}
+ WHERE ${accountFilter(accountId)}
  AND event_category = 'bid_adjustment'
  AND status = 'success'
  AND created_at > DATE_SUB(NOW(), INTERVAL ${sql.raw(String(days))} DAY)
@@ -303,7 +303,7 @@ async function calculateAcosTrend(
  SUM(spend) as total_spend,
  SUM(sales) as total_sales
  FROM daily_performance
- WHERE accountId = ${accountId}
+ WHERE ${accountFilterCamel(accountId)}
  AND date >= DATE_SUB(CURDATE(), INTERVAL 3 DAY)
  `;
     const recentResult = await db.execute(recentQuery);
@@ -322,7 +322,7 @@ async function calculateAcosTrend(
         SUM(spend) as total_spend,
         SUM(sales) as total_sales
       FROM daily_performance
-      WHERE accountId = ${accountId}
+      WHERE ${accountFilterCamel(accountId)}
         AND date >= DATE_SUB(CURDATE(), INTERVAL 10 DAY)
         AND date < DATE_SUB(CURDATE(), INTERVAL 7 DAY)
     `;
@@ -341,7 +341,7 @@ async function calculateAcosTrend(
         SUM(spend) as total_spend,
         SUM(sales) as total_sales
       FROM daily_performance
-      WHERE accountId = ${accountId}
+      WHERE ${accountFilterCamel(accountId)}
         AND date >= DATE_SUB(CURDATE(), INTERVAL 17 DAY)
         AND date < DATE_SUB(CURDATE(), INTERVAL 14 DAY)
     `;
@@ -397,7 +397,7 @@ async function calculateBidIncreaseAnalysis(
  bid_change_percent,
  created_at
  FROM optimization_events
- WHERE account_id = ${accountId}
+ WHERE ${accountFilter(accountId)}
  AND event_category = 'bid_adjustment'
  AND action_type = 'bid_increase'
  AND status = 'success'
@@ -468,7 +468,7 @@ async function calculateCircuitBreakerRate(
     const totalQuery = sql`
  SELECT COUNT(*) as total
  FROM optimization_events
- WHERE account_id = ${accountId}
+ WHERE ${accountFilter(accountId)}
  AND event_category = 'bid_adjustment'
  AND created_at > DATE_SUB(NOW(), INTERVAL ${sql.raw(String(days))} DAY)
  `;
@@ -484,7 +484,7 @@ async function calculateCircuitBreakerRate(
         change_reason,
         COUNT(*) as cnt
       FROM optimization_events
-      WHERE account_id = ${accountId}
+      WHERE ${accountFilter(accountId)}
         AND event_category = 'bid_adjustment'
         AND created_at > DATE_SUB(NOW(), INTERVAL ${sql.raw(String(days))} DAY)
         AND (change_reason LIKE '%熔断%' OR change_reason LIKE '%circuit_breaker%' OR change_reason LIKE '%提价恢复%' OR change_reason LIKE '%曝光保护%')
@@ -580,11 +580,20 @@ function classifyCircuitBreakerReason(changeReason?: string | null): string {
  * 
  * 整合所有P0/P1监控指标，提供一站式健康评估
  */
+// v648: 账号过滤辅助函数 — accountId=0时返回1=1实现跨账号聚合
+function accountFilter(accountId: number): ReturnType<typeof sql> {
+  return accountId > 0 ? sql`account_id = ${accountId}` : sql`1=1`;
+}
+// v648: daily_performance表使用驼峰命名
+function accountFilterCamel(accountId: number): ReturnType<typeof sql> {
+  return accountId > 0 ? sql`accountId = ${accountId}` : sql`1=1`;
+}
+
 export async function getSystemHealthMetrics(
   accountId: number,
   days: number = 7
 ): Promise<SystemHealthMetrics> {
-  log.info(`[SystemHealth] 计算账户${accountId}的健康指标 (${days}天窗口)`);
+  log.info(`[SystemHealth] 计算${accountId > 0 ? `账户${accountId}` : '全局聚合'}的健康指标 (${days}天窗口)`);
 
   const [rollbackRate, algorithmActivation, acosTrend, bidIncreaseAnalysis, circuitBreakerRate] = await Promise.all([
     calculateRollbackRate(accountId, days),

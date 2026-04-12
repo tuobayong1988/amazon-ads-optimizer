@@ -79,9 +79,17 @@ type CorrectionAction =
   | 'retry_product_target_sync'   // v310: 重试商品定向同步
   | 'resync_data'                  // v344: 触发全量数据重新同步
   | 'cold_start'                   // v344: 触发冷启动流程
-  | 'rerun_correction_scan';       // v513: 重新运行纠错扫描
+  | 'rerun_correction_scan'       // v513: 重新运行纠错扫描
+  | 'cleanup_bid_set_backlog'      // v648: 清理bid_set积压+无效状态变更积压
+  | 'cleanup_harvest_backlog';     // v648: 清理搜索词收割积压
 
 const VERSION_CHANGELOG: VersionChange[] = [
+  {
+    version: 648,
+    description: 'v648: [全面监控排查修复+优化算法增强] — (1)P0-位置倾斜API推送: advancedPlacementService.ts的placement_adjustment分支补充Amazon SP API调用(updateSpCampaign+dynamicBidding.placementBidding),修复位置调整仅更新本地DB未传递到亚马逊的问题 (2)P0-bid_set状态修正: bidAdjustment.ts和optimizationEvents.ts中bidChange===0时apiSyncStatus标记为not_applicable而非synced,消除永久积压 (3)P1-大账号动态超时: unifiedSyncEngine.ts根据实体数量动态计算超时阈值(base+每100实体60s,上限3600s) (4)P1-空账号预检查: 同步引擎SP+SB+SD广告活动数均为0时跳过报告步骤 (5)P1-仪表板聚合修复: healthMetrics跨账号聚合显示 (6)P1-AutoCorrector过滤: 跳过archived/amazon_deleted实体 (7)P2-搜索词收割校验: 前置检查广告活动类型,SB/SD直接标记not_applicable (8)P2-积压清理: bid_set/搜索词收割历史积压一次性清理 (9)P2-状态变更修复: 检查并修复100%失败的根因',
+    affectedModules: ['sync', 'optimization', 'bid', 'placement', 'dashboard', 'correction'],
+    correctionActions: ['cleanup_bid_set_backlog', 'cleanup_harvest_backlog', 'rerun_correction_scan'],
+  },
   {
     version: 647,
     description: 'v647: [keywordId数据污染修复+无效实体出价过滤] — (1)P0-keywordId回填纯数字验证: keywordSync.ts和syncPerformance.ts的回填逻辑添加/^\\d+$/验证,防止text:前缀表达式和ASIN表达式污染keywordId字段 (2)P0-二次匹配修复机制: syncSp.ts和syncSb.ts添加adGroupId+keywordText+matchType二次匹配,当通过keywordId匹配不到时自动修复被污染的记录 (3)P0-keywordSync.ts SP/SB同步也添加二次匹配 (4)P2-出价执行器过滤: bidOptimizationExecutor.ts提前过滤archived/amazon_deleted/非数字keywordId的关键词和商品定向,避免无效API调用浪费配额 (5)永久防线保留: amazonApiHelper.ts的v646纯数字检查作为最后一道安全网',
@@ -1849,6 +1857,75 @@ async function reoptimizeTarget(
               log.info(`[PostDeployOptimizer] [${config.name}] v344: 冷启动已触发`);
             } catch (csErr: unknown) {
               errors.push(`冷启动触发失败: ${(csErr as Error).message}`);
+            }
+            break;
+          }
+          
+          // v648: 清理bid_set积压
+          case 'cleanup_bid_set_backlog': {
+            log.info(`[PostDeployOptimizer] [${config.name}] v648: 清理bid_set积压...`);
+            try {
+              const database = await getDb();
+              if (database) {
+                // 1. 将所有bid_set事件的apiSyncStatus从synced修正为not_applicable
+                const bidSetResult = await database.execute(
+                  sql`UPDATE optimization_events 
+                      SET api_sync_status = 'not_applicable',
+                          api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.v648_cleanup', 'bid_set_no_api_needed')
+                      WHERE action_type = 'bid_set' 
+                      AND api_sync_status IN ('synced', 'pending', 'failed')`
+                );
+                // @ts-ignore
+                const bidSetCleaned = (bidSetResult as Record<string, unknown>[])?.[0]?.affectedRows || 0;
+                log.info(`[PostDeployOptimizer] v648: 清理了 ${bidSetCleaned} 条bid_set积压`);
+                
+                // 2. 将所有bid_set的optimization_logs也修正
+                const bidSetLogsResult = await database.execute(
+                  sql`UPDATE optimization_logs 
+                      SET api_sync_status = 'not_applicable',
+                          error_message = CONCAT(COALESCE(error_message, ''), ' | v648: bid_set无需API同步')
+                      WHERE action_type = 'bid_set' 
+                      AND api_sync_status IN ('synced', 'pending', 'failed')`
+                );
+                // @ts-ignore
+                const bidSetLogsCleaned = (bidSetLogsResult as Record<string, unknown>[])?.[0]?.affectedRows || 0;
+                log.info(`[PostDeployOptimizer] v648: 清理了 ${bidSetLogsCleaned} 条bid_set日志积压`);
+                
+                // @ts-ignore
+                correctionsApplied += bidSetCleaned + bidSetLogsCleaned;
+                modulesExecuted.push('cleanup_bid_set_backlog');
+              }
+            } catch (cleanErr: unknown) {
+              errors.push(`v648 bid_set积压清理失败: ${(cleanErr as Error).message}`);
+            }
+            break;
+          }
+          
+          // v648: 清理搜索词收割积压（skipped_unsupported_campaign_type）
+          case 'cleanup_harvest_backlog': {
+            log.info(`[PostDeployOptimizer] [${config.name}] v648: 清理搜索词收割积压...`);
+            try {
+              const database = await getDb();
+              if (database) {
+                // 将skipped_unsupported_campaign_type的pending/failed事件标记为not_applicable
+                const harvestResult = await database.execute(
+                  sql`UPDATE optimization_events 
+                      SET api_sync_status = 'not_applicable',
+                          api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.v648_cleanup', 'harvest_unsupported_campaign_type')
+                      WHERE (action_type = 'search_term_harvest' OR action_type = 'keyword_create')
+                      AND api_sync_status IN ('pending', 'failed')
+                      AND (error_message LIKE '%unsupported_campaign_type%' OR error_message LIKE '%SB%' OR error_message LIKE '%SD%')`
+                );
+                // @ts-ignore
+                const harvestCleaned = (harvestResult as Record<string, unknown>[])?.[0]?.affectedRows || 0;
+                log.info(`[PostDeployOptimizer] v648: 清理了 ${harvestCleaned} 条搜索词收割积压`);
+                
+                // @ts-ignore
+                correctionsApplied += harvestCleaned;
+                modulesExecuted.push('cleanup_harvest_backlog');
+              }
+            } catch (cleanErr: unknown) {
+              errors.push(`v648 搜索词收割积压清理失败: ${(cleanErr as Error).message}`);
             }
             break;
           }

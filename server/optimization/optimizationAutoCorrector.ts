@@ -4443,6 +4443,75 @@ async function retryFailedTargetStatusChanges(database: unknown, accountId: numb
     
     log.warn(`v202: 账户${accountId} 发现${failedEvents.length}条失败的关键词状态变更需要重试`);
     
+    // v648: 预检机制 — 过滤已归档/已删除的关键词，避免无效API调用
+    const statusKwIds = failedEvents.map((e: any) => {
+      let detail: Record<string, unknown> = {};
+      if (e.actionDetail) {
+        try { detail = typeof e.actionDetail === 'string' ? JSON.parse(e.actionDetail) : e.actionDetail; } catch (_e: any) {}
+      }
+      return Number(detail.keywordId || e.keywordId) || 0;
+    }).filter((id: number) => id > 0);
+    
+    const invalidStatusKwIds = new Set<number>();
+    if (statusKwIds.length > 0) {
+      try {
+        // @ts-ignore
+        const kwStatusRows = await database
+          .select({ id: keywords.id, keywordStatus: keywords.keywordStatus })
+          .from(keywords)
+          .where(inArray(keywords.id, statusKwIds));
+        for (const row of kwStatusRows) {
+          if (row.keywordStatus === 'amazon_deleted' || row.keywordStatus === 'archived' || row.keywordStatus === 'amazon_archived') {
+            invalidStatusKwIds.add(row.id);
+          }
+        }
+        if (invalidStatusKwIds.size > 0) {
+          log.info(`v648: 账户${accountId} 状态变更预检发现${invalidStatusKwIds.size}个已归档/已删除的关键词`);
+          const invalidEventIds = failedEvents
+            .filter((e: any) => {
+              let detail: Record<string, unknown> = {};
+              if (e.actionDetail) {
+                try { detail = typeof e.actionDetail === 'string' ? JSON.parse(e.actionDetail) : e.actionDetail; } catch (_e: any) {}
+              }
+              const kwId = Number(detail.keywordId || e.keywordId) || 0;
+              return kwId > 0 && invalidStatusKwIds.has(kwId);
+            })
+            .map((e: any) => e.id);
+          if (invalidEventIds.length > 0) {
+            // @ts-ignore
+            await database.execute(sql`
+              UPDATE optimization_events 
+              SET api_sync_status = 'permanently_failed',
+                  error_message = CONCAT(COALESCE(error_message, ''), ' | v648: 实体已归档/删除，状态变更不再重试'),
+                  api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.v648_preflight', 'entity_archived_or_deleted')
+              WHERE id IN (${safeInClause(invalidEventIds)})
+            `);
+          }
+          for (const event of failedEvents.filter((e: any) => {
+            let detail: Record<string, unknown> = {};
+            if (e.actionDetail) {
+              try { detail = typeof e.actionDetail === 'string' ? JSON.parse(e.actionDetail) : e.actionDetail; } catch (_e: any) {}
+            }
+            const kwId = Number(detail.keywordId || e.keywordId) || 0;
+            return kwId > 0 && invalidStatusKwIds.has(kwId);
+          })) {
+            results.push({
+              type: 'status_change_retry',
+              accountId,
+              targetId: event.keywordId || 0,
+              targetType: 'keyword',
+              previousValue: '',
+              correctedValue: 'permanently_failed',
+              reason: `v648: 预检发现实体已归档/删除，标记为 permanently_failed`,
+              success: true,
+            });
+          }
+        }
+      } catch (preflightErr: unknown) {
+        log.warn(`v648: 账户${accountId} 状态变更预检失败: ${(preflightErr as Error).message}，继续正常重试流程`);
+      }
+    }
+    
     // 收集需要重试的状态变更
     const statusChanges: Array<{
       eventId: number;
@@ -4460,8 +4529,7 @@ async function retryFailedTargetStatusChanges(database: unknown, accountId: numb
           try { detail = typeof event.actionDetail === 'string' ? JSON.parse(event.actionDetail) : event.actionDetail; } catch (e: any) { log.debug(`[AutoCorrector] 非关键操作失败: ${(e as Error)?.message}`); }
         // @ts-ignore
         }
-        
-        // 从action_detail中提取本地keywordId
+                // 从 action_detail中提取本地keywordId
         const localKeywordId = detail.keywordId || event.keywordId;
         if (!localKeywordId) {
           // 无法确定关键词，标记为invalid_legacy
@@ -4470,6 +4538,11 @@ async function retryFailedTargetStatusChanges(database: unknown, accountId: numb
             apiSyncStatus: 'invalid_legacy',
             apiSyncDetail: JSON.stringify({ reason: 'v202: 无法确定keywordId', fixedAt: new Date().toISOString() }),
           }).where(eq(optimizationEvents.id, event.id));
+          continue;
+        }
+        
+        // v648: 跳过已被预检标记为无效的关键词
+        if (invalidStatusKwIds.has(Number(localKeywordId))) {
           continue;
         }
         

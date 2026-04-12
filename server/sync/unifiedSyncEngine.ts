@@ -1104,10 +1104,13 @@ const MAX_ABSOLUTE_TIMEOUT_MS = 6 * 60 * 60 * 1000; // 6小时绝对上限
 
 // v528: 动态超时常量（仅用于绝对超时安全网，不再是僵尸判定的主要依据）
 const DEFAULT_SYNC_TIMEOUT_MS = 60 * 60 * 1000; // 默认60分钟
+// v648: 增加中等账号超时分层，解决100-1000广告活动的账号同步超时问题
 const LARGE_ACCOUNT_TIMEOUT_TIERS = [
   { threshold: 5000, timeoutMs: 180 * 60 * 1000 },  // 5000+广告活动: 3小时
   { threshold: 3000, timeoutMs: 150 * 60 * 1000 },  // 3000-5000: 2.5小时
   { threshold: 1000, timeoutMs: 120 * 60 * 1000 },  // 1000-3000: 2小时
+  { threshold: 500, timeoutMs: 90 * 60 * 1000 },    // v648: 500-1000: 1.5小时
+  { threshold: 100, timeoutMs: 75 * 60 * 1000 },    // v648: 100-500: 1.25小时
 ];
 const NIGHTLY_SYNC_TIMEOUT_MS = 4 * 60 * 60 * 1000; // nightly层级: 4小时
 
@@ -1357,7 +1360,7 @@ export async function syncAccount(
     // 查询账户的广告活动数量，动态调整同步策略
     let campaignCount = 0;
     let isLargeAccount = false;
-    const LARGE_ACCOUNT_THRESHOLD = 1000; // 超过1000个广告活动视为大账户
+    const LARGE_ACCOUNT_THRESHOLD = 100; // v648: 降低阈值到100，使中等账号也能获得动态超时保护
     const LARGE_ACCOUNT_STEP_DELAY_MS = 10000; // v476: 大账户步骤间额外延迟10秒，优先保证100%成功率
     // v518: 使用全局动态超时常量（与僵尸清理、锁超时保持一致）
     let SYNC_TIMEOUT_MS = tier === 'nightly' ? NIGHTLY_SYNC_TIMEOUT_MS : DEFAULT_SYNC_TIMEOUT_MS;
@@ -1372,7 +1375,7 @@ export async function syncAccount(
         campaignCount = countResult[0]?.count || 0;
         isLargeAccount = campaignCount >= LARGE_ACCOUNT_THRESHOLD;
         if (isLargeAccount && tier !== 'nightly') {
-          // v518: 动态超时计算 - 使用全局常量，确保与僵尸清理/锁超时一致
+          // v648: 动态超时计算 - 覆盖100+广告活动的中等账号
           for (const t of LARGE_ACCOUNT_TIMEOUT_TIERS) {
             if (campaignCount >= t.threshold) {
               SYNC_TIMEOUT_MS = t.timeoutMs;
@@ -1391,9 +1394,28 @@ export async function syncAccount(
       log.debug(`[UnifiedSync] v340: 查询账户广告活动数失败: ${(e as Error).message}`);
     }
 
-    // v645: 空账户预检机制 — 对没有任何广告活动的账户，跳过报告类步骤以节省API配额和时间
-    // 只保留基础数据同步步骤（campaigns/ad_groups/keywords），跳过所有报告和绩效步骤
-    if (campaignCount === 0 && !options?.isManual) {
+    // v648: 增强空账户预检机制 — 不仅检查总数为0，还检查活跃广告活动数为0（全部已归档）
+    // 对没有活跃广告活动的账户，跳过报告类步骤以节省API配额和时间
+    let activeCampaignCount = campaignCount;
+    if (campaignCount > 0 && !options?.isManual) {
+      try {
+        const database = await db.getDb();
+        if (database) {
+          const { campaigns: campaignsTable } = await import('../../drizzle/schema');
+          const activeResult = await database
+            .select({ count: sql<number>`COUNT(*)` })
+            .from(campaignsTable)
+            .where(and(
+              eq(campaignsTable.accountId, account.accountId),
+              sql`${campaignsTable.campaignStatus} IN ('enabled', 'paused')`
+            ));
+          activeCampaignCount = activeResult[0]?.count || 0;
+        }
+      } catch (e: unknown) {
+        log.debug(`[v648] 查询活跃广告活动数失败: ${(e as Error).message}`);
+      }
+    }
+    if ((campaignCount === 0 || activeCampaignCount === 0) && !options?.isManual) {
       const REPORT_STEPS = new Set([
         'performance_today', 'performance_7d', 'performance_95d',
         'sp_search_terms', 'sb_search_terms',
@@ -1406,7 +1428,8 @@ export async function syncAccount(
       steps = steps.filter(s => !REPORT_STEPS.has(s.id));
       const skippedCount = originalCount - steps.length;
       if (skippedCount > 0) {
-        log.info(`[v645] 空账户预检: 账户${account.accountId}(${account.accountName})无广告活动，跳过${skippedCount}个报告步骤，仅执行${steps.length}个基础同步步骤`);
+        const reason = campaignCount === 0 ? '无广告活动' : `${campaignCount}个广告活动全部已归档(活跃${activeCampaignCount})`;
+        log.info(`[v648] 空账户预检: 账户${account.accountId}(${account.accountName})${reason}，跳过${skippedCount}个报告步骤，仅执行${steps.length}个基础同步步骤`);
         result.skippedSteps = (result.skippedSteps || 0) + skippedCount;
       }
       result.totalSteps = steps.length;

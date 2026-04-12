@@ -936,6 +936,24 @@ export async function executeOptimization(
         // 获取目标campaign的Amazon ID
         const harvestCampaign = await db.getCampaignById(targetCampaignIdFromReason);
         if (harvestCampaign) {
+          // v648: P2-1 前置校验——搜索词收割仅支持SP广告活动，SB/SD类型跳过
+          const harvestCampaignType = (harvestCampaign as any).campaignType || '';
+          if (harvestCampaignType && !harvestCampaignType.startsWith('sp')) {
+            log.warn(`[AutoExec] v648: 搜索词收割跳过非SP广告活动: campaignType=${harvestCampaignType}, campaign=${targetCampaignIdFromReason}`);
+            await db.createBiddingLog({
+              accountId,
+              campaignId: String(harvestCampaign.campaignId || ''),
+              internalAdGroupId: 0,
+              logTargetType: 'search_term_harvest',
+              targetId,
+              targetName: targetName || 'Search Term Harvest',
+              actionType: 'skip',
+              previousBid: '0',
+              newBid: '0',
+              reason: `[v648] 搜索词收割跳过: 目标Campaign类型为${harvestCampaignType}，仅支持SP类型`,
+            });
+            break;
+          }
           harvestCampaignId = harvestCampaign.campaignId || '';
           harvestAmazonCampaignId = String(harvestCampaign.campaignId || '');
           

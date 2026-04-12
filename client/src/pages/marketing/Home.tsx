@@ -998,9 +998,10 @@ function DashboardContent() {
   const { accountId: globalAccountId } = useGlobalAccountId();
   // @ts-ignore
   const selectedAccountId = globalAccountId || accountsWithPerformance?.[0]?.id;
+  // v648: 当没有选中账号时传accountId=0实现跨账号聚合
   const { data: healthMetrics } = trpc.monitoring.getHealthMetrics.useQuery(
-    { accountId: selectedAccountId!, days: 7 },
-    { enabled: !!user && !!selectedAccountId, refetchInterval: 5 * 60 * 1000, staleTime: 5 * 60 * 1000 }
+    { accountId: selectedAccountId || 0, days: 7 },
+    { enabled: !!user, refetchInterval: 5 * 60 * 1000, staleTime: 5 * 60 * 1000 }
   );
   
   // v261: 获取部署后纠错报告

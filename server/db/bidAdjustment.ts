@@ -115,7 +115,8 @@ export async function recordBidAdjustment(data: {
       optimizationScore: data.optimizationScore,
       expectedProfitIncrease: data.expectedProfitIncrease ? String(data.expectedProfitIncrease) : undefined,
       status: (statusMap[data.status || 'applied'] || 'success') as unknown,
-      apiSyncStatus: 'synced',
+      // v648: bid_set(bidChange===0)不需要API同步，标记为not_applicable避免永久积压
+      apiSyncStatus: bidChange === 0 ? 'not_applicable' : 'synced',
       errorMessage: data.errorMessage,
       sourceTable: 'bid_adjustment_history',
       sourceId: Number(result[0]?.insertId || 0),

@@ -9,6 +9,7 @@
  */
 
 import { getDb } from "./db";
+import * as dbModule from "./db";
 import { 
   bidObjectProfitEstimates,
   optimizationRecommendations,
@@ -20,6 +21,8 @@ import {
   campaigns
 } from "../drizzle/schema";
 import { eq, and, desc, gte, sql } from "drizzle-orm";
+import { createModuleLogger } from "./utils/logger";
+const log = createModuleLogger("AdvancedPlacement");
 
 // 获取db实例的辅助函数
 async function getDbInstance() {
@@ -715,10 +718,12 @@ export async function applyOptimizationRecommendation(
     // 根据建议类型执行不同的操作
     // @ts-ignore
     switch (rec.recommendationType) {
-      case 'placement_adjustment':
-        // 更新位置调整设置
+      case 'placement_adjustment': {
+        // v648: 更新位置调整设置 + 通过Amazon API推送到亚马逊
         // @ts-ignore
         const adjustmentValues = rec.recommendedValue as { topOfSearch: number; productPage: number };
+        
+        // Step 1: 更新本地数据库
         await db
           .update(placementSettings)
           .set({
@@ -734,7 +739,89 @@ export async function applyOptimizationRecommendation(
               eq(placementSettings.accountId, rec.accountId)
             )
           );
+        
+        // Step 2: v648 - 通过Amazon API将位置调整推送到亚马逊
+        // @ts-ignore
+        let placementApiSuccess = false;
+        try {
+          // @ts-ignore
+          const credentials = await dbModule.getAmazonApiCredentials(rec.accountId);
+          if (credentials) {
+            const { AmazonSyncService } = await import('./sync/amazonSyncService');
+            // @ts-ignore
+            const accountInfo = await dbModule.getAdAccountById(rec.accountId);
+            const syncSvc = await AmazonSyncService.createFromCredentials(
+              {
+                clientId: credentials.clientId,
+                clientSecret: credentials.clientSecret,
+                refreshToken: credentials.refreshToken,
+                profileId: credentials.profileId,
+                region: credentials.region as 'NA' | 'EU' | 'FE',
+              },
+              // @ts-ignore
+              rec.accountId,
+              0,
+              accountInfo?.marketplace || 'US'
+            );
+            
+            // 构建placementBidding数组 - 同时更新搜索顶部和商品详情页
+            const placementBidding: Array<{ placement: string; percentage: number }> = [];
+            if (adjustmentValues.topOfSearch >= 0) {
+              placementBidding.push({
+                placement: 'PLACEMENT_TOP',
+                percentage: Math.round(adjustmentValues.topOfSearch),
+              });
+            }
+            if (adjustmentValues.productPage >= 0) {
+              placementBidding.push({
+                placement: 'PLACEMENT_PRODUCT_PAGE',
+                percentage: Math.round(adjustmentValues.productPage),
+              });
+            }
+            
+            if (placementBidding.length > 0) {
+              // @ts-ignore
+              await syncSvc.client.updateSpCampaign(
+                // @ts-ignore
+                String(rec.campaignId),
+                {
+                  dynamicBidding: {
+                    placementBidding,
+                  },
+                } as Record<string, unknown>
+              );
+              placementApiSuccess = true;
+            }
+            // @ts-ignore
+            log.info(`[v648] 位置倾斜API推送成功: campaign=${rec.campaignId}, topOfSearch=${adjustmentValues.topOfSearch}%, productPage=${adjustmentValues.productPage}%`);
+          } else {
+            // @ts-ignore
+            log.warn(`[v648] 位置倾斜API推送跳过: account=${rec.accountId} 无有效凭证`);
+          }
+        } catch (placementApiErr: unknown) {
+          // @ts-ignore
+          log.warn(`[v648] 位置倾斜API推送失败 (campaign=${rec.campaignId}):`, (placementApiErr as Error).message);
+          // API推送失败不阻塞本地数据库更新，但记录错误
+        }
+        
+        // 同时更新campaigns表中的位置调整字段
+        // @ts-ignore
+        await db
+          .update(campaigns)
+          .set({
+            placementTopSearchBidAdjustment: Math.round(adjustmentValues.topOfSearch),
+            placementProductPageBidAdjustment: Math.round(adjustmentValues.productPage),
+          })
+          .where(
+            and(
+              // @ts-ignore
+              eq(campaigns.campaignId, String(rec.campaignId!)),
+              // @ts-ignore
+              eq(campaigns.accountId, rec.accountId)
+            )
+          );
         break;
+      }
       
       case 'bid_adjustment':
         // 更新关键词出价
