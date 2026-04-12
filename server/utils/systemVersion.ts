@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 650;  // v650: 修复 processSearchTermData 4个P0 Bug：字段名映射(searchTermImpressions等) + searchTermTargetType必填字段 + campaignId类型修正(Amazon varchar) + 移除不存在的adType字段 + 补充派生指标计算
+export const SYSTEM_VERSION = 651;  // v651: P0修复自动同步心跳机制(DB层心跳定时器始终启动) + P0清理SQL注释注入(amazonIdResolver/ops/dbRLS) + P1异步报告超时延长到30分钟 + cleanupStaleJobs阈值30分钟

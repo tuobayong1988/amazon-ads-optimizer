@@ -571,19 +571,40 @@ export class AsyncReportService {
           failed++;
           log.warn(`[AsyncReportService] Job ${job.id} failed: ${status.failureReason}`);
         } else {
-          // v649: 检查超时（提交超过20分钟的任务标记为失败）
+          // v651: 检查超时（提交超过30分钟的任务标记为expired，允许后续重试）
           const submittedAt = job.submittedAt ? new Date(job.submittedAt).getTime() : Date.now();
           const elapsed = Date.now() - submittedAt;
-          if (elapsed > 20 * 60 * 1000) {
-            await db
-              .update(reportJobs)
-              .set({
-                status: 'failed',
-                errorMessage: `v649: Report generation timeout after ${Math.round(elapsed / 60000)} minutes`,
-              })
-              .where(eq(reportJobs.id, job.id));
-            failed++;
-            log.warn(`[v649:AsyncReport] Job ${job.id} timed out after ${Math.round(elapsed / 60000)} minutes`);
+          const REPORT_TIMEOUT_MS = 30 * 60 * 1000; // 30分钟硬超时
+          if (elapsed > REPORT_TIMEOUT_MS) {
+            const retryCount = (job.retryCount || 0) + 1;
+            const maxRetries = job.maxRetries || 3;
+            if (retryCount >= maxRetries) {
+              // 超过最大重试次数，标记为最终失败
+              await db
+                .update(reportJobs)
+                .set({
+                  status: 'failed',
+                  retryCount,
+                  errorMessage: `v651: Report generation timeout after ${Math.round(elapsed / 60000)} min (max retries ${maxRetries} exhausted)`,
+                })
+                .where(eq(reportJobs.id, job.id));
+              failed++;
+              log.warn(`[v651:AsyncReport] Job ${job.id} permanently failed after ${retryCount} retries`);
+            } else {
+              // 标记为expired（可重试），重置为pending让submitPendingJobs重新提交
+              await db
+                .update(reportJobs)
+                .set({
+                  status: 'pending',
+                  retryCount,
+                  reportId: null,
+                  submittedAt: null,
+                  errorMessage: `v651: Timeout after ${Math.round(elapsed / 60000)} min, retry ${retryCount}/${maxRetries}`,
+                })
+                .where(eq(reportJobs.id, job.id));
+              pending++;
+              log.info(`[v651:AsyncReport] Job ${job.id} timed out, reset to pending for retry ${retryCount}/${maxRetries}`);
+            }
           } else {
             await db
               .update(reportJobs)

@@ -1057,7 +1057,6 @@ router.get('/nextgen-monitor', opsAuth, async (req: Request, res: Response) => {
     `));
     // @ts-ignore
     const featureCount = await db.execute(sql.raw(`
-      // @ts-ignore
       SELECT COUNT(*) as cnt FROM contextual_features WHERE updated_at >= '${since}'
     `));
     
@@ -1223,11 +1222,8 @@ router.get('/rl-diagnostics', opsAuth, async (req: Request, res: Response) => {
     
     // 3. 时间分布
     const timeDist = await db.execute(sql.raw(`
-      // @ts-ignore
       SELECT 
-        // @ts-ignore
         DATE_FORMAT(created_at, '%Y-%m-%d %H:00') as hour_bucket,
-        // @ts-ignore
         COUNT(*) as cnt,
         SUM(CASE WHEN reward_filled_at IS NOT NULL THEN 1 ELSE 0 END) as filled
       FROM rl_training_logs

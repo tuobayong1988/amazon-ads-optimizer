@@ -269,7 +269,6 @@ async function resolveKeywordIds(
             // @ts-ignore
             await conn.execute(
               `UPDATE keywords SET keywordId = ?,
-               // @ts-ignore
                accountId = COALESCE(accountId, ?),
                campaignId = COALESCE(campaignId, ?)
                WHERE id = ? AND keywordId IS NULL`,
@@ -384,10 +383,8 @@ async function resolveKeywordIds(
                     // v357: 创建成功时同时回填keywordId、accountId和campaignId
                     await conn.execute(
                       `UPDATE keywords SET keywordId = ?,
-                       // @ts-ignore
                        accountId = COALESCE(accountId, ?),
                        campaignId = COALESCE(campaignId, ?)
-                       // @ts-ignore
                        WHERE id = ? AND keywordId IS NULL`,
                       // @ts-ignore
                       [String(created.keywordId), accountId, String(amazonCampaignId), original.id]
@@ -662,10 +659,8 @@ export async function resolveKeywordIdOnDemand(
       `SELECT k.id, k.internal_ad_group_id, k.keywordText, k.matchType, k.bid, k.keywordStatus,
               ag.adGroupId AS amazonAdGroupId, c.campaignId AS amazonCampaignId
        FROM keywords k
-       // @ts-ignore
        INNER JOIN ad_groups ag ON k.internal_ad_group_id = ag.id
        INNER JOIN campaigns c ON ag.campaignId = c.campaignId
-       // @ts-ignore
        WHERE k.id = ? AND k.keywordId IS NULL`,
       // @ts-ignore
       [keywordLocalId]

@@ -85,6 +85,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 651,
+    description: 'v651: [P0自动同步心跳修复+SQL注释注入清理+异步报告超时优化] — (1)P0-自动同步心跳机制修复: unifiedSyncEngine.ts中心跳定时器改为始终启动(不再依赖onProgress回调),每1分钟更新DB中data_sync_jobs.updated_at,彻底解决自动同步时任务被15分钟cleanupStaleJobs误杀的根因 (2)P0-自动同步预创建job记录: 在syncAll循环中为每个账户预先创建running状态的data_sync_jobs记录,确保心跳定时器有记录可更新 (3)P0-SQL注释注入清理: 修复amazonIdResolver.ts中3处SQL字符串内部的//@ts-ignore(导致出价推送100%失败)+ops.ts中2处+dbRLS.ts中1处存储过程内注释 (4)P1-异步报告超时延长: asyncReportService.ts硬超时从20分钟延长到30分钟,超时任务标记为expired而非failed允许后续重试 (5)P1-cleanupStaleJobs阈值延长: dataSyncScheduler.ts中从15分钟延长到30分钟,与异步报告超时匹配,避免正常等待报告的任务被误杀',
+    affectedModules: ['sync'],
+    correctionActions: [],
+  },
+  {
     version: 650,
     description: 'v650: [修复 processSearchTermData 4个P0 Bug] — (1)P0-字段名映射修复: 搜索词异步报告写入字段名从 impressions/clicks/spend/sales/orders 修正为 searchTermImpressions/searchTermClicks/searchTermSpend/searchTermSales/searchTermOrders,与 drizzle/schema.ts 的 search_terms 表定义一致 (2)P0-searchTermTargetType必填字段: insert语句补充 NOT NULL 枚举字段,通过 row.targetId/row.keywordId 判断 keyword 或 product_target (3)P0-campaignId类型修正: 从 campaign.id(内部自增int) 改为 campaign.campaignId(Amazon varchar),与 searchTermSync.ts 一致 (4)P0-移除不存在的adType字段: search_terms表无adType列,从insertion中删除 (5)P1-派生指标计算: 补充 searchTermAcos/searchTermRoas/searchTermCtr/searchTermCvr/searchTermCpc 计算逻辑',
     affectedModules: ['sync'],

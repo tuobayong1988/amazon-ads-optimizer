@@ -1555,29 +1555,47 @@ export async function syncAccount(
         // v220: 记录API调用（每个步骤通常包含1-3个API调用）
         rateController.recordApiCall();
         
-        // v528: 心跳机制 - 同时更新DB(updated_at)和内存(activeSyncs.lastHeartbeat)
-        // 确保三层清理机制都能感知到任务活跃状态
+        // v651: 心跳机制 - 始终启动心跳定时器（不再依赖onProgress）
+        // v650审计发现：自动同步不传onProgress导致心跳不启动，15分钟后被cleanupStaleJobs误杀
+        // 修复：心跳定时器始终启动，同时更新内存心跳和DB心跳（通过直接UPDATE data_sync_jobs）
         let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
-        if (options?.onProgress) {
-          heartbeatTimer = setInterval(async () => {
-            try {
-              // 更新DB心跳(updated_at)
-              await options.onProgress!(step.name, i, steps.length);
-              // v528: 同步更新内存心跳，防止HealthMonitor误判为僵尸
-              const syncEntry = activeSyncs.get(lockKey);
-              if (syncEntry) {
-                syncEntry.lastHeartbeat = new Date();
-              }
-              log.debug(`[UnifiedSync] v528: 心跳更新(DB+内存) - 账户${account.accountId} 步骤[${i+1}/${steps.length}]: ${step.name}`);
-            } catch (hbErr: any) {
-              // 心跳失败不影响同步继续，但仍然更新内存心跳以防止误杀
-              const syncEntry = activeSyncs.get(lockKey);
-              if (syncEntry) {
-                syncEntry.lastHeartbeat = new Date();
+        heartbeatTimer = setInterval(async () => {
+          try {
+            // v651: 始终更新内存心跳，防止HealthMonitor误判为僵尸
+            const syncEntry = activeSyncs.get(lockKey);
+            if (syncEntry) {
+              syncEntry.lastHeartbeat = new Date();
+            }
+            // v651: 如果有onProgress回调（手动同步），通过回调更新DB
+            if (options?.onProgress) {
+              await options.onProgress(step.name, i, steps.length);
+            } else {
+              // v651: 自动同步 — 直接更新data_sync_jobs中该账户最近的running任务的updated_at
+              // MySQL的ON UPDATE CURRENT_TIMESTAMP会自动更新updated_at
+              try {
+                const database = await db.getDb();
+                if (database) {
+                  const { dataSyncJobs } = await import('../../drizzle/schema');
+                  await database.update(dataSyncJobs)
+                    .set({ currentStep: step.name, currentStepIndex: i, totalSteps: steps.length })
+                    .where(and(
+                      eq(dataSyncJobs.accountId, account.accountId),
+                      eq(dataSyncJobs.status, 'running')
+                    ));
+                }
+              } catch (dbErr: any) {
+                // DB更新失败不影响同步继续
               }
             }
-          }, 60 * 1000); // v521: 每1分钟发送一次心跳
-        }
+            log.debug(`[UnifiedSync] v651: 心跳更新(DB+内存) - 账户${account.accountId} 步骤[${i+1}/${steps.length}]: ${step.name}`);
+          } catch (hbErr: any) {
+            // 心跳失败不影响同步继续，但仍然更新内存心跳以防止误杀
+            const syncEntry = activeSyncs.get(lockKey);
+            if (syncEntry) {
+              syncEntry.lastHeartbeat = new Date();
+            }
+          }
+        }, 60 * 1000); // 每1分钟发送一次心跳
         
         const stepResult = await step.execute(syncService, context);
         
@@ -1989,7 +2007,71 @@ export async function syncAllAccounts(tier: SyncTier): Promise<BatchSyncResult> 
         const account = userAccounts[i];
         log.info(`[UnifiedSync] [v371] 同步用户${userId}账户 [${i + 1}/${userAccounts.length}]: ${account.accountId}(${account.accountName}) ${account.marketplace}`);
         
-        const accountResult = await syncAccount(account, tier);
+        // v651: 自动同步也创建running状态的data_sync_jobs记录，确保心跳定时器能找到并更新updated_at
+        let autoSyncJobId: number | null = null;
+        try {
+          const database = await db.getDb();
+          if (database) {
+            const { dataSyncJobs } = await import('../../drizzle/schema');
+            const insertResult = await database.insert(dataSyncJobs).values({
+              userId: account.userId || 390001,
+              accountId: account.accountId,
+              syncType: tier === 'high' ? 'campaigns' : tier === 'medium' ? 'targeting' : 'all',
+              status: 'running',
+              startedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+              currentStep: 'initializing',
+              totalSteps: 0,
+              currentStepIndex: 0,
+              progressPercent: 0,
+            });
+            autoSyncJobId = insertResult[0]?.insertId || null;
+            log.debug(`[UnifiedSync] v651: 自动同步创建Job#${autoSyncJobId} 账户${account.accountId}`);
+          }
+        } catch (jobCreateErr: any) {
+          log.debug(`[UnifiedSync] v651: 创建自动同步Job失败: ${(jobCreateErr as Error).message}`);
+        }
+        
+        // v651: 为自动同步创建onProgress回调，确保心跳定时器始终启动
+        const autoSyncOnProgress = async (step: string, index: number, total: number) => {
+          if (autoSyncJobId) {
+            try {
+              const database = await db.getDb();
+              if (database) {
+                const { dataSyncJobs } = await import('../../drizzle/schema');
+                const progressPercent = Math.round(((index + 1) / total) * 100);
+                await database.update(dataSyncJobs)
+                  .set({ currentStep: step, currentStepIndex: index, totalSteps: total, progressPercent })
+                  .where(eq(dataSyncJobs.id, autoSyncJobId));
+              }
+            } catch (e: any) {
+              // 心跳更新失败不影响同步继续
+            }
+          }
+        };
+        
+        const accountResult = await syncAccount(account, tier, { onProgress: autoSyncOnProgress });
+        
+        // v651: 更新自动同步Job的最终状态
+        if (autoSyncJobId) {
+          try {
+            const database = await db.getDb();
+            if (database) {
+              const { dataSyncJobs } = await import('../../drizzle/schema');
+              await database.update(dataSyncJobs)
+                .set({
+                  status: accountResult.success ? 'completed' : (accountResult.partialSuccess ? 'completed' : 'failed'),
+                  completedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+                  durationMs: accountResult.durationMs,
+                  errorMessage: accountResult.errors.length > 0 ? accountResult.errors.slice(0, 3).join('; ') : null,
+                  progressPercent: 100,
+                  recordsSynced: typeof accountResult.totalSynced === 'number' ? accountResult.totalSynced : 0,
+                })
+                .where(eq(dataSyncJobs.id, autoSyncJobId));
+            }
+          } catch (jobUpdateErr: any) {
+            log.debug(`[UnifiedSync] v651: 更新自动同步Job#${autoSyncJobId}最终状态失败: ${(jobUpdateErr as Error).message}`);
+          }
+        }
         
         // 统计结果
         batchResult.accountResults.push(accountResult);

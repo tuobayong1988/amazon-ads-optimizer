@@ -206,7 +206,6 @@ export async function initializeRLS(): Promise<{ success: boolean; viewsCreated:
             VALUES (p_user_id, p_table_name, p_account_id, TRUE);
           END IF;
         END
-      // @ts-ignore
       `));
       log.info('[RLS] RLS 访问验证存储过程已创建');
     } catch (err: unknown) {
