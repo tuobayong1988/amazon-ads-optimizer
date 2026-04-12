@@ -320,14 +320,23 @@ export async function syncBidAdjustmentsToAmazon(
       }
       
       if (amazonKeywordId && amazonKeywordId !== '0' && amazonKeywordId !== '' && !amazonKeywordId.startsWith('SKIP_')) {
-        resolvedKeywordBids.push({
-          keywordId: String(amazonKeywordId),
-          bid: Number(adj.newBid.toFixed(2)),
-          localId: adj.keywordId,
-          campaignType: kwInfo?.campaignType || 'sp_manual',
-          adGroupId: kwInfo?.adGroupId || '',
-          campaignId: kwInfo?.campaignId || '',
-        });
+        // v646补丁: 回填后也检查是否为纯数字ID，防止targeting表达式泄漏
+        const trimmedResolvedId = String(amazonKeywordId).trim();
+        if (!/^\d+$/.test(trimmedResolvedId)) {
+          log.warn(`[AmazonApiHelper] v646: 回填后检测到非数字amazonKeywordId="${trimmedResolvedId}"(keyword local_id=${adj.keywordId})，跳过关键词API路径`);
+          result.failed++;
+          result.errors.push(`keyword ${adj.keywordId}: keywordId为非数字表达式"${trimmedResolvedId}"，应通过product target API处理`);
+          result.itemResults.set(adj.keywordId, { status: 'failed', error: `keywordId为非数字表达式，应通过product target API处理` });
+        } else {
+          resolvedKeywordBids.push({
+            keywordId: trimmedResolvedId,
+            bid: Number(adj.newBid.toFixed(2)),
+            localId: adj.keywordId,
+            campaignType: kwInfo?.campaignType || 'sp_manual',
+            adGroupId: kwInfo?.adGroupId || '',
+            campaignId: kwInfo?.campaignId || '',
+          });
+        }
       } else {
         result.failed++;
         const errMsg = `keyword ${adj.keywordId}: 缺少Amazon ID（可重试）`;
