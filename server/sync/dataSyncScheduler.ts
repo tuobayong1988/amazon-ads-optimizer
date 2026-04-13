@@ -43,6 +43,7 @@ import {
   cleanupExpiredOverrides,
   getCoordinatorStatus,
   shouldAbortAutoSync,
+  checkMemoryPressure,
 } from './syncCoordinator';
 import { getBulkhead, type TaskCategory } from '../services/bulkheadService';
 import * as redisSyncQueue from './redisSyncQueue';
@@ -579,6 +580,22 @@ const schedulerSkipCount: Record<string, number> = {
  * 3. high层运行时，medium层正常执行（步骤不重叠，但会串行等待API资源）
  */
 async function executeUnifiedSync(tier: SyncTier): Promise<void> {
+  // ==================== v658: 内存压力检查 ====================
+  // 在获取互斥锁之前先检查内存压力，危急时直接跳过同步
+  const memPressure = checkMemoryPressure();
+  if (memPressure.shouldPauseSyncs) {
+    log.warn(`[DataSyncScheduler] v658: ${tier}层跳过 - ${memPressure.description}`);
+    logSync('DataSyncScheduler', `v658: 内存危急跳过${tier}层同步`, { tier, rssMB: memPressure.rssMB, heapUsedMB: memPressure.heapUsedMB });
+    if (memPressure.shouldForceGC && typeof global.gc === 'function') {
+      global.gc();
+      log.info(`[DataSyncScheduler] v658: 已触发GC (RSS=${memPressure.rssMB}MB)`);
+    }
+    return;
+  }
+  if (memPressure.level !== 'normal') {
+    log.info(`[DataSyncScheduler] v658: 内存压力等级=${memPressure.level}, ${memPressure.description}`);
+  }
+
   // ==================== v488: SyncCoordinator 全局互斥保护 ====================
   // 同一时间只允许一个同步层级运行，彻底消除层级间并发导致的API限流
   const mutexAcquired = acquireGlobalMutex(tier);

@@ -85,6 +85,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 658,
+    description: 'v658: [稳定性优先重构] — (1)真正全局互斥锁: syncCoordinator从stub升级为内存级互斥锁,同一时间只允许一个同步层级运行,含60分钟死锁保护 (2)内存压力感知: 4级内存压力检测(normal/elevated/high/critical),危急时暂停同步+触发GC,动态调整并发数 (3)步骤级超时保护: 普通账扃5分钟/步骤,大账户10分钟/步骤,防止SB素材URL等步骤卡死 (4)并发上限降低: PARALLEL_USERS从10降至3,账户间隔固定15秒 (5)API频率控制加强: 全局TPS降低50%(list:30→15,mutate:15→8),步骤间延迟从2s到3s,批次延迟从2s到5s',
+    affectedModules: ['sync', 'optimization', 'system'],
+    correctionActions: [],
+  },
+  {
     version: 657,
     description: 'v657: [智能节流+类型安全基础设施+空账户监控] — (1)P2-部署恢复智能节流: 步骤4e重优化时根据目标实际执行情况动态调整等待时间,无API调用目标从30秒降至2秒,无操作批次间等待从10秒降至1秒,预计部署恢复时间从40分钟压缩至15分钟以内 (2)P3-类型安全基础设施: 创建server/db/types.ts提供typedQuery/typedExecute/typedQueryOne/typedAggregate类型安全查询工具,在optimizationAutoCorrector.ts中示范消除了91个DB相关@ts-expect-error(329→238) (3)P3-空账户监控指标: 导出getEmptyAccountStats()到/api/ops/status端点,展示空账户数量/诊断历史/节省API请求数',
     affectedModules: ['optimization', 'sync', 'system'],

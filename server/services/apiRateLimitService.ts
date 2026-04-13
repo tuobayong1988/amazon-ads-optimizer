@@ -193,36 +193,38 @@ const DEFAULT_ENDPOINT_CONFIGS: Record<ApiEndpointType, EndpointRateConfig> = {
  * 所有账户共享的全局限额，防止多账户并发超过Amazon应用级限制
  * 通常为单账户限额的3-5倍
  */
+// v658: 降低全局TPS上限，稳定性优先于效率
+// 核心原则：宁可慢一点，也要确保每个请求都成功
 const GLOBAL_ENDPOINT_CONFIGS: Record<ApiEndpointType, EndpointRateConfig> = {
   list: {
-    maxRequestsPerSecond: 30,
-    maxRequestsPerMinute: 1500,
-    burstCapacity: 50,
-    refillRatePerSecond: 30,
-  },
-  mutate: {
-    maxRequestsPerSecond: 15,
-    maxRequestsPerMinute: 750,
-    burstCapacity: 25,
+    maxRequestsPerSecond: 15,     // v658: 从30降到15
+    maxRequestsPerMinute: 600,    // v658: 从1500降到600
+    burstCapacity: 20,            // v658: 从50降到20
     refillRatePerSecond: 15,
   },
-  report: {
-    maxRequestsPerSecond: 5,
-    maxRequestsPerMinute: 150,
-    burstCapacity: 10,
-    refillRatePerSecond: 5,
+  mutate: {
+    maxRequestsPerSecond: 8,      // v658: 从15降到8
+    maxRequestsPerMinute: 300,    // v658: 从750降到300
+    burstCapacity: 12,            // v658: 从25降到12
+    refillRatePerSecond: 8,
   },
-  snapshot: {
-    maxRequestsPerSecond: 3,
-    maxRequestsPerMinute: 60,
-    burstCapacity: 5,
+  report: {
+    maxRequestsPerSecond: 3,      // v658: 从5降到3
+    maxRequestsPerMinute: 90,     // v658: 从150降到90
+    burstCapacity: 5,             // v658: 从10降到5
     refillRatePerSecond: 3,
   },
+  snapshot: {
+    maxRequestsPerSecond: 2,      // v658: 从3降到2
+    maxRequestsPerMinute: 30,     // v658: 从60降到30
+    burstCapacity: 3,             // v658: 从5降到3
+    refillRatePerSecond: 2,
+  },
   default: {
-    maxRequestsPerSecond: 20,
-    maxRequestsPerMinute: 800,
-    burstCapacity: 30,
-    refillRatePerSecond: 20,
+    maxRequestsPerSecond: 10,     // v658: 从20降到10
+    maxRequestsPerMinute: 400,    // v658: 从800降到400
+    burstCapacity: 15,            // v658: 从30降到15
+    refillRatePerSecond: 10,
   },
 };
 

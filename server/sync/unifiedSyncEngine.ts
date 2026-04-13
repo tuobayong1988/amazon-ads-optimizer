@@ -52,14 +52,14 @@ const log = createModuleLogger('UnifiedSync');
 class ApiRateController {
   // 滑动窗口配置
   private windowMs = 60_000; // 1分钟窗口
-  private maxCallsPerWindow = 120; // 每分钟最多120次API调用（保守值，实际限额更高）
+  private maxCallsPerWindow = 60; // v658: 每分钟最多60次API调用（从120降低，稳定性优先）
   private callTimestamps: number[] = [];
   
   // 自适应速率
-  private baseStepDelayMs = 2000; // v476: 步骤间基础延迟2秒，优先保证100%成功率
-  private currentStepDelayMs = 2000; // v476: 当前步骤间延迟
-  private baseBatchDelayMs = 2000; // 批次间基础延迟
-  private currentBatchDelayMs = 2000; // 当前批次间延迟
+  private baseStepDelayMs = 3000; // v658: 步骤间基础延迟3秒（从2秒提升，确保每个API调用有充足时间）
+  private currentStepDelayMs = 3000; // v658: 当前步骤间延迟
+  private baseBatchDelayMs = 5000; // v658: 批次间基础延迟5秒（从2秒提升）
+  private currentBatchDelayMs = 5000; // v658: 当前批次间延迟
   
   // 限流反馈
   private throttleCount = 0; // 当前窗口内被限流次数
@@ -1693,7 +1693,16 @@ export async function syncAccount(
           }
         }, 60 * 1000); // 每1分钟发送一次心跳
         
-        const stepResult = await step.execute(syncService, context);
+        // v658: 步骤级独立超时保护 — 防止单个步骤卡死导致整个同步阻塞
+        // 普通账户: 5分钟/步骤, 大账户: 10分钟/步骤
+        const STEP_TIMEOUT_MS = isLargeAccount ? 10 * 60 * 1000 : 5 * 60 * 1000;
+        const stepTimeoutPromise = new Promise<never>((_, reject) => {
+          setTimeout(() => reject(new Error(`STEP_TIMEOUT: 步骤${step.name}超时(${STEP_TIMEOUT_MS / 60000}分钟)`)), STEP_TIMEOUT_MS);
+        });
+        const stepResult = await Promise.race([
+          step.execute(syncService, context),
+          stepTimeoutPromise,
+        ]);
         
         // v408: 清除心跳定时器
         if (heartbeatTimer) {
@@ -2123,17 +2132,28 @@ export async function syncAllAccounts(tier: SyncTier): Promise<BatchSyncResult> 
   const interleaved = interleaveAccountsByUser(accounts);
   log.info(`[UnifiedSync] [v373] 发现 ${allAccounts.length} 个账户，本周期同步 ${accounts.length} 个（最大并发: ${MAX_CONCURRENT_ACCOUNTS}）`);
 
-  // v373: 动态并发控制 - 根据API限流反馈自动调整
+  // v658: 稳定性优先的并发控制 — 基于内存压力动态调整
+  // 核心原则：每个同步任务都必须有充足资源确保成功执行
   let PARALLEL_USERS: number;
   let ACCOUNT_DELAY_MS: number;
   try {
-    const { getCurrentConcurrency, getCurrentBatchDelay } = await import('../services/syncPriorityScheduler');
-    PARALLEL_USERS = Math.min(getCurrentConcurrency(), 10);
-    ACCOUNT_DELAY_MS = Math.max(getCurrentBatchDelay(), 1000);
-    log.info(`[UnifiedSync] [v373] 动态并发: ${PARALLEL_USERS}用户并行, 批次延迟${ACCOUNT_DELAY_MS}ms`);
+    const { checkMemoryPressure } = await import('./syncCoordinator');
+    const memPressure = checkMemoryPressure();
+    PARALLEL_USERS = Math.min(memPressure.maxConcurrency, 3); // v658: 上限从10降到3
+    ACCOUNT_DELAY_MS = 15000; // v658: 固定15秒间隔，确保每个账户有充足时间
+    if (memPressure.shouldForceGC && typeof global.gc === 'function') {
+      global.gc();
+      log.info(`[UnifiedSync] v658: 同步前触发GC (RSS=${memPressure.rssMB}MB)`);
+    }
+    if (memPressure.shouldPauseSyncs) {
+      log.warn(`[UnifiedSync] v658: 内存危急(RSS=${memPressure.rssMB}MB)，跳过本轮同步`);
+      return batchResult;
+    }
+    log.info(`[UnifiedSync] v658: 内存感知并发控制: ${PARALLEL_USERS}用户并行, 账户间隔${ACCOUNT_DELAY_MS}ms, 内存压力=${memPressure.level}(RSS=${memPressure.rssMB}MB)`);
   } catch {
-    PARALLEL_USERS = Math.min(MAX_CONCURRENT_ACCOUNTS, 5);
-    ACCOUNT_DELAY_MS = 10000;  // v476: 账户间延迟10秒，优先保证100%成功率
+    PARALLEL_USERS = 2; // v658: 回退值从5降到2
+    ACCOUNT_DELAY_MS = 15000;
+    log.info(`[UnifiedSync] v658: 使用回退并发控制: ${PARALLEL_USERS}用户并行, 账户间隔${ACCOUNT_DELAY_MS}ms`);
   }
   
   // 按用户分组

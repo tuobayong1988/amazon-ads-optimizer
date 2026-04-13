@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 657;  // v657: 智能节流优化(部署恢复40min→15min) + 类型安全基础设施(db/types.ts+91个@ts-expect-error消除) + 空账户监控指标
+export const SYSTEM_VERSION = 658;  // v658: 稳定性优先重构 — 真正全局互斥锁+内存压力感知+步骤级超时+并发上限降低+API频率控制加强
