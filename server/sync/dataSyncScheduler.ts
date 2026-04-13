@@ -77,8 +77,8 @@ const SYNC_TIER_CONFIG: Record<SyncTier, {
     syncTypes: ['full_sync'],
   },
   full: {
-    intervalMs: 3 * 60 * 60 * 1000, // v488: 3小时（从2小时调整，给API令牌桶充足的恢复时间）
-    description: 'v488: 完整同步 - 所有数据（SP 90天/SB 60天/SD 90天），每3小时',
+    intervalMs: 24 * 60 * 60 * 1000, // v659: 24小时（从3小时降频，成功率优先于效率，每天一次全量同步即可）
+    description: 'v659: 完整同步 - 所有数据，每24小时（PST凌晨3点），严格串行执行',
     syncTypes: ['all'],
   },
   nightly: {
@@ -271,13 +271,32 @@ async function startSchedulerTasks(defaultIntervalMs: number): Promise<void> {
   }, SYNC_TIER_CONFIG.medium.intervalMs);
   log.info(`[DataSyncScheduler] v219: 中频同步已启动，间隔: ${SYNC_TIER_CONFIG.medium.intervalMs / 1000 / 60} 分钟`);
 
-  // 完整同步：使用传入的间隔（默认60分钟）
-  schedulerIntervals.full = setInterval(async () => {
-    await executeUnifiedSync('full');
-  }, defaultIntervalMs);
-  
-  schedulerStatus.nextRunTime = new Date(Date.now() + defaultIntervalMs);
-  log.info(`[DataSyncScheduler] v219: 完整同步已启动，间隔: ${defaultIntervalMs / 1000 / 60} 分钟`);
+  // v659: 全量同步降频至每24小时一次，在PST凌晨3点执行（与nightly的2点错开1小时）
+  // 核心原则：成功率优先于效率，同一时间只有1个账户执行全量同步
+  // PST 3:00 AM = UTC 11:00 AM
+  const fullSyncDelayMs = (() => {
+    const now = new Date();
+    const nextFullSync = new Date(now);
+    nextFullSync.setUTCHours(11, 0, 0, 0); // PST 3:00 AM = UTC 11:00
+    if (nextFullSync.getTime() <= now.getTime()) {
+      nextFullSync.setDate(nextFullSync.getDate() + 1);
+    }
+    return nextFullSync.getTime() - now.getTime();
+  })();
+  setTimeout(() => {
+    // @ts-expect-error - legacy type assertion
+    log.info('[DataSyncScheduler] v659: 全量同步首次执行（PST凌晨3点 = UTC 11:00，每24小时一次）...');
+    // @ts-expect-error - legacy type assertion
+    executeUnifiedSync('full' as unknown);
+    // 启动每24小时循环
+    // @ts-expect-error - legacy type assertion
+    schedulerIntervals.full = setInterval(async () => {
+      log.info('[DataSyncScheduler] v659: 全量同步定时执行（PST凌晨3点，每24小时）...');
+      // @ts-expect-error - legacy type assertion
+      await executeUnifiedSync('full' as unknown);
+    }, 24 * 60 * 60 * 1000); // 24小时
+  }, fullSyncDelayMs);
+  log.info(`[DataSyncScheduler] v659: 全量同步已调度（每24小时），首次执行将在 ${Math.round(fullSyncDelayMs / 1000 / 60)} 分钟后（PST凌晨3点 = UTC 11:00）`);
   // v406: 夜间同步：计算距离下一个 PST 凌晨2点的毫秒数
   // 服务器运行在UTC，但广告数据以PST时区为准，所以nightly同步应在PST凌晨2点执行
   // PST = UTC-8，所以PST 2:00 AM = UTC 10:00 AM
@@ -360,10 +379,11 @@ async function startSchedulerTasks(defaultIntervalMs: number): Promise<void> {
       // 清理全局变量
       delete (global as Record<string, unknown>).__interrupted_sync_jobs;
     } else {
-      // 无中断任务，执行常规的启动后完整同步
-      log.info('[DataSyncScheduler] v411: 无中断任务，执行常规启动后完整同步（60秒延迟）...');
-      const result = await executeUnifiedSync('full');
-      log.info('[DataSyncScheduler] v411: 启动后完整同步已完成');
+      // v659: 启动后先执行high增量同步（快速恢复广告活动状态），全量同步等待定时调度（PST凌晨3点）
+      // 核心原则：启动后不急于全量同步，先确保增量数据流畅通
+      log.info('[DataSyncScheduler] v659: 无中断任务，执行启动后high增量同步（快速恢复广告状态）...');
+      const result = await executeUnifiedSync('high');
+      log.info('[DataSyncScheduler] v659: 启动后high增量同步已完成，全量同步将在定时调度时执行');
     }
     
     // 同步完成后验证结果

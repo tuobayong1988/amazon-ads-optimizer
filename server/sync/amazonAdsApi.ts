@@ -6519,11 +6519,43 @@ export class AmazonAdsApiClient {
   async resolveAssetUrls(assetIds: string[]): Promise<Map<string, { url: string; thumbnailUrl?: string; type?: string }>> {
     const result = new Map<string, { url: string; thumbnailUrl?: string; type?: string }>();
     
-    for (const assetId of assetIds) {
+    // v659: 稳定性保护机制
+    const MAX_ASSETS_PER_BATCH = 50;  // 每次最多处理50个素材
+    const MAX_DURATION_MS = 3 * 60 * 1000; // 整体3分钟超时
+    const MAX_CONSECUTIVE_FAILURES = 5; // 连续5次失败则中止
+    const startTime = Date.now();
+    let consecutiveFailures = 0;
+    
+    // 截取到批量上限
+    const assetsToProcess = assetIds.slice(0, MAX_ASSETS_PER_BATCH);
+    if (assetIds.length > MAX_ASSETS_PER_BATCH) {
+      log.info(`[Assets API] v659: 素材数量${assetIds.length}超过批量上限${MAX_ASSETS_PER_BATCH}，截取处理前${MAX_ASSETS_PER_BATCH}个`);
+    }
+    
+    for (const assetId of assetsToProcess) {
       if (!assetId) continue;
+      
+      // v659: 整体超时保护
+      if (Date.now() - startTime > MAX_DURATION_MS) {
+        log.warn(`[Assets API] v659: 素材URL解析超时(${Math.round((Date.now() - startTime) / 1000)}s)，已解析${result.size}个，中止剩余`);
+        break;
+      }
+      
+      // v659: 连续失败保护
+      if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+        log.warn(`[Assets API] v659: 连续${consecutiveFailures}次失败，中止素材URL解析（已解析${result.size}个）`);
+        break;
+      }
+      
       try {
         const assetData = await this.getAssetDetails(assetId);
-        if (!assetData) continue;
+        if (!assetData) {
+          consecutiveFailures++;
+          continue;
+        }
+        
+        // 成功获取数据，重置连续失败计数
+        consecutiveFailures = 0;
         
         // @ts-expect-error - legacy type assertion
         const version = assetData.assetVersionList?.[0];
@@ -6532,6 +6564,17 @@ export class AmazonAdsApiClient {
         
         let url = version?.url || version?.assetFiles?.defaultUrl || version?.storageLocationUrls?.defaultUrl || '';
         let thumbnailUrl = '';
+        
+        // 从storageLocationUrls.processedUrls中提取
+        if (version?.storageLocationUrls?.processedUrls) {
+          const processedUrls = version.storageLocationUrls.processedUrls;
+          if (processedUrls['VIDEO_DEFAULT_OPTIMIZED'] && !url) {
+            url = processedUrls['VIDEO_DEFAULT_OPTIMIZED'];
+          }
+          if (processedUrls['IMAGE_THUMBNAIL_500']) {
+            thumbnailUrl = processedUrls['IMAGE_THUMBNAIL_500'];
+          }
+        }
         
         // 从processedFiles中提取优化后的URL
         if (version?.assetFiles?.processedFiles) {
@@ -6545,28 +6588,19 @@ export class AmazonAdsApiClient {
           }
         }
         
-        // 从storageLocationUrls.processedUrls中提取
-        if (version?.storageLocationUrls?.processedUrls) {
-          const processedUrls = version.storageLocationUrls.processedUrls;
-          if (processedUrls['VIDEO_DEFAULT_OPTIMIZED'] && !url) {
-            url = processedUrls['VIDEO_DEFAULT_OPTIMIZED'];
-          }
-          if (processedUrls['IMAGE_THUMBNAIL_500']) {
-            thumbnailUrl = processedUrls['IMAGE_THUMBNAIL_500'];
-          }
-        }
-        
         if (url) {
           result.set(assetId, { url, thumbnailUrl, type: assetType });
         }
         
-        // 限速 - 避免API请求过快
-        await new Promise(resolve => setTimeout(resolve, 200));
+        // v659: 加大请求间隔至1秒，确保不触发API限流
+        await new Promise(resolve => setTimeout(resolve, 1000));
       } catch (error: unknown) {
+        consecutiveFailures++;
         log.warn(`[Assets API] Error resolving asset ${assetId}:`, (error as Error).message);
       }
     }
     
+    log.info(`[Assets API] v659: 素材URL解析完成，耗时${Math.round((Date.now() - startTime) / 1000)}s，成功${result.size}/${assetsToProcess.length}`);
     return result;
   }
 

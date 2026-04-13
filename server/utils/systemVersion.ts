@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 658;  // v658: 稳定性优先重构 — 真正全局互斥锁+内存压力感知+步骤级超时+并发上限降低+API频率控制加强
+export const SYSTEM_VERSION = 659;  // v659: 长跑赛制同步架构重构 — 严格串行+错峰出发+全量24h降频+步骤级智能超时+SB素材卡死修复

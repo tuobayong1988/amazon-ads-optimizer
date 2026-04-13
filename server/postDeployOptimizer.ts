@@ -85,6 +85,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 659,
+    description: 'v659: [长跑赛制同步架构重构] — (1)严格串行+错峰出发: syncAllAccounts从用户批次并行改为全局严格串行,空/小账户先跑大账户后跑,账户间动态延迟(成功15s/限浅60s/失败120s),每账户完成后内存检查+GC (2)全量同步24h降频: full层从PST凌晨3点每24小时执行一次,per-account 24h频率控制避免重复同步,账户按大小排序确保错峰 (3)full/nightly严格串行: syncTaskConsumer对full/nightly层MAX_CONCURRENT=1 (4)步骤级智能超时: 列表3min/报告10-15min/素材竞价5min,替代固定5/10min一刀切 (5)SB素材URL卡死修复: resolveAssetUrls批量上限50+3min整体超时+连续5次失败中止+请求间隔1s',
+    affectedModules: ['sync', 'system'],
+    correctionActions: [],
+  },
+  {
     version: 658,
     description: 'v658: [稳定性优先重构] — (1)真正全局互斥锁: syncCoordinator从stub升级为内存级互斥锁,同一时间只允许一个同步层级运行,含60分钟死锁保护 (2)内存压力感知: 4级内存压力检测(normal/elevated/high/critical),危急时暂停同步+触发GC,动态调整并发数 (3)步骤级超时保护: 普通账扃5分钟/步骤,大账户10分钟/步骤,防止SB素材URL等步骤卡死 (4)并发上限降低: PARALLEL_USERS从10降至3,账户间隔固定15秒 (5)API频率控制加强: 全局TPS降低50%(list:30→15,mutate:15→8),步骤间延迟从2s到3s,批次延迟从2s到5s',
     affectedModules: ['sync', 'optimization', 'system'],

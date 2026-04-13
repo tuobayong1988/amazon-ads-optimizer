@@ -20,6 +20,7 @@ export async function enqueueSyncTier(tier2) {
     totalAccounts: 0,
     enqueued: 0,
     skipped: 0,
+    skippedRecently: 0, // v659: 跟踪因近期已同步而跳过的账户数
     mode: "direct"
   };
   if (!isRedisQueueEnabled()) {
@@ -28,7 +29,32 @@ export async function enqueueSyncTier(tier2) {
     return result;
   }
   try {
-    const accounts = await getActiveAccounts();
+    let accounts = await getActiveAccounts();
+    
+    // v659: full层添加per-account 24小时频率控制
+    // 如果账户在过24小时内已成功完成全量同步，则跳过
+    if (tier2 === 'full' || tier2 === 'nightly') {
+      const eligibleAccounts = [];
+      let skippedRecently = 0;
+      for (const account of accounts) {
+        const recentlysynced = await hasRecentFullSync(account.id, 24);
+        if (recentlysynced) {
+          skippedRecently++;
+        } else {
+          eligibleAccounts.push(account);
+        }
+      }
+      result.skippedRecently = skippedRecently;
+      if (skippedRecently > 0) {
+        log143.info(`[v659] ${tier2}层: ${skippedRecently}个账户近24h内已同步，跳过；${eligibleAccounts.length}个账户需要同步`);
+      }
+      accounts = eligibleAccounts;
+      
+      // v659: 按账户大小排序（小账户先入队，错峰出发）
+      // 这样小账户快速完成后，大账户可以独占资源
+      accounts = await sortAccountsBySize(accounts);
+    }
+    
     result.totalAccounts = accounts.length;
     if (accounts.length === 0) {
       log143.info(`[v580] \u65E0\u6D3B\u8DC3\u8D26\u6237\u9700\u8981\u540C\u6B65\uFF0Ctier=${tier2}`);
@@ -134,4 +160,59 @@ async function getActiveAccounts() {
     return [];
   }
 }
+// v659: 检查账户在指定小时内是否已成功完成全量同步
+async function hasRecentFullSync(accountId: number, hoursThreshold: number): Promise<boolean> {
+  try {
+    const db = await getDb();
+    if (!db) return false;
+    const cutoff = new Date(Date.now() - hoursThreshold * 60 * 60 * 1000).toISOString();
+    const result = await db.execute(sql`
+      SELECT COUNT(*) as cnt FROM data_sync_jobs
+      WHERE account_id = ${accountId}
+        AND tier = 'full'
+        AND status = 'completed'
+        AND completed_at > ${cutoff}
+    `);
+    // @ts-expect-error - dynamic query result
+    const rows = Array.isArray(result) ? result[0] : result.rows || result;
+    // @ts-expect-error - dynamic query result
+    const cnt = Array.isArray(rows) && rows.length > 0 ? Number(rows[0].cnt || rows[0].CNT || 0) : 0;
+    return cnt > 0;
+  } catch (e) {
+    // 查询失败时保守处理：允许同步（宁可多同步不可漏同步）
+    return false;
+  }
+}
+
+// v659: 按账户大小排序（小账户先入队，错峰出发）
+async function sortAccountsBySize(accounts: Array<{id: number; accountName: string; marketplace: string}>): Promise<Array<{id: number; accountName: string; marketplace: string}>> {
+  try {
+    const db = await getDb();
+    if (!db) return accounts;
+    // 查询每个账户的广告活动数量作为大小指标
+    const accountIds = accounts.map(a => a.id);
+    if (accountIds.length === 0) return accounts;
+    const sizeResult = await db.execute(sql`
+      SELECT account_id, COUNT(*) as campaign_count
+      FROM campaigns
+      WHERE account_id IN (${sql.join(accountIds.map(id => sql`${id}`), sql`, `)})
+      GROUP BY account_id
+    `);
+    // @ts-expect-error - dynamic query result
+    const rows = Array.isArray(sizeResult) ? sizeResult[0] : sizeResult.rows || sizeResult;
+    const sizeMap = new Map<number, number>();
+    if (Array.isArray(rows)) {
+      for (const row of rows) {
+        // @ts-expect-error - dynamic query result
+        sizeMap.set(Number(row.account_id), Number(row.campaign_count || 0));
+      }
+    }
+    // 按广告活动数量升序排列（小账户先跑）
+    return accounts.sort((a, b) => (sizeMap.get(a.id) || 0) - (sizeMap.get(b.id) || 0));
+  } catch (e) {
+    // 排序失败不影响正常流程
+    return accounts;
+  }
+}
+
 var import_crypto5, log143;

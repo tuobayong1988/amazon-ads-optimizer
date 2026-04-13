@@ -1696,9 +1696,35 @@ export async function syncAccount(
           }
         }, 60 * 1000); // 每1分钟发送一次心跳
         
-        // v658: 步骤级独立超时保护 — 防止单个步骤卡死导致整个同步阻塞
-        // 普通账户: 5分钟/步骤, 大账户: 10分钟/步骤
-        const STEP_TIMEOUT_MS = isLargeAccount ? 10 * 60 * 1000 : 5 * 60 * 1000;
+        // v659: 步骤级智能超时 — 根据步骤类型设置合理超时
+        // 列表步骤(campaigns/ad_groups/keywords): 3分钟
+        // 报告步骤(performance/search_terms/placement): 15分钟（报告下载耗时较长）
+        // 素材步骤(sb_asset_urls): 5分钟（已有批量上限保护）
+        // 竞价步骤(bid_recommendations): 5分钟
+        // 其他步骤: 5分钟
+        const STEP_TIMEOUT_MAP: Record<string, number> = {
+          // 列表步骤: 3分钟（API直接返回，不应耗时太长）
+          'sp_campaigns': 3, 'sb_campaigns': 3, 'sd_campaigns': 3,
+          'sp_ad_groups': 3, 'sb_ad_groups': 3, 'sd_ad_groups': 3,
+          'sp_keywords': 3, 'sb_keywords': 3,
+          'sp_product_targets': 3, 'sb_product_targets': 3, 'sd_product_targets': 3,
+          'sp_negative_keywords': 3, 'sb_negative_keywords': 3,
+          'sp_negative_targets': 3, 'sb_negative_targets': 3, 'sd_negative_targets': 3,
+          'sp_auto_targeting': 3, 'sd_targeting': 3, 'sb_targeting': 3,
+          'sb_ads': 3, 'sp_budget_rules': 3,
+          // 报告步骤: 15分钟（异步报告提交+轮询+下载，耗时较长）
+          'performance_today': 10, 'performance_7d': 10, 'performance_95d': 15,
+          'sp_search_terms': 15, 'sb_search_terms': 15,
+          'sp_placement_performance': 15, 'sb_placement_performance': 15,
+          'keyword_performance': 15, 'target_performance': 15, 'ad_group_performance': 15,
+          // 素材步骤: 5分钟（已有批量上限+超时保护）
+          'sb_asset_urls': 5,
+          // 竞价步骤: 5分钟
+          'sp_bid_recommendations': 5, 'sb_bid_recommendations': 5,
+          'sd_bid_recommendations': 5, 'sd_audience_bid_recommendations': 5,
+        };
+        const timeoutMinutes = STEP_TIMEOUT_MAP[step.id] || 5;
+        const STEP_TIMEOUT_MS = timeoutMinutes * 60 * 1000;
         const stepTimeoutPromise = new Promise<never>((_, reject) => {
           setTimeout(() => reject(new Error(`STEP_TIMEOUT: 步骤${step.name}超时(${STEP_TIMEOUT_MS / 60000}分钟)`)), STEP_TIMEOUT_MS);
         });
@@ -2131,160 +2157,220 @@ export async function syncAllAccounts(tier: SyncTier): Promise<BatchSyncResult> 
     log.warn(`[UnifiedSync] [v373] 优先级调度失败，使用默认顺序: ${(priErr as Error).message}`);
   }
 
-  // v352: 智能账户交错排序 - 同一品牌不同站点的账户分散到不同批次
-  const interleaved = interleaveAccountsByUser(accounts);
-  log.info(`[UnifiedSync] [v373] 发现 ${allAccounts.length} 个账户，本周期同步 ${accounts.length} 个（最大并发: ${MAX_CONCURRENT_ACCOUNTS}）`);
-
-  // v658: 稳定性优先的并发控制 — 基于内存压力动态调整
-  // 核心原则：每个同步任务都必须有充足资源确保成功执行
-  let PARALLEL_USERS: number;
-  let ACCOUNT_DELAY_MS: number;
+  // v659: 长跑赛制 — 严格串行 + 错峰排序
+  // 核心原则：同一时间只有1个账户在同步，确保每个账户获得100%的API资源和内存
+  // 排序策略：空/小账户先跑（快速完成释放资源），大账户后跑（独占资源充分执行）
+  
+  // v659: 同步前内存检查
   try {
     const { checkMemoryPressure } = await import('./syncCoordinator');
     const memPressure = checkMemoryPressure();
-    PARALLEL_USERS = Math.min(memPressure.maxConcurrency, 3); // v658: 上限从10降到3
-    ACCOUNT_DELAY_MS = 15000; // v658: 固定15秒间隔，确保每个账户有充足时间
     if (memPressure.shouldForceGC && typeof global.gc === 'function') {
       global.gc();
-      log.info(`[UnifiedSync] v658: 同步前触发GC (RSS=${memPressure.rssMB}MB)`);
+      log.info(`[UnifiedSync] v659: 同步前触发GC (RSS=${memPressure.rssMB}MB)`);
     }
     if (memPressure.shouldPauseSyncs) {
-      log.warn(`[UnifiedSync] v658: 内存危急(RSS=${memPressure.rssMB}MB)，跳过本轮同步`);
+      log.warn(`[UnifiedSync] v659: 内存危急(RSS=${memPressure.rssMB}MB)，跳过本轮同步`);
       return batchResult;
     }
-    log.info(`[UnifiedSync] v658: 内存感知并发控制: ${PARALLEL_USERS}用户并行, 账户间隔${ACCOUNT_DELAY_MS}ms, 内存压力=${memPressure.level}(RSS=${memPressure.rssMB}MB)`);
+    log.info(`[UnifiedSync] v659: 内存状态 level=${memPressure.level}, RSS=${memPressure.rssMB}MB`);
   } catch {
-    PARALLEL_USERS = 2; // v658: 回退值从5降到2
-    ACCOUNT_DELAY_MS = 15000;
-    log.info(`[UnifiedSync] v658: 使用回退并发控制: ${PARALLEL_USERS}用户并行, 账户间隔${ACCOUNT_DELAY_MS}ms`);
+    // 内存检查失败不阻止同步
   }
-  
-  // 按用户分组
-  const userGroups = new Map<number, SyncableAccount[]>();
-  for (const account of interleaved) {
-    const group = userGroups.get(account.userId) || [];
-    group.push(account);
-    userGroups.set(account.userId, group);
+
+  // v659: 错峰排序 — 按账户大小排序（小→大），空账户最先
+  // 查询每个账户的广告活动数量用于排序
+  const accountSizes = new Map<number, number>();
+  try {
+    const database = await db.getDb();
+    if (database) {
+      const { campaigns: campaignsTable } = await import('../../drizzle/schema');
+      for (const acct of accounts) {
+        try {
+          const countResult = await database
+            .select({ count: sql<number>`COUNT(*)` })
+            .from(campaignsTable)
+            .where(eq(campaignsTable.accountId, acct.accountId));
+          // @ts-expect-error - drizzle count result
+          const count = countResult?.[0]?.count || 0;
+          accountSizes.set(acct.accountId, count);
+        } catch {
+          accountSizes.set(acct.accountId, 0);
+        }
+      }
+    }
+  } catch {
+    // 查询失败使用默认排序
   }
-  
-  log.info(`[UnifiedSync] [v371] 发现 ${accounts.length} 个账户，属于 ${userGroups.size} 个用户，最大并行用户数: ${PARALLEL_USERS}`);
-  
-  // 将用户分组转为数组
-  const userGroupArray = Array.from(userGroups.entries());
-  
-  // 按批次并行执行
-  for (let batchStart = 0; batchStart < userGroupArray.length; batchStart += PARALLEL_USERS) {
-    const userBatch = userGroupArray.slice(batchStart, batchStart + PARALLEL_USERS);
+
+  // 排序：空账户(0) → 小账户(<100) → 中账户(100-1000) → 大账户(>1000)
+  const sortedAccounts = [...accounts].sort((a, b) => {
+    const sizeA = accountSizes.get(a.accountId) || 0;
+    const sizeB = accountSizes.get(b.accountId) || 0;
+    return sizeA - sizeB;
+  });
+
+  log.info(`[UnifiedSync] v659: 长跑赛制启动 — ${sortedAccounts.length}个账户严格串行同步`);
+  log.info(`[UnifiedSync] v659: 错峰排序: ${sortedAccounts.map(a => `${a.accountId}(${accountSizes.get(a.accountId) || 0}活动)`).join(' → ')}`);
+
+  // v659: 严格串行执行 — 一个接一个，绝不并行
+  for (let idx = 0; idx < sortedAccounts.length; idx++) {
+    const account = sortedAccounts[idx];
+    const acctSize = accountSizes.get(account.accountId) || 0;
+    const sizeLabel = acctSize === 0 ? '空' : acctSize < 100 ? '小' : acctSize < 1000 ? '中' : '大';
     
-    log.info(`[UnifiedSync] [v371] 开始用户批次 [${Math.floor(batchStart / PARALLEL_USERS) + 1}/${Math.ceil(userGroupArray.length / PARALLEL_USERS)}]: ${userBatch.map(([uid]) => `user${uid}`).join(', ')}`);
+    log.info(`[UnifiedSync] v659: [${idx + 1}/${sortedAccounts.length}] 开始同步 ${account.accountId}(${account.accountName}) ${account.marketplace} — ${sizeLabel}账户(${acctSize}活动)`);
     
-    // 每个用户的账户串行同步，不同用户并行
-    const userPromises = userBatch.map(async ([userId, userAccounts]) => {
-      for (let i = 0; i < userAccounts.length; i++) {
-        const account = userAccounts[i];
-        log.info(`[UnifiedSync] [v371] 同步用户${userId}账户 [${i + 1}/${userAccounts.length}]: ${account.accountId}(${account.accountName}) ${account.marketplace}`);
-        
-        // v651: 自动同步也创建running状态的data_sync_jobs记录，确保心跳定时器能找到并更新updated_at
-        let autoSyncJobId: number | null = null;
+    // v659: 每个账户同步前检查内存
+    try {
+      const { checkMemoryPressure } = await import('./syncCoordinator');
+      const memCheck = checkMemoryPressure();
+      if (memCheck.shouldPauseSyncs) {
+        log.warn(`[UnifiedSync] v659: 内存危急(RSS=${memCheck.rssMB}MB)，中断剩余${sortedAccounts.length - idx}个账户同步`);
+        // 标记剩余账户为跳过
+        for (let j = idx; j < sortedAccounts.length; j++) {
+          batchResult.skippedAccounts++;
+        }
+        break;
+      }
+      if (memCheck.level === 'high') {
+        log.warn(`[UnifiedSync] v659: 内存偏高(RSS=${memCheck.rssMB}MB)，暂停120秒等待GC...`);
+        if (typeof global.gc === 'function') global.gc();
+        await sleep(120000);
+        // GC后再检查一次
+        const memCheck2 = checkMemoryPressure();
+        if (memCheck2.shouldPauseSyncs) {
+          log.warn(`[UnifiedSync] v659: GC后内存仍然危急(RSS=${memCheck2.rssMB}MB)，中断同步`);
+          for (let j = idx; j < sortedAccounts.length; j++) {
+            batchResult.skippedAccounts++;
+          }
+          break;
+        }
+      }
+    } catch {
+      // 内存检查失败不阻止同步
+    }
+    
+    // v651: 自动同步也创建running状态的data_sync_jobs记录
+    let autoSyncJobId: number | null = null;
+    try {
+      const database = await db.getDb();
+      if (database) {
+        const { dataSyncJobs } = await import('../../drizzle/schema');
+        const insertResult = await database.insert(dataSyncJobs).values({
+          userId: account.userId || 390001,
+          accountId: account.accountId,
+          syncType: tier === 'high' ? 'campaigns' : tier === 'medium' ? 'targeting' : 'all',
+          status: 'running',
+          startedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+          currentStep: 'initializing',
+          totalSteps: 0,
+          currentStepIndex: 0,
+          progressPercent: 0,
+        });
+        autoSyncJobId = insertResult[0]?.insertId || null;
+        log.debug(`[UnifiedSync] v659: 自动同步创建Job#${autoSyncJobId} 账户${account.accountId}`);
+      }
+    } catch (jobCreateErr: any) {
+      log.debug(`[UnifiedSync] v659: 创建自动同步Job失败: ${(jobCreateErr as Error).message}`);
+    }
+    
+    // v651: 为自动同步创建onProgress回调
+    const autoSyncOnProgress = async (step: string, index: number, total: number) => {
+      if (autoSyncJobId) {
         try {
           const database = await db.getDb();
           if (database) {
             const { dataSyncJobs } = await import('../../drizzle/schema');
-            const insertResult = await database.insert(dataSyncJobs).values({
-              userId: account.userId || 390001,
-              accountId: account.accountId,
-              syncType: tier === 'high' ? 'campaigns' : tier === 'medium' ? 'targeting' : 'all',
-              status: 'running',
-              startedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
-              currentStep: 'initializing',
-              totalSteps: 0,
-              currentStepIndex: 0,
-              progressPercent: 0,
-            });
-            autoSyncJobId = insertResult[0]?.insertId || null;
-            log.debug(`[UnifiedSync] v651: 自动同步创建Job#${autoSyncJobId} 账户${account.accountId}`);
+            const progressPercent = Math.round(((index + 1) / total) * 100);
+            await database.update(dataSyncJobs)
+              .set({ currentStep: step, currentStepIndex: index, totalSteps: total, progressPercent })
+              .where(eq(dataSyncJobs.id, autoSyncJobId));
           }
-        } catch (jobCreateErr: any) {
-          log.debug(`[UnifiedSync] v651: 创建自动同步Job失败: ${(jobCreateErr as Error).message}`);
-        }
-        
-        // v651: 为自动同步创建onProgress回调，确保心跳定时器始终启动
-        const autoSyncOnProgress = async (step: string, index: number, total: number) => {
-          if (autoSyncJobId) {
-            try {
-              const database = await db.getDb();
-              if (database) {
-                const { dataSyncJobs } = await import('../../drizzle/schema');
-                const progressPercent = Math.round(((index + 1) / total) * 100);
-                await database.update(dataSyncJobs)
-                  .set({ currentStep: step, currentStepIndex: index, totalSteps: total, progressPercent })
-                  .where(eq(dataSyncJobs.id, autoSyncJobId));
-              }
-            } catch (e: any) {
-              // 心跳更新失败不影响同步继续
-            }
-          }
-        };
-        
-        const accountResult = await syncAccount(account, tier, { onProgress: autoSyncOnProgress });
-        
-        // v651: 更新自动同步Job的最终状态
-        if (autoSyncJobId) {
-          try {
-            const database = await db.getDb();
-            if (database) {
-              const { dataSyncJobs } = await import('../../drizzle/schema');
-              await database.update(dataSyncJobs)
-                .set({
-                  status: accountResult.success ? 'completed' : (accountResult.partialSuccess ? 'completed' : 'failed'),
-                  completedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
-                  durationMs: accountResult.durationMs,
-                  errorMessage: accountResult.errors.length > 0 ? accountResult.errors.slice(0, 3).join('; ') : null,
-                  progressPercent: 100,
-                  recordsSynced: typeof accountResult.totalSynced === 'number' ? accountResult.totalSynced : 0,
-                })
-                .where(eq(dataSyncJobs.id, autoSyncJobId));
-            }
-          } catch (jobUpdateErr: any) {
-            log.debug(`[UnifiedSync] v651: 更新自动同步Job#${autoSyncJobId}最终状态失败: ${(jobUpdateErr as Error).message}`);
-          }
-        }
-        
-        // 统计结果
-        batchResult.accountResults.push(accountResult);
-        if (accountResult.success) {
-          batchResult.successfulAccounts++;
-        } else if (accountResult.errors.some(e => 
-          (e.includes('已有') && e.includes('在运行')) ||
-          e.includes('层同步在运行') ||
-          e.includes('层正在运行') ||
-          e.includes('层跳过') ||
-          e.includes('层跟过') ||
-          e.includes('智能跳过') ||
-          e.includes('等下一轮')
-        )) {
-          batchResult.skippedAccounts++;
-        } else {
-          batchResult.failedAccounts++;
-        }
-        
-        // 同一用户的账户间延迟
-        if (i < userAccounts.length - 1) {
-          const rateDelay = rateController.getBatchDelay();
-          const totalDelay = Math.max(ACCOUNT_DELAY_MS, rateDelay);
-          await sleep(totalDelay);
+        } catch (e: any) {
+          // 心跳更新失败不影响同步继续
         }
       }
-    });
+    };
     
-    await Promise.all(userPromises);
+    const accountResult = await syncAccount(account, tier, { onProgress: autoSyncOnProgress });
     
-    // 用户批次间延迟
-    if (batchStart + PARALLEL_USERS < userGroupArray.length) {
-      const rateDelay = rateController.getBatchDelay();
-      const batchDelay = Math.max(2000, rateDelay);
-      log.info(`[UnifiedSync] [v371] 用户批次间延迟 ${batchDelay}ms (速率控制${rateDelay}ms, 利用率: ${rateController.getStatus().utilizationPercent}%)`);
-      await sleep(batchDelay);
+    // v651: 更新自动同步Job的最终状态
+    if (autoSyncJobId) {
+      try {
+        const database = await db.getDb();
+        if (database) {
+          const { dataSyncJobs } = await import('../../drizzle/schema');
+          await database.update(dataSyncJobs)
+            .set({
+              status: accountResult.success ? 'completed' : (accountResult.partialSuccess ? 'completed' : 'failed'),
+              completedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+              durationMs: accountResult.durationMs,
+              errorMessage: accountResult.errors.length > 0 ? accountResult.errors.slice(0, 3).join('; ') : null,
+              progressPercent: 100,
+              recordsSynced: typeof accountResult.totalSynced === 'number' ? accountResult.totalSynced : 0,
+            })
+            .where(eq(dataSyncJobs.id, autoSyncJobId));
+        }
+      } catch (jobUpdateErr: any) {
+        log.debug(`[UnifiedSync] v659: 更新自动同步Job#${autoSyncJobId}最终状态失败: ${(jobUpdateErr as Error).message}`);
+      }
+    }
+    
+    // 统计结果
+    batchResult.accountResults.push(accountResult);
+    if (accountResult.success) {
+      batchResult.successfulAccounts++;
+    } else if (accountResult.errors.some(e => 
+      (e.includes('已有') && e.includes('在运行')) ||
+      e.includes('层同步在运行') ||
+      e.includes('层正在运行') ||
+      e.includes('层跳过') ||
+      e.includes('层跟过') ||
+      e.includes('智能跳过') ||
+      e.includes('等下一轮')
+    )) {
+      batchResult.skippedAccounts++;
+    } else {
+      batchResult.failedAccounts++;
+    }
+    
+    // v659: 动态账户间延迟 — 根据上一个账户的结果和内存状态决定等待时间
+    if (idx < sortedAccounts.length - 1) {
+      let delayMs: number;
+      let delayReason: string;
+      
+      const hasThrottle = accountResult.errors.some(e => 
+        e.includes('429') || e.includes('TooManyRequests') || e.includes('throttl') || e.includes('限流')
+      );
+      const hasFailed = !accountResult.success && !accountResult.partialSuccess;
+      
+      if (hasThrottle) {
+        delayMs = 60000; // 限流：等待60秒让API令牌桶恢复
+        delayReason = 'API限流退避';
+      } else if (hasFailed) {
+        delayMs = 30000; // 失败：等待30秒
+        delayReason = '失败后冷却';
+      } else {
+        delayMs = 10000; // 成功：等待10秒
+        delayReason = '正常间隔';
+      }
+      
+      // 内存压力额外延迟
+      try {
+        const { checkMemoryPressure } = await import('./syncCoordinator');
+        const memCheck = checkMemoryPressure();
+        if (memCheck.level === 'elevated') {
+          delayMs = Math.max(delayMs, 20000);
+          delayReason += '+内存偏高';
+          if (typeof global.gc === 'function') global.gc();
+        }
+      } catch {
+        // 内存检查失败不影响
+      }
+      
+      log.info(`[UnifiedSync] v659: 账户间延迟 ${delayMs}ms (${delayReason}) — 下一个: ${sortedAccounts[idx + 1].accountId}`);
+      await sleep(delayMs);
     }
   }
 

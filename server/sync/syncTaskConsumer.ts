@@ -37,11 +37,16 @@ async function pollAndConsume() {
   try {
     const status = await getQueueStatus();
     const totalPending = status.high + status.medium + status.low + status.nightly;
-    const MAX_CONCURRENT_TASKS = 3;
+    // v659: 根据任务类型动态调整并发上限
+    // full/nightly层: 严格串行（同时只有1个账户执行全量同步）
+    // high/medium层: 允许最多3个并发（增量同步轻量级）
+    const hasFullOrNightlyProcessing = status.processing > 0; // 简化判断：有任务在处理就保守处理
+    const pendingHasFullOrNightly = status.low > 0 || status.nightly > 0; // low优先级=full层
+    const MAX_CONCURRENT_TASKS = (pendingHasFullOrNightly || hasFullOrNightlyProcessing) ? 1 : 3;
     if (totalPending === 0 && status.processing === 0) {
       nextPollMs = IDLE_POLL_INTERVAL_MS;
     } else if (status.processing >= MAX_CONCURRENT_TASKS) {
-      log85.debug(`[v619] ${status.processing}/${MAX_CONCURRENT_TASKS} \u4EFB\u52A1\u5904\u7406\u4E2D\uFF0C\u5DF2\u8FBE\u5E76\u53D1\u4E0A\u9650\uFF0C\u7B49\u5F85...`);
+      log85.debug(`[v659] ${status.processing}/${MAX_CONCURRENT_TASKS} \u4EFB\u52A1\u5904\u7406\u4E2D\uFF0C\u5DF2\u8FBE\u5E76\u53D1\u4E0A\u9650\uFF08${pendingHasFullOrNightly ? 'full/nightly\u4E32\u884C' : 'high/medium\u5E76\u53D1'}\uFF09\uFF0C\u7B49\u5F85...`);
       nextPollMs = POLL_INTERVAL_MS;
     } else if (totalPending > 0) {
       const task = await dequeueTask();
