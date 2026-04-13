@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 653;  // v653: 4.1日志缓冲区优化(TRULY_EMPTY去重) + 4.3 @ts-ignore深度清理(optimizationSyncEngine+optimizationAutoCorrector)
+export const SYSTEM_VERSION = 654;  // v654: 4.2.1全局Logger缓冲区扩容(10000→50000+阈值80%→95%) + 4.2.3 @ts-ignore清理(postDeployOptimizer+dataSyncScheduler)

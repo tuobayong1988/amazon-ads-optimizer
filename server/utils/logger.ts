@@ -91,7 +91,7 @@ interface LoggerConfig {
 const DEFAULT_CONFIG: LoggerConfig = {
   consoleLevel: LogLevel.INFO,
   dbLevel: LogLevel.WARN,
-  bufferSize: 10000,  // v447: 从30000缩减到10000，日志已持久化到DB，内存缓冲区不需要这么大，降低内存占用
+  bufferSize: 50000,  // v654: 从10000扩容到50000，解决ring buffer在高频同步场景下迅速填满导致100%使用率告警（日志已持久化到DB，内存增量约5MB可接受）
   samplingWindowMs: 10_000,       // 10秒窗口
   samplingMaxPerWindow: 5,         // 每10秒最多5条同类日志
   dbFlushIntervalMs: 30_000,       // 30秒批量写入
@@ -623,7 +623,7 @@ class Logger {
 export const logger = new Logger({
   consoleLevel: process.env.LOG_LEVEL === 'debug' ? LogLevel.DEBUG : LogLevel.INFO,
   dbLevel: LogLevel.WARN,
-  bufferSize: 10000,  // v447: 从30000缩减到10000，日志已持久化到DB，内存缓冲区不需要这么大，降低内存占用
+  bufferSize: 50000,  // v654: 从10000扩容到50000，与DEFAULT_CONFIG保持一致
 });
 
 /** v474: 辅助函数 - 当metadata是Error对象时，将error.message追加到日志消息中 */

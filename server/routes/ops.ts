@@ -92,7 +92,7 @@ const ALERT_THRESHOLDS = {
   logger: {
     errorRateWarning: 50,    // v222: 错误日志数量警告阈值（近期）
     errorRateCritical: 200,  // v222: 错误日志数量严重阈值（近期）
-    bufferUsagePct: 80,      // 日志缓冲区使用率警告阈值（%）
+    bufferUsagePct: 95,      // v654: 从80%调整到95%，ring buffer填满是正常行为（自动覆盖旧日志），仅在接近极限时告警
   },
   uptime: {
     recentRestartSec: 300,   // 最近重启判定阈值（5分钟内）
