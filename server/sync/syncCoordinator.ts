@@ -14,7 +14,7 @@ const log = createModuleLogger('SyncCoordinator');
 // ==================== 全局互斥锁 ====================
 let currentLockHolder: string | null = null;
 let lockAcquiredAt: number = 0;
-const LOCK_MAX_HOLD_MS = 60 * 60 * 1000; // 锁最大持有时间: 60分钟，防止死锁
+const LOCK_MAX_HOLD_MS = 180 * 60 * 1000; // v660: 锁最大持有时间: 180分钟，匹配大账户全量同步可能的耗时
 
 let manualOverrideActive = false;
 

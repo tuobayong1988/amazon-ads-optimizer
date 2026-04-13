@@ -1148,14 +1148,14 @@ async function waitForSyncSlot(accountId: number, tier: string, blockingTier: st
 // v528: 心跳超时 — 僵尸判定的主要依据
 // 如果一个任务超过此时间没有心跳更新，才判定为僵尸
 // 心跳每1分钟发送一次（v521），所以10分钟无心跳说明任务确实卡死
-const HEARTBEAT_ZOMBIE_TIMEOUT_MS = 10 * 60 * 1000; // 10分钟无心跳 = 僵尸
+const HEARTBEAT_ZOMBIE_TIMEOUT_MS = 30 * 60 * 1000; // v660: 30分钟无心跳 = 僵尸（从10分钟延长，匹配步骤超时最长45分钟）
 
 // v528: 绝对超时（安全网） — 即使心跳正常，也不允许无限运行
 // 这是防止心跳正常但任务实际卡在无限循环中的极端情况
 const MAX_ABSOLUTE_TIMEOUT_MS = 6 * 60 * 60 * 1000; // 6小时绝对上限
 
 // v528: 动态超时常量（仅用于绝对超时安全网，不再是僵尸判定的主要依据）
-const DEFAULT_SYNC_TIMEOUT_MS = 60 * 60 * 1000; // 默认60分钟
+const DEFAULT_SYNC_TIMEOUT_MS = 120 * 60 * 1000; // v660: 默认120分钟（从60分钟延长，匹配步骤超时放宽）
 // v648: 增加中等账号超时分层，解决100-1000广告活动的账号同步超时问题
 const LARGE_ACCOUNT_TIMEOUT_TIERS = [
   { threshold: 5000, timeoutMs: 180 * 60 * 1000 },  // 5000+广告活动: 3小时
@@ -1696,34 +1696,36 @@ export async function syncAccount(
           }
         }, 60 * 1000); // 每1分钟发送一次心跳
         
-        // v659: 步骤级智能超时 — 根据步骤类型设置合理超时
-        // 列表步骤(campaigns/ad_groups/keywords): 3分钟
-        // 报告步骤(performance/search_terms/placement): 15分钟（报告下载耗时较长）
-        // 素材步骤(sb_asset_urls): 5分钟（已有批量上限保护）
-        // 竞价步骤(bid_recommendations): 5分钟
-        // 其他步骤: 5分钟
+        // v660: 步骤级智能超时 — 根据步骤类型设置充足超时
+        // 列表步骤(campaigns/ad_groups/keywords): 10分钟
+        // 报告步骤(performance/search_terms/placement): 30-45分钟
+        // 素材步骤(sb_asset_urls): 15分钟
+        // 竞价步骤(bid_recommendations): 20分钟
+        // 其他步骤: 15分钟
+        // v660: STEP_TIMEOUT_MAP 大幅放宽 — v659实测发现原超时导致大量步骤失败
+        // 核心原则: 稳定性和成功率优先于效率，宁可等待也不要超时失败
         const STEP_TIMEOUT_MAP: Record<string, number> = {
-          // 列表步骤: 3分钟（API直接返回，不应耗时太长）
-          'sp_campaigns': 3, 'sb_campaigns': 3, 'sd_campaigns': 3,
-          'sp_ad_groups': 3, 'sb_ad_groups': 3, 'sd_ad_groups': 3,
-          'sp_keywords': 3, 'sb_keywords': 3,
-          'sp_product_targets': 3, 'sb_product_targets': 3, 'sd_product_targets': 3,
-          'sp_negative_keywords': 3, 'sb_negative_keywords': 3,
-          'sp_negative_targets': 3, 'sb_negative_targets': 3, 'sd_negative_targets': 3,
-          'sp_auto_targeting': 3, 'sd_targeting': 3, 'sb_targeting': 3,
-          'sb_ads': 3, 'sp_budget_rules': 3,
-          // 报告步骤: 15分钟（异步报告提交+轮询+下载，耗时较长）
-          'performance_today': 10, 'performance_7d': 10, 'performance_95d': 15,
-          'sp_search_terms': 15, 'sb_search_terms': 15,
-          'sp_placement_performance': 15, 'sb_placement_performance': 15,
-          'keyword_performance': 15, 'target_performance': 15, 'ad_group_performance': 15,
-          // 素材步骤: 5分钟（已有批量上限+超时保护）
-          'sb_asset_urls': 5,
-          // 竞价步骤: 5分钟
-          'sp_bid_recommendations': 5, 'sb_bid_recommendations': 5,
-          'sd_bid_recommendations': 5, 'sd_audience_bid_recommendations': 5,
+          // 列表步骤: 10分钟（从3分钟放宽，大账户列表数据量大）
+          'sp_campaigns': 10, 'sb_campaigns': 10, 'sd_campaigns': 10,
+          'sp_ad_groups': 10, 'sb_ad_groups': 10, 'sd_ad_groups': 10,
+          'sp_keywords': 10, 'sb_keywords': 10,
+          'sp_product_targets': 10, 'sb_product_targets': 10, 'sd_product_targets': 10,
+          'sp_negative_keywords': 15, 'sb_negative_keywords': 15,
+          'sp_negative_targets': 15, 'sb_negative_targets': 15, 'sd_negative_targets': 15,
+          'sp_auto_targeting': 10, 'sd_targeting': 10, 'sb_targeting': 10,
+          'sb_ads': 10, 'sp_budget_rules': 10,
+          // 报告步骤: 30-45分钟（从10-15分钟放宽，异步报告提交+轮询+下载耗时较长）
+          'performance_today': 30, 'performance_7d': 30, 'performance_95d': 45,
+          'sp_search_terms': 30, 'sb_search_terms': 30,
+          'sp_placement_performance': 30, 'sb_placement_performance': 30,
+          'keyword_performance': 45, 'target_performance': 45, 'ad_group_performance': 45,
+          // 素材步骤: 15分钟（从5分钟放宽）
+          'sb_asset_urls': 15,
+          // 竞价步骤: 20分钟（从5分钟放宽，批量API调用耗时长）
+          'sp_bid_recommendations': 20, 'sb_bid_recommendations': 20,
+          'sd_bid_recommendations': 20, 'sd_audience_bid_recommendations': 20,
         };
-        const timeoutMinutes = STEP_TIMEOUT_MAP[step.id] || 5;
+        const timeoutMinutes = STEP_TIMEOUT_MAP[step.id] || 15; // v660: 默认超时从5分钟提升到15分钟
         const STEP_TIMEOUT_MS = timeoutMinutes * 60 * 1000;
         const stepTimeoutPromise = new Promise<never>((_, reject) => {
           setTimeout(() => reject(new Error(`STEP_TIMEOUT: 步骤${step.name}超时(${STEP_TIMEOUT_MS / 60000}分钟)`)), STEP_TIMEOUT_MS);

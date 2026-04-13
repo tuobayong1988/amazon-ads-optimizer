@@ -85,6 +85,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 660,
+    description: 'v660: [同步成功率100%冲刺] — (1)P0-步骤超时大幅放宽: STEP_TIMEOUT_MAP列表步骤3→10分钟,否定词3→15分钟,报告10-15→30-45分钟,绩效报告10-15→30-45分钟,竞价5→20分钟,素材5→15分钟,默认5→15分钟; amazonSyncService中否定词3→20分钟,报告15→30分钟,绩效报告20→45分钟,竞价10→25分钟 (2)P0-卡死清理阈值延长: cleanupStaleJobs从30分钟延长到120分钟,匹配步骤超时最长45分钟,避免大账户同步被误杀 (3)P0-全局互斥锁延长: LOCK_MAX_HOLD_MS从60分钟延长到180分钟 (4)P0-默认同步超时延长: DEFAULT_SYNC_TIMEOUT_MS从60分钟延长到120分钟 (5)P0-僵尸心跳超时延长: HEARTBEAT_ZOMBIE_TIMEOUT_MS从10分钟延长到30分钟 (6)P1-DB running检查窗口扩大: 从10分钟扩大到120分钟',
+    affectedModules: ['sync', 'system'],
+    correctionActions: [],
+  },
+  {
     version: 659,
     description: 'v659: [长跑赛制同步架构重构] — (1)严格串行+错峰出发: syncAllAccounts从用户批次并行改为全局严格串行,空/小账户先跑大账户后跑,账户间动态延迟(成功15s/限浅60s/失败120s),每账户完成后内存检查+GC (2)全量同步24h降频: full层从PST凌晨3点每24小时执行一次,per-account 24h频率控制避免重复同步,账户按大小排序确保错峰 (3)full/nightly严格串行: syncTaskConsumer对full/nightly层MAX_CONCURRENT=1 (4)步骤级智能超时: 列表3min/报告10-15min/素材竞价5min,替代固定5/10min一刀切 (5)SB素材URL卡死修复: resolveAssetUrls批量上限50+3min整体超时+连续5次失败中止+请求间隔1s',
     affectedModules: ['sync', 'system'],

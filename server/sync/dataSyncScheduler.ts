@@ -153,8 +153,8 @@ const TIER_COOLDOWN_MS = 30 * 1000; // 30秒
 /** v488: 全局互斥锁轮询间隔（毫秒）- 当互斥锁被占用时，多久检查一次 */
 const MUTEX_POLL_INTERVAL_MS = 10 * 1000; // 10秒
 
-/** v488: 全局互斥锁最大等待时间（毫秒）- 超过此时间则跳过本轮同步 */
-const MUTEX_MAX_WAIT_MS = 5 * 60 * 1000; // 5分钟
+/** v660: 全局互斥锁最大等待时间（毫秒）- 超过此时间则跳过本轮同步 */
+const MUTEX_MAX_WAIT_MS = 15 * 60 * 1000; // v660: 15分钟（从5分钟延长，匹配全量同步可能耗时更长）
 
 /** v488: 协调器过期状态清理间隔（毫秒） */
 const COORDINATOR_CLEANUP_INTERVAL_MS = 10 * 60 * 1000; // 10分钟
@@ -243,8 +243,9 @@ async function startSchedulerTasks(defaultIntervalMs: number): Promise<void> {
   (async () => {
     try {
       const { cleanupStaleJobs, cleanupOrphanedPendingJobs } = await import('./dataSyncService');
-      // v528: 启动清理使用30分钟阈值（仅清理进程重启后残留的running状态，不会影响当前活跃任务）
-      const staleResult = await cleanupStaleJobs(30);
+      // v660: 启动清理使用120分钟阈值（仅清理进程重启后残留的running状态，不会影响当前活跃任务）
+      // v659实测: 30分钟导致大账户全量同步被误杀，延长到120分钟
+      const staleResult = await cleanupStaleJobs(120);
       const orphanResult = await cleanupOrphanedPendingJobs(60); // 超过1小时的pending任务
       if (staleResult.cleaned > 0 || orphanResult.cleaned > 0) {
         log.warn(`[DataSyncScheduler] v335: 启动清理完成 - 卡死任务: ${staleResult.cleaned}个 (${staleResult.jobIds.join(',')}), 孤儿任务: ${orphanResult.cleaned}个`);
@@ -425,9 +426,9 @@ async function startSchedulerTasks(defaultIntervalMs: number): Promise<void> {
   monitoringIntervals.push(setInterval(async () => {
     try {
       const { cleanupStaleJobs } = await import('./dataSyncService');
-      // v651: 使用30分钟心跳超时（从15分钟延长，避免异步报告等待期间被误杀）
-      // 心跳每1分钟发送，30分钟无更新说明任务确实卡死
-      const result = await cleanupStaleJobs(30);
+      // v660: 使用120分钟心跳超时（从30分钟延长，匹配大账户步骤超时最长45分钟）
+      // 心跳每1分钟发送，120分钟无更新说明任务确实卡死
+      const result = await cleanupStaleJobs(120);
       if (result.cleaned > 0) {
         log.warn(`[DataSyncScheduler] v651: 定期清理发现 ${result.cleaned} 个心跳超时任务: ${result.jobIds.join(', ')}`);
       }
@@ -653,7 +654,7 @@ async function executeUnifiedSync(tier: SyncTier): Promise<void> {
  TIMESTAMPDIFF(SECOND, updated_at, NOW()) as seconds_since_heartbeat
  FROM data_sync_jobs
  WHERE status = 'running'
- AND updated_at >= DATE_SUB(NOW(), INTERVAL 10 MINUTE)
+ AND updated_at >= DATE_SUB(NOW(), INTERVAL 120 MINUTE)
  AND (trigger_source IS NULL OR trigger_source = 'auto')
  ORDER BY id`
       );
