@@ -671,10 +671,29 @@ export function getApiRateLimitService(): ApiRateLimitService {
     const store = createDistributedStore();
     globalRateLimitService = new ApiRateLimitService(store);
     
-    // 设置限流告警回调
+    // v664: 限流告警聚合机制 — 每个账户+端点组合每60秒最多告警1次，避免日志洪泛
+    const throttleAlertTracker: Map<string, { count: number; lastLogTime: number; totalWaitMs: number }> = new Map();
+    const THROTTLE_ALERT_INTERVAL_MS = 60_000; // 60秒聚合窗口
     globalRateLimitService.onThrottle((accountId, endpointType, waitMs) => {
       if (waitMs > 5000) {
-        log.warn(`[ALERT] v${SYSTEM_VERSION}: API限流告警! 账户${accountId} ${endpointType}端点等待${waitMs}ms`);
+        const key = `${accountId}:${endpointType}`;
+        const now = Date.now();
+        const tracker = throttleAlertTracker.get(key);
+        if (!tracker || (now - tracker.lastLogTime) >= THROTTLE_ALERT_INTERVAL_MS) {
+          // 输出聚合告警
+          const suppressedCount = tracker ? tracker.count : 0;
+          const avgWait = tracker ? Math.round(tracker.totalWaitMs / Math.max(1, tracker.count)) : waitMs;
+          if (suppressedCount > 0) {
+            log.warn(`[ALERT] v${SYSTEM_VERSION}: API限流告警! 账户${accountId} ${endpointType}端点等待${waitMs}ms (过去60秒内共${suppressedCount}次限流，平均等待${avgWait}ms)`);
+          } else {
+            log.warn(`[ALERT] v${SYSTEM_VERSION}: API限流告警! 账户${accountId} ${endpointType}端点等待${waitMs}ms`);
+          }
+          throttleAlertTracker.set(key, { count: 0, lastLogTime: now, totalWaitMs: 0 });
+        } else {
+          // 聚合计数，不输出日志
+          tracker.count++;
+          tracker.totalWaitMs += waitMs;
+        }
       }
     });
   }

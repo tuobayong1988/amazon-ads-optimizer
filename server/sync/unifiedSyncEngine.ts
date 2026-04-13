@@ -1794,7 +1794,7 @@ export async function syncAccount(
         // 列表步骤(campaigns/ad_groups/keywords): 10分钟
         // 报告步骤(performance/search_terms/placement): 30-45分钟
         // 素材步骤(sb_asset_urls): 15分钟
-        // 竞价步骤(bid_recommendations): 20分钟
+        // 竞价步骤(bid_recommendations): 30分钟（v664: 从20分钟放宽，v663实测90045的SP建议竞价20分钟不够）
         // 其他步骤: 15分钟
         // v660: STEP_TIMEOUT_MAP 大幅放宽 — v659实测发现原超时导致大量步骤失败
         // 核心原则: 稳定性和成功率优先于效率，宁可等待也不要超时失败
@@ -1809,15 +1809,15 @@ export async function syncAccount(
           'sp_auto_targeting': 10, 'sd_targeting': 10, 'sb_targeting': 10,
           'sb_ads': 10, 'sp_budget_rules': 10,
           // 报告步骤: 30-45分钟（从10-15分钟放宽，异步报告提交+轮询+下载耗时较长）
-          'performance_today': 30, 'performance_7d': 30, 'performance_95d': 45,
+          'performance_today': 30, 'performance_7d': 45, 'performance_95d': 45, // v664: performance_7d从30→45分钟（v663实测90045在30分钟内未完成）
           'sp_search_terms': 30, 'sb_search_terms': 30,
           'sp_placement_performance': 30, 'sb_placement_performance': 30,
           'keyword_performance': 45, 'target_performance': 45, 'ad_group_performance': 45,
           // 素材步骤: 15分钟（从5分钟放宽）
           'sb_asset_urls': 15,
-          // 竞价步骤: 20分钟（从5分钟放宽，批量API调用耗时长）
-          'sp_bid_recommendations': 20, 'sb_bid_recommendations': 20,
-          'sd_bid_recommendations': 20, 'sd_audience_bid_recommendations': 20,
+          // 竞价步骤: 30分钟（v664: 从20分钟放宽，v663实测90045的SP建议竞价20分钟不够）
+          'sp_bid_recommendations': 30, 'sb_bid_recommendations': 30,
+          'sd_bid_recommendations': 30, 'sd_audience_bid_recommendations': 30,
         };
         const timeoutMinutes = STEP_TIMEOUT_MAP[step.id] || 30; // v663: 默认超时从15分钟提升到30分钟（v662实测90107的SP否定关键词/商品定位15分钟不够）
         const STEP_TIMEOUT_MS = timeoutMinutes * 60 * 1000;

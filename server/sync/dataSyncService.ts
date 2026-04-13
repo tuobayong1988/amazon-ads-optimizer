@@ -1057,6 +1057,7 @@ export async function cleanupStaleJobs(maxRunningMinutes: number = 120): Promise
       id: dataSyncJobs.id,
       accountId: dataSyncJobs.accountId,
       startedAt: dataSyncJobs.startedAt,
+      updatedAt: dataSyncJobs.updatedAt,
       syncType: dataSyncJobs.syncType,
     }).from(dataSyncJobs)
       .where(and(
@@ -1075,7 +1076,8 @@ export async function cleanupStaleJobs(maxRunningMinutes: number = 120): Promise
       .set({
         status: 'failed',
         completedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
-        errorMessage: `v334: 任务超时（超过${maxRunningMinutes}分钟），由卡死任务清理机制自动标记为失败`,
+        // v664: 改进错误消息，区分“心跳超时”和“启动清理”，避免误导
+        errorMessage: `v334: 任务心跳超时（updated_at超过${maxRunningMinutes}分钟未更新），由卡死任务清理机制自动标记为失败`,
       })
       .where(and(
         eq(dataSyncJobs.status, 'running'),
@@ -1084,9 +1086,14 @@ export async function cleanupStaleJobs(maxRunningMinutes: number = 120): Promise
 
     // 记录清理日志
     for (const job of staleJobs) {
-      log.warn(`[DataSync] v334: 清理卡死任务 Job#${job.id} (账户${job.accountId}, 类型${job.syncType}, 启动时间${job.startedAt})`);
+      // v664: 日志中增加实际运行时间和updated_at信息，便于诊断是启动清理还是真正卡死
+      const startedMs = job.startedAt ? new Date(job.startedAt).getTime() : 0;
+      const updatedMs = job.updatedAt ? new Date(job.updatedAt as string).getTime() : 0;
+      const actualRuntimeMin = startedMs ? ((Date.now() - startedMs) / 60000).toFixed(1) : 'unknown';
+      const heartbeatAgeMin = updatedMs ? ((Date.now() - updatedMs) / 60000).toFixed(1) : 'unknown';
+      log.warn(`[DataSync] v334: 清理卡死任务 Job#${job.id} (账户${job.accountId}, 类型${job.syncType}, 启动时间${job.startedAt}, 实际运行${actualRuntimeMin}分钟, 心跳停止${heartbeatAgeMin}分钟前)`);
       await logSyncActivity(0, 'cleanup_stale', 'success', 
-        `v334: 清理卡死任务 Job#${job.id}, 账户${job.accountId}, 运行超过${maxRunningMinutes}分钟`);
+        `v334: 清理卡死任务 Job#${job.id}, 账户${job.accountId}, 实际运行${actualRuntimeMin}分钟, 心跳停止${heartbeatAgeMin}分钟前`);
     }
 
     log.info(`[DataSync] v334: 卡死任务清理完成，共清理 ${staleJobs.length} 个任务: ${jobIds.join(', ')}`);

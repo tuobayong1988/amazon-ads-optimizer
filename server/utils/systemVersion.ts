@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 663;  // v663: P0-总超时180分钟+清理阈值同步 P1-SB素材URL安全修复+步骤超时30分钟 P2-大账户增量同步+断点续传
+export const SYSTEM_VERSION = 664;  // v664: 步骤超时精调(performance_7d 45min, bid 30min) + cleanupStaleJobs诊断信息增强 + API限流告警聚合
