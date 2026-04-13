@@ -649,6 +649,29 @@ async function executeUnifiedSync(tier: SyncTier): Promise<void> {
           runningCount: runningRows.length, 
           runningJobs: jobSummary 
         });
+        
+        // v655: 即使同步被v411跳过，high层仍触发优化
+        // 原因：high层被跳过说明有running任务在同步数据，数据已是最新的
+        // 优化引擎不依赖当前同步结果，可以基于已有数据执行
+        if (tier === 'high') {
+          try {
+            const { triggerAccountOptimizations } = await import('../optimization/optimizationScheduler');
+            const { discoverSyncableAccounts } = await import('./unifiedSyncEngine');
+            const accounts = await discoverSyncableAccounts();
+            let triggeredCount = 0;
+            for (const acct of accounts.slice(0, 20)) {
+              try {
+                await triggerAccountOptimizations(acct.accountId, 'high_sync_skip_trigger');
+                triggeredCount++;
+              } catch { /* skip individual failures */ }
+            }
+            log.info(`[DataSyncScheduler] v655: high层被跳过但仍触发优化 - ${triggeredCount}/${accounts.length}个账户`);
+            logSync('DataSyncScheduler', `v655: high层跳过时优化触发`, { triggeredCount, totalAccounts: accounts.length });
+          } catch (optErr: unknown) {
+            log.warn(`[DataSyncScheduler] v655: high层跳过时优化触发失败: ${(optErr as Error).message}`);
+          }
+        }
+        
         return;
       } else {
         // v411: running任务清空，重置跳过计数器
