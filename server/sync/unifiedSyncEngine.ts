@@ -2223,6 +2223,40 @@ export async function syncAllAccounts(tier: SyncTier): Promise<BatchSyncResult> 
     
     log.info(`[UnifiedSync] v659: [${idx + 1}/${sortedAccounts.length}] 开始同步 ${account.accountId}(${account.accountName}) ${account.marketplace} — ${sizeLabel}账户(${acctSize}活动)`);
     
+    // v661: per-account 24h冒却期 — 对于full/nightly层，检查该账户上次全量同步是否在24小时内
+    // 核心原则: 避免同一账户在短时间内重复进行全量同步，降低API压力
+    if (tier === 'full' || tier === 'nightly') {
+      try {
+        const database = await db.getDb();
+        if (database) {
+          const lastFullSync = await database.execute(
+            sql`SELECT MAX(completedAt) as lastCompleted
+                FROM data_sync_jobs
+                WHERE accountId = ${account.accountId}
+                AND syncType = 'all'
+                AND status = 'completed'
+                AND completedAt >= DATE_SUB(NOW(), INTERVAL 24 HOUR)`
+          );
+          // @ts-expect-error - drizzle result
+          const rows = Array.isArray(lastFullSync) ? lastFullSync[0] : (lastFullSync?.rows || lastFullSync);
+          // @ts-expect-error - drizzle result
+          const lastCompleted = rows?.[0]?.lastCompleted || (Array.isArray(rows) ? rows[0]?.lastCompleted : null);
+          if (lastCompleted) {
+            const hoursSince = (Date.now() - new Date(lastCompleted).getTime()) / (1000 * 60 * 60);
+            log.info(`[UnifiedSync] v661: 账户${account.accountId} 上次全量同步在 ${hoursSince.toFixed(1)}小时前，冒却期内，跳过`);
+            logSync('UnifiedSync', `v661: 账户${account.accountId}全量同步冒却期跳过`, {
+              accountId: account.accountId, hoursSince: hoursSince.toFixed(1), tier
+            });
+            batchResult.skippedAccounts++;
+            continue;
+          }
+        }
+      } catch (cooldownErr: any) {
+        // 冒却期检查失败不阻止同步继续
+        log.debug(`[UnifiedSync] v661: 账户${account.accountId}冒却期检查失败: ${(cooldownErr as Error).message}`);
+      }
+    }
+    
     // v659: 每个账户同步前检查内存
     try {
       const { checkMemoryPressure } = await import('./syncCoordinator');
@@ -2347,15 +2381,17 @@ export async function syncAllAccounts(tier: SyncTier): Promise<BatchSyncResult> 
       );
       const hasFailed = !accountResult.success && !accountResult.partialSuccess;
       
+      // v661: 大幅拉长账户间延迟，确保成功率和准确率优先
+      // 核心原则: 只要保证24小时内能完成一轮全量同步即可
       if (hasThrottle) {
-        delayMs = 60000; // 限流：等待60秒让API令牌桶恢复
-        delayReason = 'API限流退避';
+        delayMs = 300000; // v661: 限流→等待5分钟（从60秒延长，让API令牌桶充分恢复）
+        delayReason = 'API限流退避(5min)';
       } else if (hasFailed) {
-        delayMs = 30000; // 失败：等待30秒
-        delayReason = '失败后冷却';
+        delayMs = 120000; // v661: 失败→等待2分钟（从30秒延长）
+        delayReason = '失败后冷却(2min)';
       } else {
-        delayMs = 10000; // 成功：等待10秒
-        delayReason = '正常间隔';
+        delayMs = 60000; // v661: 成功→等待1分钟（从10秒延长，给API充分恢复时间）
+        delayReason = '正常间隔(1min)';
       }
       
       // 内存压力额外延迟
@@ -2363,8 +2399,8 @@ export async function syncAllAccounts(tier: SyncTier): Promise<BatchSyncResult> 
         const { checkMemoryPressure } = await import('./syncCoordinator');
         const memCheck = checkMemoryPressure();
         if (memCheck.level === 'elevated') {
-          delayMs = Math.max(delayMs, 20000);
-          delayReason += '+内存偏高';
+          delayMs = Math.max(delayMs, 60000); // v661: 内存偏高时至少等待60秒（从20s延长）
+          delayReason += '+内存偏高(60s)';
           if (typeof global.gc === 'function') global.gc();
         }
       } catch {

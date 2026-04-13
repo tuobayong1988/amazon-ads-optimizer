@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 660;  // v660: 同步成功率100%冲刺 — 步骤超时大幅放宽+全局串行锁统一所有入口+卡死清理阈值延长+SBV优化过滤
+export const SYSTEM_VERSION = 661;  // v661: 全量调度频率优化 — 账户间延迟拉长+per-account 24h冒却期+部署恢复仅触发high层

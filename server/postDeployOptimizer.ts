@@ -85,6 +85,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 661,
+    description: 'v661: [全量调度频率优化] — (1)P0-账户间延迟大幅拉长: 成功10s→60s,限流60s→300s,失败30s→120s,确保成功率和准确率优先 (2)P0-per-account 24h冒却期: full/nightly层同步前检查账户上次全量同步时间,24小时内已同步的账户自动跳过,避免重复同步浪费API资源 (3)P1-内存压力额外延迟优化: 内存偏高时账户间延迟从20s增加到60s',
+    affectedModules: ['sync', 'system'],
+    correctionActions: [],
+  },
+  {
     version: 660,
     description: 'v660: [同步成功率100%冲刺] — (1)P0-步骤超时大幅放宽: STEP_TIMEOUT_MAP列表步骤3→10分钟,否定词3→15分钟,报告10-15→30-45分钟,绩效报告10-15→30-45分钟,竞价5→20分钟,素材5→15分钟,默认5→15分钟; amazonSyncService中否定词3→20分钟,报告15→30分钟,绩效报告20→45分钟,竞价10→25分钟 (2)P0-卡死清理阈值延长: cleanupStaleJobs从30分钟延长到120分钟,匹配步骤超时最长45分钟,避免大账户同步被误杀 (3)P0-全局互斥锁延长: LOCK_MAX_HOLD_MS从60分钟延长到180分钟 (4)P0-默认同步超时延长: DEFAULT_SYNC_TIMEOUT_MS从60分钟延长到120分钟 (5)P0-僵尸心跳超时延长: HEARTBEAT_ZOMBIE_TIMEOUT_MS从10分钟延长到30分钟 (6)P1-DB running检查窗口扩大: 从10分钟扩大到120分钟',
     affectedModules: ['sync', 'system'],
