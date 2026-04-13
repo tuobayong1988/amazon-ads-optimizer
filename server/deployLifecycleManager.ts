@@ -152,6 +152,8 @@ export function registerGracefulShutdown(server: unknown): void {
       'Cannot convert undefined or null to object',
       'Cannot read properties of undefined',
       'Cannot read properties of null',
+      'Cannot convert object to primitive value',  // v662: syncSd中SD API返回的嵌套对象字段传入mysql2时触发
+      'Cannot convert a Symbol value to a string',  // v662: 防御性添加
     ];
     
     const isNonFatal = NON_FATAL_PATTERNS.some(pattern => errorMsg.includes(pattern));

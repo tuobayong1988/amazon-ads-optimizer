@@ -85,6 +85,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 662,
+    description: 'v662: [修复syncSd对象类型字段导致进程崩溃] — (1)P0-根因修复: SD API返回的expression.value/bid/tactic等字段可能是嵌套对象而非原始值,传入mysql2的query()时触发TypeError:Cannot convert object to primitive value,导致uncaughtException进程退出. 新增safePrimitive()工具函数,对syncSdCampaigns/syncSdAdGroups/syncSdProductTargets/syncSdAudiences/syncSdNegativeTargets中所有可能是对象的字段做安全类型转换 (2)P0-白名单扩展: 将Cannot convert object to primitive value加入deployLifecycleManager的NON_FATAL_PATTERNS白名单,即使未来还有类似遗漏也不会导致进程退出',
+    affectedModules: ['sync', 'system'],
+    correctionActions: [],
+  },
+  {
     version: 661,
     description: 'v661: [全量调度频率优化] — (1)P0-账户间延迟大幅拉长: 成功10s→60s,限流60s→300s,失败30s→120s,确保成功率和准确率优先 (2)P0-per-account 24h冒却期: full/nightly层同步前检查账户上次全量同步时间,24小时内已同步的账户自动跳过,避免重复同步浪费API资源 (3)P1-内存压力额外延迟优化: 内存偏高时账户间延迟从20s增加到60s',
     affectedModules: ['sync', 'system'],

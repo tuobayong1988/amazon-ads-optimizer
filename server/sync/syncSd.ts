@@ -37,6 +37,24 @@ import { getLocalKeywordBidRecommendation, getLocalTargetBidRecommendation } fro
 
 const log = createModuleLogger('syncSd');
 
+/**
+ * v662: 安全原始类型转换工具函数
+ * 确保传入SQL的值都是原始类型（string/number/null），避免对象导致mysql2抛出TypeError
+ * 根因: SD API返回的某些字段（如bid, expression.value）可能是嵌套对象而非原始值
+ */
+function safePrimitive(value: unknown, fallback: string = ''): string {
+  if (value === null || value === undefined) return fallback;
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (typeof value === 'bigint') return String(value);
+  // 对象类型: 尝试JSON序列化
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return fallback;
+  }
+}
+
 // ==================== 类型声明（模块扩展） ====================
 
 // @ts-expect-error Legacy code type compatibility
@@ -190,14 +208,15 @@ AmazonSyncService.prototype.syncSdCampaigns = async function(this: AmazonSyncSer
       //   - page_visits / drive_page_visits → CPC计费，优化页面访问
       //   - conversions → CPC计费，优化转化
       //   - leads → CPC计费，优化线索收集
-      const sdOptimizationStrategy = String(sdGoal || sdBidOptimization || 'conversions').toLowerCase();
-
-      log.debug(`SD广告 ${apiCampaign.name}: goal=${sdGoal}, costType=${finalCostType}, tactic=${sdTactic}, strategy=${sdOptimizationStrategy}`);
-
+       // v662: 确保sdGoal和sdTactic是安全的原始类型
+      const safeGoal = safePrimitive(sdGoal) || null;
+      const safeTactic = safePrimitive(sdTactic) || null;
+      const sdOptimizationStrategy = safePrimitive(sdGoal || sdBidOptimization || 'conversions').toLowerCase();
+      log.debug(`SD广告 ${apiCampaign.name}: goal=${safeGoal}, costType=${finalCostType}, tactic=${safeTactic}, strategy=${sdOptimizationStrategy}`);
       const campaignData = {
         accountId: this.accountId,
         campaignId: String(apiCampaign.campaignId),
-        campaignName: apiCampaign.name,
+        campaignName: safePrimitive(apiCampaign.name, `SD_${apiCampaign.campaignId}`),  // v662
         campaignType: 'sd' as const,
         targetingType: 'manual' as const,
         dailyBudget: String(dailyBudget),
@@ -206,9 +225,9 @@ AmazonSyncService.prototype.syncSdCampaigns = async function(this: AmazonSyncSer
         startDate: sdStartDate,
         endDate: sdEndDate,
         costType: finalCostType as 'cpc' | 'vcpm' | 'cpm',
-        campaignGoal: sdGoal || null, // ✅ 存储SD广告目标
+        campaignGoal: safeGoal, // v662: 安全转换
         bidOptimization: normalizedBidOpt, // ✅ 存储竞价优化目标
-        tactic: sdTactic, // ✅ 存储定向策略
+        tactic: safeTactic, // v662: 安全转换
         portfolioId: sdPortfolioId,
         // @ts-expect-error Legacy code type compatibility
         amazonCreatedDate: sdStartDate, // Amazon侧创建日期
@@ -282,17 +301,16 @@ AmazonSyncService.prototype.syncSdAdGroups = async function(this: AmazonSyncServ
       const normalizedState = (apiAdGroup.state || 'enabled').toLowerCase() as 'enabled' | 'paused' | 'archived';
 
       // SD广告组可能有tactic字段（如T00020 = 受众定向, T00030 = 商品定向）
-      const tactic = apiAdGroup.tactic || null;
-
+      const tactic = safePrimitive(apiAdGroup.tactic) || null;  // v662
       const adGroupData = {
         // @ts-expect-error Amazon API response type flexibility
         campaignId: campaign.campaignId,
         accountId: this.accountId,
         adGroupId: String(apiAdGroup.adGroupId),
         // @ts-expect-error Legacy code type compatibility
-        adGroupName: apiAdGroup.name || apiAdGroup.adGroupName || 'SD Ad Group',
+        adGroupName: safePrimitive(apiAdGroup.name || apiAdGroup.adGroupName, 'SD Ad Group'),  // v662
         adGroupStatus: normalizedState,
-        defaultBid: String(apiAdGroup.defaultBid || apiAdGroup.bid || 0),
+        defaultBid: safePrimitive(apiAdGroup.defaultBid || apiAdGroup.bid, '0'),  // v662
         tactic: tactic,
         updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
       };
@@ -369,45 +387,45 @@ AmazonSyncService.prototype.syncSdProductTargets = async function(this: AmazonSy
         targetExpression = JSON.stringify(exprArray);
         
         for (const expr of exprArray) {
-          const et = (expr.type || '').toLowerCase();
+          const et = safePrimitive(expr.type).toLowerCase();  // v662: 安全类型转换
           
           if (et.includes('categorysame') || et.includes('category')) {
             targetType = 'category';
-            targetValue = expr.value || '';
+            targetValue = safePrimitive(expr.value);  // v662
             targetMatchType = 'category_exact';
           } else if (et.includes('brandsame')) {
             targetType = 'category';
-            targetValue = expr.value || '';
+            targetValue = safePrimitive(expr.value);  // v662
             targetMatchType = 'brand_exact';
           } else if (et.includes('pricebetween') || et.includes('price')) {
-            refinements.priceRange = expr.value;
+            refinements.priceRange = safePrimitive(expr.value);  // v662
           } else if (et.includes('reviewrating') || et.includes('star') || et.includes('rating')) {
-            refinements.starRating = expr.value;
+            refinements.starRating = safePrimitive(expr.value);  // v662
           } else if (et.includes('expanded') || et.includes('expandedfrom')) {
             targetType = 'asin';
-            targetValue = expr.value || '';
+            targetValue = safePrimitive(expr.value);  // v662
             targetMatchType = 'expanded';
           } else if (et.includes('substitute')) {
             targetType = 'asin';
-            targetValue = expr.value || 'AUTO_SUBSTITUTES';
+            targetValue = safePrimitive(expr.value, 'AUTO_SUBSTITUTES');  // v662
             targetMatchType = 'substitute';
           } else if (et.includes('accessory') || et.includes('complement')) {
             targetType = 'asin';
-            targetValue = expr.value || 'AUTO_COMPLEMENTS';
+            targetValue = safePrimitive(expr.value, 'AUTO_COMPLEMENTS');  // v662
             targetMatchType = 'accessory';
           } else if (et.includes('asin') && et.includes('same')) {
             targetType = 'asin';
-            targetValue = expr.value || '';
+            targetValue = safePrimitive(expr.value);  // v662
             // @ts-expect-error Legacy code type compatibility
             targetMatchType = 'exact';
           } else if (et.includes('broadrel') || et.includes('broad_rel') || et.includes('loose')) {
-            targetValue = expr.value || 'AUTO_LOOSE';
+            targetValue = safePrimitive(expr.value, 'AUTO_LOOSE');  // v662
             targetMatchType = 'loose';
           } else if (et.includes('highrel') || et.includes('high_rel') || et.includes('close')) {
-            targetValue = expr.value || 'AUTO_CLOSE';
+            targetValue = safePrimitive(expr.value, 'AUTO_CLOSE');  // v662
             targetMatchType = 'close';
           } else if (expr.value && !targetValue) {
-            targetValue = expr.value;
+            targetValue = safePrimitive(expr.value);  // v662
           }
         }
         
@@ -437,16 +455,18 @@ AmazonSyncService.prototype.syncSdProductTargets = async function(this: AmazonSy
       // v473: SD API的bid可能是对象格式 {amount: number} 或直接数字
       const rawBid = apiTarget.bid;
       const bidValue = typeof rawBid === 'object' && rawBid !== null ? (rawBid as Record<string, unknown>).amount || 0 : rawBid || 0;
+      // v662: 确保targetValue是安全的原始类型（可能在上面的解析中被赋值为对象）
+      targetValue = safePrimitive(targetValue, `AUTO_${String(apiTarget.targetId)}`);
       const targetData = {
         accountId: this.accountId,
         internalAdGroupId: adGroup.id,  // v418: ID体系重构
-        campaignId: adGroup.campaignId || '',  // v3577
+        campaignId: safePrimitive(adGroup.campaignId),  // v662: 安全转换
         targetId: String(apiTarget.targetId),
         targetType,
         targetValue,
-        targetExpression,
+        targetExpression: safePrimitive(targetExpression),  // v662: 确保是字符串
         targetMatchType,
-        bid: String(bidValue),
+        bid: safePrimitive(bidValue, '0'),  // v662: 安全转换
         targetStatus: normalizedState,
         categoryName: categoryName,
         categoryRefinements: categoryRefinements,
@@ -743,7 +763,7 @@ AmazonSyncService.prototype.syncSdNegativeTargets = async function(this: AmazonS
         // @ts-expect-error Conditional type narrowing
         e.type?.toLowerCase().includes('asin') || e.type?.toLowerCase().includes('brand')
       );
-      const negativeText = asinExpr?.value || JSON.stringify(expression);
+      const negativeText = safePrimitive(asinExpr?.value) || JSON.stringify(expression);  // v662: 安全类型转换
       const amazonTargetId = String(neg.targetId || '');
       const negLevel = 'ad_group' as const; // SD否定定向仅在Ad Group级别
       
@@ -1070,7 +1090,7 @@ AmazonSyncService.prototype.syncSdAudiences = async function(this: AmazonSyncSer
       let amazonAudienceId: string | null = null;
 
       for (const expr of exprArray) {
-        const et = String(expr.type || '').toLowerCase();
+        const et = safePrimitive(expr.type).toLowerCase();  // v662: 安全类型转换
         
         // 判断是否为受众定向类型
         if (AUDIENCE_EXPRESSION_TYPES.some(aud => et.includes(aud))) {
@@ -1092,26 +1112,25 @@ AmazonSyncService.prototype.syncSdAudiences = async function(this: AmazonSyncSer
           } else if (et.includes('lookback')) {
             audienceType = 'lookback';
             audienceCategory = 'remarketing';
-            audienceSubCategory = `Lookback ${expr.value || '30'} days`;
+            audienceSubCategory = `Lookback ${safePrimitive(expr.value, '30')} days`;  // v662
           } else if (et.includes('inmarket') || et.includes('in-market') || et.includes('in_market')) {
             audienceType = 'inMarket';
             audienceCategory = 'in_market';
-            // @ts-expect-error Legacy code type compatibility
-            audienceSubCategory = expr.value || 'In-Market Audience';
+            audienceSubCategory = safePrimitive(expr.value, 'In-Market Audience');  // v662
           } else if (et.includes('lifestyle') || et.includes('interest')) {
             audienceType = 'lifestyle';
             audienceCategory = 'lifestyle';
-            audienceSubCategory = expr.value || 'Lifestyle Audience';
+            audienceSubCategory = safePrimitive(expr.value, 'Lifestyle Audience');  // v662
           } else if (et.includes('audience')) {
             // 通用audience类型 - 可能是Amazon预定义受众
             audienceType = 'custom';
             audienceCategory = 'custom';
-            audienceSubCategory = expr.value || 'Custom Audience';
-            amazonAudienceId = expr.value || null;
+            audienceSubCategory = safePrimitive(expr.value, 'Custom Audience');  // v662
+            amazonAudienceId = safePrimitive(expr.value) || null;  // v662
           } else if (et.includes('custom')) {
             audienceType = 'custom';
             audienceCategory = 'custom';
-            audienceSubCategory = expr.value || 'Custom Audience';
+            audienceSubCategory = safePrimitive(expr.value, 'Custom Audience');  // v662
           }
           
           break; // 找到第一个受众类型即可
@@ -1145,20 +1164,25 @@ AmazonSyncService.prototype.syncSdAudiences = async function(this: AmazonSyncSer
         }
       }
 
+      // v662: 确保audienceSubCategory是安全的原始类型
+      audienceSubCategory = safePrimitive(audienceSubCategory, `${audienceType} Audience`);
       const audienceData = {
         accountId: this.accountId,
         internalAdGroupId: adGroup.id,
         audienceId: targetId,
-        audienceName: apiTarget.name || `${audienceCategory} - ${audienceSubCategory}`,
+        audienceName: safePrimitive(apiTarget.name, `${audienceCategory} - ${audienceSubCategory}`),  // v662
         audienceType,
         lookbackDays,
         audienceCategory,
         audienceSubCategory,
-        audienceExpression: JSON.stringify(exprArray),
-        amazonAudienceId,
-        bid: String(typeof apiTarget.bid === 'object' && apiTarget.bid !== null 
-          ? (apiTarget.bid as Record<string, unknown>).amount || 0 
-          : (apiTarget.bid || 0)),
+        audienceExpression: safePrimitive(JSON.stringify(exprArray), '[]'),  // v662
+        amazonAudienceId: amazonAudienceId ? safePrimitive(amazonAudienceId) : null,  // v662
+        bid: safePrimitive(
+          typeof apiTarget.bid === 'object' && apiTarget.bid !== null 
+            ? (apiTarget.bid as Record<string, unknown>).amount || 0 
+            : (apiTarget.bid || 0),
+          '0'
+        ),  // v662: 安全转换bid
         state: normalizedState,
         updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
       };

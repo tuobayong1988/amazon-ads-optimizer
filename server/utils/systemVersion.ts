@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 661;  // v661: 全量调度频率优化 — 账户间延迟拉长+per-account 24h冒却期+部署恢复仅触发high层
+export const SYSTEM_VERSION = 662;  // v662: 修复syncSd对象类型字段导致uncaughtException进程崩溃 — 安全类型转换+白名单扩展
