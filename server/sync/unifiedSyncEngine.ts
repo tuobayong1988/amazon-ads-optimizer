@@ -1646,6 +1646,10 @@ export async function syncAccount(
       const STEP_MAX_RETRIES = 2;
       const STEP_RETRY_BASE_DELAY_MS = 5000; // 5s -> 10s 指数退避
       
+      // v658-fix: 将heartbeatTimer声明提升到for循环外部
+      // 修复esbuild构建时try块内let声明与catch块引用变量名不一致的bug
+      let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+      
       for (let retryAttempt = 0; retryAttempt <= STEP_MAX_RETRIES; retryAttempt++) {
       try {
         // v220: 记录API调用（每个步骤通常包含1-3个API调用）
@@ -1654,7 +1658,6 @@ export async function syncAccount(
         // v651: 心跳机制 - 始终启动心跳定时器（不再依赖onProgress）
         // v650审计发现：自动同步不传onProgress导致心跳不启动，15分钟后被cleanupStaleJobs误杀
         // 修复：心跳定时器始终启动，同时更新内存心跳和DB心跳（通过直接UPDATE data_sync_jobs）
-        let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
         heartbeatTimer = setInterval(async () => {
           try {
             // v651: 始终更新内存心跳，防止HealthMonitor误判为僵尸
