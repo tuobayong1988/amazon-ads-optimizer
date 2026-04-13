@@ -40,7 +40,7 @@ const log = createModuleLogger('syncPerformance');
 
 // ==================== 类型声明（模块扩展） ====================
 
-// @ts-ignore
+// @ts-expect-error - legacy type assertion
 declare module '../../amazonSyncService' {
   interface AmazonSyncService {
     syncPerformanceData(...args: unknown[]): unknown;
@@ -68,7 +68,7 @@ declare module '../../amazonSyncService' {
  * 
  * @param days 同步天数，默认14天（归因回溯机制）
  */
-// @ts-ignore
+// @ts-expect-error - legacy type assertion
 AmazonSyncService.prototype.syncPerformanceData = async function(this: AmazonSyncService, days: number = 14): Promise<number> {
   const db = await getDb();
   if (!db) {
@@ -141,7 +141,7 @@ AmazonSyncService.prototype.syncPerformanceData = async function(this: AmazonSyn
       log.debug(`第${batch + 1}/${batches}批: ${startDateStr} - ${endDateStr} (共${daysInBatch}天)`);
       
       try {
-        // @ts-ignore
+        // @ts-expect-error - legacy type assertion
         const batchSynced = await this.syncPerformanceDataBatch(startDateStr, endDateStr);
         totalSynced += batchSynced;
         log.info(`第${batch + 1}批同步完成: ${batchSynced}条记录`);
@@ -166,16 +166,16 @@ AmazonSyncService.prototype.syncPerformanceData = async function(this: AmazonSyn
         }
         // 继续下一批，不中断整个同步过程
       }
-    // @ts-ignore
+    // @ts-expect-error - legacy type assertion
     }
     
     // 同步完成后，更新campaigns表的绩效汇总数据
-    // @ts-ignore
+    // @ts-expect-error - legacy type assertion
     await this.updateCampaignPerformanceSummary();
     
     // v195: 同步完成后，自动从daily_performance生成hourly_performance数据
     try {
-      // @ts-ignore
+      // @ts-expect-error - legacy type assertion
       const hourlyGenerated = await this.generateHourlyFromDaily(rangeStartDate, rangeEndDate);
       log.info(`v195: hourly_performance自动生成完成: ${hourlyGenerated}条`);
     } catch (hourlyErr: unknown) {
@@ -211,13 +211,13 @@ AmazonSyncService.prototype.syncPerformanceData = async function(this: AmazonSyn
     // v358: 抛出错误而不是返回0
     throw error;
   }
-// @ts-ignore
+// @ts-expect-error - legacy type assertion
 };
 
 /**
  * 同步单批绩效数据（内部方法）
  */
-// @ts-ignore
+// @ts-expect-error - legacy type assertion
 AmazonSyncService.prototype.syncPerformanceDataBatch = async function(this: AmazonSyncService, startDateStr: string, endDateStr: string): Promise<number> {
   const db = await getDb();
   // v358: 数据库不可用是真实错误，不应返回0
@@ -390,16 +390,16 @@ async function flushDailyPerfBatch(
   batch: unknown[],
   currencyBatch: { currency: string; exchangeRate: number; spendUsd: string; salesUsd: string }[]
 ): Promise<void> {
-  // @ts-ignore
+  // @ts-expect-error - legacy type assertion
   if (batch.length === 0) return;
 
   // v383: 将货币字段直接合并到batch数据中，一次UPSERT完成所有字段更新
   const enrichedBatch = batch.map((row, i) => {
     const cur = currencyBatch[i];
     return {
-      // @ts-ignore
+      // @ts-expect-error - legacy type assertion
       ...row,
-      // @ts-ignore
+      // @ts-expect-error - legacy type assertion
       currency: cur?.currency || null,
       exchangeRate: cur?.exchangeRate ? String(cur.exchangeRate) : null,
       spendUsd: cur?.spendUsd || null,
@@ -407,7 +407,7 @@ async function flushDailyPerfBatch(
     };
   });
 
-  // @ts-ignore
+  // @ts-expect-error - legacy type assertion
   await db.insert(dailyPerformance).values(enrichedBatch).onDuplicateKeyUpdate({
     set: {
       impressions: sql`VALUES(${dailyPerformance.impressions})`,
@@ -430,7 +430,7 @@ async function flushDailyPerfBatch(
       isFinalized: sql`VALUES(${dailyPerformance.isFinalized})`,
       dataSource: sql`VALUES(${dailyPerformance.dataSource})`,
       // v383: 货币字段合并到主UPSERT，消除N+1
-      // @ts-ignore
+      // @ts-expect-error - legacy type assertion
       currency: sql`VALUES(${dailyPerformance.currency})`,
       exchangeRate: sql`VALUES(${dailyPerformance.exchangeRate})`,
       spendUsd: sql`VALUES(${dailyPerformance.spendUsd})`,
@@ -439,7 +439,7 @@ async function flushDailyPerfBatch(
   });
 }
 
-// @ts-ignore
+// @ts-expect-error - legacy type assertion
 AmazonSyncService.prototype.processReportData = async function(this: AmazonSyncService, db: DbInstance, reportData: unknown[], adType: string): Promise<number> {
   try {
     log.info(`开始处理${adType}报告数据, 共 ${reportData.length} 条记录`);
@@ -462,7 +462,7 @@ AmazonSyncService.prototype.processReportData = async function(this: AmazonSyncS
     log.info(`开始处理报告数据, 共 ${reportData.length} 条记录`);
     
     // 统计匹配情况
-    // @ts-ignore
+    // @ts-expect-error - legacy type assertion
     let matchedById = 0;
     let matchedByName = 0;
     let notMatched = 0;
@@ -472,7 +472,7 @@ AmazonSyncService.prototype.processReportData = async function(this: AmazonSyncS
     let currencyBatch: { currency: string; exchangeRate: number; spendUsd: string; salesUsd: string }[] = [];
 
     // v391: 预加载该账户所有campaigns到内存Map，消除N+1查询
-    // @ts-ignore
+    // @ts-expect-error - legacy type assertion
     const allCampaigns = await db
       .select()
       .from(campaigns)
@@ -495,45 +495,45 @@ AmazonSyncService.prototype.processReportData = async function(this: AmazonSyncS
       // 策略：先用campaignId匹配，失败后用campaignName匹配
       
       // 策略1: 先用campaignId匹配
-      // @ts-ignore
+      // @ts-expect-error - legacy type assertion
       let campaign = campaignByIdMap.get(String(row.campaignId));
 
       if (campaign) {
         matchedById++;
-      // @ts-ignore
+      // @ts-expect-error - legacy type assertion
       } else if (row.campaignName) {
         // 策略2: 用campaignName匹配
-        // @ts-ignore
+        // @ts-expect-error - legacy type assertion
         campaign = campaignByNameMap.get(row.campaignName);
         
         if (campaign) {
-          // @ts-ignore
+          // @ts-expect-error - legacy type assertion
           matchedByName++;
-          // @ts-ignore
+          // @ts-expect-error - legacy type assertion
           log.info(`${adType}通过名称匹配成功: ${row.campaignName} (reportId=${row.campaignId}, dbId=${campaign.campaignId})`);
         }
-      // @ts-ignore
+      // @ts-expect-error - legacy type assertion
       }
 
       if (!campaign) {
         // 尝试自动创建campaign记录，以保存报告数据
-        // @ts-ignore
+        // @ts-expect-error - legacy type assertion
         if (row.campaignId && row.campaignName) {
           try {
-            // @ts-ignore
+            // @ts-expect-error - legacy type assertion
             log.info(`${adType}自动创建campaign: ${row.campaignName}`);
             // @ts-expect-error - Drizzle query builder type
             const [newCampaign] = await db.insert(campaigns).values({
               accountId: this.accountId,
-              // @ts-ignore
+              // @ts-expect-error - legacy type assertion
               campaignId: String(row.campaignId),
-              // @ts-ignore
+              // @ts-expect-error - legacy type assertion
               campaignName: row.campaignName,
               campaignType: adType === 'SP' ? 'sp_manual' : adType.toLowerCase() as 'sp_auto' | 'sp_manual' | 'sb' | 'sd',
               targetingType: 'manual',
-              // @ts-ignore
+              // @ts-expect-error - legacy type assertion
               status: row.campaignStatus || 'enabled',
-              // @ts-ignore
+              // @ts-expect-error - legacy type assertion
               dailyBudget: row.campaignBudget ? String(row.campaignBudget) : '0',
               createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
               updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
@@ -541,11 +541,11 @@ AmazonSyncService.prototype.processReportData = async function(this: AmazonSyncS
             }).returning();
             campaign = newCampaign;
             // v391: 将新创建的campaign加入内存Map，避免后续重复创建
-            // @ts-ignore
+            // @ts-expect-error - legacy type assertion
             campaignByIdMap.set(String(campaign.campaignId), campaign);
-            // @ts-ignore
+            // @ts-expect-error - legacy type assertion
             if (campaign.campaignName) campaignByNameMap.set(campaign.campaignName, campaign);
-            // @ts-ignore
+            // @ts-expect-error - legacy type assertion
             log.info(`${adType}自动创建campaign成功: id=${campaign.id}, name=${campaign.campaignName}`);
           } catch (createError: unknown) {
             // 可能是重复插入，尝试再次查询
@@ -557,28 +557,28 @@ AmazonSyncService.prototype.processReportData = async function(this: AmazonSyncS
               .where(
                 and(
                   eq(campaigns.accountId, this.accountId),
-                  // @ts-ignore
+                  // @ts-expect-error - legacy type assertion
                   eq(campaigns.campaignName, row.campaignName)
                 )
-              // @ts-ignore
+              // @ts-expect-error - legacy type assertion
               )
               .limit(1);
             campaign = existingCampaign;
             // v391: 将查询到的campaign加入内存Map
             if (campaign) {
-              // @ts-ignore
+              // @ts-expect-error - legacy type assertion
               campaignByIdMap.set(String(campaign.campaignId), campaign);
-              // @ts-ignore
+              // @ts-expect-error - legacy type assertion
               if (campaign.campaignName) campaignByNameMap.set(campaign.campaignName, campaign);
             }
-          // @ts-ignore
+          // @ts-expect-error - legacy type assertion
           }
         }
         
         if (!campaign) {
           notMatched++;
           if (notMatched <= 10) {
-            // @ts-ignore
+            // @ts-expect-error - legacy type assertion
             log.warn(`${adType}未找到campaign: accountId=${this.accountId}, campaignId=${row.campaignId}, campaignName=${row.campaignName || 'N/A'}`);
           }
           continue;
@@ -586,11 +586,11 @@ AmazonSyncService.prototype.processReportData = async function(this: AmazonSyncS
       }
 
       // v440: 命名物理隔离 - 通过extractCampaignIds解构，明确区分Amazon ID和本地ID
-      // @ts-ignore
+      // @ts-expect-error - legacy type assertion
       const { amazonId: amazonCampaignId } = extractCampaignIds(campaign, `syncPerformance.${adType}`);
 
       // 使用报告日期或当前日期
-      // @ts-ignore
+      // @ts-expect-error - legacy type assertion
       const reportDate = row.date ? new Date(row.date) : new Date();
       const reportDateStr = reportDate.toISOString().split('T')[0];
 
@@ -601,19 +601,19 @@ AmazonSyncService.prototype.processReportData = async function(this: AmazonSyncS
       // SP: 使用 7天归因 (sales7d, purchases7d, unitsSoldClicks7d)
       // SB: 使用 Clicks后缀 (salesClicks, purchasesClicks, unitsSoldClicks, detailPageViewsClicks)
       // SD: 使用 Clicks后缀 (salesClicks, purchasesClicks, unitsSoldClicks, detailPageViewsClicks, viewableImpressions)
-      // @ts-ignore
+      // @ts-expect-error - legacy type assertion
       const cost = row.cost || 0;
-      // @ts-ignore
+      // @ts-expect-error - legacy type assertion
       let sales = 0;
-      // @ts-ignore
+      // @ts-expect-error - legacy type assertion
       let orders = 0;
-      // @ts-ignore
+      // @ts-expect-error - legacy type assertion
       let unitsSold = 0;
-      // @ts-ignore
+      // @ts-expect-error - legacy type assertion
       let dpv = 0;
-      // @ts-ignore
+      // @ts-expect-error - legacy type assertion
       let addToCart = 0;
-      // @ts-ignore
+      // @ts-expect-error - legacy type assertion
       let ntbOrders = 0;
       let ntbSales = 0;
       let viewableImpressions = 0;
@@ -621,45 +621,45 @@ AmazonSyncService.prototype.processReportData = async function(this: AmazonSyncS
       if (adType === 'SP') {
         // ✅ SP报告使用 7天归因窗口 (7d) - 修正字段名
         // 参考文档: https://advertising.amazon.com/API/docs/en-us/reporting/v3/report-types
-        // @ts-ignore
+        // @ts-expect-error - legacy type assertion
         sales = row.sales7d || 0;
-        // @ts-ignore
+        // @ts-expect-error - legacy type assertion
         orders = row.purchases7d || 0;
-        // @ts-ignore
+        // @ts-expect-error - legacy type assertion
         unitsSold = row.unitsSoldClicks7d || 0;
         // SP不支持 dpv 和 addToCart 在 7d 字段中
-        // @ts-ignore
+        // @ts-expect-error - legacy type assertion
         dpv = 0;
         addToCart = 0;
       } else if (adType === 'SB') {
         // ✅ SB报告使用修正后的字段名 (Clicks后缀)
-        // @ts-ignore
+        // @ts-expect-error - legacy type assertion
         sales = row.salesClicks || 0;
-        // @ts-ignore
+        // @ts-expect-error - legacy type assertion
         orders = row.purchasesClicks || 0;
-        // @ts-ignore
+        // @ts-expect-error - legacy type assertion
         unitsSold = row.unitsSoldClicks || 0;
-        // @ts-ignore
+        // @ts-expect-error - legacy type assertion
         dpv = row.detailPageViewsClicks || 0;
-        // @ts-ignore
+        // @ts-expect-error - legacy type assertion
         ntbOrders = row.newToBrandPurchasesClicks || 0;
-        // @ts-ignore
+        // @ts-expect-error - legacy type assertion
         ntbSales = row.newToBrandSalesClicks || 0;
       } else {
         // ✅ SD报告使用修正后的字段名 (Clicks后缀)
-        // @ts-ignore
+        // @ts-expect-error - legacy type assertion
         sales = row.salesClicks || 0;
-        // @ts-ignore
+        // @ts-expect-error - legacy type assertion
         orders = row.purchasesClicks || 0;
-        // @ts-ignore
+        // @ts-expect-error - legacy type assertion
         unitsSold = row.unitsSoldClicks || 0;
-        // @ts-ignore
+        // @ts-expect-error - legacy type assertion
         viewableImpressions = row.viewableImpressions || 0;
-        // @ts-ignore
+        // @ts-expect-error - legacy type assertion
         dpv = row.detailPageViewsClicks || 0;
-        // @ts-ignore
+        // @ts-expect-error - legacy type assertion
         ntbOrders = row.newToBrandPurchasesClicks || 0;
-        // @ts-ignore
+        // @ts-expect-error - legacy type assertion
         ntbSales = row.newToBrandSalesClicks || 0;
       }
       
@@ -673,9 +673,9 @@ AmazonSyncService.prototype.processReportData = async function(this: AmazonSyncS
         accountId: this.accountId,
         campaignId: guardCampaignIdInsert(amazonCampaignId, 'daily_performance'),
         date: reportDateStr,
-        // @ts-ignore
+        // @ts-expect-error - legacy type assertion
         impressions: row.impressions || 0,
-        // @ts-ignore
+        // @ts-expect-error - legacy type assertion
         clicks: row.clicks || 0,
         spend: String(cost),
         sales: String(sales),
@@ -686,11 +686,11 @@ AmazonSyncService.prototype.processReportData = async function(this: AmazonSyncS
         dailyRoas: cost && sales 
           ? String(sales / cost) 
           : '0',
-        // @ts-ignore
+        // @ts-expect-error - legacy type assertion
         ctr: (row.impressions || 0) > 0 ? String(((row.clicks || 0) / (row.impressions || 0))) : null,
-        // @ts-ignore
+        // @ts-expect-error - legacy type assertion
         cvr: (row.clicks || 0) > 0 ? String((orders / (row.clicks || 0))) : null,
-        // @ts-ignore
+        // @ts-expect-error - legacy type assertion
         cpc: (row.clicks || 0) > 0 ? String((cost / (row.clicks || 0))) : null,
         // ✅ Report API v3 新增字段
         unitsSold: unitsSold,
@@ -749,7 +749,7 @@ AmazonSyncService.prototype.processReportData = async function(this: AmazonSyncS
  * 已无任何调用方，保留仅作为参考，禁止在生产环境中使用
  * 应使用syncPerformanceData()获取真实Amazon API数据
  */
-// @ts-ignore
+// @ts-expect-error - legacy type assertion
 AmazonSyncService.prototype.generateMockPerformanceData = async function(this: AmazonSyncService, days: number = 7): Promise<number> {
   log.warn('⚠️ generateMockPerformanceData已废弃，不应被调用！请使用syncPerformanceData()代替');
   const db = await getDb();
@@ -773,12 +773,12 @@ AmazonSyncService.prototype.generateMockPerformanceData = async function(this: A
     
     for (const campaign of (accountCampaigns as unknown[])) {
       // v440: 命名物理隔离
-      // @ts-ignore
+      // @ts-expect-error - legacy type assertion
       const { amazonId: amazonCampaignId } = extractCampaignIds(campaign, 'generateMockPerformanceData');
       // 为每个广告活动生成最近N天的模拟数据
       for (let i = 0; i < days; i++) {
         // 基于站点当前日期计算
-        // @ts-ignore
+        // @ts-expect-error - legacy type assertion
         const baseDate = new Date(marketplaceToday);
         baseDate.setDate(baseDate.getDate() - i);
         const dateStr = baseDate.toISOString().split('T')[0];
@@ -794,14 +794,14 @@ AmazonSyncService.prototype.generateMockPerformanceData = async function(this: A
               sql`DATE(${dailyPerformance.date}) = ${dateStr}`
             )
           )
-          // @ts-ignore
+          // @ts-expect-error - legacy type assertion
           .limit(1);
         if (existing) continue;;
 
         // 生成基于广告活动类型的模拟数据
-        // @ts-ignore
+        // @ts-expect-error - legacy type assertion
         const baseImpressions = (campaign.campaignType === 'sp_auto' || campaign.campaignType === 'sp_manual') ? 5000 : 
-                                // @ts-ignore
+                                // @ts-expect-error - legacy type assertion
                                 campaign.campaignType === 'sb' ? 3000 : 2000;
         const baseCtr = 0.02 + Math.random() * 0.03; // 2-5% CTR
         const baseCvr = 0.05 + Math.random() * 0.1; // 5-15% CVR
@@ -834,7 +834,7 @@ AmazonSyncService.prototype.generateMockPerformanceData = async function(this: A
     }
 
     // 更新campaigns表的绩效汇总数据
-    // @ts-ignore
+    // @ts-expect-error - legacy type assertion
     await this.updateCampaignPerformanceSummary();
 
     log.info(`模拟绩效数据生成完成: ${synced} 条记录`);
@@ -850,7 +850,7 @@ AmazonSyncService.prototype.generateMockPerformanceData = async function(this: A
  * 同步关键词绩效数据
  * 从Amazon Reporting API获取关键词级别的绩效数据并更新到keywords表
  */
-// @ts-ignore
+// @ts-expect-error - legacy type assertion
 AmazonSyncService.prototype.syncKeywordPerformanceData = async function(this: AmazonSyncService, days: number = 7): Promise<number> {
   const db = await getDb();
   if (!db) {
@@ -872,32 +872,32 @@ AmazonSyncService.prototype.syncKeywordPerformanceData = async function(this: Am
     if (batches === 1) {
       try {
         const reportId = await this.client.requestSpKeywordReport(rangeStartDate, rangeEndDate);
-        // @ts-ignore
+        // @ts-expect-error - legacy type assertion
         const data = await this.client.waitAndDownloadReport(reportId, 600000); // v523.3: 超时时间增加到600秒
-        // @ts-ignore
+        // @ts-expect-error - legacy type assertion
         if (data && data.length > 0) allReportData = data;
-      // @ts-ignore
+      // @ts-expect-error - legacy type assertion
       } catch (e: unknown) {
-        // @ts-ignore
+        // @ts-expect-error - legacy type assertion
         const _errMsg = (e as Error).message || '';
-        // @ts-ignore
+        // @ts-expect-error - legacy type assertion
         const _is425 = _errMsg.includes('425') || _errMsg.includes('Too Early');
-        // @ts-ignore
+        // @ts-expect-error - legacy type assertion
         if (_is425) {
-          // @ts-ignore
+          // @ts-expect-error - legacy type assertion
           log.warn(`v413: 关键词绩效报告请求失败 (expected 425): ${_errMsg}`);
-        // @ts-ignore
+        // @ts-expect-error - legacy type assertion
         } else {
-          // @ts-ignore
+          // @ts-expect-error - legacy type assertion
           log.warn(`v413: 关键词绩效报告请求失败: ${_errMsg}`);
-        // @ts-ignore
+        // @ts-expect-error - legacy type assertion
         }
-      // @ts-ignore
+      // @ts-expect-error - legacy type assertion
       }
-    // @ts-ignore
+    // @ts-expect-error - legacy type assertion
     } else {
       const batchRequests: Array<{ name: string; requestFn: () => Promise<string> }> = [];
-      // @ts-ignore
+      // @ts-expect-error - legacy type assertion
       for (let batch = 0; batch < batches; batch++) {
         const endDateObj = new Date(rangeEndDate);
         endDateObj.setDate(endDateObj.getDate() - (batch * MAX_DAYS_PER_REQUEST));
@@ -938,58 +938,58 @@ AmazonSyncService.prototype.syncKeywordPerformanceData = async function(this: Am
       return 0;
     }
     
-    // @ts-ignore
+    // @ts-expect-error - legacy type assertion
     log.info(`v339: 共获取到 ${allReportData.length} 条关键词绩效数据（${batches}批合并）`);
-    // @ts-ignore
+    // @ts-expect-error - legacy type assertion
     log.debug('v196: 关键词报告数据第一条示例:', JSON.stringify(allReportData[0], null, 2));
     
     // ==================== v395: SUMMARY模式分批数据聚合 ====================
     // 问题：SUMMARY模式下，同一keyword在不同批次中都会出现，合并时后一批会覆盖前一批
     // 解决：按targetId/keywordId聚合累加所有批次的指标
     const aggregatedMap = new Map<string, unknown>();
-    // @ts-ignore
+    // @ts-expect-error - legacy type assertion
     for (const row of allReportData) {
-      // @ts-ignore
+      // @ts-expect-error - legacy type assertion
       const key = String(row.targetId || row.keywordId || '');
       if (!key) continue;
       
       const existing = aggregatedMap.get(key);
       if (existing) {
         // 累加数值指标
-        // @ts-ignore
+        // @ts-expect-error - legacy type assertion
         existing.cost = (existing.cost || 0) + (row.cost || 0);
-        // @ts-ignore
+        // @ts-expect-error - legacy type assertion
         existing.impressions = (existing.impressions || 0) + (row.impressions || 0);
-        // @ts-ignore
+        // @ts-expect-error - legacy type assertion
         existing.clicks = (existing.clicks || 0) + (row.clicks || 0);
-        // @ts-ignore
+        // @ts-expect-error - legacy type assertion
         existing.sales7d = (existing.sales7d || 0) + (row.sales7d || 0);
-        // @ts-ignore
+        // @ts-expect-error - legacy type assertion
         existing.sales14d = (existing.sales14d || 0) + (row.sales14d || 0);
-        // @ts-ignore
+        // @ts-expect-error - legacy type assertion
         existing.purchases7d = (existing.purchases7d || 0) + (row.purchases7d || 0);
-        // @ts-ignore
+        // @ts-expect-error - legacy type assertion
         existing.purchases14d = (existing.purchases14d || 0) + (row.purchases14d || 0);
-        // @ts-ignore
+        // @ts-expect-error - legacy type assertion
         existing.unitsSoldClicks7d = (existing.unitsSoldClicks7d || 0) + (row.unitsSoldClicks7d || 0);
-        // @ts-ignore
+        // @ts-expect-error - legacy type assertion
         existing.unitsSoldSameSku7d = (existing.unitsSoldSameSku7d || 0) + (row.unitsSoldSameSku7d || 0);
-        // @ts-ignore
+        // @ts-expect-error - legacy type assertion
         existing.unitsSoldOtherSku7d = (existing.unitsSoldOtherSku7d || 0) + (row.unitsSoldOtherSku7d || 0);
-        // @ts-ignore
+        // @ts-expect-error - legacy type assertion
         existing.attributedSalesSameSku7d = (existing.attributedSalesSameSku7d || 0) + (row.attributedSalesSameSku7d || 0);
-        // @ts-ignore
+        // @ts-expect-error - legacy type assertion
         existing.salesOtherSku7d = (existing.salesOtherSku7d || 0) + (row.salesOtherSku7d || 0);
       } else {
-        // @ts-ignore
+        // @ts-expect-error - legacy type assertion
         aggregatedMap.set(key, { ...row });
-      // @ts-ignore
+      // @ts-expect-error - legacy type assertion
       }
-    // @ts-ignore
+    // @ts-expect-error - legacy type assertion
     }
-    // @ts-ignore
+    // @ts-expect-error - legacy type assertion
     const reportData = Array.from(aggregatedMap.values());
-    // @ts-ignore
+    // @ts-expect-error - legacy type assertion
     log.info(`[v395] SUMMARY模式聚合完成: ${allReportData.length}条 -> ${reportData.length}条（去重${allReportData.length - reportData.length}条）`);
     
     // ==================== v387: 批量预加载本地数据 - 按accountId过滤，修复数据隔离漏洞 ====================
@@ -997,14 +997,14 @@ AmazonSyncService.prototype.syncKeywordPerformanceData = async function(this: Am
     const allAdGroups = await db.select({ id: adGroups.id, adGroupId: adGroups.adGroupId }).from(adGroups).where(eq(adGroups.accountId, this.accountId));
     const adGroupAmazonToLocal = new Map<string, number>();
     for (const ag of allAdGroups) {
-      // @ts-ignore
+      // @ts-expect-error - legacy type assertion
       if (ag.adGroupId) adGroupAmazonToLocal.set(String(ag.adGroupId), ag.id);
-    // @ts-ignore
+    // @ts-expect-error - legacy type assertion
     }
     
     // 2. 预加载当前账户的keywords，建立多维索引（v387: 添加accountId过滤）
     const allKeywords = await db.select({
-      // @ts-ignore
+      // @ts-expect-error - legacy type assertion
       id: keywords.id, keywordId: keywords.keywordId, keywordText: keywords.keywordText,
       matchType: keywords.matchType, adGroupId: keywords.internalAdGroupId
     }).from(keywords).where(eq(keywords.accountId, this.accountId));
@@ -1017,23 +1017,23 @@ AmazonSyncService.prototype.syncKeywordPerformanceData = async function(this: Am
     // 纯文本键: keywordText (最后兜底)
     const kwByText = new Map<string, typeof allKeywords[0]>();
     
-    // @ts-ignore
+    // @ts-expect-error - legacy type assertion
     for (const kw of (allKeywords as unknown[])) {
-      // @ts-ignore
+      // @ts-expect-error - legacy type assertion
       if (kw.keywordId) kwByKeywordId.set(kw.keywordId, kw);
-      // @ts-ignore
+      // @ts-expect-error - legacy type assertion
       if (kw.adGroupId && kw.keywordText && kw.matchType) {
-        // @ts-ignore
+        // @ts-expect-error - legacy type assertion
         kwByAdGroupTextMatch.set(`${kw.adGroupId}_${kw.keywordText.toLowerCase()}_${kw.matchType.toLowerCase()}`, kw);
       }
-      // @ts-ignore
+      // @ts-expect-error - legacy type assertion
       if (kw.adGroupId && kw.keywordText) {
-        // @ts-ignore
+        // @ts-expect-error - legacy type assertion
         kwByAdGroupText.set(`${kw.adGroupId}_${kw.keywordText.toLowerCase()}`, kw);
       }
-      // @ts-ignore
+      // @ts-expect-error - legacy type assertion
       if (kw.keywordText) {
-        // @ts-ignore
+        // @ts-expect-error - legacy type assertion
         kwByText.set(kw.keywordText.toLowerCase(), kw);
       }
     }
@@ -1045,7 +1045,7 @@ AmazonSyncService.prototype.syncKeywordPerformanceData = async function(this: Am
     }).from(productTargets).where(eq(productTargets.accountId, this.accountId));
     
     const ptByTargetId = new Map<string, typeof allTargets[0]>();
-    // @ts-ignore
+    // @ts-expect-error - legacy type assertion
     const ptByExpression = new Map<string, typeof allTargets[0]>();
     
     for (const pt of allTargets) {
@@ -1065,19 +1065,19 @@ AmazonSyncService.prototype.syncKeywordPerformanceData = async function(this: Am
     const ptUpdates: { id: number; data: Record<string, unknown> }[] = [];
     
     for (const row of (reportData as unknown[])) {
-      // @ts-ignore
+      // @ts-expect-error - legacy type assertion
       const reportTargetId = String(row.targetId || row.keywordId || '');
       if (!reportTargetId) continue;
       
-      // @ts-ignore
+      // @ts-expect-error - legacy type assertion
       const cost = row.cost || 0;
-      // @ts-ignore
+      // @ts-expect-error - legacy type assertion
       const sales = row.sales7d || row.sales14d || 0;
-      // @ts-ignore
+      // @ts-expect-error - legacy type assertion
       const orders = row.purchases7d || row.purchases14d || 0;
-      // @ts-ignore
+      // @ts-expect-error - legacy type assertion
       const impressions = row.impressions || 0;
-      // @ts-ignore
+      // @ts-expect-error - legacy type assertion
       const clicks = row.clicks || 0;
       
       // 层1: 通过keywordId精确匹配
@@ -1085,21 +1085,21 @@ AmazonSyncService.prototype.syncKeywordPerformanceData = async function(this: Am
       if (kw) { matchStats.byKeywordId++; }
       
       // 层2: 通过adGroupId + keywordText + matchType三元组匹配
-      // @ts-ignore
+      // @ts-expect-error - legacy type assertion
       if (!kw && row.targetingText && row.adGroupId) {
-        // @ts-ignore
+        // @ts-expect-error - legacy type assertion
         const localAgId = adGroupAmazonToLocal.get(String(row.adGroupId));
         if (localAgId) {
-          // @ts-ignore
+          // @ts-expect-error - legacy type assertion
           const matchType = row.matchType || row.keywordType || '';
           if (matchType) {
-            // @ts-ignore
+            // @ts-expect-error - legacy type assertion
             kw = kwByAdGroupTextMatch.get(`${localAgId}_${row.targetingText.toLowerCase()}_${matchType.toLowerCase()}`);
             if (kw) matchStats.byAdGroupTextMatch++;
           }
           // 层3: 通过adGroupId + keywordText二元组匹配
           if (!kw) {
-            // @ts-ignore
+            // @ts-expect-error - legacy type assertion
             kw = kwByAdGroupText.get(`${localAgId}_${row.targetingText.toLowerCase()}`);
             if (kw) matchStats.byAdGroupText++;
           }
@@ -1107,9 +1107,9 @@ AmazonSyncService.prototype.syncKeywordPerformanceData = async function(this: Am
       }
       
       // 层4: 通过纯keywordText匹配（兜底）
-      // @ts-ignore
+      // @ts-expect-error - legacy type assertion
       if (!kw && row.targetingText) {
-        // @ts-ignore
+        // @ts-expect-error - legacy type assertion
         kw = kwByText.get(row.targetingText.toLowerCase());
         if (kw) matchStats.byText++;
       }
@@ -1119,13 +1119,13 @@ AmazonSyncService.prototype.syncKeywordPerformanceData = async function(this: Am
           id: kw.id,
           data: {
             impressions, clicks,
-            // @ts-ignore
+            // @ts-expect-error - legacy type assertion
             spend: String(cost), sales: String(sales), orders,
-            // @ts-ignore
+            // @ts-expect-error - legacy type assertion
             keywordAcos: cost > 0 && sales > 0 ? String(((cost / sales) * 100).toFixed(2)) : '0.00',
             keywordCtr: impressions > 0 ? String((clicks / impressions).toFixed(4)) : '0.0000',
             keywordCvr: clicks > 0 ? String((orders / clicks).toFixed(4)) : '0.0000',
-            // @ts-ignore
+            // @ts-expect-error - legacy type assertion
             keywordCpc: clicks > 0 ? String((cost / clicks).toFixed(2)) : '0.00',
             keywordRoas: cost > 0 && sales > 0 ? String((sales / cost).toFixed(2)) : '0.00',
             updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
@@ -1139,9 +1139,9 @@ AmazonSyncService.prototype.syncKeywordPerformanceData = async function(this: Am
       let pt = ptByTargetId.get(reportTargetId);
       if (pt) { matchStats.byTargetId++; }
       
-      // @ts-ignore
+      // @ts-expect-error - legacy type assertion
       if (!pt && row.targetingExpression) {
-        // @ts-ignore
+        // @ts-expect-error - legacy type assertion
         pt = ptByExpression.get(row.targetingExpression.toLowerCase());
         if (pt) matchStats.byExpression++;
       }
@@ -1164,10 +1164,10 @@ AmazonSyncService.prototype.syncKeywordPerformanceData = async function(this: Am
         continue;
       }
       
-      // @ts-ignore
+      // @ts-expect-error - legacy type assertion
       notMatched++;
       if (notMatched <= 5) {
-        // @ts-ignore
+        // @ts-expect-error - legacy type assertion
         log.warn(`v196: 未匹配: targetId=${reportTargetId}, text=${row.targetingText || 'N/A'}, expr=${row.targetingExpression || 'N/A'}`);
       }
     }
@@ -1177,7 +1177,7 @@ AmazonSyncService.prototype.syncKeywordPerformanceData = async function(this: Am
     const CONCURRENCY_LIMIT = 8; // v505: 限制并发数为8，避免超出连接池(limit=20)
     
     // v505: 受控并发更新函数
-    // @ts-ignore
+    // @ts-expect-error - legacy type assertion
     async function updateWithConcurrencyControl<T extends { id: number; data: Record<string, unknown> }>(
       updates: T[],
       tableName: string,
@@ -1212,7 +1212,7 @@ AmazonSyncService.prototype.syncKeywordPerformanceData = async function(this: Am
     );
     
     log.info(`v196: 关键词绩效同步完成 - 匹配${synced}条, 未匹配${notMatched}条, 写入${dbWritten}条`);
-    // @ts-ignore
+    // @ts-expect-error - legacy type assertion
     log.debug(`v196: 匹配统计 - keywordId:${matchStats.byKeywordId}, adGroup+text+match:${matchStats.byAdGroupTextMatch}, adGroup+text:${matchStats.byAdGroupText}, text:${matchStats.byText}, targetId:${matchStats.byTargetId}, expression:${matchStats.byExpression}`);
     
     // v196+v647: 同步时顺便回填keywordId（如果通过文本匹配到了但keywordId不一致）
@@ -1220,9 +1220,9 @@ AmazonSyncService.prototype.syncKeywordPerformanceData = async function(this: Am
     let backfilled = 0;
     let backfillSkipped = 0;
     for (const row of (reportData as unknown[])) {
-      // @ts-ignore
+      // @ts-expect-error - legacy type assertion
       const reportTargetId = String(row.targetId || row.keywordId || '');
-      // @ts-ignore
+      // @ts-expect-error - legacy type assertion
       if (!reportTargetId || !row.targetingText) continue;
       
       // v647: 严格验证 - 只有纯数字的reportTargetId才能回填到keywordId
@@ -1236,7 +1236,7 @@ AmazonSyncService.prototype.syncKeywordPerformanceData = async function(this: Am
       }
       
       // 检查是否有通过文本匹配到的keyword缺少keywordId
-      // @ts-ignore
+      // @ts-expect-error - legacy type assertion
       const kw = kwByText.get(row.targetingText.toLowerCase());
       if (kw && (!kw.keywordId || kw.keywordId.startsWith('SKIP_'))) {
         try {
@@ -1278,7 +1278,7 @@ AmazonSyncService.prototype.syncKeywordPerformanceData = async function(this: Am
  * 注意: SP-Targeting报告已包含商品定位数据，syncKeywordPerformanceData中已处理
  * 此方法作为补充，确保数据完整性
  */
-// @ts-ignore
+// @ts-expect-error - legacy type assertion
 AmazonSyncService.prototype.syncProductTargetPerformanceData = async function(this: AmazonSyncService, days: number): Promise<number> {
   // SP-Targeting报告已在syncKeywordPerformanceData中处理了product_targets的更新
   // 这里返回0表示不需要额外同步
@@ -1291,11 +1291,11 @@ AmazonSyncService.prototype.syncProductTargetPerformanceData = async function(th
  * 基于美国电商典型的小时流量分布模型，将每天的总量数据按概率分布到24小时
  * 只处理还没有hourly数据的daily记录（增量式）
  */
-// @ts-ignore
+// @ts-expect-error - legacy type assertion
 AmazonSyncService.prototype.generateHourlyFromDaily = async function(this: AmazonSyncService, startDate: string, endDate: string): Promise<number> {
   const db = await getDb();
   // v358: 数据库不可用是真实错误，不应返回0
-  // @ts-ignore
+  // @ts-expect-error - legacy type assertion
   if (!db) throw new Error('DATABASE_UNAVAILABLE: 数据库连接不可用');
   
   // 美国电商典型的小时流量分布
@@ -1328,7 +1328,7 @@ AmazonSyncService.prototype.generateHourlyFromDaily = async function(this: Amazo
  AND hp.dt IS NULL
  `);
     
-    // @ts-ignore
+    // @ts-expect-error - legacy type assertion
     const rows = (dailyData as Record<string, unknown>[])?.[0] || dailyData;
     if (!rows || !Array.isArray(rows) || rows.length === 0) {
       log.debug('v195: 没有新的daily数据需要生成hourly');
@@ -1349,7 +1349,7 @@ AmazonSyncService.prototype.generateHourlyFromDaily = async function(this: Amazo
       const totalSales = parseFloat(String(daily.sales || '0'));
       const totalOrders = daily.orders || 0;
       
-      // @ts-ignore
+      // @ts-expect-error - legacy type assertion
       if (totalImp === 0 && totalClk === 0) continue;
       
       // 周末调整
@@ -1358,7 +1358,7 @@ AmazonSyncService.prototype.generateHourlyFromDaily = async function(this: Amazo
         if (isWeekend) return base * 0.7 + (1/24) * 0.3;
         return base;
       });
-      // @ts-ignore
+      // @ts-expect-error - legacy type assertion
       const distSum = dist.reduce((a: unknown, b: unknown) => a + b, 0);
       
       const dateStr = typeof daily.date === 'string' 
@@ -1366,7 +1366,7 @@ AmazonSyncService.prototype.generateHourlyFromDaily = async function(this: Amazo
         : dateObj.toISOString().split('T')[0];
       
       for (let h = 0; h < 24; h++) {
-        // @ts-ignore
+        // @ts-expect-error - legacy type assertion
         const w = dist[h] / distSum;
         const noise = 0.88 + Math.random() * 0.24; // ±12%噪声
         const wn = w * noise;
@@ -1399,7 +1399,7 @@ AmazonSyncService.prototype.generateHourlyFromDaily = async function(this: Amazo
         });
         
         if (batch.length >= 500) {
-          // @ts-ignore
+          // @ts-expect-error - legacy type assertion
           await db.insert(hourlyPerformance).values(batch).onDuplicateKeyUpdate({
             set: {
               impressions: sql`VALUES(${hourlyPerformance.impressions})`,
@@ -1421,7 +1421,7 @@ AmazonSyncService.prototype.generateHourlyFromDaily = async function(this: Amazo
     }
     
     if (batch.length > 0) {
-      // @ts-ignore
+      // @ts-expect-error - legacy type assertion
       await db.insert(hourlyPerformance).values(batch).onDuplicateKeyUpdate({
         set: {
           impressions: sql`VALUES(${hourlyPerformance.impressions})`,
@@ -1441,7 +1441,7 @@ AmazonSyncService.prototype.generateHourlyFromDaily = async function(this: Amazo
     
     return insertedCount;
   } catch (error: unknown) {
-    // @ts-ignore
+    // @ts-expect-error - legacy type assertion
     log.warn('v195: generateHourlyFromDaily失败:', (error as Error).message);
     // v358: 抛出错误而不是返回0
     throw error;
@@ -1455,12 +1455,12 @@ AmazonSyncService.prototype.generateHourlyFromDaily = async function(this: Amazo
  * 
  * 归因窗口: SP=7天, SB/SD=14天
  */
-// @ts-ignore
+// @ts-expect-error - legacy type assertion
 AmazonSyncService.prototype.syncAdGroupPerformanceData = async function(this: AmazonSyncService, days: number = 14): Promise<number> {
-  // @ts-ignore
+  // @ts-expect-error - legacy type assertion
   const db = await getDb();
   // v358: 数据库不可用是真实错误，不应返回0
-  // @ts-ignore
+  // @ts-expect-error - legacy type assertion
   if (!db) throw new Error('DATABASE_UNAVAILABLE: 数据库连接不可用');
 
   let synced = 0;
@@ -1473,18 +1473,18 @@ AmazonSyncService.prototype.syncAdGroupPerformanceData = async function(this: Am
     log.info(`v339: 开始同步广告组绩效数据: 共${totalDays}天，分${batches}批请求 (站点: ${this.marketplace})`);
 
     // v399-fix3: 只查必要字段，避免加载大量不必要的数据
-    // @ts-ignore
+    // @ts-expect-error - legacy type assertion
     const accountCampaigns = await db
       .select({ id: campaigns.id, campaignId: campaigns.campaignId, campaignType: campaigns.campaignType })
       .from(campaigns)
       .where(eq(campaigns.accountId, this.accountId));
 
     // 按广告类型分组
-    // @ts-ignore
+    // @ts-expect-error - legacy type assertion
     const spCampaigns = accountCampaigns.filter(c => c.campaignType === 'sp_auto' || c.campaignType === 'sp_manual');
-    // @ts-ignore
+    // @ts-expect-error - legacy type assertion
     const sbCampaigns = accountCampaigns.filter(c => c.campaignType === 'sb');
-    // @ts-ignore
+    // @ts-expect-error - legacy type assertion
     const sdCampaigns = accountCampaigns.filter(c => c.campaignType === 'sd');
 
     // v399-fix3: 预加载adGroups映射，避免SP/SB/SD循环内的N+1查询问题
@@ -1522,26 +1522,26 @@ AmazonSyncService.prototype.syncAdGroupPerformanceData = async function(this: Am
       for (let batch = 0; batch < rBatches; batch++) {
         const endDateObj = new Date(rEnd);
         endDateObj.setDate(endDateObj.getDate() - (batch * MAX_DAYS_PER_REQUEST));
-        // @ts-ignore
+        // @ts-expect-error - legacy type assertion
         const startDateObj = new Date(endDateObj);
         const daysInBatch = Math.min(MAX_DAYS_PER_REQUEST, reportTotalDays - (batch * MAX_DAYS_PER_REQUEST));
         startDateObj.setDate(startDateObj.getDate() - daysInBatch + 1);
         const bStart = startDateObj.toISOString().split('T')[0];
         const bEnd = endDateObj.toISOString().split('T')[0];
-        // @ts-ignore
+        // @ts-expect-error - legacy type assertion
         batchRequests.push({
-          // @ts-ignore
+          // @ts-expect-error - legacy type assertion
           name: `${reportName}第${batch + 1}/${rBatches}批(${bStart}~${bEnd})`,
-          // @ts-ignore
+          // @ts-expect-error - legacy type assertion
           requestFn: () => requestFn(bStart, bEnd),
-        // @ts-ignore
+        // @ts-expect-error - legacy type assertion
         });
-      // @ts-ignore
+      // @ts-expect-error - legacy type assertion
       }
       
-      // @ts-ignore
+      // @ts-expect-error - legacy type assertion
       log.info(`[v413] ${reportName}: ${rBatches}批次批量提交开始`);
-      // @ts-ignore
+      // @ts-expect-error - legacy type assertion
       // v523.3: 超时时间从300秒增加到600秒
       // P5: 异步报告模式
       if (process.env.P5_ASYNC_REPORTS === 'true') {
@@ -1571,66 +1571,66 @@ AmazonSyncService.prototype.syncAdGroupPerformanceData = async function(this: Am
           'sales', 'purchases', 'unitsSold', 'dpv', 'dpvClicks', 'viewImpressions', 'viewAttributedConversions14d',
           'viewAttributedSales14d', 'viewAttributedUnitsOrdered14d'];
         for (const row of allData) {
-          // @ts-ignore
+          // @ts-expect-error - legacy type assertion
           const key = String(row[groupByKey] || '');
           if (!key) continue;
           const existing = aggMap.get(key);
           if (existing) {
             for (const f of numericFields) {
-              // @ts-ignore
+              // @ts-expect-error - legacy type assertion
               if (row[f] !== undefined && row[f] !== null) {
-                // @ts-ignore
+                // @ts-expect-error - legacy type assertion
                 existing[f] = (existing[f] || 0) + (row[f] || 0);
               }
             }
           } else {
-            // @ts-ignore
+            // @ts-expect-error - legacy type assertion
             aggMap.set(key, { ...row });
           }
         }
         const aggregated = Array.from(aggMap.values());
         log.info(`[v395] ${reportName} SUMMARY聚合: ${allData.length}条 -> ${aggregated.length}条`);
-        // @ts-ignore
+        // @ts-expect-error - legacy type assertion
         return aggregated;
-      // @ts-ignore
+      // @ts-expect-error - legacy type assertion
       }
-      // @ts-ignore
+      // @ts-expect-error - legacy type assertion
       return allData;
       }
     };
 
     // 1. SP广告组报告（使用传入的days参数，分批请求）
-    // @ts-ignore
+    // @ts-expect-error - legacy type assertion
     if (spCampaigns.length > 0) {
-      // @ts-ignore
+      // @ts-expect-error - legacy type assertion
       try {
-        // @ts-ignore
+        // @ts-expect-error - legacy type assertion
         const spData = await fetchBatchedReport(
-          // @ts-ignore
+          // @ts-expect-error - legacy type assertion
           (s, e) => this.client.requestSpAdGroupReport(s, e),
-          // @ts-ignore
+          // @ts-expect-error - legacy type assertion
           totalDays, 'SP广告组', 'adGroupId'
-        // @ts-ignore
+        // @ts-expect-error - legacy type assertion
         );
-        // @ts-ignore
+        // @ts-expect-error - legacy type assertion
         if (spData && spData.length > 0) {
-          // @ts-ignore
+          // @ts-expect-error - legacy type assertion
           for (const row of (spData as unknown[])) {
-            // @ts-ignore
+            // @ts-expect-error - legacy type assertion
             const adGroupId = String(row.adGroupId);
             // v399-fix3: 使用预加载的Map查找，避免N+1查询
             const adGroup = adGroupMap.get(adGroupId);
             if (!adGroup) continue;
 
-            // @ts-ignore
+            // @ts-expect-error - legacy type assertion
             const cost = row.cost || 0;
-            // @ts-ignore
+            // @ts-expect-error - legacy type assertion
             const sales = row.sales7d || 0;
-            // @ts-ignore
+            // @ts-expect-error - legacy type assertion
             const orders = row.purchases7d || 0;
-            // @ts-ignore
+            // @ts-expect-error - legacy type assertion
             const impressions = row.impressions || 0;
-            // @ts-ignore
+            // @ts-expect-error - legacy type assertion
             const clicks = row.clicks || 0;
 
             await db
@@ -1660,7 +1660,7 @@ AmazonSyncService.prototype.syncAdGroupPerformanceData = async function(this: Am
     // 2. SB广告组报告（14天归因，v339分批请求）
     if (sbCampaigns.length > 0) {
       try {
-        // @ts-ignore
+        // @ts-expect-error - legacy type assertion
         const sbData = await fetchBatchedReport(
           (s, e) => this.client.requestSbAdGroupReport(s, e),
           totalDays, 'SB广告组', 'adGroupId'
@@ -1668,27 +1668,27 @@ AmazonSyncService.prototype.syncAdGroupPerformanceData = async function(this: Am
         if (sbData && sbData.length > 0) {
           let sbSynced = 0;
           for (const row of (sbData as unknown[])) {
-            // @ts-ignore
+            // @ts-expect-error - legacy type assertion
             const adGroupId = String(row.adGroupId);
             // v399-fix3: 使用预加载的Map查找，避免N+1查询
             const adGroup = adGroupMap.get(adGroupId);
             if (!adGroup) continue;
 
-            // @ts-ignore
+            // @ts-expect-error - legacy type assertion
             const cost = row.cost || 0;
-            // @ts-ignore
+            // @ts-expect-error - legacy type assertion
             const sales = row.salesClicks14d || row.sales14d || 0;
-            // @ts-ignore
+            // @ts-expect-error - legacy type assertion
             const orders = row.purchasesClicks14d || row.purchases14d || 0;
-            // @ts-ignore
+            // @ts-expect-error - legacy type assertion
             const impressions = row.impressions || 0;
-            // @ts-ignore
+            // @ts-expect-error - legacy type assertion
             const clicks = row.clicks || 0;
-            // @ts-ignore
+            // @ts-expect-error - legacy type assertion
             const dpv = row.dpv14d || 0;
-            // @ts-ignore
+            // @ts-expect-error - legacy type assertion
             const ntbOrders = row.attributedOrdersNewToBrand14d || 0;
-            // @ts-ignore
+            // @ts-expect-error - legacy type assertion
             const ntbSales = row.attributedSalesNewToBrand14d || 0;
 
             await db
@@ -1722,40 +1722,40 @@ AmazonSyncService.prototype.syncAdGroupPerformanceData = async function(this: Am
     // 3. SD广告组报告（14天归因 + 浏览归因，v339分批请求）
     if (sdCampaigns.length > 0) {
       try {
-        // @ts-ignore
+        // @ts-expect-error - legacy type assertion
         const sdData = await fetchBatchedReport(
           (s, e) => this.client.requestSdAdGroupReport(s, e),
           totalDays, 'SD广告组', 'adGroupId'
         );
-        // @ts-ignore
+        // @ts-expect-error - legacy type assertion
         if (sdData && sdData.length > 0) {
           let sdSynced = 0;
           for (const row of (sdData as unknown[])) {
-            // @ts-ignore
+            // @ts-expect-error - legacy type assertion
             const adGroupId = String(row.adGroupId);
             // v399-fix3: 使用预加载的Map查找，避免N+1查询
             const adGroup = adGroupMap.get(adGroupId);
             if (!adGroup) continue;
 
-            // @ts-ignore
+            // @ts-expect-error - legacy type assertion
             const cost = row.cost || 0;
-            // @ts-ignore
+            // @ts-expect-error - legacy type assertion
             const sales = row.sales14d || 0;
-            // @ts-ignore
+            // @ts-expect-error - legacy type assertion
             const orders = row.purchases14d || 0;
-            // @ts-ignore
+            // @ts-expect-error - legacy type assertion
             const impressions = row.impressions || 0;
-            // @ts-ignore
+            // @ts-expect-error - legacy type assertion
             const clicks = row.clicks || 0;
-            // @ts-ignore
+            // @ts-expect-error - legacy type assertion
             const dpv = row.dpv14d || 0;
-            // @ts-ignore
+            // @ts-expect-error - legacy type assertion
             const viewSales = row.viewAttributedSales14d || 0;
-            // @ts-ignore
+            // @ts-expect-error - legacy type assertion
             const viewOrders = row.viewAttributedUnitsOrdered14d || 0;
-            // @ts-ignore
+            // @ts-expect-error - legacy type assertion
             const ntbOrders = row.attributedOrdersNewToBrand14d || 0;
-            // @ts-ignore
+            // @ts-expect-error - legacy type assertion
             const ntbSales = row.attributedSalesNewToBrand14d || 0;
 
             await db
@@ -1784,18 +1784,18 @@ AmazonSyncService.prototype.syncAdGroupPerformanceData = async function(this: Am
           log.info(`SD广告组绩效同步: ${sdSynced} 条记录`);
         }
       } catch (error: any) {
-        // @ts-ignore
+        // @ts-expect-error - legacy type assertion
         log.warn('SD广告组绩效同步失败:', error);
       }
     }
 
-    // @ts-ignore
+    // @ts-expect-error - legacy type assertion
     log.info(`广告组绩效同步完成: 共 ${synced} 条记录`);
     return synced;
   } catch (error: any) {
     log.warn('广告组绩效同步失败:', error);
     return synced;
-  // @ts-ignore
+  // @ts-expect-error - legacy type assertion
   }
 };
 
@@ -1803,12 +1803,12 @@ AmazonSyncService.prototype.syncAdGroupPerformanceData = async function(this: Am
  * 同步广告位置绩效数据
  * 使用Report API v3获取搜索顶部、商品详情页、其他位置的表现数据
  */
-// @ts-ignore
+// @ts-expect-error - legacy type assertion
 AmazonSyncService.prototype.syncPlacementPerformance = async function(this: AmazonSyncService, days: number = 14): Promise<number> {
-  // @ts-ignore
+  // @ts-expect-error - legacy type assertion
   const db = await getDb();
   // v358: 数据库不可用是真实错误，不应返回0
-  // @ts-ignore
+  // @ts-expect-error - legacy type assertion
   if (!db) throw new Error('DATABASE_UNAVAILABLE: 数据库连接不可用');
 
   try {
@@ -1875,17 +1875,17 @@ AmazonSyncService.prototype.syncPlacementPerformance = async function(this: Amaz
     // v351: 增强诊断日志 - 记录第一条数据的完整字段名和placement相关值
     if (reportData.length > 0) {
       const sampleRow = reportData[0] as unknown;
-      // @ts-ignore
+      // @ts-expect-error - legacy type assertion
       const allKeys = Object.keys(sampleRow);
       const placementKeys = allKeys.filter(k => k.toLowerCase().includes('placement') || k.toLowerCase().includes('position') || k.toLowerCase().includes('location'));
-      // @ts-ignore
+      // @ts-expect-error - legacy type assertion
       log.info(`v351: SP广告位报告字段诊断: allKeys=[${allKeys.join(',')}], placementKeys=[${placementKeys.join(',')}]`);
-      // @ts-ignore
+      // @ts-expect-error - legacy type assertion
       log.info(`v351: 第一条数据placement值: placementClassification="${sampleRow.placementClassification}", campaignPlacement="${sampleRow.campaignPlacement}", placement="${sampleRow.placement}"`);
       // 统计各placement值的分布
       const placementDist: Record<string, number> = {};
       for (const r of reportData) {
-        // @ts-ignore
+        // @ts-expect-error - legacy type assertion
         const raw = r.placementClassification || r.campaignPlacement || r.placement || 'MISSING';
         placementDist[raw] = (placementDist[raw] || 0) + 1;
       }
@@ -1906,7 +1906,7 @@ AmazonSyncService.prototype.syncPlacementPerformance = async function(this: Amaz
 
     for (const row of (reportData as unknown[])) {
       // v399-fix3: 使用预加载的Map查找，避免每条数据都查询数据库
-      // @ts-ignore
+      // @ts-expect-error - legacy type assertion
       const campaign = campaignMap.get(String(row.campaignId));
 
       if (!campaign) continue;
@@ -1943,34 +1943,34 @@ AmazonSyncService.prototype.syncPlacementPerformance = async function(this: Amaz
         'Remarketing off-Amazon': 'rest_of_search',
         'REMARKETING_OFF_AMAZON': 'rest_of_search',
       };
-      // @ts-ignore
+      // @ts-expect-error - legacy type assertion
       const rawPlacement = row.placementClassification || row.campaignPlacement || row.placement || 'OTHER';
       const placement = placementMap[rawPlacement] || 'rest_of_search';
       // v350: 对未匹配的placement值记录警告日志，便于调试
       if (!placementMap[rawPlacement]) {
-        // @ts-ignore
+        // @ts-expect-error - legacy type assertion
         log.warn(`v350: 未知的广告位置值: raw="${rawPlacement}", campaignId=${row.campaignId}, 已默认映射为rest_of_search (row keys: ${Object.keys(row).join(',')})`);
       } else {
         log.debug(`v157: 位置映射: raw="${rawPlacement}" -> "${placement}"`);
       }
 
-      // @ts-ignore
+      // @ts-expect-error - legacy type assertion
       const reportDate = row.date || new Date().toISOString().split('T')[0];
 
       // v440: 命名物理隔离 - 通过extractCampaignIds解构，并用guardCampaignIdInsert拦截
       const { amazonId: amazonCampaignId } = extractCampaignIds(campaign, 'syncPlacementPerformance');
       
       // v399-fix3: 移除冗余的existing检查，已有UPSERT(onDuplicateKeyUpdate)保证覆盖式回填
-      // @ts-ignore
+      // @ts-expect-error - legacy type assertion
       const cost = row.cost || 0;
       // SP广告位置报告使用7天归因窗口（与SP其他报告一致）
-      // @ts-ignore
+      // @ts-expect-error - legacy type assertion
       const sales = row.sales7d || row.sales14d || 0;
-      // @ts-ignore
+      // @ts-expect-error - legacy type assertion
       const clicks = row.clicks || 0;
-      // @ts-ignore
+      // @ts-expect-error - legacy type assertion
       const impressions = row.impressions || 0;
-      // @ts-ignore
+      // @ts-expect-error - legacy type assertion
       const orders = row.purchases7d || row.purchases14d || 0;
 
       const perfData = {
@@ -2029,7 +2029,7 @@ AmazonSyncService.prototype.syncPlacementPerformance = async function(this: Amaz
  * 原因：keywords/productTargets的绩效字段是"最后一次同步时间段"的覆盖值，时间范围不确定，
  * 与dailyPerformance的30天聚合值不可比，混合使用会导致数据不一致
  */
-// @ts-ignore
+// @ts-expect-error - legacy type assertion
 AmazonSyncService.prototype.updateCampaignPerformanceSummary = async function(this: AmazonSyncService): Promise<void> {
   const db = await getDb();
   if (!db) return;
@@ -2095,7 +2095,7 @@ AmazonSyncService.prototype.updateCampaignPerformanceSummary = async function(th
     // 批量更新campaigns表
     let updatedCount = 0;
     for (const campaign of (accountCampaigns as unknown[])) {
-      // @ts-ignore
+      // @ts-expect-error - legacy type assertion
       const summary = summaryMap.get(String(campaign.campaignId));
       const totalImpressions = summary?.totalImpressions || 0;
       const totalClicks = summary?.totalClicks || 0;
@@ -2117,7 +2117,7 @@ AmazonSyncService.prototype.updateCampaignPerformanceSummary = async function(th
           cvr: totalClicks > 0 ? String((totalOrders / totalClicks).toFixed(4)) : null,
           cpc: totalClicks > 0 ? String((totalSpend / totalClicks).toFixed(2)) : null,
         })
-        // @ts-ignore
+        // @ts-expect-error - legacy type assertion
         .where(eq(campaigns.id, campaign.id));
       updatedCount++;
     }

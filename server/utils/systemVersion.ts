@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 654;  // v654: 4.2.1全局Logger缓冲区扩容(10000→50000+阈值80%→95%) + 4.2.3 @ts-ignore清理(postDeployOptimizer+dataSyncScheduler)
+export const SYSTEM_VERSION = 655;  // v655: 5.1优化触发扩展到high层(绕过full/medium互斥) + 5.2 @ts-ignore清理(Top5文件: 945个)

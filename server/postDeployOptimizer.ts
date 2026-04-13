@@ -85,6 +85,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 655,
+    description: 'v655: [v654验证报告后续优化] — (1)5.1优化触发扩展到high层: executeUnifiedSync中优化触发从full/low/medium扩展到包含high层,彻底解决medium被full层v222互斥阻塞(运行2-3小时)导致优化无法触发的问题,high层每30分钟触发优化但不触发否定扫描(因high层不同步关键词数据) (2)5.2 @ts-ignore深度清理Top5文件: syncPerformance.ts(238个)+amazonAdsApi.ts(205个)+amazonApiHelper.ts(180个)+searchTermExecutor.ts(177个)+amazonSyncService.ts(145个),共计945个@ts-ignore替换为@ts-expect-error,全项目累计从7884降至5655(-28.2%)',
+    affectedModules: ['sync', 'optimization'],
+    correctionActions: [],
+  },
+  {
     version: 654,
     description: 'v654: [v653验证报告后续优化] — (1)4.2.1全局Logger缓冲区扩容: ring buffer容量从10000增加到50000(延迟缓冲区填满时间5倍),告警阈值从80%调整到95%,消除连续虚警 (2)4.2.2 Medium层优化触发验证: 确认medium层因full层运行时间超过1小时被智能跳过,优化触发仍依赖full层(正常行为) (3)4.2.3 @ts-ignore清理: postDeployOptimizer.ts(111个→142个@ts-expect-error)+dataSyncScheduler.ts(98个→103个@ts-expect-error)',
     affectedModules: ['sync', 'system'],

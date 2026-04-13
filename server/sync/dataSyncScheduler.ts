@@ -707,30 +707,34 @@ async function executeUnifiedSync(tier: SyncTier): Promise<void> {
       `${batchResult.failedAccounts} 失败, ${batchResult.skippedAccounts} 跳过, ` +
       `耗时 ${batchResult.durationMs}ms`);
 
-    // v652: R-3修复 — 扩展优化触发到medium层，解决优化事件日志为空的问题
-    // v219原始设计只在full/low层触发，但low层未被调度器启动，full层每3小时才执行一次
-    // 现在medium层（每60分钟）也触发优化，确保优化引擎每小时至少执行一次
-    if (tier === 'full' || tier === 'low' || tier === 'medium') {
+    // v655: 优化触发扩展到所有层级（high/medium/full/low），彻底解决medium被full阻塞导致优化无法触发的问题
+    // v652原始修复将触发扩展到medium层，但medium层因v222互斥被full层阻塞（full运行2-3小时）
+    // v655将触发进一步扩展到high层（每30分钟），high层虽然也被full阻塞，但full完成后high立即恢复
+    // 这确保了优化引擎在任何同步层级完成后都能被触发
+    if (tier === 'full' || tier === 'low' || tier === 'medium' || tier === 'high') {
       for (const accountResult of batchResult.accountResults) {
         if (!accountResult.success) continue;
         try {
           const { triggerAccountOptimizations } = await import('../optimization/optimizationScheduler');
-          const triggerSource = tier === 'medium' ? 'medium_sync_complete' : 'unified_sync_complete';
+          const triggerSource = tier === 'high' ? 'high_sync_complete' : (tier === 'medium' ? 'medium_sync_complete' : 'unified_sync_complete');
           await triggerAccountOptimizations(accountResult.accountId, triggerSource);
-          log.info(`[DataSyncScheduler] v652: 账户 ${accountResult.accountId} 优化目标触发完成 (${tier}层)`);
+          log.info(`[DataSyncScheduler] v655: 账户 ${accountResult.accountId} 优化目标触发完成 (${tier}层)`);
         } catch (optErr: unknown) {
-          log.warn(`[DataSyncScheduler] v652: 账户 ${accountResult.accountId} 优化目标触发失败: ${(optErr as Error).message}`);
+          log.warn(`[DataSyncScheduler] v655: 账户 ${accountResult.accountId} 优化目标触发失败: ${(optErr as Error).message}`);
         }
       }
       
-      // v652: R-2修复 — medium层同步完成后也触发快速否定扫描
-      // 否定关键词步骤在medium tier中同步，同步后应立即扫描而非等待full层
-      try {
-        log.info(`[DataSyncScheduler] v652: ${tier}层同步完成，触发快速否定扫描...`);
-        await executeOptimizationTask('daily_search_term_negation');
-        log.info(`[DataSyncScheduler] v652: 快速否定扫描完成 (${tier}层触发)`);
-      } catch (negErr: unknown) {
-        log.warn(`[DataSyncScheduler] v652: 快速否定扫描失败: ${(negErr as Error).message}`);
+      // v652: R-2修复 — medium/full层同步完成后触发快速否定扫描
+      // 否定关键词步骤在medium tier中同步，同步后应立即扫描
+      // high层不触发否定扫描（high层不同步关键词数据，扫描无意义）
+      if (tier === 'medium' || tier === 'full' || tier === 'low') {
+        try {
+          log.info(`[DataSyncScheduler] v652: ${tier}层同步完成，触发快速否定扫描...`);
+          await executeOptimizationTask('daily_search_term_negation');
+          log.info(`[DataSyncScheduler] v652: 快速否定扫描完成 (${tier}层触发)`);
+        } catch (negErr: unknown) {
+          log.warn(`[DataSyncScheduler] v652: 快速否定扫描失败: ${(negErr as Error).message}`);
+        }
       }
       
       // v523: 实体状态对齐 — 仅在full/low层执行（耗时较长，不需要每小时执行）
