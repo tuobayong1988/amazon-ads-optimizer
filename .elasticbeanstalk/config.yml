@@ -1,8 +1,8 @@
 branch-defaults:
   main:
-    environment: amazon-ads-env-prod
+    environment: amazon-ads-env-prod-v2
 environment-defaults:
-  amazon-ads-env-prod:
+  amazon-ads-env-prod-v2:
     branch: null
     repository: null
 global:
