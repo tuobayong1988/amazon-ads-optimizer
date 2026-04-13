@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 662;  // v662: 修复syncSd对象类型字段导致uncaughtException进程崩溃 — 安全类型转换+白名单扩展
+export const SYSTEM_VERSION = 663;  // v663: P0-总超时180分钟+清理阈值同步 P1-SB素材URL安全修复+步骤超时30分钟 P2-大账户增量同步+断点续传

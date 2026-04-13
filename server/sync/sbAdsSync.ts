@@ -128,18 +128,34 @@ export async function syncAssetUrls(service: SyncContext,): Promise<number> {
 
     log.debug(`找到 ${adGroupsNeedingUrls.length} 个需要解析素材URL的广告组`);
 
+    // v663: 安全类型守卫，避免类型断言导致的运行时错误
+    type JoinRow = { ad_groups: Record<string, unknown>; campaigns: Record<string, unknown> };
+    const safeRows: JoinRow[] = (adGroupsNeedingUrls as unknown[]).map((r: unknown) => {
+      const row = r as Record<string, unknown>;
+      return {
+        ad_groups: (row.ad_groups || row) as Record<string, unknown>,
+        campaigns: (row.campaigns || {}) as Record<string, unknown>,
+      };
+    });
+
     // 收集所有需要解析的assetId
     const assetIdsToResolve = new Set<string>();
-    for (const row of (adGroupsNeedingUrls as unknown[])) {
-      if (row.ad_groups.videoAssetId && !row.ad_groups.videoUrl) {
-        assetIdsToResolve.add(row.ad_groups.videoAssetId);
+    for (const row of safeRows) {
+      const ag = row.ad_groups;
+      if (ag.videoAssetId && typeof ag.videoAssetId === 'string' && !ag.videoUrl) {
+        assetIdsToResolve.add(ag.videoAssetId);
       }
-      if (row.ad_groups.brandLogoAssetId && !row.ad_groups.brandLogoUrl) {
-        assetIdsToResolve.add(row.ad_groups.brandLogoAssetId);
+      if (ag.brandLogoAssetId && typeof ag.brandLogoAssetId === 'string' && !ag.brandLogoUrl) {
+        assetIdsToResolve.add(ag.brandLogoAssetId);
       }
-      if (row.ad_groups.customImageAssetId && !row.ad_groups.customImageUrl) {
-        assetIdsToResolve.add(row.ad_groups.customImageAssetId);
+      if (ag.customImageAssetId && typeof ag.customImageAssetId === 'string' && !ag.customImageUrl) {
+        assetIdsToResolve.add(ag.customImageAssetId);
       }
+    }
+
+    if (assetIdsToResolve.size === 0) {
+      log.debug('v663: 所有素材ID均无效或已解析，跳过');
+      return 0;
     }
 
     log.debug(`需要解析 ${assetIdsToResolve.size} 个唯一素材ID`);
@@ -150,43 +166,55 @@ export async function syncAssetUrls(service: SyncContext,): Promise<number> {
 
     // 更新数据库
     let updated = 0;
-    for (const row of (adGroupsNeedingUrls as unknown[])) {
+    for (const row of safeRows) {
+      const ag = row.ad_groups;
+      // v663: 安全检查 - 确保id存在且为有效值
+      if (!ag.id) {
+        log.warn(`v663: 广告组缺少id字段，跳过更新`);
+        continue;
+      }
+
       const updates: Record<string, unknown> = {};
       let needsUpdate = false;
 
-      if (row.ad_groups.videoAssetId && !row.ad_groups.videoUrl) {
-        const resolved = resolvedUrls.get(row.ad_groups.videoAssetId);
+      if (ag.videoAssetId && typeof ag.videoAssetId === 'string' && !ag.videoUrl) {
+        const resolved = resolvedUrls.get(ag.videoAssetId);
         if (resolved) {
-          updates.videoUrl = resolved.url;
+          updates.videoUrl = String(resolved.url || '');
           if (resolved.thumbnailUrl) {
-            updates.videoThumbnailUrl = resolved.thumbnailUrl;
+            updates.videoThumbnailUrl = String(resolved.thumbnailUrl);
           }
           needsUpdate = true;
         }
       }
 
-      if (row.ad_groups.brandLogoAssetId && !row.ad_groups.brandLogoUrl) {
-        const resolved = resolvedUrls.get(row.ad_groups.brandLogoAssetId);
+      if (ag.brandLogoAssetId && typeof ag.brandLogoAssetId === 'string' && !ag.brandLogoUrl) {
+        const resolved = resolvedUrls.get(ag.brandLogoAssetId);
         if (resolved) {
-          updates.brandLogoUrl = resolved.url;
+          updates.brandLogoUrl = String(resolved.url || '');
           needsUpdate = true;
         }
       }
 
-      if (row.ad_groups.customImageAssetId && !row.ad_groups.customImageUrl) {
-        const resolved = resolvedUrls.get(row.ad_groups.customImageAssetId);
+      if (ag.customImageAssetId && typeof ag.customImageAssetId === 'string' && !ag.customImageUrl) {
+        const resolved = resolvedUrls.get(ag.customImageAssetId);
         if (resolved) {
-          updates.customImageUrl = resolved.url;
+          updates.customImageUrl = String(resolved.url || '');
           needsUpdate = true;
         }
       }
 
       if (needsUpdate) {
-        await db
-          .update(adGroups)
-          .set(updates)
-          .where(eq(adGroups.id, row.ad_groups.id));
-        updated++;
+        try {
+          await db
+            .update(adGroups)
+            .set(updates)
+            .where(eq(adGroups.id, ag.id as number));
+          updated++;
+        } catch (updateErr: unknown) {
+          log.warn(`v663: 更新广告组${ag.id}素材URL失败: ${(updateErr as Error).message}`);
+          // 继续处理其他广告组，不因单个失败中断整个流程
+        }
       }
     }
 

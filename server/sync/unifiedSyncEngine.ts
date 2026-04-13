@@ -29,6 +29,8 @@ import { AmazonSyncService } from './amazonSyncService';
 import { createModuleLogger } from '../utils/logger';
 import { logSync, logSyncWarn, logSyncError } from '../utils/opsLogger';
 import { calculateHeapUtilization } from '../services/systemConfigService';
+import { saveSyncCheckpoint, loadSyncCheckpoint, clearSyncCheckpoint, buildRecoveryStrategy } from './checkpointManager';
+import type { SyncCheckpointData } from './checkpointManager';
 
 const log = createModuleLogger('UnifiedSync');
 
@@ -442,6 +444,10 @@ export interface SyncContext {
     sb: boolean | null; // null=未检测, true=支持, false=不支持(403)
     sd: boolean | null;
   };
+  /** v663: 大账户增量同步模式 — >200广告活动的账户自动启用，缩短报告天数范围 */
+  incrementalMode: boolean;
+  /** v663: 增量模式下的报告天数上限（SP/SD默认14天，SB默认7天） */
+  incrementalReportDays: { sp: number; sb: number; sd: number };
 }
 
 /** 账户同步结果 */
@@ -775,8 +781,9 @@ const SYNC_STEPS: SyncStep[] = [
     tier: 'full',
     execute: async (service, ctx) => {
       try {
+        const days = ctx.incrementalMode ? ctx.incrementalReportDays.sp : 95; // v663: 增量模式缩短天数
         // @ts-expect-error - v652: prototype mixin method
-        const synced = await service.syncSearchTerms(95); // v376: SP搜索词扩展到95天（SP API最大支持范围）
+        const synced = await service.syncSearchTerms(days); // v376: SP搜索词扩展到95天（SP API最大支持范围）
         return { success: true, synced, errors: [] };
       } catch (e: unknown) {
         return { success: false, synced: 0, errors: [(e as Error).message] };
@@ -789,8 +796,9 @@ const SYNC_STEPS: SyncStep[] = [
     tier: 'full',
     execute: async (service, ctx) => {
       try {
+        const days = ctx.incrementalMode ? ctx.incrementalReportDays.sb : 60; // v663: 增量模式缩短天数
         // @ts-expect-error - v652: prototype mixin method
-        const synced = await service.syncSbSearchTerms(60); // v337.2: SB搜索词扩展到60天（SB最大60天）
+        const synced = await service.syncSbSearchTerms(days); // v337.2: SB搜索词扩展到60天（SB最奇60天）
         return { success: true, synced, errors: [] };
       } catch (e: unknown) {
         return { success: false, synced: 0, errors: [(e as Error).message] };
@@ -803,8 +811,9 @@ const SYNC_STEPS: SyncStep[] = [
     tier: 'full',
     execute: async (service, ctx) => {
       try {
+        const days = ctx.incrementalMode ? ctx.incrementalReportDays.sp : 95; // v663: 增量模式缩短天数
         // @ts-expect-error - v652: prototype mixin method
-        const synced = await service.syncPlacementPerformance(95); // v376: SP广告位绩效扩展到95天（SP API最大支持范围）
+        const synced = await service.syncPlacementPerformance(days); // v376: SP广告位绩效扩展到95天（SP API最大支持范围）
         return { success: true, synced, errors: [] };
       } catch (e: unknown) {
         return { success: false, synced: 0, errors: [(e as Error).message] };
@@ -817,8 +826,9 @@ const SYNC_STEPS: SyncStep[] = [
     tier: 'full',
     execute: async (service, ctx) => {
       try {
+        const days = ctx.incrementalMode ? ctx.incrementalReportDays.sb : 60; // v663: 增量模式缩短天数
         // @ts-expect-error - v652: prototype mixin method
-        const synced = await service.syncSbPlacementPerformance(60); // v337.2: SB广告位绩效扩展到60天
+        const synced = await service.syncSbPlacementPerformance(days); // v337.2: SB广告位绩效扩展到60天
         return { success: true, synced, errors: [] };
       } catch (e: unknown) {
         return { success: false, synced: 0, errors: [(e as Error).message] };
@@ -831,8 +841,9 @@ const SYNC_STEPS: SyncStep[] = [
     tier: 'full',
     execute: async (service, ctx) => {
       try {
+        const days = ctx.incrementalMode ? ctx.incrementalReportDays.sp : 95; // v663: 增量模式缩短天数
         // @ts-expect-error - v652: prototype mixin method
-        const synced = await service.syncAutoTargeting(95); // v376: SP自动定向扩展到95天（SP API最大支持范围）
+        const synced = await service.syncAutoTargeting(days); // v376: SP自动定向扩展到95天（SP API最大支持范围）
         return { success: true, synced, errors: [] };
       } catch (e: unknown) {
         return { success: false, synced: 0, errors: [(e as Error).message] };
@@ -845,8 +856,9 @@ const SYNC_STEPS: SyncStep[] = [
     tier: 'full',
     execute: async (service, ctx) => {
       try {
+        const days = ctx.incrementalMode ? ctx.incrementalReportDays.sd : 95; // v663: 增量模式缩短天数
         // @ts-expect-error - v652: prototype mixin method
-        const synced = await service.syncSdTargeting(95); // v376: SD定向扩展到95天
+        const synced = await service.syncSdTargeting(days); // v376: SD定向扩展到95天
         return { success: true, synced, errors: [] };
       } catch (e: unknown) {
         return { success: false, synced: 0, errors: [(e as Error).message] };
@@ -859,8 +871,9 @@ const SYNC_STEPS: SyncStep[] = [
     tier: 'full',
     execute: async (service, ctx) => {
       try {
+        const days = ctx.incrementalMode ? ctx.incrementalReportDays.sb : 60; // v663: 增量模式缩短天数
         // @ts-expect-error - v652: prototype mixin method
-        const synced = await service.syncSbTargeting(60); // v337.2: SB定向扩展到60天（SB最大60天）
+        const synced = await service.syncSbTargeting(days); // v337.2: SB定向扩展到60天（SB最奇60天）
         return { success: true, synced, errors: [] };
       } catch (e: unknown) {
         return { success: false, synced: 0, errors: [(e as Error).message] };
@@ -976,8 +989,9 @@ const SYNC_STEPS: SyncStep[] = [
     tier: 'full',
     execute: async (service, ctx) => {
       try {
+        const days = ctx.incrementalMode ? ctx.incrementalReportDays.sp : 95; // v663: 增量模式缩短天数
         // @ts-expect-error - v652: prototype mixin method
-        const synced = await service.syncPerformanceData(95); // v376: 绩效数据扩展到95天（SP API最大支持范围）
+        const synced = await service.syncPerformanceData(days); // v376: 绩效数据扩展到95天（SP API最大支持范围）
         return { success: true, synced, errors: [] };
       } catch (e: unknown) {
         return { success: false, synced: 0, errors: [(e as Error).message] };
@@ -990,8 +1004,9 @@ const SYNC_STEPS: SyncStep[] = [
     tier: 'nightly', // v403: 从 full 迁移到 nightly，避免 full 层级超时
     execute: async (service, ctx) => {
       try {
+        const days = ctx.incrementalMode ? ctx.incrementalReportDays.sp : 95; // v663: 增量模式缩短天数
         // @ts-expect-error - v652: prototype mixin method
-        const synced = await service.syncKeywordPerformanceData(95); // v376: 关键词绩效扩展到95天（SP API最大支持范围）
+        const synced = await service.syncKeywordPerformanceData(days); // v376: 关键词绩效扩展到95天（SP API最大支持范围）
         return { success: true, synced, errors: [] };
       } catch (e: unknown) {
         return { success: false, synced: 0, errors: [(e as Error).message] };
@@ -1004,8 +1019,9 @@ const SYNC_STEPS: SyncStep[] = [
     tier: 'nightly', // v403: 从 full 迁移到 nightly，避免 full 层级超时
     execute: async (service, ctx) => {
       try {
+        const days = ctx.incrementalMode ? ctx.incrementalReportDays.sp : 95; // v663: 增量模式缩短天数
         // @ts-expect-error - v652: prototype mixin method
-        const synced = await service.syncProductTargetPerformanceData(95); // v376: 定位绩效扩展到95天（SP API最大支持范围）
+        const synced = await service.syncProductTargetPerformanceData(days); // v376: 定位绩效扩展到95天（SP API最大支持范围）
         return { success: true, synced, errors: [] };
       } catch (e: unknown) {
         return { success: false, synced: 0, errors: [(e as Error).message] };
@@ -1018,8 +1034,9 @@ const SYNC_STEPS: SyncStep[] = [
     tier: 'nightly', // v403: 从 full 迁移到 nightly，避免 full 层级超时
     execute: async (service, ctx) => {
       try {
+        const days = ctx.incrementalMode ? ctx.incrementalReportDays.sp : 95; // v663: 增量模式缩短天数
         // @ts-expect-error - v652: prototype mixin method
-        const synced = await service.syncAdGroupPerformanceData(95); // v376: 广告组绩效扩展到95天（SP API最大支持范围）
+        const synced = await service.syncAdGroupPerformanceData(days); // v376: 广告组绩效扩展到95天（SP API最大支持范围）
         return { success: true, synced, errors: [] };
       } catch (e: unknown) {
         return { success: false, synced: 0, errors: [(e as Error).message] };
@@ -1155,16 +1172,21 @@ const HEARTBEAT_ZOMBIE_TIMEOUT_MS = 30 * 60 * 1000; // v660: 30分钟无心跳 =
 const MAX_ABSOLUTE_TIMEOUT_MS = 6 * 60 * 60 * 1000; // 6小时绝对上限
 
 // v528: 动态超时常量（仅用于绝对超时安全网，不再是僵尸判定的主要依据）
-const DEFAULT_SYNC_TIMEOUT_MS = 120 * 60 * 1000; // v660: 默认120分钟（从60分钟延长，匹配步骤超时放宽）
-// v648: 增加中等账号超时分层，解决100-1000广告活动的账号同步超时问题
+const DEFAULT_SYNC_TIMEOUT_MS = 180 * 60 * 1000; // v663: 默认180分钟（从120分钟延长，v662实测90084/90052超时失败）
+// v663: 超时分层同步上调，确保大账户有足够时间完成全量同步
 const LARGE_ACCOUNT_TIMEOUT_TIERS = [
-  { threshold: 5000, timeoutMs: 180 * 60 * 1000 },  // 5000+广告活动: 3小时
-  { threshold: 3000, timeoutMs: 150 * 60 * 1000 },  // 3000-5000: 2.5小时
-  { threshold: 1000, timeoutMs: 120 * 60 * 1000 },  // 1000-3000: 2小时
-  { threshold: 500, timeoutMs: 90 * 60 * 1000 },    // v648: 500-1000: 1.5小时
-  { threshold: 100, timeoutMs: 75 * 60 * 1000 },    // v648: 100-500: 1.25小时
+  { threshold: 5000, timeoutMs: 240 * 60 * 1000 },  // 5000+广告活动: 4小时（从3小时延长）
+  { threshold: 3000, timeoutMs: 210 * 60 * 1000 },  // 3000-5000: 3.5小时（从2.5小时延长）
+  { threshold: 1000, timeoutMs: 180 * 60 * 1000 },  // 1000-3000: 3小时（从2小时延长）
+  { threshold: 500, timeoutMs: 150 * 60 * 1000 },   // 500-1000: 2.5小时（从1.5小时延长）
+  { threshold: 100, timeoutMs: 120 * 60 * 1000 },   // 100-500: 2小时（从1.25小时延长）
 ];
 const NIGHTLY_SYNC_TIMEOUT_MS = 4 * 60 * 60 * 1000; // nightly层级: 4小时
+
+// v663: 大账户增量同步策略常量
+const INCREMENTAL_SYNC_CAMPAIGN_THRESHOLD = 200; // 超过200个广告活动的账户启用增量同步
+const INCREMENTAL_REPORT_DAYS = { sp: 14, sb: 7, sd: 14 }; // 增量模式下的报告天数上限
+const FULL_REPORT_DAYS = { sp: 95, sb: 60, sd: 95 }; // 全量模式下的报告天数（原始值）
 
 // 导出速率控制器供外部使用
 export function getRateController(): ApiRateController {
@@ -1531,6 +1553,40 @@ export async function syncAccount(
       result.totalSteps = steps.length;
     }
 
+    // v663: 大账户增量同步策略 — 超过200个广告活动的账户，非手动触发时自动使用增量同步
+    // 增量同步仅缩短报告天数范围，不跳过任何步骤，确保数据完整性
+    const useIncrementalSync = campaignCount >= INCREMENTAL_SYNC_CAMPAIGN_THRESHOLD
+      && !options?.isManual
+      && (tier === 'full' || tier === 'nightly');
+    const reportDays = useIncrementalSync ? INCREMENTAL_REPORT_DAYS : FULL_REPORT_DAYS;
+    if (useIncrementalSync) {
+      log.info(`[v663] 大账户增量同步: 账户${account.accountId}(${account.accountName}) ${campaignCount}个广告活动>${INCREMENTAL_SYNC_CAMPAIGN_THRESHOLD}阈值, 报告天数缩短为 SP=${reportDays.sp}天/SB=${reportDays.sb}天/SD=${reportDays.sd}天`);
+    }
+
+    // v663: 断点续传 — 加载上次中断的检查点，跳过已完成的步骤
+    let checkpointSkipSteps: Set<string> = new Set();
+    let checkpointResumeInfo = '';
+    if (!options?.isManual) {
+      try {
+        const savedCheckpoint = await loadSyncCheckpoint(account.accountId, tier);
+        if (savedCheckpoint) {
+          const recovery = buildRecoveryStrategy(savedCheckpoint);
+          checkpointSkipSteps = recovery.skipSteps;
+          checkpointResumeInfo = recovery.resumeInfo;
+          log.info(`[v663] 断点续传: 账户${account.accountId} ${tier}层 - ${checkpointResumeInfo}`);
+          // 将检查点中已完成的步骤加入skipSteps
+          steps = steps.filter(s => !checkpointSkipSteps.has(s.id));
+          const skippedByCheckpoint = checkpointSkipSteps.size;
+          if (skippedByCheckpoint > 0) {
+            log.info(`[v663] 断点续传: 跳过${skippedByCheckpoint}个已完成步骤，剩余${steps.length}个步骤待执行`);
+            result.totalSteps = steps.length;
+          }
+        }
+      } catch (cpErr: unknown) {
+        log.warn(`[v663] 加载检查点失败(不影响同步): ${(cpErr as Error).message}`);
+      }
+    }
+
     // 创建同步上下文
     const context: SyncContext = {
       accountId: account.accountId,
@@ -1544,6 +1600,8 @@ export async function syncAccount(
       totalErrors: 0,
       checkpoint: {},
       adTypeCapabilities: { sb: null, sd: null },
+      incrementalMode: useIncrementalSync,
+      incrementalReportDays: reportDays,
     };
 
     // 逐步执行同步
@@ -1605,6 +1663,24 @@ export async function syncAccount(
             result.stepResults[skippedStep.id] = { success: false, synced: 0, errors: ['shutdown_skipped'] };
           }
           result.stepResults['_interrupted'] = { success: false, synced: 0, errors: [shutdownMsg] };
+          // v663: 断点续传 — 系统关闭时保存检查点
+          try {
+            const checkpointData: SyncCheckpointData = {
+              completedSteps: [...context.completedSteps],
+              interruptReason: 'shutdown',
+              totalSynced: context.totalSynced,
+              elapsedMs: Date.now() - startTime.getTime(),
+              stepCheckpoints: Object.fromEntries(
+                context.completedSteps.map(sid => [sid, { status: 'completed', synced: (context.checkpoint[sid] as { synced?: number })?.synced || 0 }])
+              ),
+              recordCheckpoints: {},
+              savedAt: new Date().toISOString(),
+            };
+            await saveSyncCheckpoint(account.accountId, tier, checkpointData);
+            log.info(`[v663] 断点已保存(shutdown): 账户${account.accountId} ${tier}层, 已完成${context.completedSteps.length}步`);
+          } catch (cpErr: unknown) {
+            log.warn(`[v663] 保存检查点失败(shutdown): ${(cpErr as Error).message}`);
+          }
           break;
         }
       } catch (e: any) {
@@ -1624,6 +1700,24 @@ export async function syncAccount(
         // 为每个跳过的步骤记录状态
         for (const skippedStep of steps.slice(i)) {
           result.stepResults[skippedStep.id] = { success: false, synced: 0, errors: ['timeout_skipped'] };
+        }
+        // v663: 断点续传 — 超时时保存检查点
+        try {
+          const checkpointData: SyncCheckpointData = {
+            completedSteps: [...context.completedSteps],
+            interruptReason: 'timeout',
+            totalSynced: context.totalSynced,
+            elapsedMs: elapsed,
+            stepCheckpoints: Object.fromEntries(
+              context.completedSteps.map(sid => [sid, { status: 'completed', synced: (context.checkpoint[sid] as { synced?: number })?.synced || 0 }])
+            ),
+            recordCheckpoints: {},
+            savedAt: new Date().toISOString(),
+          };
+          await saveSyncCheckpoint(account.accountId, tier, checkpointData);
+          log.info(`[v663] 断点已保存(timeout): 账户${account.accountId} ${tier}层, 已完成${context.completedSteps.length}步, 耗时${Math.round(elapsed / 60000)}分钟`);
+        } catch (cpErr: unknown) {
+          log.warn(`[v663] 保存检查点失败(timeout): ${(cpErr as Error).message}`);
         }
         break;
       }
@@ -1725,7 +1819,7 @@ export async function syncAccount(
           'sp_bid_recommendations': 20, 'sb_bid_recommendations': 20,
           'sd_bid_recommendations': 20, 'sd_audience_bid_recommendations': 20,
         };
-        const timeoutMinutes = STEP_TIMEOUT_MAP[step.id] || 15; // v660: 默认超时从5分钟提升到15分钟
+        const timeoutMinutes = STEP_TIMEOUT_MAP[step.id] || 30; // v663: 默认超时从15分钟提升到30分钟（v662实测90107的SP否定关键词/商品定位15分钟不够）
         const STEP_TIMEOUT_MS = timeoutMinutes * 60 * 1000;
         const stepTimeoutPromise = new Promise<never>((_, reject) => {
           setTimeout(() => reject(new Error(`STEP_TIMEOUT: 步骤${step.name}超时(${STEP_TIMEOUT_MS / 60000}分钟)`)), STEP_TIMEOUT_MS);
@@ -1909,6 +2003,15 @@ export async function syncAccount(
     } else {
       result.success = result.failedSteps === 0;
       result.partialSuccess = false;
+    }
+
+    // v663: 断点续传 — 同步完全成功时清除检查点，失败/部分成功时保留检查点供下次续传
+    if (result.success) {
+      try {
+        await clearSyncCheckpoint(account.accountId, tier);
+      } catch (cpErr: unknown) {
+        log.debug(`[v663] 清除检查点失败(不影响结果): ${(cpErr as Error).message}`);
+      }
     }
 
     // v340: 同步健康监控告警 - 当同步完成但总记录数为0时触发告警

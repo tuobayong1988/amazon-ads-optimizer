@@ -51,9 +51,11 @@ const GLOBAL_LOCK_TTL_MS = 60 * 60 * 1000;            // 全局锁1小时
 const NIGHTLY_LOCK_TTL_MS = 4 * 60 * 60 * 1000;       // nightly层级4小时
 const LARGE_ACCOUNT_THRESHOLD = 1000;
 const LARGE_ACCOUNT_TIMEOUT_TIERS = [
-  { threshold: 5000, timeoutMs: 180 * 60 * 1000 },  // 5000+广告活动: 3小时（与unifiedSyncEngine一致）
-  { threshold: 3000, timeoutMs: 150 * 60 * 1000 },  // 3000-5000: 2.5小时
-  { threshold: 1000, timeoutMs: 120 * 60 * 1000 },  // 1000-3000: 2小时
+  { threshold: 5000, timeoutMs: 240 * 60 * 1000 },  // v663: 5000+广告活动: 4小时（与unifiedSyncEngine同步）
+  { threshold: 3000, timeoutMs: 210 * 60 * 1000 },  // v663: 3000-5000: 3.5小时
+  { threshold: 1000, timeoutMs: 180 * 60 * 1000 },  // v663: 1000-3000: 3小时
+  { threshold: 500, timeoutMs: 150 * 60 * 1000 },   // v663: 500-1000: 2.5小时
+  { threshold: 100, timeoutMs: 120 * 60 * 1000 },   // v663: 100-500: 2小时
 ];
 
 /**

@@ -49,14 +49,15 @@ interface SyncLock {
 const syncLocks = new Map<string, SyncLock>();
 // v518: 动态锁超时 - 默认45分钟，大账户通过参数传入更长超时
 // 与unifiedSyncEngine的动态超时机制保持一致
-const DEFAULT_LOCK_TIMEOUT_MS = 60 * 60 * 1000; // v519b: 默认60分钟（与unifiedSyncEngine一致）
-// v518: 导出动态超时计算函数，供unifiedSyncEngine调用
-// v519b: 超时值与unifiedSyncEngine的LARGE_ACCOUNT_TIMEOUT_TIERS保持一致
+const DEFAULT_LOCK_TIMEOUT_MS = 90 * 60 * 1000; // v663: 默认90分钟（从60分钟延长，与v663超时分层同步）
+// v663: 锁超时与unifiedSyncEngine的LARGE_ACCOUNT_TIMEOUT_TIERS保持一致
 export function getDynamicLockTimeout(campaignCount: number, tier: string): number {
   if (tier === 'nightly') return 4 * 60 * 60 * 1000; // nightly: 4小时
-  if (campaignCount >= 5000) return 120 * 60 * 1000; // v519b: 120分钟
-  if (campaignCount >= 3000) return 105 * 60 * 1000; // v519b: 105分钟
-  if (campaignCount >= 1000) return 90 * 60 * 1000;  // v519b: 90分钟
+  if (campaignCount >= 5000) return 240 * 60 * 1000; // v663: 4小时（与LARGE_ACCOUNT_TIMEOUT_TIERS同步）
+  if (campaignCount >= 3000) return 210 * 60 * 1000; // v663: 3.5小时
+  if (campaignCount >= 1000) return 180 * 60 * 1000; // v663: 3小时
+  if (campaignCount >= 500) return 150 * 60 * 1000;  // v663: 2.5小时
+  if (campaignCount >= 100) return 120 * 60 * 1000;  // v663: 2小时
   return DEFAULT_LOCK_TIMEOUT_MS;
 }
 

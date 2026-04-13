@@ -85,6 +85,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 663,
+    description: 'v663: [同步稳定性全面升级+大账户增量同步+断点续传] — (1)P0-总超时180分钟: DEFAULT_SYNC_TIMEOUT_MS从120分钟提升到180分钟,LARGE_ACCOUNT_TIMEOUT_TIERS全层上调,cleanupStaleJobs阈值同步到180分钟,解决90084/90052大账户超时问题 (2)P1-SB素材URL安全修复: sbAdsSync中增加类型守卫、无效ID过滤、更新失败容错,解决90048的SB素材URL查询失败 (3)P1-步骤超时30分钟: 默认步骤超时从15分钟提升到30分钟,解决90107的SP否定关键词/商品定位步骤超时 (4)P2-大账户增量同步: >200广告活动的账户自动启用增量同步(SP=14天/SB=7天/SD=14天),减少单次同步数据量和耗时 (5)P2-断点续传: 同步中断(超时/关闭)时自动保存checkpoint到MySQL,下次同步自动加载并跳过已完成步骤,成功完成时自动清除checkpoint',
+    affectedModules: ['sync', 'system'],
+    correctionActions: [],
+  },
+  {
     version: 662,
     description: 'v662: [修复syncSd对象类型字段导致进程崩溃] — (1)P0-根因修复: SD API返回的expression.value/bid/tactic等字段可能是嵌套对象而非原始值,传入mysql2的query()时触发TypeError:Cannot convert object to primitive value,导致uncaughtException进程退出. 新增safePrimitive()工具函数,对syncSdCampaigns/syncSdAdGroups/syncSdProductTargets/syncSdAudiences/syncSdNegativeTargets中所有可能是对象的字段做安全类型转换 (2)P0-白名单扩展: 将Cannot convert object to primitive value加入deployLifecycleManager的NON_FATAL_PATTERNS白名单,即使未来还有类似遗漏也不会导致进程退出',
     affectedModules: ['sync', 'system'],
