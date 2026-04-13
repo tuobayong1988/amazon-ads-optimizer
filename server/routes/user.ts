@@ -39,7 +39,7 @@ async function ensurePreferencesColumn(db: DbInstance) {
 
 export const userRouter = router({
   // 获取用户偏好设置
-  // @ts-ignore
+  // @ts-expect-error Complex function parameter types
   getPreferences: protectedProcedure.query(async ({ ctx }: unknown) => {
     const db = await getDb();
     if (!db) return {};

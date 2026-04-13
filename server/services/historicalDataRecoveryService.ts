@@ -139,7 +139,7 @@ export async function scanAndRecoverDormantTargets(accountId: number): Promise<R
     log.info(`[HistoricalRecovery] 汇总: 扫描${totalScanned}个, 候选${allCandidates.length}个, 恢复${recovered}个`);
     
     if (recovered > 0) {
-      // @ts-ignore
+      // @ts-expect-error Complex function parameter types
       logOptimization(`[HistoricalRecovery] 账户${accountId}: 恢复${recovered}个沉寂投放词出价`);
     }
     
@@ -431,19 +431,19 @@ async function executeRecovery(candidate: RecoveryCandidate): Promise<boolean> {
     `);
     
     // 3. 记录审计日志
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     recordAudit({
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       action: `${candidate.entityType}.historical_recovery`,
       accountId: candidate.accountId,
       entityType: candidate.entityType,
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       entityId: candidate.entityId,
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       entityName: candidate.entityName,
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       previousValue: candidate.currentBid,
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       newValue: candidate.proposedBid,
       reason: `[v510矿渣提炼] 历史${candidate.historicalOrders}单, 近30天${candidate.recentOrders}单, 出价差距${candidate.bidGapPercent.toFixed(0)}% | $${candidate.currentBid.toFixed(2)}→$${candidate.proposedBid.toFixed(2)} (目标:历史CPC×85%=$${(candidate.historicalCpc * 0.85).toFixed(2)})`,
     });
@@ -451,7 +451,7 @@ async function executeRecovery(candidate: RecoveryCandidate): Promise<boolean> {
     // 4. 同步到Amazon API
     try {
       const { syncBidAdjustmentsToAmazon } = await import('./amazonApiHelper');
-      // @ts-ignore
+      // @ts-expect-error Complex function parameter types
       await syncBidAdjustmentsToAmazon(candidate.accountId, [{
         keywordId: candidate.entityType === 'keyword' ? candidate.entityId : undefined,
         targetId: candidate.entityType === 'product_target' ? candidate.entityId : undefined,

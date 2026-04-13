@@ -143,7 +143,7 @@ export async function addGlobalNegativeKeyword(
       set: { status: 'active', sourceReason, updatedAt: sql`NOW()` },
     });
 
-    // @ts-ignore
+    // @ts-expect-error Dynamic type assertion
     const insertId = (result as Record<string, unknown>[])[0]?.insertId as unknown as number;
     log.info(`[GlobalNegative] 添加全局否定词: "${negativeText}" (${matchType}), accountId=${accountId}, source=${source}`);
     

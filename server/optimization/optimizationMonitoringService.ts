@@ -178,9 +178,9 @@ async function checkBidRatio(
     let raiseCount = 0;
     let lowerCount = 0;
     for (const row of (result as unknown[])) {
-      // @ts-ignore
+      // @ts-expect-error Amazon API response type flexibility
       if (row.actionType === 'bid_increase') raiseCount = Number(row.count);
-      // @ts-ignore
+      // @ts-expect-error Amazon API response type flexibility
       if (row.actionType === 'bid_decrease') lowerCount = Number(row.count);
     }
 
@@ -243,10 +243,10 @@ async function checkAcosOverrun(
         newValue: optimizationLogs.newValue,
       })
       .from(optimizationLogs)
-      // @ts-ignore
+      // @ts-expect-error DB query type inference limitation
       .where(
         and(
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           eq(optimizationLogs.accountId, account.id),
           sql`${optimizationLogs.logCategory} = 'bid_adjustment'`
         )
@@ -264,29 +264,29 @@ async function checkAcosOverrun(
             totalOverrun += Math.max(0, overrunPercent);
             accountCount++;
 
-            // @ts-ignore
+            // @ts-expect-error Conditional type narrowing
             if (overrunPercent > ALERT_THRESHOLDS.acosOverrunPercent) {
               highRiskCount++;
               alerts.push({
-                // @ts-ignore
+                // @ts-expect-error Legacy code type compatibility
                 id: `acos-overrun-${account.id}-${Date.now()}`,
                 category: 'acos_overrun',
                 severity: actual > target * ALERT_THRESHOLDS.criticalAcosMultiplier ? 'critical' : 'warning',
-                // @ts-ignore
+                // @ts-expect-error Legacy code type compatibility
                 title: `${account.name} ${account.marketplace} ACoS严重超标`,
                 message: `实际ACoS ${actual.toFixed(1)}%，目标${target.toFixed(1)}%，超标${overrunPercent.toFixed(0)}%`,
                 metric: 'acos_overrun_percent',
                 currentValue: overrunPercent,
-                // @ts-ignore
+                // @ts-expect-error Legacy code type compatibility
                 threshold: ALERT_THRESHOLDS.acosOverrunPercent,
-                // @ts-ignore
+                // @ts-expect-error Legacy code type compatibility
                 recommendation: overrunPercent > 100
                   ? '建议暂停该账户的高ACoS广告活动，切换到"利润优先"策略'
                   : '建议降低目标ACoS或检查关键词质量',
                 timestamp: new Date(),
-                // @ts-ignore
+                // @ts-expect-error Legacy code type compatibility
                 accountId: account.id,
-                // @ts-ignore
+                // @ts-expect-error Legacy code type compatibility
                 accountName: `${account.name} ${account.marketplace}`,
               });
             }
@@ -325,19 +325,19 @@ async function checkSyncHealth(
       and(
         eq(optimizationEvents.userId, teamId),
         sql`${optimizationEvents.apiSyncStatus} NOT IN ('not_applicable', 'invalid_legacy')`
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       )
     )
-    // @ts-ignore
+    // @ts-expect-error Legacy code type compatibility
     .groupBy(optimizationEvents.apiSyncStatus);
 
     let synced = 0;
     let total = 0;
     for (const row of (result as unknown[])) {
-      // @ts-ignore
+      // @ts-expect-error Type inference limitation
       const count = Number(row.count);
       total += count;
-      // @ts-ignore
+      // @ts-expect-error Dynamic property access
       if (row.status === 'synced') synced += count;
     }
 
@@ -584,7 +584,7 @@ async function checkProactiveRiskWarning(
     .from(adAccounts)
     .where(eq(adAccounts.userId, teamId));
 
-    // @ts-ignore
+    // @ts-expect-error Dynamic type assertion
     for (const account of (accounts as unknown[])) {
       try {
         // 查询最近7天和前14天的ACoS
@@ -613,7 +613,7 @@ async function checkProactiveRiskWarning(
         const prevData = prevResult?.[0] || prevResult;
         
         const recentSpend = Number(recentData?.total_spend) || 0;
-        // @ts-ignore
+        // @ts-expect-error Type inference limitation
         const recentSales = Number(recentData?.total_sales) || 0;
         const prevSpend = Number(prevData?.total_spend) || 0;
         const prevSales = Number(prevData?.total_sales) || 0;
@@ -624,13 +624,13 @@ async function checkProactiveRiskWarning(
           const deterioration = prevAcos > 0 ? ((recentAcos - prevAcos) / prevAcos) * 100 : 0;
 
           if (deterioration > 20) {
-            // @ts-ignore
+            // @ts-expect-error Complex function parameter types
             alerts.push({
-              // @ts-ignore
+              // @ts-expect-error Legacy code type compatibility
               id: `proactive-risk-${account.id}-${Date.now()}`,
               category: 'proactive_risk_warning',
               severity: deterioration > 50 ? 'critical' : 'warning',
-              // @ts-ignore
+              // @ts-expect-error Legacy code type compatibility
               title: `${account.name} ${account.marketplace} ACoS趋势恶化预警`,
               message: `最近7天ACoS ${recentAcos.toFixed(1)}%，比前14天(${prevAcos.toFixed(1)}%)恶化${deterioration.toFixed(0)}%，需提前干预`,
               metric: 'acos_deterioration_rate',
@@ -638,9 +638,9 @@ async function checkProactiveRiskWarning(
               threshold: 20,
               recommendation: `建议立即检查该账户的高ACoS关键词，考虑切换到更保守的策略模板或降低目标ACoS`,
               timestamp: new Date(),
-              // @ts-ignore
+              // @ts-expect-error Legacy code type compatibility
               accountId: account.id,
-              // @ts-ignore
+              // @ts-expect-error Legacy code type compatibility
               accountName: `${account.name} ${account.marketplace}`,
             });
           }

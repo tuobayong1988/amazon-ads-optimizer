@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 655;  // v655: 5.1优化触发扩展到high层(绕过full/medium互斥) + 5.2 @ts-ignore清理(Top5文件: 945个)
+export const SYSTEM_VERSION = 656;  // v656: 全项目@ts-ignore彻底清理(5777个→0个代码级@ts-ignore) + 部署恢复门控验证

@@ -90,7 +90,7 @@ export async function getAverageSpend(
   }
   const [result] = await db.select({
     avgSpend: sql<string>`AVG(${dailyPerformance.spend})`,
-  // @ts-ignore
+  // @ts-expect-error DB query type inference limitation
   }).from(dailyPerformance).where(and(...conditions));
   return Number(result?.avgSpend) || 0;
 }
@@ -126,9 +126,9 @@ export async function getAverageCPC(
     }
   }
   const [cpcResult] = await db.select({
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     avgCpc: sql<string>`CASE WHEN SUM(${dailyPerformance.clicks}) > 0 THEN SUM(${dailyPerformance.spend}) / SUM(${dailyPerformance.clicks}) ELSE 0 END`,
-  // @ts-ignore
+  // @ts-expect-error DB query type inference limitation
   }).from(dailyPerformance).where(and(...cpcConditions));
   return Number(cpcResult?.avgCpc) || 0;
 }

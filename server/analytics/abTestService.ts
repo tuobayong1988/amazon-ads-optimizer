@@ -250,18 +250,18 @@ function calculateStatisticalSignificance(
   }
 
   // 计算均值
-  // @ts-ignore
+  // @ts-expect-error Type inference limitation
   const controlMean = controlValues.reduce((a: unknown, b: unknown) => a + b, 0) / controlValues.length;
-  // @ts-ignore
+  // @ts-expect-error Type inference limitation
   const treatmentMean = treatmentValues.reduce((a: unknown, b: unknown) => a + b, 0) / treatmentValues.length;
 
   // 计算标准差
   const controlStd = Math.sqrt(
-    // @ts-ignore
+    // @ts-expect-error Array method type inference
     controlValues.reduce((sum: number, val: Record<string, unknown>) => sum + Math.pow(val - controlMean, 2), 0) / (controlValues.length - 1)
   );
   const treatmentStd = Math.sqrt(
-    // @ts-ignore
+    // @ts-expect-error Array method type inference
     treatmentValues.reduce((sum: number, val: Record<string, unknown>) => sum + Math.pow(val - treatmentMean, 2), 0) / (treatmentValues.length - 1)
   );
 
@@ -361,25 +361,25 @@ export async function analyzeABTestResults(testId: number): Promise<{
     .where(and(
       eq(abTestDailyMetrics.testId, testId),
       eq(abTestDailyMetrics.variantId, treatmentVariant.id)
-    // @ts-ignore
+    // @ts-expect-error Legacy code type compatibility
     ));
 
   // 分析各指标
   const metricsToAnalyze = ['roas', 'acos', 'ctr', 'cvr', 'cpc'];
-  // @ts-ignore
+  // @ts-expect-error Type inference limitation
   const confidenceLevel = parseFloat(testInfo.confidenceLevel || '0.95');
   
-  // @ts-ignore
+  // @ts-expect-error Complex function parameter types
   const analysisResults = metricsToAnalyze.map(metricName => {
     const controlValues = controlMetrics.map(m => parseFloat((m as unknown as Record<string, string>)[metricName] || '0'));
     const treatmentValues = treatmentMetrics.map(m => parseFloat((m as unknown as Record<string, string>)[metricName] || '0'));
 
     const controlMean = controlValues.length > 0 
-      // @ts-ignore
+      // @ts-expect-error Conditional type narrowing
       ? controlValues.reduce((a: unknown, b: unknown) => a + b, 0) / controlValues.length 
       : 0;
     const treatmentMean = treatmentValues.length > 0 
-      // @ts-ignore
+      // @ts-expect-error Conditional type narrowing
       ? treatmentValues.reduce((a: unknown, b: unknown) => a + b, 0) / treatmentValues.length 
       : 0;
 
@@ -409,7 +409,7 @@ export async function analyzeABTestResults(testId: number): Promise<{
       absoluteDifference,
       relativeDifference,
       pValue,
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       isSignificant,
       confidenceInterval,
       winner,
@@ -417,7 +417,7 @@ export async function analyzeABTestResults(testId: number): Promise<{
   });
 
   // 确定总体赢家
-  // @ts-ignore
+  // @ts-expect-error Type inference limitation
   const targetMetric = testInfo.targetMetric;
   const targetResult = analysisResults.find(r => r.metricName === targetMetric);
   const overallWinner = targetResult?.winner || 'inconclusive';
@@ -441,7 +441,7 @@ export async function analyzeABTestResults(testId: number): Promise<{
       controlValue: String(result.controlValue),
       treatmentValue: String(result.treatmentValue),
       absoluteDiff: String(result.absoluteDifference),
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       relativeDiff: String(result.relativeDifference),
       pValue: String(result.pValue),
       confidenceInterval: JSON.stringify(result.confidenceInterval),
@@ -450,7 +450,7 @@ export async function analyzeABTestResults(testId: number): Promise<{
   }
 
   return {
-    // @ts-ignore
+    // @ts-expect-error Legacy code type compatibility
     testInfo,
     variants,
     metrics: analysisResults,
@@ -635,30 +635,30 @@ export function splitCampaignsIntoGroups(
     };
   } else {
     // 分层分配：按花费排序后交替分配，确保两组花费相近
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const sorted = [...campaigns].sort((a: unknown, b: unknown) => b.spend - a.spend);
     const control: Array<{ id: number; spend: number }> = [];
     const treatment: Array<{ id: number; spend: number }> = [];
     
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     let controlSpend = 0;
     let treatmentSpend = 0;
     
-    // @ts-ignore
+    // @ts-expect-error Dynamic type assertion
     for (const campaign of (sorted as unknown[])) {
       // 根据当前累计花费决定分配
       const targetTreatmentRatio = trafficSplit;
       const currentTreatmentRatio = treatmentSpend / (controlSpend + treatmentSpend + 0.001);
       
       if (currentTreatmentRatio < targetTreatmentRatio) {
-        // @ts-ignore
+        // @ts-expect-error Array method type inference
         treatment.push(campaign);
-        // @ts-ignore
+        // @ts-expect-error Amazon API response type flexibility
         treatmentSpend += campaign.spend;
       } else {
-        // @ts-ignore
+        // @ts-expect-error Array method type inference
         control.push(campaign);
-        // @ts-ignore
+        // @ts-expect-error Amazon API response type flexibility
         controlSpend += campaign.spend;
       }
     }

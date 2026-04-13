@@ -27,43 +27,43 @@ export interface SyncTaskConfig {
  * 将API返回的行数据转换为DailyPerformance插入格式
  */
 function buildPerformanceRecord(row: Record<string, unknown>, campaignId: string, date: string) {
-  // @ts-ignore
+  // @ts-expect-error Type inference limitation
   const impressions = parseInt(row.impressions || '0');
-  // @ts-ignore
+  // @ts-expect-error Type inference limitation
   const clicks = parseInt(row.clicks || '0');
-  // @ts-ignore
+  // @ts-expect-error Type inference limitation
   const spend = parseFloat(row.cost || '0');
-  // @ts-ignore
+  // @ts-expect-error Type inference limitation
   const sales = parseFloat(row.sales7d || '0');
-  // @ts-ignore
+  // @ts-expect-error Type inference limitation
   const orders = parseInt(row.purchases7d || '0');
   
   return {
     campaignId: parseInt(campaignId, 10) || 0,
-    // @ts-ignore
+    // @ts-expect-error Legacy code type compatibility
     accountId: parseInt(row.accountId || '0', 10) || 0,
     date: date,
     impressions,
     clicks,
     spend: String(spend),
     sales: String(sales),
-    // @ts-ignore
+    // @ts-expect-error Legacy code type compatibility
     orders,
-    // @ts-ignore
+    // @ts-expect-error Conditional type narrowing
     dailyAcos: sales > 0 ? String((spend / sales) * 100) : null,
-    // @ts-ignore
+    // @ts-expect-error Conditional type narrowing
     dailyRoas: spend > 0 ? String(sales / spend) : null,
-    // @ts-ignore
+    // @ts-expect-error Conditional type narrowing
     ctr: impressions > 0 ? String((clicks / impressions) * 100) : null,
     cvr: clicks > 0 ? String((orders / clicks) * 100) : null,
     cpc: clicks > 0 ? String(spend / clicks) : null,
-    // @ts-ignore
+    // @ts-expect-error Legacy code type compatibility
     sales7D: String(parseFloat(row.sales7d || '0')),
-    // @ts-ignore
+    // @ts-expect-error Legacy code type compatibility
     orders7D: parseInt(row.purchases7d || '0'),
-    // @ts-ignore
+    // @ts-expect-error Legacy code type compatibility
     sales30D: String(parseFloat(row.sales30d || '0')),
-    // @ts-ignore
+    // @ts-expect-error Legacy code type compatibility
     orders30D: parseInt(row.purchases30d || '0'),
   };
 }
@@ -89,9 +89,9 @@ export async function syncCampaignDailyData(
     }
     
     // 使用db封装函数存储到数据库
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const record = buildPerformanceRecord(campaignData, campaignId, date);
-    // @ts-ignore
+    // @ts-expect-error DB query type inference limitation
     await db.createDailyPerformance(record as Record<string, unknown>);
     
     log.info(`[Daily Sync] 成功同步广告活动 ${campaignId} 的数据`);
@@ -120,12 +120,12 @@ export async function syncAllCampaignsDailyData(
   });
 
   let successCount = 0;
-  // @ts-ignore
+  // @ts-expect-error Type inference limitation
   let failedCount = 0;
 
   try {
     // 请求SP广告活动报告
-    // @ts-ignore
+    // @ts-expect-error Spread operator type compatibility
     log.info('[Daily Sync] 请求SP广告活动报告...');
     const spReportId = await apiClient.requestSpCampaignReport(date, date);
     const spData = await apiClient.waitAndDownloadReport(spReportId);
@@ -134,13 +134,13 @@ export async function syncAllCampaignsDailyData(
     // 存储SP数据
     for (const row of (spData as unknown[])) {
       try {
-        // @ts-ignore
+        // @ts-expect-error Type inference limitation
         const record = buildPerformanceRecord(row, row.campaignId?.toString() || '', date);
-        // @ts-ignore
+        // @ts-expect-error DB query type inference limitation
         await db.createDailyPerformance(record as Record<string, unknown>);
         successCount++;
       } catch (error: unknown) {
-        // @ts-ignore
+        // @ts-expect-error Complex function parameter types
         log.warn(`[Daily Sync] 存储广告活动 ${row.campaignId} 失败:`, (error as Error).message);
         failedCount++;
       }

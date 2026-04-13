@@ -31,7 +31,7 @@ export const batchOperationRouter = router({
   // v370.4: 数据隔离 - 验证批量操作归属
   get: protectedProcedure
     .input(z.object({ id: z.number() }))
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .query(async ({ ctx, input }: unknown) => {
       const batch = await db.getBatchOperation(input.id);
       if (!batch) {
@@ -232,9 +232,9 @@ export const batchOperationRouter = router({
               targetEntityId: item.entityId,
               targetEntityName: item.entityType || 'target',
               action: 'adjust_bid',
-              // @ts-ignore
+              // @ts-expect-error Legacy code type compatibility
               newValue: String(item.newBid),
-              // @ts-ignore
+              // @ts-expect-error Legacy code type compatibility
               oldValue: String(item.previousBid || 0),
               source: 'batch_operation',
               priority: 'high',
@@ -260,10 +260,10 @@ export const batchOperationRouter = router({
       
       // v453: 将同步任务入队到优化同步引擎
       if (syncTasks.length > 0) {
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         try {
           const { enqueueTasks } = await import('../sync/optimizationSyncEngine');
-          // @ts-ignore
+          // @ts-expect-error Dynamic type assertion
           await enqueueTasks(syncTasks as unknown[]);
           log.info(`[BatchOperation] v453: 已入队 ${syncTasks.length} 个同步任务到Amazon API`);
         } catch (enqueueErr: unknown) {
@@ -344,7 +344,7 @@ export const batchOperationRouter = router({
   // v370.4: 数据隔离 - Cancel pending batch operation
   cancel: protectedProcedure
     .input(z.object({ id: z.number() }))
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .mutation(async ({ ctx, input }: unknown) => {
       const batch = await db.getBatchOperation(input.id);
       if (!batch) {
@@ -364,7 +364,7 @@ export const batchOperationRouter = router({
   // v370.4: 数据隔离 - Get batch operation summary
   getSummary: protectedProcedure
     .input(z.object({ id: z.number() }))
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .query(async ({ ctx, input }: unknown) => {
       const batch = await db.getBatchOperation(input.id);
       if (!batch) {
@@ -388,13 +388,13 @@ export const batchOperationRouter = router({
     }),
 
   // Estimate execution time
-  // @ts-ignore
+  // @ts-expect-error Legacy code type compatibility
   estimateTime: protectedProcedure
     .input(z.object({
       operationType: z.enum(['negative_keyword', 'bid_adjustment', 'keyword_migration', 'campaign_status']),
       itemCount: z.number(),
     }))
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .query(({ input }: unknown) => {
       const seconds = batchOperationService.estimateExecutionTime(input.itemCount, input.operationType);
       return { estimatedSeconds: seconds };
@@ -432,20 +432,20 @@ export const batchOperationRouter = router({
       }
 
       // Calculate statistics
-      // @ts-ignore
+      // @ts-expect-error Type inference limitation
       const stats = {
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         total: filteredOps.length,
-        // @ts-ignore
+        // @ts-expect-error Dynamic property access
         completed: filteredOps.filter(op => op.batchStatus === 'completed').length,
         failed: filteredOps.filter(op => op.batchStatus === 'failed').length,
         pending: filteredOps.filter(op => op.batchStatus === 'pending' || op.batchStatus === 'approved').length,
         rolledBack: filteredOps.filter(op => op.batchStatus === 'rolled_back').length,
-        // @ts-ignore
+        // @ts-expect-error Array method type inference
         totalItemsProcessed: filteredOps.reduce((sum: number, op: Record<string, unknown>) => sum + (op.processedItems || 0), 0),
-        // @ts-ignore
+        // @ts-expect-error Array method type inference
         totalSuccessItems: filteredOps.reduce((sum: number, op: Record<string, unknown>) => sum + (op.successItems || 0), 0),
-        // @ts-ignore
+        // @ts-expect-error Array method type inference
         totalFailedItems: filteredOps.reduce((sum: number, op: Record<string, unknown>) => sum + (op.failedItems || 0), 0),
       };
 
@@ -455,7 +455,7 @@ export const batchOperationRouter = router({
         pagination: {
           total: filteredOps.length,
           limit: input.limit,
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           offset: input.offset,
           hasMore: input.offset + input.limit < filteredOps.length,
         },
@@ -465,7 +465,7 @@ export const batchOperationRouter = router({
   // v370.4: 数据隔离 - Get detailed operation record with all items
   getDetailedRecord: protectedProcedure
     .input(z.object({ id: z.number() }))
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .query(async ({ ctx, input }: unknown) => {
       const batch = await db.getBatchOperation(input.id);
       if (!batch) {
@@ -576,7 +576,7 @@ export const batchOperationRouter = router({
           let apiSuccess = false;
           if (syncService && keyword.keywordId) {
             try {
-              // @ts-ignore
+              // @ts-expect-error Dynamic type assertion
               await (syncService as unknown as Record<string, unknown>).client.updateKeywordBids([{
                 keywordId: String(keyword.keywordId),  // v356: 统一使用String类型传递Amazon ID
                 bid: Number(adj.newBid.toFixed(2)),

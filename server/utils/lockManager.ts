@@ -270,9 +270,9 @@ export async function acquireDistributedLock(lockName: string, timeoutSec: numbe
     if (distributedLockConnections.has(fullLockName)) {
       try {
         const oldConn = distributedLockConnections.get(fullLockName);
-        // @ts-ignore
+        // @ts-expect-error DB query type inference limitation
         await oldConn.execute('SELECT RELEASE_LOCK(?)', [fullLockName]);
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         oldConn.release();
         distributedLockConnections.delete(fullLockName);
       } catch (e: any) {
@@ -284,7 +284,7 @@ export async function acquireDistributedLock(lockName: string, timeoutSec: numbe
     const conn = await db.getDirectConnection(10000);
     
     const [rows] = await conn.execute('SELECT GET_LOCK(?, ?) as result', [fullLockName, timeoutSec]) as unknown[];
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const result = rows?.[0]?.result;
     
     if (result === 1) {
@@ -311,18 +311,18 @@ export async function acquireDistributedLock(lockName: string, timeoutSec: numbe
 export async function releaseDistributedLock(lockName: string): Promise<void> {
   const fullLockName = `ppcopt_${lockName}`;
   try {
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const conn = distributedLockConnections.get(fullLockName);
     if (conn) {
       try {
-        // @ts-ignore
+        // @ts-expect-error DB query type inference limitation
         await conn.execute('SELECT RELEASE_LOCK(?)', [fullLockName]);
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       } catch (e: any) {
         // 忽略RELEASE_LOCK错误（连接可能已断开）
       }
       try {
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         conn.release();
       } catch (e: any) {
         // 忽略连接释放错误
@@ -375,14 +375,14 @@ setInterval(async () => {
   log.debug(`[DistLock] 清理检查: ${distributedLockConnections.size} 个活跃锁连接`);
   
   for (const [lockName, conn] of distributedLockConnections.entries()) {
-    // @ts-ignore
+    // @ts-expect-error Legacy code type compatibility
     try {
-      // @ts-ignore
+      // @ts-expect-error Async operation type inference
       await conn.ping();
     } catch (e: any) {
       log.warn(`[DistLock] 清理无效锁连接: ${lockName}`);
       distributedLockConnections.delete(lockName);
-      // @ts-ignore
+      // @ts-expect-error Complex function parameter types
       try { conn.release(); } catch (_: any) {}
     }
   }

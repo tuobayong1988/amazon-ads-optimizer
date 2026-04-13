@@ -50,20 +50,20 @@ export async function runV361CoreTableIndexes(db: unknown): Promise<void> {
 
   for (const idx of indexDefinitions) {
     try {
-      // @ts-ignore
+      // @ts-expect-error DB query type inference limitation
       await db.execute(sql.raw(idx.sql));
       created++;
       log.info(`[v361] 索引 ${idx.name} 创建成功`);
-    // @ts-ignore
+    // @ts-expect-error Legacy code type compatibility
     } catch (error: unknown) {
-      // @ts-ignore
+      // @ts-expect-error Dynamic property access
       if (error.message?.includes('Duplicate') || error.code === 'ER_DUP_KEYNAME') {
         skipped++;
         log.debug(`[v361] 索引 ${idx.name} 已存在，跳过`);
-      // @ts-ignore
+      // @ts-expect-error Conditional type narrowing
       } else {
         failed++;
-        // @ts-ignore
+        // @ts-expect-error Complex function parameter types
         log.warn(`[v361] 索引 ${idx.name} 创建失败:`, error.message);
       }
     }

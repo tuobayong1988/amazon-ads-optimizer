@@ -131,7 +131,7 @@ export function generateBatchSummary(result: BatchOperationResult): string {
   if (result.errors.length > 0) {
     summary += `\n错误详情:\n`;
     result.errors.slice(0, 5).forEach((err: unknown, i: unknown) => {
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       summary += `${i + 1}. 项目 #${err.itemId}: ${err.error}\n`;
     });
     if (result.errors.length > 5) {

@@ -169,7 +169,7 @@ export async function scanAndRecoverDataCliffs(accountId: number): Promise<Cliff
     log.info(`[DataCliffRecovery] 汇总: 扫描${totalScanned}个, 检测${allCliffs.length}个断崖, 修复${repaired}个`);
     
     if (allCliffs.length > 0) {
-      // @ts-ignore
+      // @ts-expect-error Complex function parameter types
       logOptimizationWarn(`[DataCliffRecovery] 账户${accountId}: 检测到${allCliffs.length}个数据断崖, 已修复${repaired}个`);
     }
     
@@ -564,19 +564,19 @@ async function executeCliffRepair(cliff: CliffDetectionResult): Promise<boolean>
     `);
     
     // 3. 记录审计日志
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     recordAudit({
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       action: `${cliff.entityType}.cliff_recovery`,
       accountId: cliff.accountId,
       entityType: cliff.entityType,
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       entityId: cliff.entityId,
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       entityName: cliff.entityName,
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       previousValue: cliff.currentBid,
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       newValue: cliff.actualRecoveryBid,
       reason: `[v510断崖修复] 订单↓${cliff.orderDropPercent.toFixed(0)}% 流量↓${cliff.trafficDropPercent.toFixed(0)}% | $${cliff.currentBid.toFixed(2)}→$${cliff.actualRecoveryBid.toFixed(2)} (步骤${cliff.recoveryStep}/${CLIFF_RECOVERY_CONFIG.recovery.steps.length}, 历史CPC=$${cliff.historicalCpc.toFixed(2)})`,
     });
@@ -584,20 +584,20 @@ async function executeCliffRepair(cliff: CliffDetectionResult): Promise<boolean>
     // 4. 同步到Amazon API（通过现有的同步引擎）
     try {
       const { syncBidAdjustmentsToAmazon } = await import('./amazonApiHelper');
-      // @ts-ignore
+      // @ts-expect-error Complex function parameter types
       await syncBidAdjustmentsToAmazon(cliff.accountId, [{
         keywordId: cliff.entityType === 'keyword' ? cliff.entityId : undefined,
         targetId: cliff.entityType === 'product_target' ? cliff.entityId : undefined,
         newBid: cliff.actualRecoveryBid,
         reason: `[DataCliffRecovery] 步骤${cliff.recoveryStep}: $${cliff.currentBid}→$${cliff.actualRecoveryBid}`,
       } as Record<string, unknown>]);
-    // @ts-ignore
+    // @ts-expect-error Legacy code type compatibility
     } catch (syncErr: unknown) {
       log.warn(`[DataCliffRecovery] API同步失败(${cliff.entityType}=${cliff.entityId}): ${(syncErr as Error).message}`);
       // API同步失败不影响本地修复记录
     }
     
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     logOptimization(`[DataCliffRecovery] 修复成功: ${cliff.entityType}="${cliff.entityName}" $${cliff.currentBid.toFixed(2)}→$${cliff.actualRecoveryBid.toFixed(2)} (${cliff.severity})`);
     
     return true;

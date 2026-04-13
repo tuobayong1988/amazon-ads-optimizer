@@ -270,25 +270,25 @@ export function batchValidateKeywords(
   const rejected: Array<{ originalText: string; reason: string; data: Record<string, unknown> }> = [];
   
   for (const kw of (keywords as unknown[])) {
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const result = sanitizeAndValidateKeyword(kw.text, mode);
     if (result.isValid) {
-      // @ts-ignore
+      // @ts-expect-error Complex function parameter types
       valid.push({
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         originalText: kw.text,
         sanitizedText: result.sanitizedText,
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         data: kw,
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       });
     } else {
-      // @ts-ignore
+      // @ts-expect-error Complex function parameter types
       rejected.push({
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         originalText: kw.text,
         reason: result.reasonMessage || result.reasonCode || 'UNKNOWN',
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         data: kw,
       });
     }

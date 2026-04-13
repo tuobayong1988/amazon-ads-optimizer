@@ -36,7 +36,7 @@ async function ensureTable(): Promise<boolean> {
   if (tableEnsured) return true;
   try {
     const database = await getDb();
-    // @ts-ignore
+    // @ts-expect-error DB query type inference limitation
     await database.execute(sql`
       CREATE TABLE IF NOT EXISTS sync_locks (
         id INT AUTO_INCREMENT NOT NULL PRIMARY KEY,
@@ -61,9 +61,9 @@ async function ensureTable(): Promise<boolean> {
  */
 async function cleanupExpiredLocks(): Promise<number> {
   try {
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const database = await getDb();
-    // @ts-ignore
+    // @ts-expect-error DB query type inference limitation
     const result = await database.execute(sql`
       DELETE FROM sync_locks WHERE expires_at <= NOW()
     `);
@@ -118,7 +118,7 @@ export class DistributedLock {
         const expiresAt = new Date(expiresAtMs).toISOString().slice(0, 19).replace('T', ' ');
         
         const db = await getDb();
-        // @ts-ignore
+        // @ts-expect-error DB query type inference limitation
         await db.execute(sql`
           INSERT INTO sync_locks (lock_key, holder_id, acquired_at, expires_at)
           VALUES (${this.lockKey}, ${this.holderId}, NOW(), ${expiresAt})
@@ -135,11 +135,11 @@ export class DistributedLock {
         const lockKey = this.lockKey;
         const holderId = this.holderId;
         return async () => {
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           clearTimeout(localTimeout);
           try {
             const db = await getDb();
-            // @ts-ignore
+            // @ts-expect-error DB query type inference limitation
             await db.execute(sql`
               DELETE FROM sync_locks 
               WHERE lock_key = ${lockKey} AND holder_id = ${holderId}
@@ -188,7 +188,7 @@ export class DistributedLock {
   async renew(additionalMs: number = 30000): Promise<boolean> {
     try {
       const db = await getDb();
-      // @ts-ignore
+      // @ts-expect-error DB query type inference limitation
       const result = await db.execute(sql`
         UPDATE sync_locks 
         SET expires_at = DATE_ADD(NOW(), INTERVAL ${Math.ceil(additionalMs / 1000)} SECOND)
@@ -213,7 +213,7 @@ export class DistributedLock {
   async isLocked(): Promise<boolean> {
     try {
       const db = await getDb();
-      // @ts-ignore
+      // @ts-expect-error DB query type inference limitation
       const result = await db.execute(sql`
         SELECT COUNT(*) as cnt FROM sync_locks 
         WHERE lock_key = ${this.lockKey} AND expires_at > NOW()
@@ -231,7 +231,7 @@ export class DistributedLock {
   async forceRelease(): Promise<boolean> {
     try {
       const db = await getDb();
-      // @ts-ignore
+      // @ts-expect-error DB query type inference limitation
       await db.execute(sql`
         DELETE FROM sync_locks WHERE lock_key = ${this.lockKey}
       `);
@@ -271,7 +271,7 @@ export async function withDistributedLock<T>(
 export async function getAllDistributedLockStatus(): Promise<Array<{
   lockKey: string;
   holderId: string;
-  // @ts-ignore
+  // @ts-expect-error Legacy code type compatibility
   acquiredAt: string;
   expiresAt: string;
   remainingMs: number;
@@ -279,7 +279,7 @@ export async function getAllDistributedLockStatus(): Promise<Array<{
   try {
     await ensureTable();
     const database = await getDb();
-    // @ts-ignore
+    // @ts-expect-error DB query type inference limitation
     const result = await database.execute(sql`
  SELECT lock_key, holder_id, acquired_at, expires_at,
  TIMESTAMPDIFF(SECOND, NOW(), expires_at) * 1000 as remaining_ms
@@ -289,15 +289,15 @@ export async function getAllDistributedLockStatus(): Promise<Array<{
  `);
     const rows = extractRows(result);
     return (rows as unknown[]).map(row => ({
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       lockKey: row.lock_key,
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       holderId: row.holder_id,
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       acquiredAt: row.acquired_at,
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       expiresAt: row.expires_at,
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       remainingMs: Number(row.remaining_ms) || 0,
     }));
   } catch {

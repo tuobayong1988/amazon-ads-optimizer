@@ -260,32 +260,32 @@ export function generateDashboardMetrics(period: '1h' | '24h' | '7d' = '24h'): A
   }
   
   const n = recentTraces.length;
-  // @ts-ignore
+  // @ts-expect-error Type inference limitation
   const sortedLatencies = [...latencies].sort((a: unknown, b: unknown) => a - b);
   
   const avgConfidenceByAlgorithm: Record<string, number> = {};
-  // @ts-ignore
+  // @ts-expect-error Complex function parameter types
   for (const [algo, confs] of Object.entries(confidenceByAlgorithm)) {
-    // @ts-ignore
+    // @ts-expect-error Array method type inference
     avgConfidenceByAlgorithm[algo] = confs.reduce((s: unknown, c: unknown) => s + c, 0) / confs.length;
   }
   
   return {
     timestamp: new Date(),
     period,
-    // @ts-ignore
+    // @ts-expect-error Legacy code type compatibility
     algorithmDistribution,
     fusionModeDistribution: { single: singleCount, cascade_ensemble: ensembleCount },
-    // @ts-ignore
+    // @ts-expect-error Array method type inference
     avgConfidence: confidences.reduce((s: unknown, c: unknown) => s + c, 0) / n,
     avgConfidenceByAlgorithm,
     explorationRate: explorationCount / n,
     explorationCount,
-    // @ts-ignore
+    // @ts-expect-error Legacy code type compatibility
     abTestCoverage: abTestCount / n,
     bidChangeDistribution: { increase: increaseCount, decrease: decreaseCount, hold: holdCount },
     avgBidChangePercent: totalBidChange / n,
-    // @ts-ignore
+    // @ts-expect-error Array method type inference
     avgDecisionLatencyMs: latencies.reduce((s: unknown, l: unknown) => s + l, 0) / n,
     p95DecisionLatencyMs: sortedLatencies[Math.floor(n * 0.95)] || 0,
   };

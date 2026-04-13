@@ -179,16 +179,16 @@ function outerProduct(x: number[]): number[][] {
  * 矩阵加法
  */
 function matAdd(A: number[][], B: number[][]): number[][] {
-  // @ts-ignore
+  // @ts-expect-error Array method type inference
   return A.map((row: unknown, i: unknown) => row.map((val: unknown, j: unknown) => val + B[i][j]));
 }
 
 /**
  * 向量加法
  */
-// @ts-ignore
+// @ts-expect-error Complex function parameter types
 function vecAdd(a: number[], b: number[]): number[] {
-  // @ts-ignore
+  // @ts-expect-error Array method type inference
   return a.map((val: unknown, i: unknown) => val + b[i]);
 }
 
@@ -323,13 +323,13 @@ export async function selectArm(
   const recommendedBid = Math.round(currentBid * safeBidMultiplier * 100) / 100;
   
   // 计算置信度
-  // @ts-ignore
+  // @ts-expect-error Type inference limitation
   const totalPulls = arms.reduce((sum: number, a: Record<string, unknown>) => sum + a.totalPulls, 0);
   // v263: 修复冷启动confidence过低导致高级算法永远无法激活的问题
   // 之前: totalPulls/100 在冷启动时(totalPulls<30)导致confidence<0.3
   // nextGenBidOrchestrator要求confidence>0.3才使用高级算法结果
   // 修复: 保证最低0.35的基础置信度，随数据积累逐步提升到1.0
-  // @ts-ignore
+  // @ts-expect-error Type inference limitation
   const confidence = Math.min(1, 0.35 + (totalPulls / 150) * 0.65);
   
   return {
@@ -374,13 +374,13 @@ export async function updateArm(
     ))
     .limit(1);
   
-  // @ts-ignore
+  // @ts-expect-error Dynamic property access
   if (models.length === 0) return;
   
   const model = models[0] as unknown;
-  // @ts-ignore
+  // @ts-expect-error Type inference limitation
   const A = model.matrixA as number[][];
-  // @ts-ignore
+  // @ts-expect-error Type inference limitation
   const b = model.vectorB as number[];
   
   // LinUCB更新规则
@@ -388,14 +388,14 @@ export async function updateArm(
   const newA = matAdd(A, xxT);
   const newB = vecAdd(b, vecScale(x, clampedReward));
   
-  // @ts-ignore
+  // @ts-expect-error Type inference limitation
   const newTotalPulls = (model.totalPulls || 0) + 1;
-  // @ts-ignore
+  // @ts-expect-error Type inference limitation
   const newTotalReward = Number(model.totalReward || 0) + clampedReward;
   const newAvgReward = newTotalReward / newTotalPulls;
   
   await db.update(linucbModels)
-    // @ts-ignore
+    // @ts-expect-error DB query type inference limitation
     .set({
       matrixA: newA,
       vectorB: newB,
@@ -404,7 +404,7 @@ export async function updateArm(
       avgReward: String(newAvgReward),
       lastPulledAt: new Date().toISOString(),
     })
-    // @ts-ignore
+    // @ts-expect-error DB query type inference limitation
     .where(eq(linucbModels.id, model.id));
 }
 
@@ -430,7 +430,7 @@ export async function makeLinUCBBidDecision(
 ): Promise<LinUCBDecision | null> {
   try {
     // 提取上下文特征
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const context = await extractFeatureVector(accountId, keywordId, targetId, campaignId);
     
     if (!currentBid || currentBid <= 0) {
@@ -439,9 +439,9 @@ export async function makeLinUCBBidDecision(
     
     // 计算自适应探索系数
     const arms = await loadOrInitLinUCBModel(accountId);
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const totalPulls = arms.reduce((sum: number, a: Record<string, unknown>) => sum + a.totalPulls, 0);
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const alpha = calculateAdaptiveAlpha(totalPulls);
     
     // 做出决策

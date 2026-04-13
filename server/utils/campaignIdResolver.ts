@@ -218,17 +218,17 @@ export async function preloadCampaignIdCache(adGroupIds: number[]): Promise<void
     const { adGroups } = await import('../../drizzle/schema');
     const { inArray } = await import('drizzle-orm');
 
-    // @ts-ignore
+    // @ts-expect-error DB query type inference limitation
     const results = await db.select({
       id: adGroups.id,
       campaignId: adGroups.campaignId,
     }).from(adGroups).where(inArray(adGroups.id, uncachedIds));
 
-    // @ts-ignore
+    // @ts-expect-error Dynamic type assertion
     for (const row of (results as unknown[])) {
-      // @ts-ignore
+      // @ts-expect-error Complex function parameter types
       if (row.campaignId && isValidAmazonId(row.campaignId)) {
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         setCachedCampaignId(row.id, row.campaignId);
       }
     }

@@ -40,9 +40,9 @@ async function getLastSyncTimeForAccount(accountId: number): Promise<Date | null
     if ((status as string).lastSyncResults) {
       // @ts-expect-error - string type assertion
       const accountResult = ((status as string).lastSyncResults as unknown[])?.find((r: Record<string, unknown>) => r.accountId === accountId);
-      // @ts-ignore
+      // @ts-expect-error Conditional type narrowing
       if (accountResult?.completedAt) {
-        // @ts-ignore
+        // @ts-expect-error Return type compatibility
         return new Date(accountResult.completedAt);
       }
     }

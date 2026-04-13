@@ -308,7 +308,7 @@ export class SmartDecisionEngine {
     campaigns: CampaignMetrics[],
     goal: OptimizationGoal
   ): Decision[] {
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const decisions = campaigns.map((campaign: unknown) => this.makeDecision(campaign, goal));
 
     // 按优先级和置信度排序
@@ -336,11 +336,11 @@ export class SmartDecisionEngine {
       expectedSpendChange: number;
     };
     recommendations: Decision[];
-  // @ts-ignore
+  // @ts-expect-error Legacy code type compatibility
   } {
-    // @ts-ignore
+    // @ts-expect-error Dynamic property access
     const actionableDecisions = decisions.filter((d: unknown) => d.action !== 'no_action');
-    // @ts-ignore
+    // @ts-expect-error Dynamic property access
     const highPriorityDecisions = actionableDecisions.filter((d: unknown) => d.priority === 'high');
 
     const expectedSalesIncrease = actionableDecisions.reduce(

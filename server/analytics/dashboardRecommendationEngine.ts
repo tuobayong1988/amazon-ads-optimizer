@@ -694,7 +694,7 @@ export async function executeEmergencyBleeding(
     try {
       log.info(`[紧急止血] 准备入队 ${syncTasks.length} 个同步任务, batchId=${batchId}`);
       const { enqueueTasks } = await import('../sync/optimizationSyncEngine');
-      // @ts-ignore
+      // @ts-expect-error Dynamic type assertion
       const resultBatchId = await enqueueTasks(syncTasks as unknown[]);
       log.info(`[紧急止血] ✅ 同步任务入队成功: batchId=${resultBatchId}, ${syncTasks.length}条任务`);
     } catch (err: any) {
@@ -797,9 +797,9 @@ export async function executeHighAcosSuppression(
   if (syncTasks.length > 0) {
     try {
       log.info(`[高ACOS抑制] 准备入队 ${syncTasks.length} 个同步任务, batchId=${batchId}`);
-      // @ts-ignore
+      // @ts-expect-error Async operation type inference
       const { enqueueTasks } = await import('../sync/optimizationSyncEngine');
-      // @ts-ignore
+      // @ts-expect-error Dynamic type assertion
       const resultBatchId = await enqueueTasks(syncTasks as unknown[]);
       log.info(`[高ACOS抑制] ✅ 同步任务入队成功: batchId=${resultBatchId}, ${syncTasks.length}条任务`);
     } catch (err: any) {

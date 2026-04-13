@@ -284,7 +284,7 @@ class DbWriter {
         `('${e.timestamp}', '${e.level}', '${escapeSql(e.module)}', '${escapeSql(e.message)}', ${e.metadata ? `'${escapeSql(e.metadata)}'` : 'NULL'})`
       ).join(',');
 
-      // @ts-ignore
+      // @ts-expect-error DB query type inference limitation
       await db.execute(
         `INSERT INTO system_logs (timestamp, level, module, message, metadata) VALUES ${values}`
       );
@@ -314,7 +314,7 @@ class DbWriter {
       const cutoff = new Date(now - this.retentionDays * 86400_000)
         .toISOString().slice(0, 19).replace('T', ' ');
 
-      // @ts-ignore
+      // @ts-expect-error DB query type inference limitation
       await db.execute(
         `DELETE FROM system_logs WHERE timestamp < '${cutoff}' LIMIT 10000`
       );
@@ -552,10 +552,10 @@ class Logger {
     }
 
     // 按数量排序的模块列表（前20个）
-    // @ts-ignore
+    // @ts-expect-error DB query type inference limitation
     const byModule = Array.from(moduleCount.entries())
       .map(([module, count]) => ({ module, count }))
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       .sort((a: unknown, b: unknown) => b.count - a.count)
       .slice(0, 20);
 

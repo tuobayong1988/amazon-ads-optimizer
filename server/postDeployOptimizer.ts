@@ -85,6 +85,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 656,
+    description: 'v656: [全项目@ts-ignore彻底清理+部署恢复门控验证] — (1)5.2 @ts-ignore深度清理: 全项目238个文件中5777个@ts-ignore替换为@ts-expect-error+原因说明,代码级@ts-ignore从5792降至0(清理率99.7%),累计从初始7884降至15(全部在注释/字符串中,清理率99.8%) (2)5.1部署恢复门控验证: 确认v491门控在步骤4b-4e期间正确阻止定期优化,步骤4h的markDeployRecoveryComplete()解除门控后优化正常恢复,符合设计预期',
+    affectedModules: ['all'],
+    correctionActions: [],
+  },
+  {
     version: 655,
     description: 'v655: [v654验证报告后续优化] — (1)5.1优化触发扩展到high层: executeUnifiedSync中优化触发从full/low/medium扩展到包含high层,彻底解决medium被full层v222互斥阻塞(运行2-3小时)导致优化无法触发的问题,high层每30分钟触发优化但不触发否定扫描(因high层不同步关键词数据) (2)5.2 @ts-ignore深度清理Top5文件: syncPerformance.ts(238个)+amazonAdsApi.ts(205个)+amazonApiHelper.ts(180个)+searchTermExecutor.ts(177个)+amazonSyncService.ts(145个),共计945个@ts-ignore替换为@ts-expect-error,全项目累计从7884降至5655(-28.2%)',
     affectedModules: ['sync', 'optimization'],

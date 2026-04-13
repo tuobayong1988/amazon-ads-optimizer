@@ -523,7 +523,7 @@ export async function getProfitConfigForTarget(
     const group = groups[0] as unknown;
     
     // 数据源1: 用户在优化目标中设定的目标ACOS
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const targetAcosNum = group.targetAcos ? Number(group.targetAcos) : 0;
     if (targetAcosNum > 0) {
       log.info(`使用用户设定的目标ACOS: targetId=${targetId}, targetAcos=${targetAcosNum}%`);
@@ -538,7 +538,7 @@ export async function getProfitConfigForTarget(
     }
     
     // 数据源2: 根据策略模板推断合理的ACOS目标
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const templateId = group.strategyTemplateId || 'default';
     const benchmark = STRATEGY_ACOS_BENCHMARKS[templateId] || STRATEGY_ACOS_BENCHMARKS['default'];
     
@@ -663,19 +663,19 @@ export function getProfitTrend(
   }
   
   const recent = history.slice(-lookbackEntries);
-  // @ts-ignore
+  // @ts-expect-error Type inference limitation
   const avgRoas = recent.reduce((sum: number, h: Record<string, unknown>) => sum + h.roas, 0) / recent.length;
   
   // 比较前半和后半的平均值
   const mid = Math.floor(recent.length / 2);
-  // @ts-ignore
+  // @ts-expect-error Type inference limitation
   const firstHalf = recent.slice(0, mid);
-  // @ts-ignore
+  // @ts-expect-error Type inference limitation
   const secondHalf = recent.slice(mid);
   
-  // @ts-ignore
+  // @ts-expect-error Type inference limitation
   const firstAvg = firstHalf.reduce((sum: number, h: Record<string, unknown>) => sum + h.roas, 0) / firstHalf.length;
-  // @ts-ignore
+  // @ts-expect-error Type inference limitation
   const secondAvg = secondHalf.reduce((sum: number, h: Record<string, unknown>) => sum + h.roas, 0) / secondHalf.length;
   
   const change = firstAvg > 0 ? (secondAvg - firstAvg) / firstAvg : 0;

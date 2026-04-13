@@ -511,7 +511,7 @@ export async function updateLearningFromAssessments(
     const negativeCount = assessments.filter(a => a.effectScore < -10).length;
     const totalCount = assessments.length;
     const successRate = totalCount > 0 ? positiveCount / totalCount : 0.5;
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const avgScore = assessments.reduce((sum: number, a: Record<string, unknown>) => sum + a.effectScore, 0) / totalCount;
     
     // 根据成功率动态调整最大调整幅度
@@ -814,9 +814,9 @@ export async function runEvolutionCycle(
   }
   
   // 计算整体趋势
-  // @ts-ignore
+  // @ts-expect-error Dynamic property access
   const avgEffectScore = assessments.length > 0 
-    // @ts-ignore
+    // @ts-expect-error Conditional type narrowing
     ? assessments.reduce((sum: number, a: Record<string, unknown>) => sum + a.effectScore, 0) / assessments.length 
     : 0;
   
@@ -969,11 +969,11 @@ export async function getKeywordOptimizationHistory(
     let rolledBackCount = 0;
     let correctedCount = 0;
     
-    // @ts-ignore
+    // @ts-expect-error Dynamic type assertion
     for (const log of (logs as unknown[])) {
-      // @ts-ignore
+      // @ts-expect-error Dynamic property access
       if (log.apiSyncStatus === 'rolled_back') rolledBackCount++;
-      // @ts-ignore
+      // @ts-expect-error Dynamic property access
       if (log.apiSyncStatus === 'corrected') correctedCount++;
     }
     

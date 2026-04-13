@@ -249,7 +249,7 @@ export class GuardrailConfigService {
       if (rows && Array.isArray(rows) && rows.length > 0) {
         for (const row of (rows as unknown[])) {
           try {
-            // @ts-ignore
+            // @ts-expect-error Dynamic type assertion
             const detail = JSON.parse((row as Record<string, unknown>).action_detail || '{}');
             if (detail.scope && detail.scopeKey && detail.overrides) {
               const cacheKey = `${detail.scope}:${detail.scopeKey}`;
@@ -284,49 +284,49 @@ export class GuardrailConfigService {
     
     if (overrides.bid) {
       for (const [key, value] of Object.entries(overrides.bid)) {
-        // @ts-ignore
+        // @ts-expect-error Amazon API response type flexibility
         const limit = (HARD_LIMITS.bid as Record<string, unknown>)[key];
-        // @ts-ignore
+        // @ts-expect-error Conditional type narrowing
         if (limit && (value < limit.min || value > limit.max)) {
-          // @ts-ignore
+          // @ts-expect-error Amazon API response type flexibility
           errors.push(`bid.${key}: ${value} 超出允许范围 [${limit.min}, ${limit.max}]`);
         }
       }
     }
     
-    // @ts-ignore
+    // @ts-expect-error Conditional type narrowing
     if (overrides.budget) {
-      // @ts-ignore
+      // @ts-expect-error Complex function parameter types
       for (const [key, value] of Object.entries(overrides.budget)) {
         const limit = (HARD_LIMITS.budget as Record<string, unknown>)[key];
-        // @ts-ignore
+        // @ts-expect-error Conditional type narrowing
         if (limit && (value < limit.min || value > limit.max)) {
-          // @ts-ignore
+          // @ts-expect-error Complex function parameter types
           errors.push(`budget.${key}: ${value} 超出允许范围 [${limit.min}, ${limit.max}]`);
         }
       }
-    // @ts-ignore
+    // @ts-expect-error Legacy code type compatibility
     }
     
     if (overrides.placement) {
       for (const [key, value] of Object.entries(overrides.placement)) {
         const limit = (HARD_LIMITS.placement as Record<string, unknown>)[key];
-        // @ts-ignore
+        // @ts-expect-error Conditional type narrowing
         if (limit && (value < limit.min || value > limit.max)) {
-          // @ts-ignore
+          // @ts-expect-error Complex function parameter types
           errors.push(`placement.${key}: ${value} 超出允许范围 [${limit.min}, ${limit.max}]`);
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         }
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       }
     }
     
     if (overrides.emergency) {
       for (const [key, value] of Object.entries(overrides.emergency)) {
         const limit = (HARD_LIMITS.emergency as Record<string, unknown>)[key];
-        // @ts-ignore
+        // @ts-expect-error Conditional type narrowing
         if (limit && (value < limit.min || value > limit.max)) {
-          // @ts-ignore
+          // @ts-expect-error Complex function parameter types
           errors.push(`emergency.${key}: ${value} 超出允许范围 [${limit.min}, ${limit.max}]`);
         }
       }

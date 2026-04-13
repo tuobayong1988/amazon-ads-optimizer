@@ -693,7 +693,7 @@ export function createDefaultSelfHealingScheduler(): SelfHealingScheduler {
           SELECT COUNT(*) as cnt FROM daily_performance 
           WHERE campaignId IS NOT NULL AND LENGTH(campaignId) < 8
         `);
-        // @ts-ignore
+        // @ts-expect-error Dynamic type assertion
         const dpCount = Number((dpShortIds as unknown)?.[0]?.cnt || 0);
         if (dpCount > 0) {
           totalIssues += dpCount;
@@ -705,7 +705,7 @@ export function createDefaultSelfHealingScheduler(): SelfHealingScheduler {
  SELECT COUNT(*) as cnt FROM keyword_placement_hourly_performance 
  WHERE campaign_id IS NOT NULL AND LENGTH(campaign_id) < 8
  `);
-        // @ts-ignore
+        // @ts-expect-error Dynamic type assertion
         const kphCount = Number((kphShortIds as unknown)?.[0]?.cnt || 0);
         if (kphCount > 0) {
           totalIssues += kphCount;
@@ -717,7 +717,7 @@ export function createDefaultSelfHealingScheduler(): SelfHealingScheduler {
  SELECT COUNT(*) as cnt FROM campaigns 
  WHERE campaignId IS NOT NULL AND LENGTH(campaignId) < 8
  `);
-        // @ts-ignore
+        // @ts-expect-error Dynamic type assertion
         const campCount = Number((campShortIds as unknown)?.[0]?.cnt || 0);
         if (campCount > 0) {
           totalIssues += campCount;
@@ -729,7 +729,7 @@ export function createDefaultSelfHealingScheduler(): SelfHealingScheduler {
  SELECT COUNT(*) as cnt FROM ad_groups 
  WHERE adGroupId IS NOT NULL AND LENGTH(adGroupId) < 8
  `);
-        // @ts-ignore
+        // @ts-expect-error Dynamic type assertion
         const agCount = Number((agShortIds as unknown)?.[0]?.cnt || 0);
         if (agCount > 0) {
           totalIssues += agCount;
@@ -737,12 +737,12 @@ export function createDefaultSelfHealingScheduler(): SelfHealingScheduler {
         }
         
         // 检查 5: product_targets 中是否有 NULL accountId
-        // @ts-ignore
+        // @ts-expect-error DB query type inference limitation
         const [ptNullAccount] = await database.execute(sql`
           SELECT COUNT(*) as cnt FROM product_targets 
           WHERE accountId IS NULL
         `);
-        // @ts-ignore
+        // @ts-expect-error Dynamic type assertion
         const ptCount = Number((ptNullAccount as unknown)?.[0]?.cnt || 0);
         if (ptCount > 0) {
           totalIssues += ptCount;
@@ -754,7 +754,7 @@ export function createDefaultSelfHealingScheduler(): SelfHealingScheduler {
           SELECT COUNT(*) as cnt FROM placement_performance 
           WHERE campaignId IS NOT NULL AND LENGTH(campaignId) < 8
         `);
-        // @ts-ignore
+        // @ts-expect-error Dynamic type assertion
         const ppCount = Number((ppShortIds as unknown)?.[0]?.cnt || 0);
         if (ppCount > 0) {
           totalIssues += ppCount;
@@ -766,7 +766,7 @@ export function createDefaultSelfHealingScheduler(): SelfHealingScheduler {
           SELECT COUNT(*) as cnt FROM search_terms 
           WHERE campaignId IS NOT NULL AND LENGTH(campaignId) < 8
         `);
-        // @ts-ignore
+        // @ts-expect-error Dynamic type assertion
         const stCount = Number((stShortIds as unknown)?.[0]?.cnt || 0);
         if (stCount > 0) {
           totalIssues += stCount;

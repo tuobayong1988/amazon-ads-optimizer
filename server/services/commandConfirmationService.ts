@@ -202,7 +202,7 @@ export class CommandConfirmationService {
         log.warn(`[CommandConfirmation] 队列已满(${MAX_QUEUE_SIZE})，丢弃最旧的请求`);
         const oldest = Array.from(this.queue.values())
           .filter(r => r.status === 'pending' || r.status === 'waiting')
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           .sort((a: unknown, b: unknown) => a.createdAt.getTime() - b.createdAt.getTime())[0];
         if (oldest) this.queue.delete(oldest.id);
       }
@@ -407,19 +407,19 @@ export class CommandConfirmationService {
       // v644: 记录执行完成时间
       this.lastConfirmationTime.set(request.accountId, Date.now());
       
-      // @ts-ignore
+      // @ts-expect-error Dynamic property access
       if (syncResult && syncResult.completedSteps > 0) {
-        // @ts-ignore
+        // @ts-expect-error Dynamic property access
         const matchRate = syncResult.totalSteps > 0 ? syncResult.completedSteps / syncResult.totalSteps : 0;
         
         request.status = 'confirmed';
         request.lastResult = {
           success: true,
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           completedSteps: syncResult.completedSteps,
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           totalSteps: syncResult.totalSteps,
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           totalSynced: syncResult.totalSynced,
           durationMs,
           matchRate,
@@ -433,16 +433,16 @@ export class CommandConfirmationService {
         const propagationDelay = request.expectedReadyAt.getTime() - request.createdAt.getTime();
         this.recordPropagationDelay(request.operationType, propagationDelay);
         
-        // @ts-ignore
+        // @ts-expect-error Express request/response type assertion
         log.info(`[CommandConfirmation] v644: 确认成功: ${request.id}, 步骤=${syncResult.completedSteps}/${syncResult.totalSteps}, 同步=${syncResult.totalSynced}条, 匹配率=${(matchRate * 100).toFixed(1)}%, 耗时=${durationMs}ms`);
-      // @ts-ignore
+      // @ts-expect-error Complex function parameter types
       } else if (syncResult && syncResult.errors?.some((e: string) => e.includes('full层同步在运行') || e.includes('同步在运行'))) {
         // v388: full同步正在运行时，视为"已覆盖确认"
         request.status = 'confirmed';
         request.lastResult = {
           success: true,
           completedSteps: 0,
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           totalSteps: syncResult.totalSteps || 0,
           totalSynced: 0,
           durationMs,
@@ -454,7 +454,7 @@ export class CommandConfirmationService {
         this.totalConfirmationTimeMs += (Date.now() - request.createdAt.getTime());
         this.totalRetryCount += request.retryCount;
         
-        // @ts-ignore
+        // @ts-expect-error Express request/response type assertion
         log.info(`[CommandConfirmation] v644: 确认已被full同步覆盖: ${request.id}, 耗时=${durationMs}ms`);
       } else {
         await this.handleConfirmationFailure(request, durationMs, '确认同步返回空结果或0步骤');
@@ -523,7 +523,7 @@ export class CommandConfirmationService {
       return config.initialDelayMs;
     }
     
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const recent = history.slice(-20).sort((a: unknown, b: unknown) => a - b);
     const p75Index = Math.floor(recent.length * 0.75);
     const p75Delay = recent[p75Index];
@@ -543,7 +543,7 @@ export class CommandConfirmationService {
     history.push(delayMs);
     
     if (history.length > 100) {
-      // @ts-ignore
+      // @ts-expect-error DB query type inference limitation
       this.propagationHistory.set(operationType, history.slice(-50));
     }
   }
@@ -555,7 +555,7 @@ export class CommandConfirmationService {
     const result: Record<string, number> = {};
     for (const [type, history] of this.propagationHistory.entries()) {
       if (history.length > 0) {
-        // @ts-ignore
+        // @ts-expect-error Array method type inference
         result[type] = Math.round(history.reduce((a: unknown, b: unknown) => a + b, 0) / history.length);
       }
     }

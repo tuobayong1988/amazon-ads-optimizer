@@ -13,14 +13,14 @@ import { eq, and, gte, lte, desc } from 'drizzle-orm';
 
 // v452.8: 系统管理员判断 - 只有内部组织(orgId=1)的admin才是系统管理员
 function isSystemAdmin(user: unknown): boolean {
-  // @ts-ignore
+  // @ts-expect-error Dynamic property access
   return user.role === 'admin' && user.organizationId === 1;
 }
 
 // ==================== Ad Account Router ====================
 export const adAccountRouter = router({
   // v452.8: 安全修复 — 只有系统管理员可查看所有账户，其他用户仅查看自己的账户
-  // @ts-ignore
+  // @ts-expect-error Complex function parameter types
   list: protectedProcedure.query(async ({ ctx }: unknown) => {
     if (isSystemAdmin(ctx.user)) {
       return db.getAdAccounts();
@@ -44,10 +44,10 @@ export const adAccountRouter = router({
     }),
   
   // v359: 安全修复 — 获取默认账号（需认证，按用户隔离）
-  // @ts-ignore
+  // @ts-expect-error Legacy code type compatibility
   getDefault: protectedProcedure
     .input(z.object({ userId: z.number().optional() }).optional())
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .query(async ({ ctx }: unknown) => {
       // v359: 使用认证用户的ID获取其账户列表
       const accounts = isSystemAdmin(ctx.user)
@@ -135,11 +135,11 @@ export const adAccountRouter = router({
       conversionValueType: z.enum(["sales", "units", "custom"]).optional(),
       conversionValueSource: z.enum(["platform", "custom"]).optional(),
       intradayBiddingEnabled: z.boolean().optional(),
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       defaultMaxBid: z.string().optional(),
       status: z.enum(["active", "paused", "archived"]).optional(),
     }))
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .mutation(async ({ ctx, input }: unknown) => {
       const { id, intradayBiddingEnabled, ...rest } = input;
       const data = {
@@ -365,12 +365,12 @@ export const adAccountRouter = router({
     
     // v268: 缓存结果
     apiCache.set(cacheKey, accountsWithPerformance, 2 * 60 * 1000);
-    // @ts-ignore
+    // @ts-expect-error Return type compatibility
     return accountsWithPerformance;
   }),
 
   // 获取账号统计信息
-  // @ts-ignore
+  // @ts-expect-error Complex function parameter types
   getStats: protectedProcedure.query(async ({ ctx }: unknown) => {
     // 管理员可以访问所有账户
     const accounts = isSystemAdmin(ctx.user) 
@@ -395,14 +395,14 @@ export const adAccountRouter = router({
       // 市场覆盖（去重后的国家数量）
       marketplaceCount: new Set(actualSites.map(a => a.marketplace)).size,
       // 按市场分组统计
-      // @ts-ignore
+      // @ts-expect-error Generic type constraint
       byMarketplace: {} as Record<string, number>,
     };
     
     for (const account of (actualSites as unknown[])) {
-      // @ts-ignore
+      // @ts-expect-error Conditional type narrowing
       if (account.marketplace) {
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         stats.byMarketplace[account.marketplace] = (stats.byMarketplace[account.marketplace] || 0) + 1;
       }
     }
@@ -467,7 +467,7 @@ export const adAccountRouter = router({
       }
       
       // 获取每日绩效数据
-      // @ts-ignore
+      // @ts-expect-error DB query type inference limitation
       const trendData = await db.getDailyTrendData(accountIds, input.days, 'custom', startDate, endDate);
       // v268: 缓存结果
       apiCache.set(cacheKey, trendData, 2 * 60 * 1000);
@@ -475,7 +475,7 @@ export const adAccountRouter = router({
     }),
   
   // 获取数据可用日期范围（用于自定义日期选择器的限制）
-  // @ts-ignore
+  // @ts-expect-error Complex function parameter types
   getDataDateRange: protectedProcedure.query(async ({ ctx }: unknown) => {
     // 管理员可以访问所有账户
     const accounts = isSystemAdmin(ctx.user) 

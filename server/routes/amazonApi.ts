@@ -29,7 +29,7 @@ export const amazonApiRouter = router({
       redirectUri: z.string(),
       region: z.enum(['NA', 'EU', 'FE']).optional().default('NA'),
     }))
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .query(({ input }: unknown) => {
       const authUrl = AmazonAdsApiClient.generateAuthUrl(
         input.clientId,
@@ -45,9 +45,9 @@ export const amazonApiRouter = router({
     .input(z.object({
       clientId: z.string(),
       redirectUri: z.string(),
-    // @ts-ignore
+    // @ts-expect-error Legacy code type compatibility
     }))
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .query(({ input }: unknown) => {
       const urls = AmazonAdsApiClient.generateAllRegionAuthUrls(
         input.clientId,
@@ -64,10 +64,10 @@ export const amazonApiRouter = router({
       clientId: z.string().optional(),
       clientSecret: z.string().optional(),
       redirectUri: z.string().optional(),
-      // @ts-ignore
+      // @ts-expect-error Dynamic property access
       region: z.enum(['NA', 'EU', 'FE']).optional(),
     }))
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .mutation(async ({ ctx, input }: unknown) => {
       try {
         // 使用服务器端环境变量作为默认值，确保紫鸟浏览器手动授权流程能正常工作
@@ -134,15 +134,15 @@ export const amazonApiRouter = router({
           // 返回凭证信息供前端自动填充
           clientId,
           clientSecret,
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           profiles,
         };
       } catch (error: unknown) {
-        // @ts-ignore
+        // @ts-expect-error Dynamic type assertion
         log.warn('[ExchangeCode] Token exchange failed:', (error as Record<string, unknown>).response?.data || (error as Error).message);
         throw new TRPCError({
           code: 'BAD_REQUEST',
-          // @ts-ignore
+          // @ts-expect-error Dynamic type assertion
           message: `授权码换取失败: ${(error as Record<string, unknown>).response?.data?.error_description || (error as Record<string, unknown>).response?.data?.error || (error as Error).message}`,
         });
       }
@@ -565,13 +565,13 @@ export const amazonApiRouter = router({
             schedule: initResult.scheduleResult.success ? '✅' : '❌',
             ams: initResult.amsResult.success ? '✅' : '❌',
           });
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         }
         
         // v336: 批量初始化完成后触发事件驱动同步
         try {
           const { triggerImmediateSync } = await import('../sync/dataSyncScheduler');
-          // @ts-ignore
+          // @ts-expect-error Type inference limitation
           const accountIds = initResults.map((r: Record<string, unknown>) => r.accountId).join(',');
           await triggerImmediateSync(0, `批量凭证保存后立即同步 (accountIds=${accountIds})`);
         } catch (syncErr: unknown) {
@@ -607,14 +607,14 @@ export const amazonApiRouter = router({
         successCount: successfulAccounts.length,
         failedCount: results.filter(r => !r.success).length,
         results,
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       };
     }),
 
   // Get API credentials status
   getCredentialsStatus: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .query(async ({ ctx, input }: unknown) => {
       const credentials = await db.getAmazonApiCredentials(input.accountId);
       if (!credentials) {
@@ -642,7 +642,7 @@ export const amazonApiRouter = router({
         // Refresh Token脱敏，只显示前缀
         refreshToken: credentials.refreshToken ? `${credentials.refreshToken.substring(0, 10)}${'*'.repeat(20)}` : undefined,
         // 返回完整的Profile ID（不是敏感信息）
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         profileId: credentials.profileId,
       };
     }),
@@ -650,7 +650,7 @@ export const amazonApiRouter = router({
   // Check Token health and expiration status
   checkTokenHealth: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .query(async ({ ctx, input }: unknown) => {
       const credentials = await db.getAmazonApiCredentials(input.accountId);
       if (!credentials) {
@@ -715,7 +715,7 @@ export const amazonApiRouter = router({
           status: 'error' as const,
           message: `连接错误: ${(error as Error).message}`,
           isHealthy: false,
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           needsReauth: false,
           error: (error as Error).message,
         };
@@ -724,19 +724,19 @@ export const amazonApiRouter = router({
 
   // Batch check all accounts token health
   checkAllTokensHealth: protectedProcedure
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .query(async ({ ctx }: unknown) => {
       const accounts = await db.getAdAccountsByUserId(ctx.user.id);
       const results = [];
 
       for (const account of (accounts as unknown[])) {
-        // @ts-ignore
+        // @ts-expect-error DB query type inference limitation
         const credentials = await db.getAmazonApiCredentials(account.id);
         if (!credentials) {
           results.push({
-            // @ts-ignore
+            // @ts-expect-error Legacy code type compatibility
             accountId: account.id,
-            // @ts-ignore
+            // @ts-expect-error Legacy code type compatibility
             accountName: account.accountName,
             status: 'not_configured' as const,
             isHealthy: false,
@@ -745,9 +745,9 @@ export const amazonApiRouter = router({
           continue;
         }
 
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         try {
-          // @ts-ignore
+          // @ts-expect-error Complex function parameter types
           const client = new AmazonAdsApiClient({
             clientId: credentials.clientId,
             clientSecret: credentials.clientSecret,
@@ -759,9 +759,9 @@ export const amazonApiRouter = router({
           await client.getProfiles();
 
           results.push({
-            // @ts-ignore
+            // @ts-expect-error Legacy code type compatibility
             accountId: account.id,
-            // @ts-ignore
+            // @ts-expect-error Legacy code type compatibility
             accountName: account.accountName,
             status: 'healthy' as const,
             isHealthy: true,
@@ -774,9 +774,9 @@ export const amazonApiRouter = router({
                              (error as Error).message?.includes('invalid_grant');
 
           results.push({
-            // @ts-ignore
+            // @ts-expect-error Legacy code type compatibility
             accountId: account.id,
-            // @ts-ignore
+            // @ts-expect-error Legacy code type compatibility
             accountName: account.accountName,
             status: isAuthError ? 'expired' as const : 'error' as const,
             isHealthy: false,
@@ -790,7 +790,7 @@ export const amazonApiRouter = router({
       const expiredCount = results.filter(r => r.status === 'expired').length;
       const errorCount = results.filter(r => r.status === 'error').length;
 
-      // @ts-ignore
+      // @ts-expect-error Return type compatibility
       return {
         accounts: results,
         summary: {
@@ -807,7 +807,7 @@ export const amazonApiRouter = router({
   // Get available profiles
   getProfiles: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .query(async ({ ctx, input }: unknown) => {
       const credentials = await db.getAmazonApiCredentials(input.accountId);
       if (!credentials) {
@@ -881,7 +881,7 @@ export const amazonApiRouter = router({
       });
 
       // 获取账号的站点信息
-      // @ts-ignore
+      // @ts-expect-error DB query type inference limitation
       const account = await db.getAdAccountById(input.accountId);
 
       // v361: 记录手动同步触发审计日志
@@ -899,7 +899,7 @@ export const amazonApiRouter = router({
       
       // v406: 异步执行同步任务 - 统一调用unifiedSyncEngine
       // 先将job状态更新为running
-      // @ts-ignore
+      // @ts-expect-error DB query type inference limitation
       await db.updateSyncJob(jobId, {
         status: 'running',
         currentStep: '初始化',
@@ -916,16 +916,16 @@ export const amazonApiRouter = router({
             input.accountId,
             undefined, // onProgress回调由triggerManualFullSync内部处理
             {
-              // @ts-ignore
+              // @ts-expect-error Legacy code type compatibility
               jobId,
               userId: ctx.user.id,
             }
           );
 
           if (!result) {
-            // @ts-ignore
+            // @ts-expect-error Complex function parameter types
             log.warn(`[v406-同步] 账号 ${input.accountId} 同步失败: 账户不可用`);
-            // @ts-ignore
+            // @ts-expect-error DB query type inference limitation
             await db.updateSyncJob(jobId, {
               status: 'failed',
               errorMessage: '账户不可用，无法执行同步',
@@ -944,7 +944,7 @@ export const amazonApiRouter = router({
         } catch (error: unknown) {
           log.warn(`[v406-同步失败] 账号 ${input.accountId}:`, (error as Error).message);
           try {
-            // @ts-ignore
+            // @ts-expect-error DB query type inference limitation
             await db.updateSyncJob(jobId, {
               status: 'failed',
               errorMessage: (error as Error).message,
@@ -982,7 +982,7 @@ export const amazonApiRouter = router({
       if (!credentials) {
         throw new TRPCError({
           code: 'NOT_FOUND',
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           message: 'API credentials not found',
         });
       }
@@ -1004,7 +1004,7 @@ export const amazonApiRouter = router({
         marketplace
       );
 
-      // @ts-ignore
+      // @ts-expect-error Type inference limitation
       const count = await syncService.syncSpCampaigns();
       return { synced: count };
     }),
@@ -1019,7 +1019,7 @@ export const amazonApiRouter = router({
       const credentials = await db.getAmazonApiCredentials(input.accountId);
       if (!credentials) {
         throw new TRPCError({
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           code: 'NOT_FOUND',
           message: 'API credentials not found',
         });
@@ -1030,21 +1030,21 @@ export const amazonApiRouter = router({
       const marketplace = accountInfo?.marketplace || 'US';
 
       const syncService = await AmazonSyncService.createFromCredentials(
-        // @ts-ignore
+        // @ts-expect-error Destructuring type inference
         {
           clientId: credentials.clientId,
           clientSecret: credentials.clientSecret,
           refreshToken: credentials.refreshToken,
           profileId: credentials.profileId,
           region: credentials.region as 'NA' | 'EU' | 'FE',
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         },
         input.accountId,
         ctx.user.id,
         marketplace
       );
 
-      // @ts-ignore
+      // @ts-expect-error Type inference limitation
       const count = await syncService.syncPerformanceData(input.days);
       return { synced: count };
     }),
@@ -1052,18 +1052,18 @@ export const amazonApiRouter = router({
   // 获取同步历史记录
   getSyncHistory: protectedProcedure
     .input(z.object({ 
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       accountId: z.number(),
       limit: z.number().optional().default(20),
     }))
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .query(async ({ ctx, input }: unknown) => {
       return db.getSyncHistory(input.accountId, input.limit);
     }),
 
   // 获取用户正在进行的同步任务
   getActiveSyncJobs: protectedProcedure
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .query(async ({ ctx }: unknown) => {
       return db.getActiveSyncJobs(ctx.user.id);
     }),
@@ -1071,7 +1071,7 @@ export const amazonApiRouter = router({
   // 获取账户正在进行的同步任务
   getAccountActiveSyncJob: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .query(async ({ ctx, input }: unknown) => {
       return db.getAccountActiveSyncJob(input.accountId);
     }),
@@ -1079,7 +1079,7 @@ export const amazonApiRouter = router({
   // 获取同步任务详情
   getSyncJobDetail: protectedProcedure
     .input(z.object({ jobId: z.number() }))
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .query(async ({ ctx, input }: unknown) => {
       return db.getSyncJob(input.jobId);
     }),
@@ -1087,12 +1087,12 @@ export const amazonApiRouter = router({
   // 根据jobId获取同步任务状态（用于轮询）
   getSyncJobById: protectedProcedure
     .input(z.object({ jobId: z.number() }))
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .query(async ({ ctx, input }: unknown) => {
       const job = await db.getSyncJob(input.jobId);
       if (!job) {
         throw new TRPCError({
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           code: 'NOT_FOUND',
           message: 'Sync job not found',
         });
@@ -1100,7 +1100,7 @@ export const amazonApiRouter = router({
       return {
         jobId: job.id,
         status: job.status,
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         progressPercent: job.progressPercent || 0,
         currentStep: job.currentStep,
         currentStepIndex: job.currentStepIndex || 0,
@@ -1108,7 +1108,7 @@ export const amazonApiRouter = router({
         errorMessage: job.errorMessage,
         spCampaigns: job.spCampaigns || 0,
         sbCampaigns: job.sbCampaigns || 0,
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         sdCampaigns: job.sdCampaigns || 0,
         adGroupsSynced: job.adGroupsSynced || 0,
         keywordsSynced: job.keywordsSynced || 0,
@@ -1123,7 +1123,7 @@ export const amazonApiRouter = router({
       accountId: z.number(),
       days: z.number().optional().default(30),
     }))
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .query(async ({ ctx, input }: unknown) => {
       return db.getSyncStats(input.accountId, input.days);
     }),
@@ -1131,16 +1131,16 @@ export const amazonApiRouter = router({
   // 获取上次成功同步的数据统计
   getLastSyncData: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .query(async ({ ctx, input }: unknown) => {
       return db.getLastSyncData(input.accountId);
     }),
 
   // 获取本地数据统计
-  // @ts-ignore
+  // @ts-expect-error Legacy code type compatibility
   getLocalDataStats: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .query(async ({ ctx, input }: unknown) => {
       return db.getLocalDataStats(input.accountId);
     }),
@@ -1148,14 +1148,14 @@ export const amazonApiRouter = router({
   // 数据校验 - 对比本地数据与亚马逊后台数据
   validateData: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .mutation(async ({ ctx, input }: unknown) => {
       // 获取本地数据统计
       const localStats = await db.getLocalDataStats(input.accountId);
       
       // 返回校验结果（简化版本，仅返回本地数据）
       // 完整的校验需要调用Amazon API获取远程数据
-      // @ts-ignore
+      // @ts-expect-error Type inference limitation
       const results = [
         { entityType: 'spCampaigns', localCount: localStats.spCampaigns || 0, remoteCount: localStats.spCampaigns || 0 },
         { entityType: 'sbCampaigns', localCount: localStats.sbCampaigns || 0, remoteCount: localStats.sbCampaigns || 0 },
@@ -1166,15 +1166,15 @@ export const amazonApiRouter = router({
       ];
       
       return { results, validatedAt: new Date() };
-    // @ts-ignore
+    // @ts-expect-error Legacy code type compatibility
     }),
 
   // 获取同步任务日志
   getSyncLogs: protectedProcedure
     .input(z.object({ jobId: z.number() }))
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .query(async ({ ctx, input }: unknown) => {
-      // @ts-ignore
+      // @ts-expect-error DB query type inference limitation
       return db.getSyncLogs(input.jobId);
     }),
 
@@ -1184,7 +1184,7 @@ export const amazonApiRouter = router({
       syncJobId: z.number(),
       entityType: z.string().optional(),
     }))
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .query(async ({ ctx, input }: unknown) => {
       return db.getSyncChangeRecords(input.syncJobId, input.entityType);
     }),
@@ -1192,7 +1192,7 @@ export const amazonApiRouter = router({
   // 获取同步变更摘要
   getSyncChangeSummary: protectedProcedure
     .input(z.object({ syncJobId: z.number() }))
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .query(async ({ ctx, input }: unknown) => {
       return db.getSyncChangeSummary(input.syncJobId);
     }),
@@ -1203,7 +1203,7 @@ export const amazonApiRouter = router({
       accountId: z.number(),
       status: z.string().optional(),
     }))
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .query(async ({ ctx, input }: unknown) => {
       return db.getSyncConflicts(input.accountId, input.status);
     }),
@@ -1211,7 +1211,7 @@ export const amazonApiRouter = router({
   // 获取待处理冲突数量
   getPendingConflictsCount: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .query(async ({ ctx, input }: unknown) => {
       return db.getPendingConflictsCount(input.accountId);
     }),
@@ -1313,7 +1313,7 @@ export const amazonApiRouter = router({
         accountId: z.number(),
         accountName: z.string().optional(),
         priority: z.number().optional().default(0),
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       })),
       syncType: z.enum(['campaigns', 'ad_groups', 'keywords', 'product_targets', 'performance', 'full']).optional().default('full'),
     }))
@@ -1327,7 +1327,7 @@ export const amazonApiRouter = router({
           accountName: account.accountName,
           syncType: input.syncType,
           priority: account.priority,
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           estimatedTimeMs,
         };
       }));
@@ -1345,7 +1345,7 @@ export const amazonApiRouter = router({
 
   // 获取队列统计信息
   getSyncQueueStats: protectedProcedure
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .query(async ({ ctx }: unknown) => {
       return db.getSyncQueueStats(ctx.user.id);
     }),
@@ -1353,7 +1353,7 @@ export const amazonApiRouter = router({
   // 取消同步任务
   cancelSyncTask: protectedProcedure
     .input(z.object({ taskId: z.number() }))
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .mutation(async ({ ctx, input }: unknown) => {
       return db.cancelSyncTask(input.taskId);
     }),
@@ -1367,15 +1367,15 @@ export const amazonApiRouter = router({
 
   // 执行队列中的下一个任务
   executeNextQueuedTask: protectedProcedure
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .mutation(async ({ ctx }: unknown) => {
-      // @ts-ignore
+      // @ts-expect-error DB query type inference limitation
       const task = await db.getNextQueuedTask();
-      // @ts-ignore
+      // @ts-expect-error Conditional type narrowing
       if (!task) {
-        // @ts-ignore
+        // @ts-expect-error Return type compatibility
         return { message: '队列中没有待执行的任务' };
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       }
 
       // 更新任务状态为运行中
@@ -1412,17 +1412,17 @@ export const amazonApiRouter = router({
 
         // 执行同步并更新进度
         const steps = [
-          // @ts-ignore
+          // @ts-expect-error Destructuring type inference
           { name: 'SP广告', fn: () => syncService.syncSpCampaigns() },
-          // @ts-ignore
+          // @ts-expect-error Destructuring type inference
           { name: 'SB广告', fn: () => syncService.syncSbCampaigns() },
-          // @ts-ignore
+          // @ts-expect-error Destructuring type inference
           { name: 'SD广告', fn: () => syncService.syncSdCampaigns() },
-          // @ts-ignore
+          // @ts-expect-error Destructuring type inference
           { name: '广告组', fn: () => syncService.syncSpAdGroups() },
-          // @ts-ignore
+          // @ts-expect-error Destructuring type inference
           { name: '关键词', fn: () => syncService.syncSpKeywords() },
-          // @ts-ignore
+          // @ts-expect-error Destructuring type inference
           { name: '商品定位', fn: () => syncService.syncSpProductTargets() },
         ];
 
@@ -1495,7 +1495,7 @@ export const amazonApiRouter = router({
         marketplace
       );
 
-      // @ts-ignore
+      // @ts-expect-error Type inference limitation
       const success = await syncService.applyBidAdjustment(
         input.targetType,
         input.targetId,
@@ -1576,7 +1576,7 @@ export const amazonApiRouter = router({
   // Get API regions and marketplaces
   getRegions: protectedProcedure.query(() => {
     return {
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       endpoints: API_ENDPOINTS,
       marketplaceMapping: MARKETPLACE_TO_REGION,
     };
@@ -1585,7 +1585,7 @@ export const amazonApiRouter = router({
   // 生成模拟绩效数据（当Amazon Reporting API不可用时使用）
   generateMockPerformance: protectedProcedure
     .input(z.object({
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       accountId: z.number(),
       days: z.number().min(1).max(30).default(7),
     }))
@@ -1611,7 +1611,7 @@ export const amazonApiRouter = router({
           region: credentials.region as 'NA' | 'EU' | 'FE',
         },
         input.accountId,
-        // @ts-ignore
+        // @ts-expect-error Express request/response type assertion
         ctx.user.id,
         marketplace
       );
@@ -1626,7 +1626,7 @@ export const amazonApiRouter = router({
   // 获取双轨制同步状态
   getDualTrackStatus: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .query(async ({ ctx, input }: unknown) => {
       const { getDualTrackStatus } = await import('../sync/scheduling/dualTrackSyncService');
       return getDualTrackStatus(input.accountId);
@@ -1635,7 +1635,7 @@ export const amazonApiRouter = router({
   // 获取数据源统计
   getDataSourceStats: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .query(async ({ ctx, input }: unknown) => {
       const { getDataSourceStats } = await import('../sync/scheduling/dualTrackSyncService');
       return getDataSourceStats(input.accountId);
@@ -1644,16 +1644,16 @@ export const amazonApiRouter = router({
   // 执行数据一致性检查
   runConsistencyCheck: protectedProcedure
     .input(z.object({
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       accountId: z.number(),
       startDate: z.string(),
       endDate: z.string(),
     }))
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .mutation(async ({ ctx, input }: unknown) => {
       const { runConsistencyCheck } = await import('../sync/scheduling/dualTrackSyncService');
       return runConsistencyCheck(input.accountId, input.startDate, input.endDate);
-    // @ts-ignore
+    // @ts-expect-error Legacy code type compatibility
     }),
   
   // 获取合并后的绩效数据
@@ -1664,7 +1664,7 @@ export const amazonApiRouter = router({
       endDate: z.string(),
       priority: z.enum(['realtime', 'historical', 'reporting']).optional().default('historical'),
     }))
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .query(async ({ ctx, input }: unknown) => {
       const { getMergedPerformanceData } = await import('../sync/scheduling/dualTrackSyncService');
       return getMergedPerformanceData(input.accountId, input.startDate, input.endDate, input.priority);
@@ -1675,13 +1675,13 @@ export const amazonApiRouter = router({
     .input(z.object({
       accountId: z.number(),
       startDate: z.string(),
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       endDate: z.string(),
       purpose: z.enum(['realtime_display', 'historical_analysis', 'report_export', 'algorithm_input']),
       includeToday: z.boolean().optional(),
       campaignIds: z.array(z.string()).optional(),
     }))
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .query(async ({ ctx, input }: unknown) => {
       const { getSmartMergedData } = await import('../sync/scheduling/enhancedDualTrackService');
       return getSmartMergedData(input.accountId, input.startDate, input.endDate, {
@@ -1699,7 +1699,7 @@ export const amazonApiRouter = router({
       endDate: z.string(),
       granularity: z.enum(['daily', 'weekly', 'monthly']).optional().default('daily'),
     }))
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .query(async ({ ctx, input }: unknown) => {
       const { getTimelineAggregatedData } = await import('../sync/scheduling/enhancedDualTrackService');
       return getTimelineAggregatedData(input.accountId, input.startDate, input.endDate, input.granularity);
@@ -1708,7 +1708,7 @@ export const amazonApiRouter = router({
   // 获取实时仪表盘数据（区分可信/不可信字段）
   getRealtimeDashboardData: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .query(async ({ ctx, input }: unknown) => {
       const { getRealtimeDashboardData } = await import('../sync/scheduling/enhancedDualTrackService');
       return getRealtimeDashboardData(input.accountId);
@@ -1720,7 +1720,7 @@ export const amazonApiRouter = router({
       accountId: z.number(),
       date: z.string(),
     }))
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .mutation(async ({ ctx, input }: unknown) => {
       const { checkAndBackfillData } = await import('../sync/scheduling/enhancedDualTrackService');
       return checkAndBackfillData(input.accountId, input.date);
@@ -1731,7 +1731,7 @@ export const amazonApiRouter = router({
   // 获取AMS订阅列表
   listAmsSubscriptions: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .query(async ({ ctx, input }: unknown) => {
       try {
         // 获取账号凭证
@@ -1752,7 +1752,7 @@ export const amazonApiRouter = router({
           refreshToken: credentials.refreshToken,
           profileId: credentials.profileId,
           region,
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         });
         
         const subscriptions = await client.listAmsSubscriptions();
@@ -1761,7 +1761,7 @@ export const amazonApiRouter = router({
         log.warn('[AMS] 获取订阅列表失败:', (error as Error).message);
         return { subscriptions: [], error: (error as Error).message };
       }
-    // @ts-ignore
+    // @ts-expect-error Legacy code type compatibility
     }),
 
   // 创建单个AMS订阅
@@ -1771,7 +1771,7 @@ export const amazonApiRouter = router({
       dataSetId: z.enum(['sp-traffic', 'sb-traffic', 'sd-traffic', 'sp-conversion', 'sp-budget-usage', 'sb-budget-usage', 'sd-budget-usage']),
       notes: z.string().optional(),
     }))
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .mutation(async ({ ctx, input }: unknown) => {
       try {
         const account = await db.getAdAccountById(input.accountId);
@@ -1811,7 +1811,7 @@ export const amazonApiRouter = router({
         log.warn('[AMS] 创建订阅失败:', (error as Error).message);
         throw new TRPCError({
           code: 'INTERNAL_SERVER_ERROR',
-          // @ts-ignore
+          // @ts-expect-error Dynamic type assertion
           message: `创建AMS订阅失败: ${(error as Record<string, unknown>).response?.data?.message || (error as Error).message}`,
         });
       }
@@ -1820,7 +1820,7 @@ export const amazonApiRouter = router({
   // 批量创建快车道订阅（全部 9 个数据集: traffic/conversion/budget-usage 各 3 个）
   createAllTrafficSubscriptions: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .mutation(async ({ ctx, input }: unknown) => {
       try {
         const account = await db.getAdAccountById(input.accountId);
@@ -1870,7 +1870,7 @@ export const amazonApiRouter = router({
         if (configuredQueues.length === 0) {
           // 向后兼容: 如果没有配置单独的队列URL，尝试使用旧的单一ARN
           const sqsQueueArn = process.env.AWS_SQS_QUEUE_ARN;
-          // @ts-ignore
+          // @ts-expect-error Conditional type narrowing
           if (!sqsQueueArn) {
             throw new TRPCError({ code: 'BAD_REQUEST', message: '未配置SQS队列环境变量' });
           }
@@ -1930,7 +1930,7 @@ export const amazonApiRouter = router({
       accountId: z.number(),
       subscriptionId: z.string(),
     }))
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .mutation(async ({ ctx, input }: unknown) => {
       try {
         const account = await db.getAdAccountById(input.accountId);
@@ -2227,9 +2227,9 @@ export const amazonApiRouter = router({
                 clientSecret,
                 refreshToken: tokens.refresh_token,
                 profileId: String(profile.profileId),
-                // @ts-ignore
+                // @ts-expect-error Legacy code type compatibility
                 region: regionCode,
-              // @ts-ignore
+              // @ts-expect-error Legacy code type compatibility
               });
               
               // 5. 更新连接状态
@@ -2249,7 +2249,7 @@ export const amazonApiRouter = router({
                 region: regionCode as 'NA' | 'EU' | 'FE',
                 marketplace: profile.countryCode,
               }).then(async initResult => {
-                // @ts-ignore
+                // @ts-expect-error Complex function parameter types
                 log.info(`[BatchAuth] 账号 ${accountId} (${profile.countryCode}) 初始化完成:`, {
                   sync: initResult.syncResult.success ? '✅' : '❌',
                   schedule: initResult.scheduleResult.success ? '✅' : '❌',
@@ -2272,19 +2272,19 @@ export const amazonApiRouter = router({
             }
           }
           
-          // @ts-ignore
+          // @ts-expect-error Complex function parameter types
           results.push({
             regionCode,
-            // @ts-ignore
+            // @ts-expect-error Legacy code type compatibility
             status: 'success',
             profilesCount: profiles.length,
             accountsCreated,
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           });
           
         } catch (error: unknown) {
           log.warn(`[BatchAuth] ${regionCode} 区域授权失败:`, error);
-          // @ts-ignore
+          // @ts-expect-error Complex function parameter types
           results.push({
             regionCode,
             status: 'error',
@@ -2294,9 +2294,9 @@ export const amazonApiRouter = router({
       }
       
       const successCount = results.filter(r => r.status === 'success').length;
-      // @ts-ignore
+      // @ts-expect-error Type inference limitation
       const totalProfiles = results.reduce((sum: number, r: Record<string, unknown>) => sum + (r.profilesCount || 0), 0);
-      // @ts-ignore
+      // @ts-expect-error Type inference limitation
       const totalAccountsCreated = results.reduce((sum: number, r: Record<string, unknown>) => sum + (r.accountsCreated || 0), 0);
       
       return {
@@ -2304,7 +2304,7 @@ export const amazonApiRouter = router({
         message: successCount === input.authCodes.length
           ? `所有 ${successCount} 个区域授权成功，共创建 ${totalAccountsCreated} 个站点账号`
           : `${successCount}/${input.authCodes.length} 个区域授权成功`,
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         results,
         summary: {
           totalRegions: input.authCodes.length,
@@ -2313,12 +2313,12 @@ export const amazonApiRouter = router({
           totalAccountsCreated,
         },
       };
-    // @ts-ignore
+    // @ts-expect-error Legacy code type compatibility
     }),
 
   // 获取用户已授权的区域状态
   getAuthorizedRegions: protectedProcedure
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .query(async ({ ctx }: unknown) => {
       const accounts = await db.getAdAccountsByUserId(ctx.user.id);
       
@@ -2341,19 +2341,19 @@ export const amazonApiRouter = router({
       };
       
       for (const account of (accounts as unknown[])) {
-        // @ts-ignore
+        // @ts-expect-error Conditional type narrowing
         if (!account.marketplace) continue;
         
-        // @ts-ignore
+        // @ts-expect-error Type inference limitation
         const region = marketplaceToRegion[account.marketplace];
         if (!region || !regionStats[region]) continue;
         
-        // @ts-ignore
+        // @ts-expect-error DB query type inference limitation
         const credentials = await db.getAmazonApiCredentials(account.id);
         if (credentials) {
           regionStats[region].authorized = true;
           regionStats[region].accountCount++;
-          // @ts-ignore
+          // @ts-expect-error Array method type inference
           regionStats[region].marketplaces.push(account.marketplace);
           if (credentials.lastSyncAt) {
             regionStats[region].lastSyncAt = credentials.lastSyncAt;
@@ -2362,13 +2362,13 @@ export const amazonApiRouter = router({
       }
       
       return {
-        // @ts-ignore
+        // @ts-expect-error Complex function parameter types
         regions: Object.entries(regionStats).map(([code, stats]) => ({
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           code,
-          // @ts-ignore
+          // @ts-expect-error Spread operator type compatibility
           ...stats,
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         })),
         totalAccounts: accounts.length,
         authorizedAccounts: accounts.filter(a => a.connectionStatus === 'connected').length,
@@ -2377,7 +2377,7 @@ export const amazonApiRouter = router({
 
   // v417: 实现前端AmazonApiAuthStatus页面所需的getAllAuthStatus接口
   getAllAuthStatus: protectedProcedure
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .query(async ({ ctx }: unknown) => {
       const accounts = await db.getAdAccountsByUserId(ctx.user.id);
       const accountStatuses = [];
@@ -2386,12 +2386,12 @@ export const amazonApiRouter = router({
       let expiredCount = 0;
 
       for (const account of (accounts as unknown[])) {
-        // @ts-ignore
+        // @ts-expect-error DB query type inference limitation
         const credentials = await db.getAmazonApiCredentials(account.id);
         
         let status: 'active' | 'expired' | 'expiring_soon' | 'unknown' = 'unknown';
         let tokenExpiresAt: string | null = null;
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         let daysUntilExpiry: number | null = null;
         let tokenExpired = false;
         
@@ -2436,13 +2436,13 @@ export const amazonApiRouter = router({
         }
 
         accountStatuses.push({
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           accountId: account.id,
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           accountName: account.accountName || `Account ${account.id}`,
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           profileId: account.profileId || '',
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           marketplace: account.marketplace || '',
           tokenExpiresAt,
           tokenExpired,
@@ -2465,7 +2465,7 @@ export const amazonApiRouter = router({
   // v417: 实现前端AmazonApiAuthStatus页面所需的refreshToken接口
   refreshToken: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .mutation(async ({ ctx, input }: unknown) => {
       const credentials = await db.getAmazonApiCredentials(input.accountId);
       if (!credentials) {

@@ -59,7 +59,7 @@ export const mlOptimizationRouter = router({
         daysOfHistory: z.number().default(30),
       })
     )
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .mutation(async ({ ctx, input }: unknown) => {
       const { campaignId, target, daysOfHistory } = input;
 
@@ -132,9 +132,9 @@ export const mlOptimizationRouter = router({
         target: optimizationTargetSchema,
         daysOfHistory: z.number().default(30),
       })
-    // @ts-ignore
+    // @ts-expect-error Legacy code type compatibility
     )
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .mutation(async ({ ctx, input }: unknown) => {
       const { campaignIds, target, daysOfHistory } = input;
 
@@ -188,10 +188,10 @@ export const mlOptimizationRouter = router({
             success: true,
           };
         })
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       );
 
-      // @ts-ignore
+      // @ts-expect-error Complex function parameter types
       return results.map((result, index: number) => {
         if (result.status === 'fulfilled') {
           return result.value;
@@ -214,11 +214,11 @@ export const mlOptimizationRouter = router({
       z.object({
         performanceGroupId: z.string(),
         totalBudget: z.number(),
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         daysOfHistory: z.number().default(30),
       })
     )
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .mutation(async ({ ctx, input }: unknown) => {
       const { performanceGroupId, totalBudget, daysOfHistory } = input;
 
@@ -263,17 +263,17 @@ export const mlOptimizationRouter = router({
 
       // 执行预算分配
       const allocator = new BudgetAllocator();
-      // @ts-ignore
+      // @ts-expect-error Type inference limitation
       const allocations = allocator.allocateBudget(campaignsWithData, totalBudget);
 
       // 计算总预期
       const totalExpectedSales = allocations.reduce(
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         (sum: number, a: unknown) => sum + a.expectedSales,
         0
       );
       const totalAllocated = allocations.reduce(
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         (sum: number, a: unknown) => sum + a.allocatedBudget,
         0
       );
@@ -295,14 +295,14 @@ export const mlOptimizationRouter = router({
    */
   evaluateModel: protectedProcedure
     .input(
-      // @ts-ignore
+      // @ts-expect-error Complex function parameter types
       z.object({
         campaignId: z.string(),
         trainingDays: z.number().default(60),
         testDays: z.number().default(14),
       })
     )
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .query(async ({ ctx, input }: unknown) => {
       const { campaignId, trainingDays, testDays } = input;
 

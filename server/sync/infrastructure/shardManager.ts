@@ -343,19 +343,19 @@ async function updateTaskProgress(taskId: string): Promise<void> {
       WHERE task_id = ${taskId}
     `);
 
-    // @ts-ignore
+    // @ts-expect-error Dynamic type assertion
     const row = (stats as Record<string, unknown>[])?.[0]?.[0] || (stats as Record<string, unknown>[])?.[0];
     if (!row) return;
 
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const total = Number(row.total) || 0;
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const completed = Number(row.completed) || 0;
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const failed = Number(row.failed) || 0;
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const inProgress = Number(row.in_progress) || 0;
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const totalSynced = Number(row.total_synced) || 0;
 
     // 判断任务整体状态

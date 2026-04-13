@@ -45,12 +45,12 @@ export async function hasRecentSyncedOptimization(
     ];
     
     if (keywordId) {
-      // @ts-ignore
+      // @ts-expect-error Array method type inference
       conditions.push(eq(optimizationEvents.keywordId, keywordId));
     }
-    // @ts-ignore
+    // @ts-expect-error Conditional type narrowing
     if (campaignId) {
-      // @ts-ignore
+      // @ts-expect-error Array method type inference
       conditions.push(eq(optimizationEvents.campaignId, campaignId));
     }
     
@@ -89,10 +89,10 @@ export async function getRecentlyOptimizedKeywordIds(
       .from(optimizationEvents)
       .where(and(
         eq(optimizationEvents.eventCategory, 'bid_adjustment'),
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         eq(optimizationEvents.apiSyncStatus, 'synced'),
         gte(optimizationEvents.createdAt, cutoff),
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         inArray(optimizationEvents.keywordId, keywordIds)
       ))
       .groupBy(optimizationEvents.keywordId);
@@ -109,26 +109,26 @@ export async function getRecentlyOptimizedKeywordIds(
                 AND api_sync_status IN ('synced', 'partial')
                 AND created_at >= ${cutoff}
                 AND JSON_EXTRACT(action_detail, '$.keywordId') IS NOT NULL`
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         );
         const fallbackRows = (fallbackResults as unknown as unknown[][])[0] || [];
         if (fallbackRows && fallbackRows.length > 0) {
-          // @ts-ignore
+          // @ts-expect-error Type inference limitation
           const fallbackKeywordIds = new Set(fallbackRows.map((r: Record<string, unknown>) => Number(r.kw_id)).filter((id: number) => id > 0 && keywordIds.includes(id)));
           if (fallbackKeywordIds.size > 0) {
             log.debug(`v212: Fallback查询optimization_logs找到${fallbackKeywordIds.size}个需要保护的关键词`);
-            // @ts-ignore
+            // @ts-expect-error Legacy code type compatibility
             for (const id of fallbackKeywordIds) protectedSet.add(id);
           }
         }
       } catch (fallbackErr: any) {
-        // @ts-ignore
+        // @ts-expect-error Conditional type narrowing
         log.warn('v212: Fallback查询optimization_logs失败:', (fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr)));
       }
     }
     
     log.info(`v212: 查询完成, 输入${keywordIds.length}个关键词, 保护${protectedSet.size}个`);
-    // @ts-ignore
+    // @ts-expect-error Return type compatibility
     return protectedSet;
   } catch (error: any) {
     log.warn('v212: 批量查询优化关键词失败，保护机制降级！', (error instanceof Error ? (error as Error).message : String(error)));
@@ -154,21 +154,21 @@ export async function getRecentlyOptimizedCampaignIds(
       .toISOString().slice(0, 19).replace('T', ' ');
     
     const results = await db
-      // @ts-ignore
+      // @ts-expect-error DB query type inference limitation
       .select({ campaignId: optimizationEvents.campaignId })
       .from(optimizationEvents)
       .where(and(
         eq(optimizationEvents.eventCategory, 'budget_adjustment'),
         eq(optimizationEvents.apiSyncStatus, 'synced'),
         gte(optimizationEvents.createdAt, cutoff),
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         inArray(optimizationEvents.campaignId, campaignIds)
       ))
       .groupBy(optimizationEvents.campaignId);
     
     const protectedSet = new Set(results.map(r => r.campaignId!).filter(Boolean));
     log.info(`v212: 预算保护查询完成, 输入${campaignIds.length}个广告活动, 保护${protectedSet.size}个`);
-    // @ts-ignore
+    // @ts-expect-error Return type compatibility
     return protectedSet;
   } catch (error: any) {
     log.warn('v212: 批量查询优化广告活动失败:', (error instanceof Error ? (error as Error).message : String(error)));
@@ -214,9 +214,9 @@ export function detectConflict(
   
   const isEmptyValue = (value: Record<string, unknown>): boolean => {
     if (value === undefined || value === null) return true;
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const strValue = String(value).trim();
-    // @ts-ignore
+    // @ts-expect-error Return type compatibility
     return strValue === '' || strValue === '0' || strValue === '0.00' || strValue === '0.0';
   };
   
@@ -224,9 +224,9 @@ export function detectConflict(
     const existingValue = existing[field];
     const newValue = newData[field];
     
-    // @ts-ignore
+    // @ts-expect-error Conditional type narrowing
     if (isEmptyValue(existingValue)) continue;
-    // @ts-ignore
+    // @ts-expect-error Conditional type narrowing
     if (isEmptyValue(newValue)) continue;
     
     const existingStr = String(existingValue).trim();

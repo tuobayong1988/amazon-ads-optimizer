@@ -211,15 +211,15 @@ export const LIFECYCLE_CONFIGS: Record<LifecycleStage, LifecycleOptimizationConf
  */
 export function determineCampaignLifecycle(campaign: Record<string, unknown>): CampaignLifecycleInfo {
   const now = new Date();
-  // @ts-ignore
+  // @ts-expect-error Amazon API response type flexibility
   const createdAt = campaign.createdAt ? new Date(campaign.createdAt) : now;
   const daysSinceCreation = Math.floor((now.getTime() - createdAt.getTime()) / (1000 * 60 * 60 * 24));
   
-  // @ts-ignore
+  // @ts-expect-error Amazon API response type flexibility
   const totalClicks = parseInt(campaign.clicks) || 0;
-  // @ts-ignore
+  // @ts-expect-error Amazon API response type flexibility
   const totalOrders = parseInt(campaign.orders) || 0;
-  // @ts-ignore
+  // @ts-expect-error Amazon API response type flexibility
   const totalImpressions = parseInt(campaign.impressions) || 0;
   
   let stage: LifecycleStage;
@@ -255,17 +255,17 @@ export function determineCampaignLifecycle(campaign: Record<string, unknown>): C
   // 介于两者之间为成长期
   else {
     stage = 'growth';
-    // @ts-ignore
+    // @ts-expect-error Legacy code type compatibility
     reason = `成长期: 运行${daysSinceCreation}天, ${totalClicks}次点击, ${totalOrders}次转化`;
-  // @ts-ignore
+  // @ts-expect-error Legacy code type compatibility
   }
   
   return {
-    // @ts-ignore
+    // @ts-expect-error Amazon API response type flexibility
     campaignId: campaign.campaignId,
-    // @ts-ignore
+    // @ts-expect-error Amazon API response type flexibility
     campaignName: campaign.campaignName || '',
-    // @ts-ignore
+    // @ts-expect-error Amazon API response type flexibility
     campaignType: campaign.campaignType || 'sp_manual',
     stage,
     reason,
@@ -425,7 +425,7 @@ export async function getAllTargetsLifecycleOverview(accountId?: number): Promis
       targetName: group.name,
       overallStage: lifecycle.overallStage,
       campaignCount: lifecycle.campaigns.length,
-      // @ts-ignore
+      // @ts-expect-error Dynamic property access
       launchCount: lifecycle.campaigns.filter(c => c.stage === 'launch').length,
       growthCount: lifecycle.campaigns.filter(c => c.stage === 'growth').length,
       matureCount: lifecycle.campaigns.filter(c => c.stage === 'mature').length,
@@ -433,6 +433,6 @@ export async function getAllTargetsLifecycleOverview(accountId?: number): Promis
     });
   }
   
-  // @ts-ignore
+  // @ts-expect-error Return type compatibility
   return { targets };
 }

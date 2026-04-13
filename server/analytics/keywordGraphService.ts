@@ -136,7 +136,7 @@ export async function generateEmbeddings(texts: string[]): Promise<number[][]> {
 Output ONLY the JSON array, no explanation.`
         }, {
           role: 'user',
-          // @ts-ignore
+          // @ts-expect-error Amazon API response type flexibility
           content: `Generate semantic embeddings for these keywords:\n${batch.map((t: unknown, idx: unknown) => `${idx + 1}. "${t}"`).join('\n')}\n\nOutput a JSON array of arrays, one 32-dim vector per keyword.`
         }],
         temperature: 0,

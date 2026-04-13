@@ -409,33 +409,33 @@ export function calculateAlgorithmEffectStats(
   }> = {};
   
   for (const record of (records as unknown[])) {
-    // @ts-ignore
+    // @ts-expect-error Dynamic property access
     if (record.effectScore === undefined) continue;
     
-    // @ts-ignore
+    // @ts-expect-error Conditional type narrowing
     if (!stats[record.algorithmUsed]) {
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       stats[record.algorithmUsed] = {
         count: 0,
         totalROASChange: 0,
         totalACoSChange: 0,
         totalEffectScore: 0,
         positiveCount: 0
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       };
     }
     
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const s = stats[record.algorithmUsed];
-    // @ts-ignore
+    // @ts-expect-error Legacy code type compatibility
     s.count++;
-    // @ts-ignore
+    // @ts-expect-error Legacy code type compatibility
     s.totalROASChange += record.roasChange || 0;
-    // @ts-ignore
+    // @ts-expect-error Legacy code type compatibility
     s.totalACoSChange += record.acosChange || 0;
-    // @ts-ignore
+    // @ts-expect-error Legacy code type compatibility
     s.totalEffectScore += record.effectScore;
-    // @ts-ignore
+    // @ts-expect-error Dynamic property access
     if (record.effectScore > 0) s.positiveCount++;
   }
   

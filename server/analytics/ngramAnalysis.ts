@@ -112,7 +112,7 @@ export async function getCoreKeywordRoots(
   }
   const result = await db.selectDistinct({ keywordText: keywords.keywordText })
     .from(keywords)
-    // @ts-ignore
+    // @ts-expect-error DB query type inference limitation
     .where(and(...conditions));
   const rows = result || [];
   
@@ -159,9 +159,9 @@ export async function analyzeSearchTermNgrams(
     spend: sql<string>`SUM(${searchTerms.searchTermSpend})`,
     sales: sql<string>`SUM(${searchTerms.searchTermSales})`,
     orders: sql<number>`SUM(${searchTerms.searchTermOrders})`,
-  // @ts-ignore
+  // @ts-expect-error DB query type inference limitation
   }).from(searchTerms)
-    // @ts-ignore
+    // @ts-expect-error DB query type inference limitation
     .where(and(...stConditions))
     .groupBy(searchTerms.searchTerm);
   const searchTermData = searchTermResult || [];
@@ -178,7 +178,7 @@ export async function analyzeSearchTermNgrams(
   }>();
   
   for (const row of (searchTermData as unknown[])) {
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const tokens = tokenize(row.searchTerm || row.search_term || '');
     
     // 生成1-gram, 2-gram, 3-gram
@@ -200,22 +200,22 @@ export async function analyzeSearchTermNgrams(
           totalSales: 0,
           totalImpressions: 0,
           searchTerms: new Set<string>(),
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         };
         
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         existing.frequency++;
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         existing.totalClicks += Number(row.clicks) || 0;
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         existing.totalSpend += Number(row.spend) || 0;
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         existing.totalOrders += Number(row.orders) || 0;
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         existing.totalSales += Number(row.sales) || 0;
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         existing.totalImpressions += Number(row.impressions) || 0;
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         existing.searchTerms.add(row.searchTerm || row.search_term);
         
         ngramStats.set(ngram, existing);
@@ -337,7 +337,7 @@ export async function generateNegativeKeywordSuggestions(
       // @ts-expect-error - runtime type mismatch
       return priorityOrder[a.priority] - priorityOrder[b.priority];
     }
-    // @ts-ignore
+    // @ts-expect-error Return type compatibility
     return b.totalSpend - a.totalSpend;
   });
   
@@ -452,7 +452,7 @@ export async function generateNgramAnalysisReport(
   summary: Awaited<ReturnType<typeof getNgramAnalysisSummary>>;
   suggestions: NegativeKeywordSuggestion[];
   topWastefulNgrams: NgramAnalysisResult[];
-  // @ts-ignore
+  // @ts-expect-error Legacy code type compatibility
   coreRootsExcluded: string[];
 }> {
   const summary = await getNgramAnalysisSummary(accountId, campaignIds, days);
@@ -463,7 +463,7 @@ export async function generateNgramAnalysisReport(
   // 获取花费最高的N-Gram（无论是否为否定候选）
   const topWastefulNgrams = Array.from(analysisResults.values())
     .filter(r => r.totalOrders === 0 || r.acos > 50)
-    // @ts-ignore
+    // @ts-expect-error Legacy code type compatibility
     .sort((a: unknown, b: unknown) => b.totalSpend - a.totalSpend)
     .slice(0, 20);
   

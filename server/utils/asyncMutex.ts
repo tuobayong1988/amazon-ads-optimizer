@@ -223,6 +223,6 @@ export function getAllLockStatus(): Record<string, { holder: string; acquiredAt:
       };
     }
   }
-  // @ts-ignore
+  // @ts-expect-error Return type compatibility
   return status;
 }

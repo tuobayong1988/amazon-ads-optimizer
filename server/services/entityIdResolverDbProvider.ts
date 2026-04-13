@@ -62,7 +62,7 @@ export function createEntityIdResolverDbProvider(): DbQueryProvider {
       return results[0] || null;
     },
 
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     async getKeywordByInternalId(id: number) {
       const db = await getDb();
       if (!db) return null;
@@ -74,7 +74,7 @@ export function createEntityIdResolverDbProvider(): DbQueryProvider {
       return results[0] || null;
     },
 
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     async getProductTargetByInternalId(id: number) {
       const db = await getDb();
       if (!db) return null;
@@ -84,10 +84,10 @@ export function createEntityIdResolverDbProvider(): DbQueryProvider {
         internalAdGroupId: productTargets.internalAdGroupId,
       }).from(productTargets).where(eq(productTargets.id, id)).limit(1);
       return results[0] || null;
-    // @ts-ignore
+    // @ts-expect-error Legacy code type compatibility
     },
 
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     async getKeywordsByInternalIds(ids: number[]) {
       if (ids.length === 0) return [];
       const db = await getDb();
@@ -96,11 +96,11 @@ export function createEntityIdResolverDbProvider(): DbQueryProvider {
         id: keywords.id,
         keywordId: keywords.keywordId,
         internalAdGroupId: keywords.internalAdGroupId,
-      // @ts-ignore
+      // @ts-expect-error DB query type inference limitation
       }).from(keywords).where(inArray(keywords.id, ids));
     },
 
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     async getProductTargetsByInternalIds(ids: number[]) {
       if (ids.length === 0) return [];
       const db = await getDb();

@@ -213,7 +213,7 @@ async function pushMetrics(): Promise<void> {
     console.log(`[CloudWatch] P5e: Pushed ${allMetrics.length} metrics to ${NAMESPACE} (base=${baseMetrics.length}, redis=${redisMetrics.length}, reportJobs=${reportJobMetrics.length})`);
   } catch (error: unknown) {
     // 不要让 CloudWatch 推送失败影响应用运行
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     console.error(`[CloudWatch] Failed to push metrics: ${error.message}`);
   }
 }
@@ -268,9 +268,9 @@ export async function manualPushMetrics(): Promise<{ success: boolean; metrics: 
     }
     
     return { success: true, metrics: allMetrics.length };
-  // @ts-ignore
+  // @ts-expect-error Legacy code type compatibility
   } catch (error: unknown) {
-    // @ts-ignore
+    // @ts-expect-error Return type compatibility
     return { success: false, metrics: 0, error: error.message };
   }
 }

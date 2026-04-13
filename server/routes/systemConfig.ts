@@ -22,7 +22,7 @@ export const systemConfigRouter = router({
    */
   getConfigByCategory: protectedProcedure
     .input(z.object({ category: z.string() }))
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .query(async ({ ctx, input }: unknown) => {
       const { getAllConfig } = await import('../system/systemConfigService');
       return { success: true, config: getAllConfig(input.category) };
@@ -52,9 +52,9 @@ export const systemConfigRouter = router({
    * 获取配置变更历史
    */
   getChangeHistory: protectedProcedure
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .input(z.object({ limit: z.number().optional() }))
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .query(async ({ ctx, input }: unknown) => {
       const { getChangeLog } = await import('../system/systemConfigService');
       return { success: true, history: getChangeLog(input.limit || 50) };
@@ -63,10 +63,10 @@ export const systemConfigRouter = router({
   /**
    * 获取算法决策仪表板指标
    */
-  // @ts-ignore
+  // @ts-expect-error Legacy code type compatibility
   getAlgorithmDashboard: protectedProcedure
     .input(z.object({ period: z.enum(['1h', '24h', '7d']).optional() }))
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .query(async ({ ctx, input }: unknown) => {
       const { generateDashboardMetrics } = await import('../algorithm/algorithmObservabilityService');
       return { success: true, metrics: generateDashboardMetrics(input.period || '24h') };
@@ -78,11 +78,11 @@ export const systemConfigRouter = router({
   getRecentDecisions: protectedProcedure
     .input(z.object({
       accountId: z.number().optional(),
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       algorithm: z.string().optional(),
       limit: z.number().optional(),
     }))
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .query(async ({ ctx, input }: unknown) => {
       const { getRecentDecisionTraces } = await import('../algorithm/algorithmObservabilityService');
       return {
@@ -95,12 +95,12 @@ export const systemConfigRouter = router({
    * 获取通用可观测性指标
    */
   getMetrics: protectedProcedure
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .input(z.object({
       type: z.string().optional(),
       limit: z.number().optional(),
     }))
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .query(async ({ ctx, input }: unknown) => {
       const { getMetrics } = await import('../algorithm/algorithmObservabilityService');
       return { success: true, metrics: getMetrics(input.type, input.limit || 100) };
@@ -111,7 +111,7 @@ export const systemConfigRouter = router({
    */
   getWeightTuningStatus: protectedProcedure
     .input(z.object({ strategyTemplateId: z.string().optional() }))
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .query(async ({ ctx, input }: unknown) => {
       const { getTuningHistory, getEffectiveWeights } = await import('../algorithm/weightAutoTuningService');
       const history = getTuningHistory(input.strategyTemplateId);
@@ -130,7 +130,7 @@ export const systemConfigRouter = router({
    */
   rollbackWeights: protectedProcedure
     .input(z.object({ strategyTemplateId: z.string() }))
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .mutation(async ({ ctx, input }: unknown) => {
       const { rollbackWeights } = await import('../algorithm/weightAutoTuningService');
       const success = rollbackWeights(input.strategyTemplateId);

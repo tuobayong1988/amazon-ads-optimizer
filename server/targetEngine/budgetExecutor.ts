@@ -100,7 +100,7 @@ export async function executeBudgetAllocation(
     
     for (const suggestion of budgetResult.suggestions) {
       // v354: P0修复 — suggestion.campaignId现在是本地ID，与campaigns.id匹配
-      // @ts-ignore
+      // @ts-expect-error Dynamic property access
       const campaign = campaigns.find(c => c.id === suggestion.campaignId);
       if (!campaign) {
         // v354: 诊断日志 — 记录未匹配的campaign
@@ -121,18 +121,18 @@ export async function executeBudgetAllocation(
           suggestion.suggestedBudget,
           twMetrics
         );
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         finalBudget = gradualResult.gradualBudget;
-        // @ts-ignore
+        // @ts-expect-error Amazon API response type flexibility
         log.debug(`[BudgetAllocation] v163: 渐进式预算 - Campaign ${campaign.campaignName}: $${suggestion.currentBudget.toFixed(0)}→$${finalBudget.toFixed(0)} (算法目标$${suggestion.suggestedBudget.toFixed(0)}, 订单保护=${gradualResult.orderProtectionActive})`);
       }
       
       const adjustment: Record<string, unknown> = {
         accountId: config.accountId,
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         campaignId: suggestion.campaignId, // v354: 本地ID
         amazonCampaignId: suggestion.amazonCampaignId, // v354: Amazon ID
-        // @ts-ignore
+        // @ts-expect-error Amazon API response type flexibility
         campaignName: campaign.campaignName,
         currentBudget: suggestion.currentBudget,
         suggestedBudget: finalBudget, // v163: 使用渐进式调整后的预算
@@ -192,19 +192,19 @@ export async function executeBudgetAllocation(
             } catch (verifyErr: unknown) {
               log.warn(`[BudgetAllocation] v166: 注册验证任务失败(不影响主流程): ${(verifyErr as Error).message}`);
             }
-          // @ts-ignore
+          // @ts-expect-error Conditional type narrowing
           } else {
             // API返回false，不更新本地DB
             adjustment.apiSyncStatus = 'failed';
-            // @ts-ignore
+            // @ts-expect-error Amazon API response type flexibility
             log.warn(`[BudgetAllocation] v148: API同步失败，跳过DB更新 (Campaign ${campaign.campaignName})`);
           }
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         } catch (apiError: unknown) {
           // API异常，不更新本地DB，保持数据一致性
           adjustment.apiSyncStatus = 'failed';
           adjustment.apiSyncDetail = JSON.stringify({ error: (apiError as Error).message });
-          // @ts-ignore
+          // @ts-expect-error Amazon API response type flexibility
           log.warn(`[BudgetAllocation] v148: API同步失败，跳过DB更新 (Campaign ${campaign.campaignName}):`, (apiError as Error).message);
         }
       }

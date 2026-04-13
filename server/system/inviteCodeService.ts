@@ -68,39 +68,39 @@ async function dropInviteCodesForeignKeys(db: Awaited<ReturnType<typeof import("
   fkDropAttempted = true;
   try {
     // v452.8: 动态查找并移除所有FK约束 - created_by现在引用team_members.id而非users.id
-    // @ts-ignore
+    // @ts-expect-error DB query type inference limitation
     const fkResult = await db.execute(sql`
       SELECT CONSTRAINT_NAME FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS 
       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'invite_codes' AND CONSTRAINT_TYPE = 'FOREIGN KEY'
     `);
-    // @ts-ignore
+    // @ts-expect-error Dynamic type assertion
     const fkRows = (fkResult as Record<string, unknown>[][])[0] || [];
     log.info(`[InviteCode] 发现 ${fkRows.length} 个FK约束需要移除`);
     for (const fk of fkRows) {
       const fkName = fk.CONSTRAINT_NAME || fk.constraint_name;
       if (!fkName) continue;
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       try {
         log.info(`[InviteCode] 正在移除FK约束: ${fkName}`);
-        // @ts-ignore
+        // @ts-expect-error DB query type inference limitation
         await db.execute(sql.raw(`ALTER TABLE invite_codes DROP FOREIGN KEY \`${fkName}\``));
         log.info(`[InviteCode] 已成功移除FK约束: ${fkName}`);
       } catch (dropErr: unknown) {
-        // @ts-ignore
+        // @ts-expect-error Complex function parameter types
         log.warn(`[InviteCode] 移除FK ${fkName} 失败: ${dropErr?.message || dropErr?.cause?.message || JSON.stringify(dropErr)}`);
       }
     }
   } catch (queryErr: unknown) {
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     log.warn(`[InviteCode] 查询FK约束失败: ${queryErr?.message || queryErr?.cause?.message || JSON.stringify(queryErr)}`);
   }
-// @ts-ignore
+// @ts-expect-error Legacy code type compatibility
 }
 
 async function ensureTablesExist(db: Awaited<ReturnType<typeof import("../db").getDb>>): Promise<void> {
   if (tablesEnsured) return;
   try {
-    // @ts-ignore
+    // @ts-expect-error DB query type inference limitation
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS organizations (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -125,12 +125,12 @@ async function ensureTablesExist(db: Awaited<ReturnType<typeof import("../db").g
         INDEX idx_status (status)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     `);
-    // @ts-ignore
+    // @ts-expect-error DB query type inference limitation
     await db.execute(sql`
       INSERT IGNORE INTO organizations (id, name, slug, type, status, subscription_plan, max_users, max_accounts, max_ad_accounts, max_campaigns, max_api_calls_per_day)
       VALUES (1, 'Default Organization', 'default', 'internal', 'active', 'enterprise', 9999, 9999, 9999, 9999, 999999)
     `);
-    // @ts-ignore
+    // @ts-expect-error DB query type inference limitation
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS invite_codes (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -149,7 +149,7 @@ async function ensureTablesExist(db: Awaited<ReturnType<typeof import("../db").g
         INDEX idx_code (code)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     `);
-    // @ts-ignore
+    // @ts-expect-error DB query type inference limitation
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS invite_code_usages (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -166,7 +166,7 @@ async function ensureTablesExist(db: Awaited<ReturnType<typeof import("../db").g
     tablesEnsured = true;
     log.info('[InviteCode] 邀请码相关表已确认就绪');
   } catch (err: unknown) {
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     log.warn(`[InviteCode] 确保表存在失败(可能表已存在): ${err?.message || err?.cause?.message || JSON.stringify(err)}`);
     // 即使失败也设置为true，避免每次请求都重试
     tablesEnsured = true;
@@ -211,42 +211,42 @@ export async function createInviteCode(input: CreateInviteCodeInput): Promise<{ 
       )
     `);
     
-    // @ts-ignore
+    // @ts-expect-error DB query type inference limitation
     const result = await db.execute(sql`SELECT * FROM invite_codes WHERE code = ${code}`);
-    // @ts-ignore
+    // @ts-expect-error Dynamic type assertion
     const rows = (result as Record<string, unknown>[][])[0];
     
-    // @ts-ignore
+    // @ts-expect-error Dynamic property access
     if (rows && rows.length > 0) {
-      // @ts-ignore
+      // @ts-expect-error Dynamic type assertion
       const row = rows[0] as Record<string, unknown>;
       return {
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         success: true,
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         inviteCode: {
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           id: row.id,
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           code: row.code,
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           createdBy: row.created_by,
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           organizationId: row.organization_id,
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           inviteType: row.invite_type,
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           maxUses: row.max_uses,
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           usedCount: row.used_count,
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           expiresAt: row.expires_at,
           isActive: row.is_active === 1,
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           note: row.note,
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           createdAt: row.created_at,
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           status: computeInviteCodeStatus(row),
         }
       };
@@ -255,9 +255,9 @@ export async function createInviteCode(input: CreateInviteCodeInput): Promise<{ 
     return { success: false, error: '创建邀请码失败' };
   } catch (error: unknown) {
     const e = error as Record<string, unknown>;
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const mysqlErr = e?.cause?.message || e?.cause?.sqlMessage || e?.errno || e?.code || 'unknown';
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     const detail = JSON.stringify({msg: e?.message, cause: e?.cause?.message, code: e?.cause?.code, errno: e?.cause?.errno, sqlState: e?.cause?.sqlState});
     log.warn(`[InviteCode] 创建邀请码失败: ${e?.message} | MySQL: ${mysqlErr} | Detail: ${detail}`);
     return { success: false, error: `${(error as Error).message} | MySQL: ${mysqlErr}` };
@@ -269,7 +269,7 @@ export async function createInviteCodesBatch(input: CreateInviteCodeInput, count
     return { success: false, error: '批量生成数量必须在1-100之间' };
   }
   
-  // @ts-ignore
+  // @ts-expect-error Legacy code type compatibility
   const codes: InviteCode[] = [];
   for (let i = 0; i < count; i++) {
     const result = await createInviteCode(input);
@@ -281,7 +281,7 @@ export async function createInviteCodesBatch(input: CreateInviteCodeInput, count
   return { success: true, inviteCodes: codes };
 }
 
-// @ts-ignore
+// @ts-expect-error Complex function parameter types
 export async function validateInviteCode(code: string): Promise<{ valid: boolean; error?: string; inviteCode?: InviteCode }> {
   const db = await getDb();
   if (!db) return { valid: false, error: '数据库连接失败' };
@@ -295,30 +295,30 @@ export async function validateInviteCode(code: string): Promise<{ valid: boolean
       WHERE ic.code = ${code}
     `);
     
-    // @ts-ignore
+    // @ts-expect-error Dynamic type assertion
     const rows = (result as Record<string, unknown>[][])[0];
-    // @ts-ignore
+    // @ts-expect-error Dynamic property access
     if (!rows || rows.length === 0) {
-      // @ts-ignore
+      // @ts-expect-error Return type compatibility
       return { valid: false, error: '邀请码不存在' };
-    // @ts-ignore
+    // @ts-expect-error Legacy code type compatibility
     }
     
     const row = rows[0] as Record<string, unknown>;
     
-    // @ts-ignore
+    // @ts-expect-error Conditional type narrowing
     if (!row.is_active) {
-      // @ts-ignore
+      // @ts-expect-error Return type compatibility
       return { valid: false, error: '邀请码已被禁用' };
-    // @ts-ignore
+    // @ts-expect-error Legacy code type compatibility
     }
     
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     if (row.expires_at && new Date(row.expires_at) < new Date()) {
       return { valid: false, error: '邀请码已过期' };
     }
     
-    // @ts-ignore
+    // @ts-expect-error Dynamic property access
     if (row.max_uses > 0 && row.used_count >= row.max_uses) {
       return { valid: false, error: '邀请码已达到最大使用次数' };
     }
@@ -326,30 +326,30 @@ export async function validateInviteCode(code: string): Promise<{ valid: boolean
     return {
       valid: true,
       inviteCode: {
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         id: row.id,
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         code: row.code,
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         createdBy: row.created_by,
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         organizationId: row.organization_id,
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         inviteType: row.invite_type,
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         maxUses: row.max_uses,
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         usedCount: row.used_count,
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         expiresAt: row.expires_at,
         isActive: row.is_active === 1,
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         note: row.note,
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         createdAt: row.created_at,
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         creatorName: row.creator_name,
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         status: computeInviteCodeStatus(row),
       }
     };
@@ -373,7 +373,7 @@ export async function useInviteCode(code: string, userId: number, organizationId
     const inviteCode = validation.inviteCode!;
     const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
     
-    // @ts-ignore
+    // @ts-expect-error DB query type inference limitation
     await db.execute(sql`
       INSERT INTO invite_code_usages (invite_code_id, user_id, organization_id, used_at, ip_address, user_agent)
       VALUES (${inviteCode.id}, ${userId}, ${organizationId || null}, ${now}, ${ipAddress || null}, ${userAgent || null})
@@ -412,9 +412,9 @@ export async function getInviteCodes(createdBy?: number): Promise<InviteCode[]> 
       `);
     }
     
-    // @ts-ignore
+    // @ts-expect-error Dynamic type assertion
     const rows = (result as Record<string, unknown>[][])[0] || [];
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     return rows.map((row: Record<string, unknown>) => ({
       id: row.id,
       code: row.code,
@@ -428,7 +428,7 @@ export async function getInviteCodes(createdBy?: number): Promise<InviteCode[]> 
       note: row.note,
       createdAt: row.created_at,
       creatorName: row.creator_name,
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       status: computeInviteCodeStatus(row),
     }));
   } catch (error: any) {
@@ -460,19 +460,19 @@ export async function enableInviteCode(id: number): Promise<{ success: boolean; 
     return { success: true };
   } catch (error: unknown) {
     return { success: false, error: (error as Error).message };
-  // @ts-ignore
+  // @ts-expect-error Legacy code type compatibility
   }
 }
 
 export async function deleteInviteCode(id: number): Promise<{ success: boolean; error?: string }> {
-  // @ts-ignore
+  // @ts-expect-error Type inference limitation
   const db = await getDb();
-  // @ts-ignore
+  // @ts-expect-error Conditional type narrowing
   if (!db) return { success: false, error: '数据库连接失败' };
-  // @ts-ignore
+  // @ts-expect-error Async operation type inference
   await ensureTablesExist(db);
   
-  // @ts-ignore
+  // @ts-expect-error Legacy code type compatibility
   try {
     await db.execute(sql`DELETE FROM invite_codes WHERE id = ${id}`);
     return { success: true };
@@ -507,20 +507,20 @@ export async function getInviteCodeStats(createdBy?: number): Promise<{
       FROM invite_codes ${whereClause}
     `);
     
-    // @ts-ignore
+    // @ts-expect-error Dynamic type assertion
     const rows = (result as Record<string, unknown>[][])[0];
     if (rows && rows.length > 0) {
       const row = rows[0] as Record<string, unknown>;
       return {
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         total: row.total || 0,
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         active: row.active || 0,
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         used: row.used || 0,
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         expired: row.expired || 0,
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         totalUsages: row.total_usages || 0,
       };
     }

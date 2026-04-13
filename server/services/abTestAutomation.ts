@@ -161,7 +161,7 @@ export class ABTestAutomationScheduler {
    */
   submitPlan(plan: AutoExperimentPlan): void {
     this.pendingPlans.push(plan);
-    // @ts-ignore
+    // @ts-expect-error Legacy code type compatibility
     this.pendingPlans.sort((a: unknown, b: unknown) => a.priority - b.priority);
     
     log.info(`[ABTestAutomation] 提交实验计划: ${plan.name}, 类型=${plan.experimentType}, 账户=${plan.accountId}`);
@@ -244,7 +244,7 @@ export class ABTestAutomationScheduler {
       if (!analysis) return;
       
       // 检查是否达到统计显著性
-      // @ts-ignore
+      // @ts-expect-error Type inference limitation
       const significance = analysis.significance || 0;
       const daysSinceStart = execution.startedAt 
         ? (Date.now() - execution.startedAt.getTime()) / (1000 * 60 * 60 * 24)
@@ -252,23 +252,23 @@ export class ABTestAutomationScheduler {
       
       if (significance >= DEFAULT_CONFIG.minSignificanceThreshold && daysSinceStart >= DEFAULT_CONFIG.minRunDays) {
         // 达到显著性，分析结果
-        // @ts-ignore
+        // @ts-expect-error Dynamic property access
         execution.status = 'analyzing';
         
-        // @ts-ignore
+        // @ts-expect-error Type inference limitation
         const winner = analysis.winner;
-        // @ts-ignore
+        // @ts-expect-error Type inference limitation
         const improvement = analysis.improvementPercent || 0;
         
-        // @ts-ignore
+        // @ts-expect-error Dynamic property access
         execution.result = {
-          // @ts-ignore
+          // @ts-expect-error Conditional type narrowing
           winner: winner === 'control' ? 'control' : winner === 'treatment' ? 'treatment' : 'inconclusive',
           significance,
           improvementPercent: improvement,
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           controlMetrics: analysis.controlMetrics || {},
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           treatmentMetrics: analysis.treatmentMetrics || {},
           recommendation: this.generateRecommendation(winner, improvement, significance),
           autoApplied: false,

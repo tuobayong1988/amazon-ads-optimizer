@@ -576,7 +576,7 @@ export async function safeResolveAmazonKeywordId(
 export function validateAmazonId(id: string | number | null | undefined, entityType: EntityType): boolean {
   if (id === null || id === undefined) return false;
   const strId = String(id);
-  // @ts-ignore
+  // @ts-expect-error Dynamic type assertion
   if (!isValidAmazonId(strId as unknown)) {
     log.warn(`Invalid Amazon ${entityType} ID: "${strId}"`);
     return false;

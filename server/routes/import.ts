@@ -10,7 +10,7 @@ import * as db from "../db";
 
 // ==================== Import Router ====================
 export const importRouter = router({
-  // @ts-ignore
+  // @ts-expect-error Complex function parameter types
   list: protectedProcedure.query(async ({ ctx }: unknown) => {
     return db.getImportJobsByUserId(ctx.user.id);
   }),
@@ -23,9 +23,9 @@ export const importRouter = router({
       reportType: z.string().optional(),
       accountId: z.number().optional(),
     }))
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .mutation(async ({ ctx, input }) => {
-      // @ts-ignore
+      // @ts-expect-error DB query type inference limitation
       const id = await db.createImportJob({
         userId: ctx.user.id,
         ...input,
@@ -39,10 +39,10 @@ export const importRouter = router({
       status: z.enum(["pending", "processing", "completed", "failed"]),
       processedRows: z.number().optional(),
       totalRows: z.number().optional(),
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       errorMessage: z.string().optional(),
     }))
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .mutation(async ({ ctx, input }: unknown) => {
       const { id, ...data } = input;
       await db.updateImportJob(id, {

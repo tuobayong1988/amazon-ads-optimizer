@@ -47,7 +47,7 @@ export const guardrailConfigRouter = router({
       accountId: z.number().optional(),
       adType: z.enum(['sp', 'sb', 'sd', 'default']).optional(),
     }).optional())
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .query(async ({ ctx, input }: unknown) => {
       try {
         const { getGuardrailConfigService } = await import('../services/guardrailConfigService');
@@ -95,9 +95,9 @@ export const guardrailConfigRouter = router({
       scope: z.enum(['global', 'adType', 'account']),
       scopeKey: z.string(),
       overrides: overrideSchema,
-    // @ts-ignore
+    // @ts-expect-error Legacy code type compatibility
     }))
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .mutation(async ({ input, ctx }: unknown) => {
       try {
         const { getGuardrailConfigService } = await import('../services/guardrailConfigService');
@@ -120,10 +120,10 @@ export const guardrailConfigRouter = router({
   removeOverride: protectedProcedure
     .input(z.object({
       scope: z.enum(['global', 'adType', 'account']),
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       scopeKey: z.string(),
     }))
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .mutation(async ({ ctx, input }: unknown) => {
       try {
         const { getGuardrailConfigService } = await import('../services/guardrailConfigService');

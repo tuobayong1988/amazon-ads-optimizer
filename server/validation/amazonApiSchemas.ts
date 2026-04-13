@@ -187,11 +187,11 @@ export function safeParseApiResponse<T>(
   } catch (error: any) {
     if (error instanceof z.ZodError) {
       log.warn(`API数据校验失败 [${context}]:`, {
-        // @ts-ignore
+        // @ts-expect-error Dynamic type assertion
         errors: (error.issues as unknown[]).map((e: Record<string, unknown>) => ({
-          // @ts-ignore
+          // @ts-expect-error Conditional type narrowing
           path: e.path?.join('.') || '',
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           message: (e as Error).message || '',
           received: e.received,
         })),

@@ -39,7 +39,7 @@ const log = createModuleLogger('syncSd');
 
 // ==================== 类型声明（模块扩展） ====================
 
-// @ts-ignore
+// @ts-expect-error Legacy code type compatibility
 declare module '../../amazonSyncService' {
   interface AmazonSyncService {
     syncSdCampaigns(...args: unknown[]): unknown;
@@ -58,7 +58,7 @@ declare module '../../amazonSyncService' {
  * 同步SD展示广告活动
  * @param lastSyncTime 上次同步时间，用于增量同步
  */
-// @ts-ignore
+// @ts-expect-error Dynamic property access
 AmazonSyncService.prototype.syncSdCampaigns = async function(this: AmazonSyncService, lastSyncTime?: string | null): Promise<number | { synced: number; skipped: number }> {
   const db = await getDb();
   if (!db) return { synced: 0, skipped: 0 };
@@ -99,27 +99,27 @@ AmazonSyncService.prototype.syncSdCampaigns = async function(this: AmazonSyncSer
       
       if (apiCampaign.budget) {
         if (typeof apiCampaign.budget === 'number') {
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           dailyBudget = apiCampaign.budget;
-        // @ts-ignore
+        // @ts-expect-error Dynamic property access
         } else if (typeof apiCampaign.budget === 'object') {
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           dailyBudget = apiCampaign.budget.budget || apiCampaign.budget.dailyBudget || 0;
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           budgetType = apiCampaign.budget.budgetType || 'daily';
         }
       } else if (apiCampaign.dailyBudget) {
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         dailyBudget = apiCampaign.dailyBudget;
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       }
       
       // SD API 的状态字段可能是 state 或 status
       const campaignState = apiCampaign.state || apiCampaign.status || 'enabled';
       const validStates = ['enabled', 'paused', 'archived'];
-      // @ts-ignore
+      // @ts-expect-error Type inference limitation
       const normalizedState = validStates.includes(campaignState.toLowerCase()) 
-        // @ts-ignore
+        // @ts-expect-error Conditional type narrowing
         ? campaignState.toLowerCase() as 'enabled' | 'paused' | 'archived'
         : 'enabled';
 
@@ -138,7 +138,7 @@ AmazonSyncService.prototype.syncSdCampaigns = async function(this: AmazonSyncSer
       if (apiCampaign.endDate) {
         const dateStr = String(apiCampaign.endDate);
         if (dateStr.includes('-')) {
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           sdEndDate = dateStr;
         } else if (dateStr.length === 8) {
           sdEndDate = `${dateStr.slice(0, 4)}-${dateStr.slice(4, 6)}-${dateStr.slice(6, 8)}`;
@@ -146,7 +146,7 @@ AmazonSyncService.prototype.syncSdCampaigns = async function(this: AmazonSyncSer
       }
 
       // 获取SD广告的计费类型
-      // @ts-ignore
+      // @ts-expect-error Dynamic type assertion
       const sdCostType = (apiCampaign as Record<string, unknown>).costType?.toLowerCase() || 'cpc';
       const validCostTypes = ['cpc', 'vcpm', 'cpm'];
       const normalizedCostType = validCostTypes.includes(sdCostType) ? sdCostType : 'cpc';
@@ -172,7 +172,7 @@ AmazonSyncService.prototype.syncSdCampaigns = async function(this: AmazonSyncSer
       // 根据goal和costType的组合确定实际计费方式
       // SD的costType由API直接返回，但也可以通过goal推断
       let finalCostType = normalizedCostType;
-      // @ts-ignore
+      // @ts-expect-error Conditional type narrowing
       if (sdGoal === 'reach' && normalizedCostType === 'cpc') {
         // reach目标通常使用vCPM，但以API返回的costType为准
         log.debug(`SD广告 ${apiCampaign.name}: goal=reach 但 costType=cpc，以API返回为准`);
@@ -181,7 +181,7 @@ AmazonSyncService.prototype.syncSdCampaigns = async function(this: AmazonSyncSer
       // 获取SD广告的竞价优化目标
       const sdBidOptimization = (apiCampaign as Record<string, unknown>).bidOptimization || null;
       const validBidOpts = ['reach', 'pageVisits', 'conversions', 'leads'];
-      // @ts-ignore
+      // @ts-expect-error Type inference limitation
       const normalizedBidOpt = validBidOpts.includes(sdBidOptimization) ? sdBidOptimization : null;
 
       // v500: 提取SD广告的优化策略（Optimization Strategy）
@@ -210,22 +210,22 @@ AmazonSyncService.prototype.syncSdCampaigns = async function(this: AmazonSyncSer
         bidOptimization: normalizedBidOpt, // ✅ 存储竞价优化目标
         tactic: sdTactic, // ✅ 存储定向策略
         portfolioId: sdPortfolioId,
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         amazonCreatedDate: sdStartDate, // Amazon侧创建日期
         // v500: SD优化策略
         sdOptimizationStrategy: sdOptimizationStrategy,
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
       };
 
       if (existing) {
         await db
           .update(campaigns)
-          // @ts-ignore
+          // @ts-expect-error DB query type inference limitation
           .set(campaignData)
           .where(eq(campaigns.id, existing.id));
       } else {
-        // @ts-ignore
+        // @ts-expect-error DB query type inference limitation
         await db.insert(campaigns).values({
           ...campaignData,
           createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
@@ -234,7 +234,7 @@ AmazonSyncService.prototype.syncSdCampaigns = async function(this: AmazonSyncSer
       synced++;
     }
 
-    // @ts-ignore
+    // @ts-expect-error Return type compatibility
     return { synced, skipped };
   } catch (error: any) {
     log.warn(`Error syncing SD campaigns: ${(error as Error).message || JSON.stringify(error)}`);
@@ -246,7 +246,7 @@ AmazonSyncService.prototype.syncSdCampaigns = async function(this: AmazonSyncSer
  * 同步SD展示广告组
  * 从Amazon SD API获取广告组列表并同步到本地数据库
  */
-// @ts-ignore
+// @ts-expect-error Dynamic property access
 AmazonSyncService.prototype.syncSdAdGroups = async function(this: AmazonSyncService): Promise<{ synced: number; skipped: number }> {
   const db = await getDb();
   if (!db) return { synced: 0, skipped: 0 };
@@ -265,7 +265,7 @@ AmazonSyncService.prototype.syncSdAdGroups = async function(this: AmazonSyncServ
           .where(and(eq(campaigns.accountId, this.accountId), inArray(campaigns.campaignId, sdAdGroupCampaignIds)))
       : [];
     const sdCampaignMap = new Map(sdCampaignRows.map(r => [r.campaignId, r]));
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const sdAdGroupIds = apiAdGroups.map(ag => String(ag.adGroupId));
     const existingSdAdGroupRows = sdAdGroupIds.length > 0
       ? await db.select().from(adGroups).where(and(eq(adGroups.accountId, this.accountId), inArray(adGroups.adGroupId, sdAdGroupIds)))
@@ -278,18 +278,18 @@ AmazonSyncService.prototype.syncSdAdGroups = async function(this: AmazonSyncServ
       if (!campaign) continue;
       const existing = existingSdAdGroupMap.get(`${campaign.campaignId}:${String(apiAdGroup.adGroupId)}`) || null;
 
-      // @ts-ignore
+      // @ts-expect-error Type inference limitation
       const normalizedState = (apiAdGroup.state || 'enabled').toLowerCase() as 'enabled' | 'paused' | 'archived';
 
       // SD广告组可能有tactic字段（如T00020 = 受众定向, T00030 = 商品定向）
       const tactic = apiAdGroup.tactic || null;
 
       const adGroupData = {
-        // @ts-ignore
+        // @ts-expect-error Amazon API response type flexibility
         campaignId: campaign.campaignId,
         accountId: this.accountId,
         adGroupId: String(apiAdGroup.adGroupId),
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         adGroupName: apiAdGroup.name || apiAdGroup.adGroupName || 'SD Ad Group',
         adGroupStatus: normalizedState,
         defaultBid: String(apiAdGroup.defaultBid || apiAdGroup.bid || 0),
@@ -300,17 +300,17 @@ AmazonSyncService.prototype.syncSdAdGroups = async function(this: AmazonSyncServ
       if (existing) {
         await db
           .update(adGroups)
-          // @ts-ignore
+          // @ts-expect-error DB query type inference limitation
           .set(adGroupData)
           .where(eq(adGroups.id, existing.id));
       } else {
-        // @ts-ignore
+        // @ts-expect-error DB query type inference limitation
         await db.insert(adGroups).values({
           ...adGroupData,
           createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
         });
       }
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       synced++;
     }
 
@@ -326,7 +326,7 @@ AmazonSyncService.prototype.syncSdAdGroups = async function(this: AmazonSyncServ
  * 同步SD商品定位（从List API）
  * 从Amazon SD API获取商品定位列表并同步到本地数据库
  */
-// @ts-ignore
+// @ts-expect-error Dynamic property access
 AmazonSyncService.prototype.syncSdProductTargets = async function(this: AmazonSyncService): Promise<{ synced: number; skipped: number }> {
   const db = await getDb();
   if (!db) return { synced: 0, skipped: 0 };
@@ -398,7 +398,7 @@ AmazonSyncService.prototype.syncSdProductTargets = async function(this: AmazonSy
           } else if (et.includes('asin') && et.includes('same')) {
             targetType = 'asin';
             targetValue = expr.value || '';
-            // @ts-ignore
+            // @ts-expect-error Legacy code type compatibility
             targetMatchType = 'exact';
           } else if (et.includes('broadrel') || et.includes('broad_rel') || et.includes('loose')) {
             targetValue = expr.value || 'AUTO_LOOSE';
@@ -414,9 +414,9 @@ AmazonSyncService.prototype.syncSdProductTargets = async function(this: AmazonSy
         if (Object.keys(refinements).length > 0) {
           categoryRefinements = JSON.stringify(refinements);
         }
-      // @ts-ignore
+      // @ts-expect-error Conditional type narrowing
       } else if (apiTarget.expressionType) {
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         targetExpression = apiTarget.expressionType;
         if (apiTarget.expressionType === 'auto') {
           targetValue = 'AUTO';
@@ -432,7 +432,7 @@ AmazonSyncService.prototype.syncSdProductTargets = async function(this: AmazonSy
 
        // v363: 使用批量预查询结果
       const existing = existingSdTgtMap.get(`${String(adGroup.id)}:${String(apiTarget.targetId)}`) || null;
-      // @ts-ignore
+      // @ts-expect-error Type inference limitation
       const normalizedState = (apiTarget.state || 'enabled').toLowerCase() as 'enabled' | 'paused' | 'archived';
       // v473: SD API的bid可能是对象格式 {amount: number} 或直接数字
       const rawBid = apiTarget.bid;
@@ -464,7 +464,7 @@ AmazonSyncService.prototype.syncSdProductTargets = async function(this: AmazonSy
       } else {
         await db.insert(productTargets).values({
           ...targetData,
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
         });
       }
@@ -483,7 +483,7 @@ AmazonSyncService.prototype.syncSdProductTargets = async function(this: AmazonSy
  * 同步SD定向数据
  * 获取SD广告的受众定向和商品定向数据
  */
-// @ts-ignore
+// @ts-expect-error Dynamic property access
 AmazonSyncService.prototype.syncSdTargeting = async function(this: AmazonSyncService, days: number = 14): Promise<number> {
   const db = await getDb();
   // v358: 数据库不可用是真实错误，不应返回0
@@ -533,7 +533,7 @@ AmazonSyncService.prototype.syncSdTargeting = async function(this: AmazonSyncSer
         // P5: async mode
       } else {
       const results = await this.client.submitAndWaitMultipleReports(batchRequests, 300000, 2000);
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       for (const result of results) {
         if (result.data && result.data.length > 0) {
           allReportData = allReportData.concat(result.data);
@@ -554,7 +554,7 @@ AmazonSyncService.prototype.syncSdTargeting = async function(this: AmazonSyncSer
 
     // v422: 修复SD定向报告字段映射 - 报告中没有targetId字段，只有targetingText
     // 需要通过adGroupId+targetingText匹配已有记录（targetId由listSdTargets API同步）
-    // @ts-ignore
+    // @ts-expect-error Dynamic type assertion
     const sdRptAdGroupIds = [...new Set((reportData as unknown[]).map(r => String(r.adGroupId)))];
     const sdRptAdGroupRows = sdRptAdGroupIds.length > 0
       ? await db.select().from(adGroups).where(and(eq(adGroups.accountId, this.accountId), inArray(adGroups.adGroupId, sdRptAdGroupIds)))
@@ -562,56 +562,56 @@ AmazonSyncService.prototype.syncSdTargeting = async function(this: AmazonSyncSer
     const sdRptAdGroupMap = new Map(sdRptAdGroupRows.map(r => [r.adGroupId, r]));
     
     // v422: 预查询所有SD productTargets（按internalAdGroupId），用于通过targetExpression匹配
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const sdRptInternalAgIds = sdRptAdGroupRows.map(r => r.id);
     const existingSdRptTgtRows = sdRptInternalAgIds.length > 0
       ? await db.select().from(productTargets).where(and(
           eq(productTargets.accountId, this.accountId),
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           inArray(productTargets.internalAdGroupId, sdRptInternalAgIds)
         ))
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       : [];
     // v422: 构建多种匹配索引 - targetExpression和targetValue都可能匹配targetingText
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const existingSdRptTgtByExpr = new Map<string, typeof existingSdRptTgtRows[0]>();
     const existingSdRptTgtByValue = new Map<string, typeof existingSdRptTgtRows[0]>();
     for (const r of existingSdRptTgtRows) {
-      // @ts-ignore
+      // @ts-expect-error Conditional type narrowing
       if (r.targetExpression) {
-        // @ts-ignore
+        // @ts-expect-error DB query type inference limitation
         existingSdRptTgtByExpr.set(`${r.internalAdGroupId}:${r.targetExpression}`, r);
       }
       if (r.targetValue) {
-        // @ts-ignore
+        // @ts-expect-error DB query type inference limitation
         existingSdRptTgtByValue.set(`${r.internalAdGroupId}:${r.targetValue}`, r);
       }
     }
 
     for (const row of (reportData as unknown[])) {
-      // @ts-ignore
+      // @ts-expect-error Type inference limitation
       const adGroup = sdRptAdGroupMap.get(String(row.adGroupId));
       if (!adGroup) continue;
 
       // SD的销售额 - 使用修正后的字段名 (Clicks后缀)
-      // @ts-ignore
+      // @ts-expect-error Type inference limitation
       const clickSales = row.salesClicks || 0;
       const viewSales = 0; // 浏览归因已合并到salesClicks字段
-      // @ts-ignore
+      // @ts-expect-error Type inference limitation
       const clickOrders = row.purchasesClicks || 0;
       const viewOrders = 0; // 浏览归因已合并到purchasesClicks字段
-      // @ts-ignore
+      // @ts-expect-error Type inference limitation
       const cost = row.cost || 0;
       const sales = clickSales + viewSales;
-      // @ts-ignore
+      // @ts-expect-error Type inference limitation
       const orders = clickOrders + viewOrders;
-      // @ts-ignore
+      // @ts-expect-error Type inference limitation
       const clicks = row.clicks || 0;
-      // @ts-ignore
+      // @ts-expect-error Type inference limitation
       const impressions = row.impressions || 0;
 
       // v422: 修复字段名 - SD报告返回的是targetingText，不是targetingExpression
-      // @ts-ignore
+      // @ts-expect-error Type inference limitation
       const targetingText = row.targetingText || '';
       let targetType: 'asin' | 'category' = 'category';
       let targetValue = targetingText;
@@ -631,13 +631,13 @@ AmazonSyncService.prototype.syncSdTargeting = async function(this: AmazonSyncSer
 
       // v428: P2修复 - 当targetingText为空且没有匹配到已有记录时跳过，避免targetId=undefined导致insert失败
       if (!targetingText && !existing) {
-        // @ts-ignore
+        // @ts-expect-error Complex function parameter types
         log.debug(`v428: SD定向报告跳过空targetingText记录: adGroupId=${row.adGroupId}`);
         continue;
       }
 
       const targetData = {
-        // @ts-ignore
+        // @ts-expect-error Amazon API response type flexibility
         internalAdGroupId: adGroup.id,
         campaignId: adGroup.campaignId || '',
         // v422: 如果匹配到已有记录，保留其targetId；否则用targetingText作为临时标识
@@ -661,13 +661,13 @@ AmazonSyncService.prototype.syncSdTargeting = async function(this: AmazonSyncSer
         updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
       };
       if (existing) {
-        // @ts-ignore
+        // @ts-expect-error Async operation type inference
         await db
           .update(productTargets)
           .set(targetData)
           .where(eq(productTargets.id, existing.id));
       } else {
-        // @ts-ignore
+        // @ts-expect-error DB query type inference limitation
         await db.insert(productTargets).values({
           ...targetData,
           createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
@@ -691,7 +691,7 @@ AmazonSyncService.prototype.syncSdTargeting = async function(this: AmazonSyncSer
  * SD不支持否定关键词，仅支持否定产品定向（仅Ad Group级，仅限上下文定向）
  * 使用 listSdNegativeTargets API方法获取数据，存储到 negativeKeywords 表
  */
-// @ts-ignore
+// @ts-expect-error Dynamic property access
 AmazonSyncService.prototype.syncSdNegativeTargets = async function(this: AmazonSyncService): Promise<{ synced: number; updated: number }> {
   const db = await getDb();
   if (!db) return { synced: 0, updated: 0 };
@@ -707,7 +707,7 @@ AmazonSyncService.prototype.syncSdNegativeTargets = async function(this: AmazonS
     }
     
     // 批量预查询所有相关campaign和adGroup（消除N+1查询）
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const sdNegCampaignIds = [...new Set(sdNegTargets.map(n => String(n.campaignId)))];
     const sdNegCampaignRows = sdNegCampaignIds.length > 0
       ? await db.select().from(campaigns)
@@ -722,7 +722,7 @@ AmazonSyncService.prototype.syncSdNegativeTargets = async function(this: AmazonS
     const sdNegAdGroupMap = new Map(sdNegAdGroupRows.map(r => [r.adGroupId, r]));
     
     for (const neg of sdNegTargets) {
-      // @ts-ignore
+      // @ts-expect-error Type inference limitation
       const negState = (neg.state || 'enabled').toLowerCase();
       if (negState === 'archived') continue;
       
@@ -738,9 +738,9 @@ AmazonSyncService.prototype.syncSdNegativeTargets = async function(this: AmazonS
       
       // 解析expression获取否定的ASIN或品牌
       const expression = neg.expression || [];
-      // @ts-ignore
+      // @ts-expect-error Type inference limitation
       const asinExpr = expression.find((e: Record<string, unknown>) => 
-        // @ts-ignore
+        // @ts-expect-error Conditional type narrowing
         e.type?.toLowerCase().includes('asin') || e.type?.toLowerCase().includes('brand')
       );
       const negativeText = asinExpr?.value || JSON.stringify(expression);
@@ -774,7 +774,7 @@ AmazonSyncService.prototype.syncSdNegativeTargets = async function(this: AmazonS
       } else {
         // v529: 添加onDuplicateKeyUpdate处理竞态条件下的DUP_ENTRY错误
         await db.insert(negativeKeywords).values({
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           accountId: this.accountId,
           campaignId: String(campaign.campaignId),
           internalAdGroupId: internalAdGroupId,
@@ -816,7 +816,7 @@ AmazonSyncService.prototype.syncSdNegativeTargets = async function(this: AmazonS
  * 
  * 建议竞价写入 productTargets.suggestedBid
  */
-// @ts-ignore
+// @ts-expect-error Dynamic property access
 AmazonSyncService.prototype.syncSdBidRecommendations = async function(this: AmazonSyncService): Promise<{ synced: number; skipped: number }> {
   const db = await getDb();
   if (!db) return { synced: 0, skipped: 0 };
@@ -1015,7 +1015,7 @@ AmazonSyncService.prototype.syncSdBidRecommendations = async function(this: Amaz
  * - 商品定向: asinSameAs, asinCategorySameAs, asinBrandSameAs 等
  * - 受众定向: views, purchases, audiences 等
  */
-// @ts-ignore
+// @ts-expect-error Dynamic property access
 AmazonSyncService.prototype.syncSdAudiences = async function(this: AmazonSyncService): Promise<{ synced: number; skipped: number }> {
   const db = await getDb();
   if (!db) return { synced: 0, skipped: 0 };
@@ -1096,7 +1096,7 @@ AmazonSyncService.prototype.syncSdAudiences = async function(this: AmazonSyncSer
           } else if (et.includes('inmarket') || et.includes('in-market') || et.includes('in_market')) {
             audienceType = 'inMarket';
             audienceCategory = 'in_market';
-            // @ts-ignore
+            // @ts-expect-error Legacy code type compatibility
             audienceSubCategory = expr.value || 'In-Market Audience';
           } else if (et.includes('lifestyle') || et.includes('interest')) {
             audienceType = 'lifestyle';
@@ -1132,11 +1132,11 @@ AmazonSyncService.prototype.syncSdAudiences = async function(this: AmazonSyncSer
 
       const targetId = String(apiTarget.targetId);
       const existing = existingSdAudMap.get(`${adGroup.id}:${targetId}`) || null;
-      // @ts-ignore
+      // @ts-expect-error Type inference limitation
       const normalizedState = (apiTarget.state || 'enabled').toLowerCase() as 'enabled' | 'paused' | 'archived';
 
       // 提取lookback天数
-      // @ts-ignore
+      // @ts-expect-error Type inference limitation
       let lookbackDays = 30; // 默认30天
       for (const expr of exprArray) {
         if (expr.lookbackDays || expr.lookback) {
@@ -1170,11 +1170,11 @@ AmazonSyncService.prototype.syncSdAudiences = async function(this: AmazonSyncSer
       if (existing) {
         await db
           .update(sdAudiences)
-          // @ts-ignore
+          // @ts-expect-error DB query type inference limitation
           .set(audienceData)
           .where(eq(sdAudiences.id, existing.id));
       } else {
-        // @ts-ignore
+        // @ts-expect-error DB query type inference limitation
         await db.insert(sdAudiences).values({
           ...audienceData,
           createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
@@ -1211,7 +1211,7 @@ AmazonSyncService.prototype.syncSdAudiences = async function(this: AmazonSyncSer
  * 注：Amazon SD API目前不提供受众级别的竞价建议端点，
  * 因此主要依赖本地推荐引擎基于历史表现数据计算建议竞价。
  */
-// @ts-ignore
+// @ts-expect-error Dynamic property access
 AmazonSyncService.prototype.syncSdAudienceBidRecommendations = async function(this: AmazonSyncService): Promise<{ synced: number; skipped: number }> {
   const db = await getDb();
   if (!db) return { synced: 0, skipped: 0 };

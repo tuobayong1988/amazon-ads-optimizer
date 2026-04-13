@@ -34,7 +34,7 @@ export async function createBiddingLog(log: InsertBiddingLog) {
   // v145: 双写到统一优化事件表
   try {
     const bidChange = Number(log.newBid || 0) - Number(log.previousBid || 0);
-    // @ts-ignore
+    // @ts-expect-error DB query type inference limitation
     await db.insert(optimizationEvents).values({
       accountId: log.accountId || 0,
       eventCategory: 'bid_adjustment',

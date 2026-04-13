@@ -1377,7 +1377,7 @@ export class AsyncReportService {
 
     const result = await db
       .delete(reportJobs)
-      // @ts-ignore
+      // @ts-expect-error DB query type inference limitation
       .where(
         and(
           inArray(reportJobs.status, ['completed', 'failed', 'expired']),
@@ -1385,7 +1385,7 @@ export class AsyncReportService {
         )
       );
 
-    // @ts-ignore
+    // @ts-expect-error Dynamic type assertion
     return (result as Record<string, unknown>).rowsAffected || 0;
   }
 }

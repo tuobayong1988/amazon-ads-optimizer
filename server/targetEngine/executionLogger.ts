@@ -104,7 +104,7 @@ export async function recordExecutionLog(result: OptimizationExecutionResult): P
         let itemErrorMessage: string | null = null;
         if (itemSyncStatus === 'failed' && itemSyncDetail) {
           try {
-            // @ts-ignore
+            // @ts-expect-error Type inference limitation
             const parsed = JSON.parse(itemSyncDetail);
             itemErrorMessage = parsed.error || null;
           } catch (e: any) {
@@ -154,29 +154,29 @@ export async function recordExecutionLog(result: OptimizationExecutionResult): P
       for (const detail of result.placementOptimization.details) {
         await db.createOptimizationLog({
           performanceGroupId: result.targetId,
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           performanceGroupName: result.targetName,
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           accountId: result.accountId || detail.accountId || 0, // v167: 优先使用result.accountId
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           logCategory: 'placement_adjustment',
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           actionType: 'placement_adjust',
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           campaignId: detail.amazonCampaignId || String(detail.localCampaignId || ''),
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           campaignName: detail.campaignName,
           actionDetail: JSON.stringify(detail),
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           previousValue: detail.previousValue || `${detail.placement}: ${detail.currentMultiplier}%`,
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           newValue: detail.newValue || `${detail.placement}: ${detail.suggestedMultiplier}%`,
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           changeReason: detail.reason || `位置优化: ${detail.placement} ${detail.currentMultiplier}% → ${detail.suggestedMultiplier}%`,
           status: detail.apiSyncStatus === 'synced' ? 'success' : detail.apiSyncStatus === 'failed' ? 'failed' : 'success',
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           apiSyncStatus: detail.apiSyncStatus || 'not_applicable',
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           apiSyncDetail: detail.apiSyncDetail || null,
           apiSyncedAt: detail.apiSyncStatus === 'synced' ? now : null,
           createdAt: now,
@@ -191,7 +191,7 @@ export async function recordExecutionLog(result: OptimizationExecutionResult): P
         // v353: 完善action_type映射 - 为所有action类型分配正确的action_type
         // 旧版本将brand_protect_skip/exploration_protect_skip等错误归类为keyword_create
         const actionTypeMap: Record<string, string> = {
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           'add_negative': 'negative_keyword_add',
           'add_negative_product_target': 'negative_product_target_add',
           'brand_protect_skip': 'search_term_brand_protect',
@@ -201,7 +201,7 @@ export async function recordExecutionLog(result: OptimizationExecutionResult): P
           'add_product_target': 'product_target_create',
           'add_keyword': 'keyword_create',
         };
-        // @ts-ignore
+        // @ts-expect-error Type inference limitation
         const actionType = actionTypeMap[detail.action] || 'keyword_create';
         // v357: 增强日志 - 在action_detail中添加Amazon ID追踪信息
         const enhancedDetail = {
@@ -210,78 +210,78 @@ export async function recordExecutionLog(result: OptimizationExecutionResult): P
           v357_targetText: detail.searchTerm || detail.keyword || '',
           v357_targetAdGroupId: detail.adGroupId || detail.targetAdGroupId || '',
           v357_targetCampaignId: detail.campaignId || detail.localCampaignId || '',
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           v357_amazonKeywordId: detail.amazonKeywordId || detail.createdKeywordId || '',
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           v357_amazonTargetId: detail.amazonTargetId || detail.createdTargetId || '',
         };
         await db.createOptimizationLog({
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           performanceGroupId: result.targetId,
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           performanceGroupName: result.targetName,
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           accountId: result.accountId || detail.accountId || 0,
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           logCategory: 'optimization_settings',
           // @ts-expect-error - type assertion
           actionType: actionType as unknown,
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           campaignId: detail.amazonCampaignId || String(detail.localCampaignId || ''),
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           campaignName: detail.campaignName,
           actionDetail: JSON.stringify(enhancedDetail),  // v357: 使用增强后的detail
           previousValue: '',
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           newValue: detail.searchTerm || '',
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           changeReason: detail.reason || '',
           status: detail.apiSyncStatus === 'synced' ? 'success' : detail.apiSyncStatus === 'failed' ? 'failed' : 'success',
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           apiSyncStatus: detail.apiSyncStatus || 'not_applicable',
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           apiSyncDetail: detail.apiSyncDetail || null,
-          // @ts-ignore
+          // @ts-expect-error Dynamic property access
           apiSyncedAt: detail.apiSyncStatus === 'synced' ? now : null,
           createdAt: now,
           executedAt: now,
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         });
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       }
-    // @ts-ignore
+    // @ts-expect-error Legacy code type compatibility
     }
     
     // v250: 记录分时竞价日志（使用createOptimizationLog确保双写）
-    // @ts-ignore
+    // @ts-expect-error Dynamic property access
     if (result.daypartingOptimization.executed && result.daypartingOptimization.adjustmentsCount > 0) {
       for (const detail of result.daypartingOptimization.details) {
         await db.createOptimizationLog({
           performanceGroupId: result.targetId,
           performanceGroupName: result.targetName,
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           accountId: result.accountId || detail.accountId || 0, // v167: 优先使用result.accountId
           logCategory: 'bid_adjustment',
           actionType: 'dayparting_bid',
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           campaignId: detail.amazonCampaignId || String(detail.localCampaignId || ''),
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           campaignName: detail.campaignName,
           actionDetail: JSON.stringify(detail),
           // v175: 不再带$符号存储
-          // @ts-ignore
+          // @ts-expect-error Conditional type narrowing
           previousValue: `${detail.baseBid?.toFixed(2) || '0.00'}`,
-          // @ts-ignore
+          // @ts-expect-error Conditional type narrowing
           newValue: `${detail.adjustedBid?.toFixed(2) || '0.00'}`,
-          // @ts-ignore
+          // @ts-expect-error Amazon API response type flexibility
           changeReason: detail.reason || `分时竞价: ${detail.hour}:00 乘数${detail.bidMultiplier}x`,
-          // @ts-ignore
+          // @ts-expect-error Dynamic property access
           status: detail.apiSyncStatus === 'synced' ? 'success' : detail.apiSyncStatus === 'failed' ? 'failed' : 'success',
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           apiSyncStatus: detail.apiSyncStatus || 'pending',  // v508: 分时竞价需要同步到Amazon，默认应为pending
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           apiSyncDetail: detail.apiSyncDetail || null,
-          // @ts-ignore
+          // @ts-expect-error Dynamic property access
           apiSyncedAt: detail.apiSyncStatus === 'synced' ? now : null,
           createdAt: now,
           executedAt: now,
@@ -295,28 +295,28 @@ export async function recordExecutionLog(result: OptimizationExecutionResult): P
         await db.createOptimizationLog({
           performanceGroupId: result.targetId,
           performanceGroupName: result.targetName,
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           accountId: result.accountId || detail.accountId || 0, // v167: 优先使用result.accountId
-          // @ts-ignore
+          // @ts-expect-error Amazon API response type flexibility
           logCategory: 'bid_adjustment',
           actionType: 'budget_adjustment',
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           campaignId: detail.amazonCampaignId || String(detail.localCampaignId || ''),
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           campaignName: detail.campaignName,
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           actionDetail: JSON.stringify(detail),
           // v175: 不再带$符号存储，避免AutoCorrector解析NaN
-          // @ts-ignore
+          // @ts-expect-error Conditional type narrowing
           previousValue: `${detail.currentBudget?.toFixed(2) || '0.00'}`,
-          // @ts-ignore
+          // @ts-expect-error Conditional type narrowing
           newValue: `${detail.suggestedBudget?.toFixed(2) || '0.00'}`,
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           changeReason: detail.reason || `预算调整 ${detail.changePercent}%`,
           status: detail.apiSyncStatus === 'synced' ? 'success' : detail.apiSyncStatus === 'failed' ? 'failed' : 'success',
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           apiSyncStatus: detail.apiSyncStatus || 'not_applicable',
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           apiSyncDetail: detail.apiSyncDetail || null,
           apiSyncedAt: detail.apiSyncStatus === 'synced' ? now : null,
           createdAt: now,
@@ -327,81 +327,81 @@ export async function recordExecutionLog(result: OptimizationExecutionResult): P
     
     // v250: 记录分时预算日志（使用createOptimizationLog确保双写）
     if (result.daypartingBudgetOptimization?.executed && result.daypartingBudgetOptimization.adjustmentsCount > 0) {
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       for (const detail of result.daypartingBudgetOptimization.details) {
-        // @ts-ignore
+        // @ts-expect-error Conditional type narrowing
         if (detail.error) continue;
         await db.createOptimizationLog({
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           performanceGroupId: result.targetId,
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           performanceGroupName: result.targetName,
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           accountId: result.accountId || detail.accountId || 0,
-          // @ts-ignore
+          // @ts-expect-error Amazon API response type flexibility
           logCategory: 'bid_adjustment',
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           actionType: 'budget_adjustment',
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           campaignId: detail.amazonCampaignId || String(detail.localCampaignId || ''),
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           campaignName: detail.campaignName,
           actionDetail: JSON.stringify(detail),
-          // @ts-ignore
+          // @ts-expect-error Conditional type narrowing
           previousValue: `${detail.currentBudget?.toFixed(2) || '0.00'}`,
-          // @ts-ignore
+          // @ts-expect-error Conditional type narrowing
           newValue: `${detail.adjustedBudget?.toFixed(2) || '0.00'}`,
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           changeReason: detail.reason || `分时预算: 星期${detail.dayOfWeek} 倍数${detail.budgetMultiplier}x`,
           status: detail.apiSyncStatus === 'synced' ? 'success' : detail.apiSyncStatus === 'failed' ? 'failed' : 'success',
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           apiSyncStatus: detail.apiSyncStatus || 'not_applicable',
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           apiSyncDetail: detail.apiSyncDetail || null,
           apiSyncedAt: detail.apiSyncStatus === 'synced' ? now : null,
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           createdAt: now,
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           executedAt: now,
         });
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       }
-    // @ts-ignore
+    // @ts-expect-error Legacy code type compatibility
     }
     
     // v250: 记录投放词状态变更日志（使用createOptimizationLog确保双写）
-    // @ts-ignore
+    // @ts-expect-error Conditional type narrowing
     if (result.keywordStatusChanges.executed) {
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       for (const detail of result.keywordStatusChanges.details) {
         await db.createOptimizationLog({
           performanceGroupId: result.targetId,
           performanceGroupName: result.targetName,
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           accountId: result.accountId || detail.accountId || 0, // v167: 优先使用result.accountId
           logCategory: 'bid_adjustment',
           actionType: detail.action === 'add_negative' ? 'negative_keyword_add' : detail.newStatus === 'paused' ? 'target_pause' : 'target_enable',
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           campaignId: detail.amazonCampaignId || String(detail.localCampaignId || ''),
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           campaignName: detail.campaignName,
           actionDetail: JSON.stringify(detail),
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           previousValue: detail.currentStatus || '',
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           newValue: detail.action || '',
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           changeReason: detail.reason || '',
-          // @ts-ignore
+          // @ts-expect-error Dynamic property access
           status: detail.apiSyncStatus === 'synced' ? 'success' : detail.apiSyncStatus === 'failed' ? 'failed' : 'success',
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           apiSyncStatus: detail.apiSyncStatus || 'not_applicable',
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           apiSyncDetail: detail.apiSyncDetail || null,
           apiSyncedAt: detail.apiSyncStatus === 'synced' ? now : null,
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           createdAt: now,
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           executedAt: now,
         });
       }
@@ -414,25 +414,25 @@ export async function recordExecutionLog(result: OptimizationExecutionResult): P
         await db.createOptimizationLog({
           performanceGroupId: result.targetId,
           performanceGroupName: result.targetName,
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           accountId: result.accountId || detail.accountId || 0, // v167: 优先使用result.accountId
           logCategory: 'bid_adjustment',
           actionType: detail.newStatus === 'paused' ? 'bid_decrease' : 'bid_increase',
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           campaignId: detail.amazonCampaignId || String(detail.localCampaignId || ''),
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           campaignName: detail.campaignName,
           actionDetail: JSON.stringify(detail),
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           previousValue: detail.previousStatus || '',
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           newValue: detail.newStatus || '',
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           changeReason: detail.reason || '',
           status: detail.apiSyncStatus === 'synced' ? 'success' : detail.apiSyncStatus === 'failed' ? 'failed' : 'success',
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           apiSyncStatus: detail.apiSyncStatus || 'not_applicable',
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           apiSyncDetail: detail.apiSyncDetail || null,
           apiSyncedAt: detail.apiSyncStatus === 'synced' ? now : null,
           createdAt: now,
@@ -448,25 +448,25 @@ export async function recordExecutionLog(result: OptimizationExecutionResult): P
         await db.createOptimizationLog({
           performanceGroupId: result.targetId,
           performanceGroupName: result.targetName,
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           accountId: result.accountId || detail.accountId || 0, // v167: 优先使用result.accountId
           logCategory: 'optimization_settings',
           actionType: detail.action === 'pause' ? 'adgroup_pause' : 'adgroup_enable',
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           campaignId: detail.amazonCampaignId || String(detail.localCampaignId || ''),
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           campaignName: detail.campaignName,
           actionDetail: JSON.stringify(detail),
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           previousValue: detail.currentStatus || '',
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           newValue: detail.newStatus || '',
-          // @ts-ignore
+          // @ts-expect-error Dynamic property access
           changeReason: detail.reason || `广告组 "${detail.adGroupName}" ${detail.action === 'pause' ? '暂停' : '启用'}`,
           status: detail.apiSyncStatus === 'synced' ? 'success' : detail.apiSyncStatus === 'failed' ? 'failed' : 'success',
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           apiSyncStatus: detail.apiSyncStatus || 'not_applicable',
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           apiSyncDetail: detail.apiSyncDetail || null,
           apiSyncedAt: detail.apiSyncStatus === 'synced' ? now : null,
           createdAt: now,

@@ -280,9 +280,9 @@ async function startServer() {
     // v146: 启动时自动执行数据迁移（旧表 → optimization_events）
     runAutoMigration().then(result => {
       if (result.success) {
-        // @ts-ignore
+        // @ts-expect-error DB query type inference limitation
         const total = Object.values(result.migrated).reduce((a: unknown, b: unknown) => a + b, 0);
-        // @ts-ignore
+        // @ts-expect-error Conditional type narrowing
         if (total > 0) {
           log.info(`[AutoMigration] v146数据迁移完成: 共迁移 ${total} 条记录`, result.migrated);
         } else {

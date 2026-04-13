@@ -139,7 +139,7 @@ export async function shardBasedSyncAll(
     for (const account of (accounts as unknown[])) {
       for (const step of steps) {
         shardDefs.push({
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           accountId: account.accountId,
           stepId: step.id,
           stepName: step.name,

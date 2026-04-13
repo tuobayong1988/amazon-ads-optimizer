@@ -436,9 +436,9 @@ export async function harvestSearchTermAtomic(
         accountId,
         eventCategory: 'search_term_action',
         actionType: 'search_term_harvest',
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         campaignId: candidate.targetCampaignId,
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         keywordId: localKeywordId,
         keywordText: candidate.searchTerm,
         matchType: 'exact',
@@ -460,10 +460,10 @@ export async function harvestSearchTermAtomic(
       });
       await db.insertOptimizationEvent({
         accountId,
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         eventCategory: 'search_term_action',
         actionType: 'negative_keyword_add',
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         campaignId: candidate.sourceCampaignId,
         keywordText: candidate.searchTerm,
         matchType: 'exact',
@@ -639,7 +639,7 @@ async function findTargetAdGroup(
   
   for (const campaign of (exactCampaigns as unknown[])) {
     // v206: getAdGroupsByCampaignId需要Amazon campaignId
-    // @ts-ignore
+    // @ts-expect-error DB query type inference limitation
     const adGroupsList = await db.getAdGroupsByCampaignId(campaign.campaignId);
     const enabledAdGroups = adGroupsList.filter((ag: Record<string, unknown>) => ag.adGroupStatus === 'enabled');
     
@@ -648,26 +648,26 @@ async function findTargetAdGroup(
       const hasPT = await adGroupHasProductTargets(ag.id);
       if (hasPT) {
         log.info(`v194: 跳过product target广告组 id=${ag.id}`);
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         continue;
       }
-      // @ts-ignore
+      // @ts-expect-error Return type compatibility
       return {
         adGroupId: ag.id,
-        // @ts-ignore
+        // @ts-expect-error Amazon API response type flexibility
         campaignId: campaign.campaignId,
         amazonAdGroupId: ag.adGroupId,
-        // @ts-ignore
+        // @ts-expect-error Amazon API response type flexibility
         amazonCampaignId: campaign.campaignId,
       };
-    // @ts-ignore
+    // @ts-expect-error Legacy code type compatibility
     }
   }
   
   // 策由2: 查找任意手动Campaign的广告组（排除PT类型）
   for (const campaign of (nonPTCampaigns as unknown[])) {
     // v206: getAdGroupsByCampaignId需要Amazon campaignId
-    // @ts-ignore
+    // @ts-expect-error DB query type inference limitation
     const adGroupsList = await db.getAdGroupsByCampaignId(campaign.campaignId);
     const enabledAdGroups = adGroupsList.filter((ag: Record<string, unknown>) => ag.adGroupStatus === 'enabled');
     
@@ -677,10 +677,10 @@ async function findTargetAdGroup(
       if (hasPT) continue;
       return {
         adGroupId: ag.id,
-        // @ts-ignore
+        // @ts-expect-error Amazon API response type flexibility
         campaignId: campaign.campaignId,
         amazonAdGroupId: ag.adGroupId,
-        // @ts-ignore
+        // @ts-expect-error Amazon API response type flexibility
         amazonCampaignId: campaign.campaignId,
       };
     }

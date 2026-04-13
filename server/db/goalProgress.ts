@@ -370,16 +370,16 @@ export async function getAccountLevelMetrics(accountId: number): Promise<{
       );
     
     const row = result[0] as unknown;
-    // @ts-ignore
+    // @ts-expect-error Dynamic property access
     if (!row || row.totalClicks === 0) return null;
     
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const totalClicks = Number(row.totalClicks);
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const totalOrders = Number(row.totalOrders);
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const totalSpend = parseFloat(row.totalSpend as string);
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const totalSales = parseFloat(row.totalSales as string);
     
     return {
@@ -436,19 +436,19 @@ export async function getCrossCampaignCategoryMetrics(
           // 排除当前优化目标的数据，避免自引用
           excludePerformanceGroupId
             ? sql`${dailyPerformance.performanceGroupId} != ${excludePerformanceGroupId}`
-            // @ts-ignore
+            // @ts-expect-error DB query type inference limitation
             : sql`1=1`
         )
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       );
     
     const row = result[0] as unknown;
-    // @ts-ignore
+    // @ts-expect-error Conditional type narrowing
     if (!row || Number(row.totalClicks) === 0) return null;
     
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const totalClicks = Number(row.totalClicks);
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const totalOrders = Number(row.totalOrders);
     
     return {

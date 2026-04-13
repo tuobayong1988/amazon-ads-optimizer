@@ -419,9 +419,9 @@ export async function getOptimizationEvents(params: {
   if (params.eventCategory) conditions.push(sql`${optimizationEvents.eventCategory} = ${params.eventCategory}`);
   if (params.actionType) conditions.push(sql`${optimizationEvents.actionType} = ${params.actionType}`);
   if (params.status) conditions.push(sql`${optimizationEvents.status} = ${params.status}`);
-  // @ts-ignore
+  // @ts-expect-error Conditional type narrowing
   if (params.campaignId) conditions.push(eq(optimizationEvents.campaignId, params.campaignId));
-  // @ts-ignore
+  // @ts-expect-error Conditional type narrowing
   if (params.keywordId) conditions.push(eq(optimizationEvents.keywordId, params.keywordId));
   if (params.startDate) conditions.push(gte(optimizationEvents.createdAt, params.startDate));
   if (params.endDate) conditions.push(lte(optimizationEvents.createdAt, params.endDate));
@@ -816,10 +816,10 @@ export async function runAutoMigration(): Promise<{ success: boolean; migrated: 
     } else {
       try {
         const accounts = await getAdAccounts();
-        // @ts-ignore
+        // @ts-expect-error Type inference limitation
         let totalBiddingLogs = 0;
         for (const account of (accounts as unknown[])) {
-          // @ts-ignore
+          // @ts-expect-error Async operation type inference
           totalBiddingLogs += await migrateFromBiddingLogs(account.id);
         }
         migrated.biddingLogs = totalBiddingLogs;
@@ -834,11 +834,11 @@ export async function runAutoMigration(): Promise<{ success: boolean; migrated: 
       skipped.push('bid_adjustment_history (already migrated)');
     } else {
       try {
-        // @ts-ignore
+        // @ts-expect-error Type inference limitation
         const accounts = await getAdAccounts();
         let totalBidHistory = 0;
         for (const account of (accounts as unknown[])) {
-          // @ts-ignore
+          // @ts-expect-error Async operation type inference
           totalBidHistory += await migrateFromBidAdjustmentHistory(account.id);
         }
         migrated.bidAdjustmentHistory = totalBidHistory;
@@ -852,12 +852,12 @@ export async function runAutoMigration(): Promise<{ success: boolean; migrated: 
     if (migratedSources.has('optimization_logs')) {
       skipped.push('optimization_logs (already migrated)');
     } else {
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       try {
         const accounts = await getAdAccounts();
         let totalOptLogs = 0;
         for (const account of (accounts as unknown[])) {
-          // @ts-ignore
+          // @ts-expect-error Type inference limitation
           const groups = await getPerformanceGroupsByAccountId(account.id);
           for (const group of groups) {
             totalOptLogs += await migrateFromOptimizationLogs(group.id);
@@ -865,13 +865,13 @@ export async function runAutoMigration(): Promise<{ success: boolean; migrated: 
         }
         migrated.optimizationLogs = totalOptLogs;
       } catch (err: unknown) {
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         log.warn('[AutoMigration] optimization_logs migration error:', (err as Error).message);
         skipped.push(`optimization_logs (error: ${(err as Error).message})`);
       }
     }
     
-    // @ts-ignore
+    // @ts-expect-error DB query type inference limitation
     const totalMigrated = Object.values(migrated).reduce((a: unknown, b: unknown) => a + b, 0);
     log.info(`[AutoMigration] 完成: 共迁移 ${totalMigrated} 条记录`, { migrated, skipped });
     

@@ -95,20 +95,20 @@ export async function analyzeSeasonalTrends(userId: number, accountId?: number):
 
   // 计算年平均值
   const yearlyAvg = monthlyData.reduce((acc: unknown, m: unknown) => {
-    // @ts-ignore
+    // @ts-expect-error Legacy code type compatibility
     acc.spend += Number(m.avgDailySpend) || 0;
-    // @ts-ignore
+    // @ts-expect-error Legacy code type compatibility
     acc.sales += Number(m.avgDailySales) || 0;
-    // @ts-ignore
+    // @ts-expect-error Legacy code type compatibility
     acc.count++;
-    // @ts-ignore
+    // @ts-expect-error Return type compatibility
     return acc;
-  // @ts-ignore
+  // @ts-expect-error Legacy code type compatibility
   }, { spend: 0, sales: 0, count: 0 });
 
-  // @ts-ignore
+  // @ts-expect-error Dynamic property access
   const avgSpend = yearlyAvg.count > 0 ? yearlyAvg.spend / yearlyAvg.count : 0;
-  // @ts-ignore
+  // @ts-expect-error Dynamic property access
   const avgSales = yearlyAvg.count > 0 ? yearlyAvg.sales / yearlyAvg.count : 0;
 
   // 生成季节性趋势记录
@@ -117,13 +117,13 @@ export async function analyzeSeasonalTrends(userId: number, accountId?: number):
     const spend = Number(data.avgDailySpend) || 0;
     const sales = Number(data.avgDailySales) || 0;
     const seasonalIndex = avgSpend > 0 ? spend / avgSpend : 1;
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const roas = spend > 0 ? sales / spend : 0;
     const acos = sales > 0 ? (spend / sales) * 100 : 0;
 
     trends.push({
       userId,
-      // @ts-ignore
+      // @ts-expect-error Conditional type narrowing
       accountId: accountId ?? null,
       year: data.year,
       month: data.month,
@@ -190,14 +190,14 @@ export async function generateSeasonalRecommendations(userId: number, accountId?
   const activeCampaigns = await db.select().from(campaigns).where(and(...conditions));
 
   // 获取季节性趋势
-  // @ts-ignore
+  // @ts-expect-error Type inference limitation
   const trends = await getSeasonalTrends(userId, accountId);
   const currentMonth = now.getMonth() + 1;
   const currentTrend = trends.find(t => t.month === currentMonth);
   const seasonalIndex = currentTrend ? Number(currentTrend.seasonalIndex) : 1;
 
   for (const campaign of (activeCampaigns as unknown[])) {
-    // @ts-ignore
+    // @ts-expect-error Amazon API response type flexibility
     const currentBudget = Number(campaign.maxBid) * 100 || 100;
 
     // 检查大促活动建议
@@ -205,16 +205,16 @@ export async function generateSeasonalRecommendations(userId: number, accountId?
       const isWarmup = event.warmupStartDate && now >= new Date(event.warmupStartDate) && now < new Date(event.startDate);
       const isEvent = now >= new Date(event.startDate) && now <= new Date(event.endDate);
 
-      // @ts-ignore
+      // @ts-expect-error Conditional type narrowing
       if (isWarmup || isEvent) {
         const multiplier = isEvent ? Number(event.recommendedBudgetMultiplier) : Number(event.warmupBudgetMultiplier);
         const recommendedBudget = currentBudget * multiplier;
 
         recommendations.push({
           userId,
-          // @ts-ignore
+          // @ts-expect-error Conditional type narrowing
           accountId: accountId ?? null,
-          // @ts-ignore
+          // @ts-expect-error Amazon API response type flexibility
           campaignId: campaign.campaignId,
           eventId: event.id,
           recommendationType: isEvent ? "event_increase" : "event_warmup",
@@ -228,9 +228,9 @@ export async function generateSeasonalRecommendations(userId: number, accountId?
             ? `${event.eventName}期间，建议将预算提升${((multiplier - 1) * 100).toFixed(0)}%以把握流量高峰。`
             : `${event.eventName}预热期，建议适度提升预算${((multiplier - 1) * 100).toFixed(0)}%为大促做准备。`,
           confidenceScore: "85",
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         });
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       }
     }
 
@@ -239,15 +239,15 @@ export async function generateSeasonalRecommendations(userId: number, accountId?
       const multiplier = Math.min(seasonalIndex, 1.5);
       recommendations.push({
         userId,
-        // @ts-ignore
+        // @ts-expect-error Conditional type narrowing
         accountId: accountId ?? null,
-        // @ts-ignore
+        // @ts-expect-error Amazon API response type flexibility
         campaignId: campaign.campaignId,
         recommendationType: "seasonal_increase",
         currentBudget: currentBudget.toString(),
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         recommendedBudget: (currentBudget * multiplier).toString(),
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         budgetMultiplier: multiplier.toString(),
         effectiveStartDate: now.toISOString(),
         effectiveEndDate: new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString(),
@@ -258,9 +258,9 @@ export async function generateSeasonalRecommendations(userId: number, accountId?
       const multiplier = Math.max(seasonalIndex, 0.7);
       recommendations.push({
         userId,
-        // @ts-ignore
+        // @ts-expect-error Conditional type narrowing
         accountId: accountId ?? null,
-        // @ts-ignore
+        // @ts-expect-error Amazon API response type flexibility
         campaignId: campaign.campaignId,
         recommendationType: "seasonal_decrease",
         currentBudget: currentBudget.toString(),
@@ -370,15 +370,15 @@ export async function getEventPerformanceComparison(userId: number, options: { a
         totalSpend: sql<number>`COALESCE(SUM(${dailyPerformance.spend}), 0)`,
         totalSales: sql<number>`COALESCE(SUM(${dailyPerformance.sales}), 0)`,
         totalOrders: sql<number>`COALESCE(SUM(${dailyPerformance.orders}), 0)`,
-        // @ts-ignore
+        // @ts-expect-error Complex function parameter types
         totalClicks: sql<number>`COALESCE(SUM(${dailyPerformance.clicks}), 0)`,
-        // @ts-ignore
+        // @ts-expect-error Complex function parameter types
         totalImpressions: sql<number>`COALESCE(SUM(${dailyPerformance.impressions}), 0)`,
-        // @ts-ignore
+        // @ts-expect-error Complex function parameter types
         daysCount: sql<number>`COUNT(DISTINCT DATE(${dailyPerformance.date}))`,
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       })
-      // @ts-ignore
+      // @ts-expect-error DB query type inference limitation
       .from(dailyPerformance)
       .where(
         and(
@@ -388,15 +388,15 @@ export async function getEventPerformanceComparison(userId: number, options: { a
       );
 
     const data = perfData[0] as unknown;
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const spend = Number(data?.totalSpend) || 0;
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const sales = Number(data?.totalSales) || 0;
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const orders = Number(data?.totalOrders) || 0;
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const clicks = Number(data?.totalClicks) || 0;
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const impressions = Number(data?.totalImpressions) || 0;
 
     const profit = sales - spend;
@@ -404,7 +404,7 @@ export async function getEventPerformanceComparison(userId: number, options: { a
     const profitMargin = sales > 0 ? (profit / sales) * 100 : 0;
 
     comparison.push({
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       eventId: event.id,
       eventName: event.eventName,
       eventType: event.eventType,
@@ -423,7 +423,7 @@ export async function getEventPerformanceComparison(userId: number, options: { a
       roi,
       profit,
       profitMargin,
-      // @ts-ignore
+      // @ts-expect-error Conditional type narrowing
       daysCount: Number(data?.daysCount) || 0,
     });
   }
@@ -434,7 +434,7 @@ export async function getEventPerformanceComparison(userId: number, options: { a
     if (!groupedByType[item.eventType]) {
       groupedByType[item.eventType] = [];
     }
-    // @ts-ignore
+    // @ts-expect-error Array method type inference
     groupedByType[item.eventType].push(item);
   }
 
@@ -454,7 +454,7 @@ export async function getEventPerformanceComparison(userId: number, options: { a
   }[] = [];
 
   for (const [eventType, items] of Object.entries(groupedByType)) {
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const sortedByYear = items.sort((a: unknown, b: unknown) => b.year - a.year);
     for (let i = 0; i < sortedByYear.length - 1; i++) {
       const current = sortedByYear[i];

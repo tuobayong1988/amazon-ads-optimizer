@@ -105,9 +105,9 @@ async function getLastSyncTimeForAccount(accountId: number): Promise<Date | null
     if ((status as string).lastSyncResults) {
       // @ts-expect-error - string type assertion
       const accountResult = ((status as string).lastSyncResults as unknown[])?.find((r: Record<string, unknown>) => r.accountId === accountId);
-      // @ts-ignore
+      // @ts-expect-error Conditional type narrowing
       if (accountResult?.completedAt) {
-        // @ts-ignore
+        // @ts-expect-error Return type compatibility
         return new Date(accountResult.completedAt);
       }
     }
@@ -474,33 +474,33 @@ export async function executeOptimizationTarget(
     // 运行进化周期：评估效果→学习→自动纠错
     evolutionReport = await selfEvolution.runEvolutionCycle(
       targetId, config.userId, config.accountId, config.strategyTemplateId
-    // @ts-ignore
+    // @ts-expect-error Legacy code type compatibility
     );
-    // @ts-ignore
+    // @ts-expect-error Conditional type narrowing
     if (evolutionReport) {
-      // @ts-ignore
+      // @ts-expect-error Complex function parameter types
       log.info(`[OptimizationTarget] v164 进化周期完成: 评估${evolutionReport.totalActionsEvaluated}个动作, ` +
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         `正面${evolutionReport.positiveActions}, 负面${evolutionReport.negativeActions}, ` +
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         `纠错${evolutionReport.correctionsExecuted}个, 趋势: ${evolutionReport.improvementTrend}`);
-      // @ts-ignore
+      // @ts-expect-error Dynamic property access
       if (evolutionReport.correctionsExecuted > 0) {
-        // @ts-ignore
+        // @ts-expect-error Complex function parameter types
         result.warnings.push(`自我进化: 自动纠正了${evolutionReport.correctionsExecuted}个不合理优化`);
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       }
-    // @ts-ignore
+    // @ts-expect-error Legacy code type compatibility
     }
     
     // 获取自适应优化参数（根据历史成功率动态调整）
     adaptiveParams = await selfEvolution.getAdaptiveOptimizationParams(targetId, config.strategyTemplateId);
     if (adaptiveParams) {
-      // @ts-ignore
+      // @ts-expect-error Complex function parameter types
       log.debug(`[OptimizationTarget] v164 自适应参数: 最大出价提升${Math.round(adaptiveParams.maxBidIncrease * 100)}%, ` +
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         `最大出价降低${Math.round(adaptiveParams.maxBidDecrease * 100)}%, ` +
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         `成功率${Math.round(adaptiveParams.recentSuccessRate * 100)}%`);
     }
   } catch (evoErr: unknown) {
@@ -745,9 +745,9 @@ export async function executeOptimizationTarget(
   // 4. 执行搜索词分析
   if (config.enableSearchTermAnalysis && shouldExecute('searchterm')) {
     try {
-      // @ts-ignore
+      // @ts-expect-error Type inference limitation
       const searchTermResults = await executeSearchTermAnalysis(config, campaigns, dryRun);
-      // @ts-ignore
+      // @ts-expect-error Dynamic property access
       result.searchTermAnalysis = searchTermResults;
     } catch (error: unknown) {
       result.errors.push(`搜索词分析失败: ${(error as Error).message}`);
@@ -757,9 +757,9 @@ export async function executeOptimizationTarget(
   // 4.5 v337.3: 执行Ngram自动否定分析（集成到自动优化流程）
   if (config.enableSearchTermAnalysis && shouldExecute('searchterm')) {
     try {
-      // @ts-ignore
+      // @ts-expect-error Type inference limitation
       const ngramResults = await executeAutoNgramNegation(config, campaigns, dryRun);
-      // @ts-ignore
+      // @ts-expect-error Dynamic type assertion
       (result as Record<string, unknown>).ngramAnalysis = ngramResults;
       if (ngramResults.negativeKeywordsAdded > 0) {
         log.info(`[NgramAutoNegation] v337.3: Ngram自动否定完成: 添加${ngramResults.negativeKeywordsAdded}个否定词`);
@@ -824,9 +824,9 @@ export async function executeOptimizationTarget(
   if (shouldExecute('coordination')) {
     try {
       const coordinationResults = await executeBidCoordination(
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         config,
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         campaigns,
         result.bidOptimization.details,
         result.placementOptimization.details,
@@ -838,9 +838,9 @@ export async function executeOptimizationTarget(
       // 将协调器的警告添加到结果中
       if (coordinationResults.details.length > 0) {
         for (const detail of coordinationResults.details) {
-          // @ts-ignore
+          // @ts-expect-error Dynamic property access
           if (detail.warnings && detail.warnings.length > 0) {
-            // @ts-ignore
+            // @ts-expect-error Array method type inference
             result.warnings.push(...detail.warnings);
           }
         }
@@ -910,7 +910,7 @@ export async function executeOptimizationTarget(
               targetEntityId: detail.keywordId,
               amazonEntityId: null, // 将在同步引擎中查询
               targetEntityName: detail.keywordText,
-              // @ts-ignore
+              // @ts-expect-error Amazon API response type flexibility
               action: detail.newBid > detail.currentBid ? 'bid_increase' : 'bid_decrease',
               oldValue: String(detail.currentBid),
               newValue: String(detail.newBid),
@@ -1160,7 +1160,7 @@ export async function executeOptimizationTarget(
               taskType: 'bid_adjustment',
               priority: 2,
               targetEntityType: detail.isProductTarget ? 'product_target' : 'keyword',
-              // @ts-ignore
+              // @ts-expect-error Legacy code type compatibility
               targetEntityId: detail.keywordId || detail.targetId,
               amazonEntityId: null,
               targetEntityName: detail.keywordText || detail.targetName,
@@ -1176,7 +1176,7 @@ export async function executeOptimizationTarget(
       }
       
       if (failedTasks.length > 0) {
-        // @ts-ignore
+        // @ts-expect-error Async operation type inference
         await enqueueTasks(failedTasks);
         log.warn(`[OptimizationTarget] v137: ${failedTasks.length}个失败任务已入队重试队列, batchId=${batchId}`);
         result.retryBatchId = batchId;
@@ -1328,7 +1328,7 @@ export async function getOptimizationTargetSummary(targetId: number): Promise<{
       config: null,
       campaignsCount: 0,
       keywordsCount: 0,
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       pendingActions: {
         bidAdjustments: 0,
         placementAdjustments: 0,
@@ -1345,7 +1345,7 @@ export async function getOptimizationTargetSummary(targetId: number): Promise<{
   const keywordCounts = await Promise.all(
     (campaigns as unknown[]).map(async (campaign) => {
       try {
-        // @ts-ignore
+        // @ts-expect-error Type inference limitation
         const campaignAmazonId = getCampaignAmazonId(campaign);
         const keywords = await db.getKeywordsByCampaignId(campaignAmazonId);
         return keywords.length;

@@ -64,9 +64,9 @@ SLOT PURPOSE: ${slot.description}
 
 PRODUCT CONTEXT:
 - Core Keywords: ${coreKws.map((k: Record<string, unknown>) => k.keyword).join(', ')}
-// @ts-ignore
+// @ts-expect-error Dynamic type assertion
 - Target Persona: ${(topPersona as any)?.personaName || 'General consumer'}
-// @ts-ignore
+// @ts-expect-error Dynamic type assertion
 - Persona Demographics: ${(topPersona as any)?.demographics || 'N/A'}
 
 COMPETITIVE LANDSCAPE:

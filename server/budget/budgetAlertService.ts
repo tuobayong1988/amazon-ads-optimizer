@@ -59,7 +59,7 @@ export async function saveAlertSettings(userId: number, settings: Partial<Insert
     await db.update(budgetAlertSettings).set({ ...settings, updatedAt: new Date().toISOString() }).where(eq(budgetAlertSettings.id, existing.id));
     return { ...existing, ...settings };
   } else {
-    // @ts-ignore
+    // @ts-expect-error DB query type inference limitation
     const result = await db.insert(budgetAlertSettings).values({ userId, ...settings });
     return { id: result[0].insertId, userId, ...settings };
   }
@@ -86,9 +86,9 @@ export async function analyzeBudgetConsumption(userId: number, accountId?: numbe
   for (const campaign of (activeCampaigns as unknown[])) {
     const todayStr = today.toISOString().split('T')[0];
     // v401: 优化DATE()为范围查询以利用索引
-    // @ts-ignore
+    // @ts-expect-error DB query type inference limitation
     const todayPerformance = await db.select().from(dailyPerformance).where(and(eq(dailyPerformance.campaignId, String(campaign.campaignId)), sql`${dailyPerformance.date} >= ${todayStr}`, sql`${dailyPerformance.date} < DATE_ADD(${todayStr}, INTERVAL 1 DAY)`)).limit(1);
-    // @ts-ignore
+    // @ts-expect-error Amazon API response type flexibility
     const dailyBudget = Number(campaign.maxBid) * 100 || 100;
     const currentSpend = todayPerformance[0]?.spend ? Number(todayPerformance[0].spend) : 0;
     const expectedSpend = (dailyBudget / 24) * hoursElapsed;
@@ -113,22 +113,22 @@ export async function analyzeBudgetConsumption(userId: number, accountId?: numbe
       recommendation = `消耗速度过快（偏差${deviationPercent.toFixed(1)}%），预计日消耗$${projectedDailySpend.toFixed(2)}，超出预算。建议降低出价或调整投放时段。`;
     } else if (deviationPercent <= -(100 - thresholds.underspending)) {
       alertType = "underspending";
-      // @ts-ignore
+      // @ts-expect-error Conditional type narrowing
       severity = deviationPercent <= -70 ? "high" : "medium";
       recommendation = `消耗速度过慢（偏差${deviationPercent.toFixed(1)}%），可能错失流量机会。建议检查广告状态、提高出价或扩展关键词。`;
     }
-    // @ts-ignore
+    // @ts-expect-error Amazon API response type flexibility
     results.push({ campaignId: campaign.campaignId, campaignName: campaign.campaignName, dailyBudget, currentSpend, expectedSpend, spendRate, projectedDailySpend, deviationPercent, hoursElapsed, alertType, severity, recommendation });
   }
   return results;
 }
 
-// @ts-ignore
+// @ts-expect-error Complex function parameter types
 export async function createBudgetAlert(userId: number, analysis: ConsumptionAnalysis, accountId?: number): Promise<number | null> {
   const db = await getDb();
   if (!db || !analysis.alertType) return null;
   const alertData: InsertBudgetConsumptionAlert = {
-    // @ts-ignore
+    // @ts-expect-error Conditional type narrowing
     userId, accountId: accountId ?? null, campaignId: String(analysis.campaignId), alertType: analysis.alertType, severity: analysis.severity,
     dailyBudget: analysis.dailyBudget.toString(), currentSpend: analysis.currentSpend.toString(), expectedSpend: analysis.expectedSpend.toString(),
     spendRate: analysis.spendRate.toString(), projectedDailySpend: analysis.projectedDailySpend.toString(), deviationPercent: analysis.deviationPercent.toString(),
@@ -202,12 +202,12 @@ export async function getAlertStats(userId: number, accountId?: number) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const todayConditions = [...conditions, gte(budgetConsumptionAlerts.createdAt, today.toISOString())];
-  // @ts-ignore
+  // @ts-expect-error Async operation type inference
   const [activeCount, todayCount, byType] = await Promise.all([
     db.select({ count: sql<number>`count(*)` }).from(budgetConsumptionAlerts).where(and(...conditions, eq(budgetConsumptionAlerts.status, "active"))),
     db.select({ count: sql<number>`count(*)` }).from(budgetConsumptionAlerts).where(and(...todayConditions)),
     db.select({ alertType: budgetConsumptionAlerts.alertType, count: sql<number>`count(*)` }).from(budgetConsumptionAlerts).where(and(...conditions)).groupBy(budgetConsumptionAlerts.alertType),
   ]);
-  // @ts-ignore
+  // @ts-expect-error Dynamic type assertion
   return { activeAlerts: activeCount[0]?.count || 0, todayAlerts: todayCount[0]?.count || 0, byType: byType.reduce((acc: unknown, item: unknown) => { acc[item.alertType] = item.count; return acc; }, {} as Record<string, number>) };
 }

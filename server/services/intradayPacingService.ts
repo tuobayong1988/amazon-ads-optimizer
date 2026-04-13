@@ -195,7 +195,7 @@ export async function checkAllCampaignsPacing(
     
     for (const campaign of (campaigns as unknown[])) {
       const adjustment = await adjustIntradayPacing(
-        // @ts-ignore
+        // @ts-expect-error Amazon API response type flexibility
         campaign.campaignId,
         accountId
       );

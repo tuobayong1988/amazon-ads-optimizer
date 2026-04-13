@@ -38,26 +38,26 @@ export function estimateTrafficCeiling(
 ): number {
   if (historicalData && historicalData.length >= 3) {
     const n = historicalData.length;
-    // @ts-ignore
+    // @ts-expect-error Amazon API response type flexibility
     const sumLnBid = historicalData.reduce((s: unknown, d: unknown) => s + Math.log(d.bid), 0);
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const sumImpressions = historicalData.reduce((s: unknown, d: unknown) => s + d.impressions, 0);
-    // @ts-ignore
+    // @ts-expect-error Amazon API response type flexibility
     const sumLnBidImpressions = historicalData.reduce((s: unknown, d: unknown) => s + Math.log(d.bid) * d.impressions, 0);
-    // @ts-ignore
+    // @ts-expect-error Amazon API response type flexibility
     const sumLnBidSq = historicalData.reduce((s: unknown, d: unknown) => s + Math.log(d.bid) ** 2, 0);
     
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const denominator = n * sumLnBidSq - sumLnBid ** 2;
     if (denominator === 0 || n === 0) {
-      // @ts-ignore
+      // @ts-expect-error Return type compatibility
       return Math.round(currentImpressions * TRAFFIC_CEILING_MULTIPLIER);
     }
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const a = (n * sumLnBidImpressions - sumLnBid * sumImpressions) / denominator;
     
     const ceilingBid = 10;
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const ceiling = a * Math.log(ceilingBid) + (sumImpressions - a * sumLnBid) / n;
     
     return Math.max(ceiling, currentImpressions * TRAFFIC_CEILING_MULTIPLIER);

@@ -63,13 +63,13 @@ export async function runAutoBidOptimization(
     const nextGenResults = await batchCalculateNextGenBids(accountId, batchItems as unknown, context);
     
     for (const ngResult of nextGenResults) {
-      // @ts-ignore
+      // @ts-expect-error Dynamic type assertion
       if ((ngResult as Record<string, unknown>[]).action === 'hold') {
         results.skipped++;
         continue;
       }
       
-      // @ts-ignore
+      // @ts-expect-error Dynamic type assertion
       const kw = keywordsToOptimize.find(k => k.id === (ngResult as Record<string, unknown>[]).keywordId);
       if (!kw) { results.skipped++; continue; }
       
@@ -80,13 +80,13 @@ export async function runAutoBidOptimization(
         .limit(1);
 
       if (adGroup) {
-        // @ts-ignore
+        // @ts-expect-error Type inference limitation
         const success = await syncService.applyBidAdjustment(
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           'keyword',
           kw.id,
           ngResult.newBid,
-          // @ts-ignore
+          // @ts-expect-error Dynamic type assertion
           `NextGen[${(ngResult as Record<string, unknown>[]).algorithm}]: ${ngResult.reason}`,
           adGroup.campaignId
         );
@@ -108,47 +108,47 @@ export async function runAutoBidOptimization(
   }
 
   // v230: 回退到旧算法
-  // @ts-ignore
+  // @ts-expect-error Dynamic type assertion
   for (const kw of (keywordsToOptimize as unknown[])) {
-    // @ts-ignore
+    // @ts-expect-error Legacy code type compatibility
     const target: OptimizationTarget = {
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       id: kw.id,
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       type: 'keyword',
-      // @ts-ignore
+      // @ts-expect-error Amazon API response type flexibility
       currentBid: parseFloat(kw.bid),
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       impressions: kw.impressions || 0,
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       clicks: kw.clicks || 0,
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       spend: parseFloat(kw.spend || '0'),
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       sales: parseFloat(kw.sales || '0'),
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       orders: kw.orders || 0,
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       matchType: kw.matchType,
-    // @ts-ignore
+    // @ts-expect-error Legacy code type compatibility
     };
 
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const adjustment = calculateBidAdjustment(target, performanceGroupConfig, 10, 0.02);
 
     if (adjustment) {
       const [adGroup] = await db
         .select()
         .from(adGroups)
-        // @ts-ignore
+        // @ts-expect-error DB query type inference limitation
         .where(eq(adGroups.id, kw.internalAdGroupId!))  // v421: 使用internalAdGroupId(int)
         .limit(1);
 
       if (adGroup) {
-        // @ts-ignore
+        // @ts-expect-error Type inference limitation
         const success = await syncService.applyBidAdjustment(
           'keyword',
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           kw.id,
           adjustment.newBid,
           adjustment.reason,

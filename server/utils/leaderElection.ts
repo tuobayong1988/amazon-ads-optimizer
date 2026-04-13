@@ -73,73 +73,73 @@ async function tryBecomeLeader(): Promise<boolean> {
   try {
     conn = await db.getDirectConnection(5000);
     
-    // @ts-ignore
+    // @ts-expect-error Async operation type inference
     await conn.beginTransaction();
     
     // 查询当前Leader（加行锁）
-    // @ts-ignore
+    // @ts-expect-error DB query type inference limitation
     const [rows] = await conn.execute(
       'SELECT instance_id, last_heartbeat FROM leader_election WHERE lock_name = ? FOR UPDATE',
       [ELECTION_LOCK_NAME]
     ) as unknown[];
     
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const now = new Date();
     
-    // @ts-ignore
+    // @ts-expect-error Dynamic property access
     if (!rows || rows.length === 0) {
       // 没有Leader记录，插入自己
-      // @ts-ignore
+      // @ts-expect-error DB query type inference limitation
       await conn.execute(
-        // @ts-ignore
+        // @ts-expect-error Conditional type narrowing
         'INSERT INTO leader_election (lock_name, instance_id, last_heartbeat, acquired_at) VALUES (?, ?, ?, ?)',
         [ELECTION_LOCK_NAME, INSTANCE_ID, now, now]
       );
-      // @ts-ignore
+      // @ts-expect-error Async operation type inference
       await conn.commit();
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       conn.release();
       return true;
     }
     
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const currentLeader = rows[0];
     const lastHeartbeat = new Date(currentLeader.last_heartbeat);
     const timeSinceHeartbeat = now.getTime() - lastHeartbeat.getTime();
     
-    // @ts-ignore
+    // @ts-expect-error Dynamic property access
     if (currentLeader.instance_id === INSTANCE_ID) {
       // 自己就是Leader，续约心跳
-      // @ts-ignore
+      // @ts-expect-error DB query type inference limitation
       await conn.execute(
         'UPDATE leader_election SET last_heartbeat = ? WHERE lock_name = ?',
         [now, ELECTION_LOCK_NAME]
       );
-      // @ts-ignore
+      // @ts-expect-error Async operation type inference
       await conn.commit();
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       conn.release();
-      // @ts-ignore
+      // @ts-expect-error Return type compatibility
       return true;
-    // @ts-ignore
+    // @ts-expect-error Legacy code type compatibility
     }
     
     if (timeSinceHeartbeat > LEADER_TIMEOUT_MS) {
       // 当前Leader已超时，抢占
       log.warn(`[LeaderElection] v371: Leader ${currentLeader.instance_id} 心跳超时 (${Math.round(timeSinceHeartbeat / 1000)}秒)，尝试接管...`);
-      // @ts-ignore
+      // @ts-expect-error DB query type inference limitation
       await conn.execute(
         'UPDATE leader_election SET instance_id = ?, last_heartbeat = ?, acquired_at = ? WHERE lock_name = ?',
         [INSTANCE_ID, now, now, ELECTION_LOCK_NAME]
       );
-      // @ts-ignore
+      // @ts-expect-error Async operation type inference
       await conn.commit();
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       conn.release();
       logSystem('LeaderElection', 'v371: Leader接管', {
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         oldLeader: currentLeader.instance_id,
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         newLeader: INSTANCE_ID,
         timeoutMs: timeSinceHeartbeat,
       });
@@ -147,22 +147,22 @@ async function tryBecomeLeader(): Promise<boolean> {
     }
     
     // 当前Leader仍然活跃，竞选失败
-    // @ts-ignore
+    // @ts-expect-error Async operation type inference
     await conn.commit();
-    // @ts-ignore
+    // @ts-expect-error Legacy code type compatibility
     conn.release();
     return false;
   } catch (err: any) {
     if (conn) {
-      // @ts-ignore
+      // @ts-expect-error Complex function parameter types
       try { await conn.rollback(); } catch (e: any) { /* ignore */ }
-      // @ts-ignore
+      // @ts-expect-error Complex function parameter types
       try { conn.release(); } catch (e: any) { /* ignore */ }
-    // @ts-ignore
+    // @ts-expect-error Legacy code type compatibility
     }
     log.warn(`[LeaderElection] v371: 竞选异常: ${(err as Error).message}`);
     return false;
-  // @ts-ignore
+  // @ts-expect-error Legacy code type compatibility
   }
 }
 
@@ -171,21 +171,21 @@ async function tryBecomeLeader(): Promise<boolean> {
  */
 async function sendHeartbeat(): Promise<boolean> {
   let conn: unknown = null;
-  // @ts-ignore
+  // @ts-expect-error Legacy code type compatibility
   try {
     conn = await db.getDirectConnection(5000);
-    // @ts-ignore
+    // @ts-expect-error DB query type inference limitation
     const [result] = await conn.execute(
       'UPDATE leader_election SET last_heartbeat = NOW() WHERE lock_name = ? AND instance_id = ?',
       [ELECTION_LOCK_NAME, INSTANCE_ID]
     ) as unknown[];
-    // @ts-ignore
+    // @ts-expect-error Legacy code type compatibility
     conn.release();
     
     // 检查是否更新成功（如果被其他实例抢占，affectedRows=0）
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const affected = result?.affectedRows ?? 0;
-    // @ts-ignore
+    // @ts-expect-error Conditional type narrowing
     if (affected === 0) {
       log.warn(`[LeaderElection] v371: 心跳失败 - Leadership已被其他实例接管`);
       return false;
@@ -193,7 +193,7 @@ async function sendHeartbeat(): Promise<boolean> {
     
     return true;
   } catch (err: any) {
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     if (conn) try { conn.release(); } catch (e: any) { /* ignore */ }
     log.warn(`[LeaderElection] v371: 心跳异常: ${(err as Error).message}`);
     return false;
@@ -207,16 +207,16 @@ async function resignLeadership(): Promise<void> {
   let conn: unknown = null;
   try {
     conn = await db.getDirectConnection(5000);
-    // @ts-ignore
+    // @ts-expect-error DB query type inference limitation
     await conn.execute(
       'DELETE FROM leader_election WHERE lock_name = ? AND instance_id = ?',
       [ELECTION_LOCK_NAME, INSTANCE_ID]
     );
-    // @ts-ignore
+    // @ts-expect-error Legacy code type compatibility
     conn.release();
     log.info(`[LeaderElection] v371: 已放弃Leadership`);
   } catch (err: any) {
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     if (conn) try { conn.release(); } catch (e: any) { /* ignore */ }
     log.warn(`[LeaderElection] v371: 放徃Leadership异常: ${(err as Error).message}`);
   }

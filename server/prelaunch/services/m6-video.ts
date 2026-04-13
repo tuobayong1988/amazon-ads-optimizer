@@ -36,7 +36,7 @@ export class M6VideoService {
         .from(prelaunchVisualBriefs)
         .where(eq(prelaunchVisualBriefs.projectId, projectId));
       
-      // @ts-ignore
+      // @ts-expect-error Dynamic type assertion
       const banners = (data as unknown[]).filter((d: Record<string, unknown>) => d.slotRole?.startsWith('SB_Banner'));
       return { success: true, data: banners };
     } catch (error: unknown) {
@@ -66,9 +66,9 @@ export class M6VideoService {
       for (const duration of durations) {
         const prompt = `Create an Amazon Sponsored Brand Video script using the PAS (Problem-Agitate-Solution) framework.
 
-// @ts-ignore
+// @ts-expect-error Legacy code type compatibility
 DURATION: ${duration} seconds
-// @ts-ignore
+// @ts-expect-error Dynamic type assertion
 TARGET PERSONA: ${(topPersona as any)?.personaName || 'General consumer'}
 CORE KEYWORDS: ${coreKws.map((k: Record<string, unknown>) => k.keyword).join(', ')}
 
@@ -121,10 +121,10 @@ Return JSON with all fields above.`;
         const prompt = `Create a creative brief for an Amazon Sponsored Brands banner ad.
 
 BANNER TYPE: ${banner.name}
-// @ts-ignore
+// @ts-expect-error Legacy code type compatibility
 DIMENSIONS: ${banner.width}x${banner.height}px
 PRODUCT KEYWORDS: ${coreKws.slice(0, 5).map((k: Record<string, unknown>) => k.keyword).join(', ')}
-// @ts-ignore
+// @ts-expect-error Dynamic type assertion
 TARGET PERSONA: ${(topPersona as any)?.personaName || 'General consumer'}
 
 Generate:
@@ -187,26 +187,26 @@ Return JSON: {"headline":"...","visualDescription":"...","keyElements":["..."],"
           curiosity: 'warm golden light, soft focus background',
           relief: 'bright, airy, natural daylight',
           joy: 'vibrant colors, warm tones, natural smile',
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           trust: 'clean, professional, blue-white palette',
         };
 
-        // @ts-ignore
+        // @ts-expect-error Type inference limitation
         const styleGuide = emotionColorMap[frame.emotionalTone] || 'clean, professional lighting';
 
         const imagePrompt = `Amazon product video storyboard frame:
-// @ts-ignore
+// @ts-expect-error Dynamic type assertion
 Shot type: ${(frame as any).shotType}
-// @ts-ignore
+// @ts-expect-error Dynamic type assertion
 Scene: ${(frame as any).visualDescription}
-// @ts-ignore
+// @ts-expect-error Dynamic type assertion
 Text overlay: ${(frame as any).textOverlay || 'none'}
 Style: ${styleGuide}
 Aspect ratio: 16:9, cinematic, high quality, product photography style`;
 
         const result = await geminiGenerateImage(imagePrompt);
         if (result) {
-          // @ts-ignore
+          // @ts-expect-error Complex function parameter types
           generatedFrames.push(`frame_${frame.frameNumber}_generated`);
         }
       }

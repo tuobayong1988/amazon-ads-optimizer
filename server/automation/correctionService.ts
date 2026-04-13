@@ -342,20 +342,20 @@ export function generateRecommendations(corrections: CorrectionAnalysis[]): stri
     recommendations.push(`有${highConfidenceCorrections.length}个高置信度的纠错建议，建议优先处理`);
   }
 
-  // @ts-ignore
+  // @ts-expect-error Type inference limitation
   const totalLostRevenue = corrections.reduce((sum: number, c: Record<string, unknown>) => sum + c.impactAnalysis.estimatedLostRevenue, 0);
-  // @ts-ignore
+  // @ts-expect-error Type inference limitation
   const totalWastedSpend = corrections.reduce((sum: number, c: Record<string, unknown>) => sum + c.impactAnalysis.estimatedWastedSpend, 0);
   
-  // @ts-ignore
+  // @ts-expect-error Conditional type narrowing
   if (totalLostRevenue > 1000) {
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     recommendations.push(`预估因过度降价损失收入$${totalLostRevenue.toFixed(2)}，建议及时纠正`);
   }
   
-  // @ts-ignore
+  // @ts-expect-error Conditional type narrowing
   if (totalWastedSpend > 500) {
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     recommendations.push(`预估因过度加价浪费花费$${totalWastedSpend.toFixed(2)}，建议及时纠正`);
   }
 

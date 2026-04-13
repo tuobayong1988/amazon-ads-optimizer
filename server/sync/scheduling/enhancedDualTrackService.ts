@@ -301,9 +301,9 @@ function latestWinsMerge(apiData: unknown[], amsData: unknown[]): unknown[] {
   
   // 合并所有数据，按更新时间排序
   const allData = [...apiData, ...amsData].sort((a: unknown, b: unknown) => {
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const timeA = new Date(a.updatedAt || a.lastUpdateTime || 0).getTime();
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const timeB = new Date(b.updatedAt || b.lastUpdateTime || 0).getTime();
     return timeB - timeA;
   });
@@ -488,17 +488,17 @@ export async function getTimelineAggregatedData(
       impressions: Number(row.impressions) || 0,
       clicks: Number(row.clicks) || 0,
       spend: Number(row.spend) || 0,
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       sales: Number(row.sales) || 0,
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       orders: Number(row.orders) || 0,
-      // @ts-ignore
+      // @ts-expect-error Dynamic property access
       ctr: row.impressions > 0 ? (row.clicks / row.impressions) * 100 : 0,
-      // @ts-ignore
+      // @ts-expect-error Dynamic property access
       cvr: row.clicks > 0 ? (row.orders / row.clicks) * 100 : 0,
-      // @ts-ignore
+      // @ts-expect-error Dynamic property access
       acos: row.sales > 0 ? (row.spend / row.sales) * 100 : 0,
-      // @ts-ignore
+      // @ts-expect-error Dynamic property access
       roas: row.spend > 0 ? row.sales / row.spend : 0,
     }));
 
@@ -628,7 +628,7 @@ export async function getRealtimeDashboardData(
         todaySpend: spend,
         todayClicks: Number(result.clicks) || 0,
         todayImpressions: Number(result.impressions) || 0,
-        // @ts-ignore
+        // @ts-expect-error Conditional type narrowing
         lastUpdate: result.lastUpdate ? new Date(result.lastUpdate) : null,
       },
       untrusted: {

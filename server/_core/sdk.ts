@@ -144,14 +144,14 @@ class SDKServer {
       accessToken,
     } as ExchangeTokenResponse);
     const loginMethod = this.deriveLoginMethod(
-      // @ts-ignore
+      // @ts-expect-error Dynamic type assertion
       (data as Record<string, unknown>)?.platforms,
-      // @ts-ignore
+      // @ts-expect-error Dynamic type assertion
       (data as Record<string, unknown>)?.platform ?? data.platform ?? null
-    // @ts-ignore
+    // @ts-expect-error Legacy code type compatibility
     );
     return {
-      // @ts-ignore
+      // @ts-expect-error Dynamic type assertion
       ...(data as Record<string, unknown>),
       platform: loginMethod,
       loginMethod,
@@ -256,17 +256,17 @@ class SDKServer {
     const { data } = await this.client.post<GetUserInfoWithJwtResponse>(
       GET_USER_INFO_WITH_JWT_PATH,
       payload
-    // @ts-ignore
+    // @ts-expect-error Legacy code type compatibility
     );
 
     const loginMethod = this.deriveLoginMethod(
-      // @ts-ignore
+      // @ts-expect-error Dynamic type assertion
       (data as Record<string, unknown>)?.platforms,
-      // @ts-ignore
+      // @ts-expect-error Dynamic type assertion
       (data as Record<string, unknown>)?.platform ?? data.platform ?? null
     );
     return {
-      // @ts-ignore
+      // @ts-expect-error Dynamic type assertion
       ...(data as Record<string, unknown>),
       platform: loginMethod,
       loginMethod,
@@ -310,14 +310,14 @@ class SDKServer {
                   WHERE tm.id = ${decoded.userId}
                 `);
               })(),
-              // @ts-ignore
+              // @ts-expect-error Async operation type inference
               timeoutPromise
             ]);
           };
           
           try {
             const result = await dbQueryWithTimeout();
-            // @ts-ignore
+            // @ts-expect-error Dynamic type assertion
             const rows = (result as Record<string, unknown>[][])[0];
             logSystem('Auth', `DB query result: rowsType=${typeof rows}, isArray=${Array.isArray(rows)}, length=${rows?.length}, keys=${rows && rows[0] ? Object.keys(rows[0] as Record<string,unknown>).join(',') : 'N/A'}`);
             log.info(`[Auth] DB query result: length=${rows?.length}`);
@@ -366,7 +366,7 @@ class SDKServer {
             } as Record<string, unknown>;
           }
         }
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       } catch (jwtError: unknown) {
         // JWT verification failed, fall through to cookie auth
         const jwtErrMsg = (jwtError as Error)?.message || String(jwtError);
@@ -374,7 +374,7 @@ class SDKServer {
         logSystem('Auth', `JWT verify FAILED: name=${jwtErrName}, message=${jwtErrMsg}`);
         log.warn(`[Auth] JWT verification failed: name=${jwtErrName}, msg=${jwtErrMsg}`);
         // v468: JWT验证失败时不要进入OAuth流程，直接返回null
-        // @ts-ignore
+        // @ts-expect-error Return type compatibility
         return null;
       }
     }

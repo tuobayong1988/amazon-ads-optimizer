@@ -383,7 +383,7 @@ export async function executeBudgetAllocation(configId: number): Promise<{
         changeReason: suggestion.reasons.join('; '),
         // @ts-expect-error - dynamic property access
         performanceScore: String((suggestion as Record<string, unknown>).compositeScore || 0),
-        // @ts-ignore
+        // @ts-expect-error Dynamic type assertion
         confidence: String((suggestion as Record<string, unknown>).confidence || 0),
         apiSyncStatus: 'pending',
       } as Record<string, unknown>);

@@ -173,7 +173,7 @@ export async function analyzePlacementRoi(
     if (placements.length === 0) return emptyReport;
     
     // 找出最佳和最差位置
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const sortedByRoas = [...placements].sort((a: unknown, b: unknown) => b.roas - a.roas);
     const bestPlacement = sortedByRoas[0]?.placement || null;
     const worstPlacement = sortedByRoas[sortedByRoas.length - 1]?.placement || null;

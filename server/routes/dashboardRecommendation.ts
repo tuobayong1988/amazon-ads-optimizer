@@ -28,7 +28,7 @@ export const dashboardRecommendationRouter = router({
    */
   scan: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       return await scanDashboardRecommendations(input.accountId);
@@ -60,9 +60,9 @@ export const dashboardRecommendationRouter = router({
         suggestedAction: z.enum(['add_negative_exact', 'reduce_bid_90']),
         actionLabel: z.string(),
       })),
-    // @ts-ignore
+    // @ts-expect-error Legacy code type compatibility
     }))
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .mutation(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       log.info(`[紧急止血] 用户 #${ctx.user.id} 执行 ${input.itemIds.length} 项优化`);
@@ -97,10 +97,10 @@ export const dashboardRecommendationRouter = router({
         reductionPercent: z.number(),
         suggestedAction: z.enum(['reduce_bid']),
         actionLabel: z.string(),
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       })),
     }))
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .mutation(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       log.info(`[高ACOS抑制] 用户 #${ctx.user.id} 执行 ${input.itemIds.length} 项优化`);
@@ -113,11 +113,11 @@ export const dashboardRecommendationRouter = router({
   executeGoalAdjustment: protectedProcedure
     .input(z.object({
       accountId: z.number(),
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       campaignDbIds: z.array(z.number()),
       performanceGroupId: z.number(),
     }))
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .mutation(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       log.info(`[优化目标调整] 用户 #${ctx.user.id} 将 ${input.campaignDbIds.length} 个广告活动分配到绩效组 #${input.performanceGroupId}`);
@@ -132,20 +132,20 @@ export const dashboardRecommendationRouter = router({
       accountId: z.number(),
       queryType: z.enum(['daily_overview', 'by_campaign_type', 'by_campaign', 'by_keyword', 'by_search_term', 'campaign_details']),
       startDate: z.string().default('2026-02-01'),
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       endDate: z.string().default('2026-03-24'),
       campaignId: z.string().optional(),
       limit: z.number().default(500),
     }))
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .query(async ({ input }: unknown) => {
-      // @ts-ignore
+      // @ts-expect-error Type inference limitation
       const db_ = await getDb();
       const { accountId, queryType, startDate, endDate, limit } = input;
       try {
         if (queryType === 'daily_overview') {
           // 逐天整体广告表现
-          // @ts-ignore
+          // @ts-expect-error DB query type inference limitation
           const result = await db_.execute(sql`
  SELECT 
  DATE(date) as report_date,
@@ -169,7 +169,7 @@ export const dashboardRecommendationRouter = router({
         }
         if (queryType === 'by_campaign_type') {
           // 按广告类型(SP/SB/SD)逐天分解
-          // @ts-ignore
+          // @ts-expect-error DB query type inference limitation
           const result = await db_.execute(sql`
  SELECT 
  DATE(dp.date) as report_date,
@@ -192,7 +192,7 @@ export const dashboardRecommendationRouter = router({
         }
         if (queryType === 'by_campaign') {
           // 按广告活动汇总（整个时间段）- v502.4: 修正列名为camelCase
-          // @ts-ignore
+          // @ts-expect-error DB query type inference limitation
           const result = await db_.execute(sql`
  SELECT 
  dp.campaignId,
@@ -221,7 +221,7 @@ export const dashboardRecommendationRouter = router({
         }
         if (queryType === 'campaign_details') {
           // 单个广告活动的逐天表现
-          // @ts-ignore
+          // @ts-expect-error DB query type inference limitation
           const result = await db_.execute(sql`
  SELECT 
  DATE(date) as report_date,
@@ -239,7 +239,7 @@ export const dashboardRecommendationRouter = router({
         }
         if (queryType === 'by_keyword') {
           // v502.4: 按投放词汇总 - 使用keywords表自身的累计数据
-          // @ts-ignore
+          // @ts-expect-error DB query type inference limitation
           const result = await db_.execute(sql`
  SELECT 
  k.id as keyword_id,
@@ -267,7 +267,7 @@ export const dashboardRecommendationRouter = router({
         }
         if (queryType === 'by_search_term') {
           // 按搜索词汇总 - 花费最高的搜索词
-          // @ts-ignore
+          // @ts-expect-error DB query type inference limitation
           const result = await db_.execute(sql`
             SELECT 
               st.searchTerm as search_term,

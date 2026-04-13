@@ -92,7 +92,7 @@ export async function identifyProductLifecycle(
   }
 
   const campaignData = campaign[0] as unknown;
-  // @ts-ignore
+  // @ts-expect-error Type inference limitation
   const createdAt = campaignData.createdAt ? new Date(campaignData.createdAt) : new Date();
   const daysActive = Math.floor((Date.now() - createdAt.getTime()) / (1000 * 60 * 60 * 24));
 
@@ -110,22 +110,22 @@ export async function identifyProductLifecycle(
     .orderBy(desc(dailyPerformance.date));
 
   // 计算关键指标
-  // @ts-ignore
+  // @ts-expect-error Type inference limitation
   const totalImpressions = performanceData.reduce((sum: number, d: Record<string, unknown>) => sum + (d.impressions || 0), 0);
-  // @ts-ignore
+  // @ts-expect-error Type inference limitation
   const totalOrders = performanceData.reduce((sum: number, d: Record<string, unknown>) => sum + (d.orders || 0), 0);
   const totalSpend = performanceData.reduce((sum: number, d: Record<string, unknown>) => sum + parseFloat(String(d.spend || 0)), 0);
   const totalSales = performanceData.reduce((sum: number, d: Record<string, unknown>) => sum + parseFloat(String(d.sales || 0)), 0);
 
   const avgDailyImpressions = totalImpressions / Math.max(performanceData.length, 1);
   const avgDailyOrders = totalOrders / Math.max(performanceData.length, 1);
-  // @ts-ignore
+  // @ts-expect-error Type inference limitation
   const avgAcos = totalSales > 0 ? (totalSpend / totalSales) * 100 : 100;
 
   // 计算销量趋势
-  // @ts-ignore
+  // @ts-expect-error Type inference limitation
   const firstHalfOrders = performanceData.slice(0, 15).reduce((sum: number, d: Record<string, unknown>) => sum + (d.orders || 0), 0);
-  // @ts-ignore
+  // @ts-expect-error Type inference limitation
   const secondHalfOrders = performanceData.slice(15).reduce((sum: number, d: Record<string, unknown>) => sum + (d.orders || 0), 0);
   const trendChange = secondHalfOrders - firstHalfOrders;
   const salesTrend: 'up' | 'down' | 'stable' = 
@@ -276,9 +276,9 @@ export function mergeStrategies(
  */
 function calculateAggressiveness(template: unknown): number {
   // 基于目标ACoS和出价倍数计算
-  // @ts-ignore
+  // @ts-expect-error Type inference limitation
   const acosScore = (template.targetAcos - 15) / 35; // 归一化到0-1
-  // @ts-ignore
+  // @ts-expect-error Amazon API response type flexibility
   const bidScore = (template.bidMultiplier - 0.8) / 0.7; // 归一化到0-1
   return Math.max(0, Math.min(1, (acosScore + bidScore) / 2));
 }

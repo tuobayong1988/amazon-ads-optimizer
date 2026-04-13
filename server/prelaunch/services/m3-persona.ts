@@ -93,7 +93,7 @@ Write in first person, as if this persona is describing their shopping experienc
         const narrative = await geminiStructuredOutput<{ narrative: string }>('', 
           `${narrativePrompt}\n\nReturn JSON: {"narrative":"..."}`, { temperature: 0.6 });
 
-        // @ts-ignore
+        // @ts-expect-error DB query type inference limitation
         await db.insert(prelaunchPersonas).values({
           projectId,
           personaName: persona.personaName,

@@ -331,7 +331,7 @@ export function validateEntityUpdate(
   switch (updateType) {
     case 'keyword_bid':
     case 'keyword_status':
-      // @ts-ignore
+      // @ts-expect-error Complex function parameter types
       if (!params.keywordId || !isValidAmazonId(params.keywordId)) {
         result.valid = false;
         result.errors.push(`Invalid Amazon keywordId: '${params.keywordId}'. Must be a numeric string.`);
@@ -343,9 +343,9 @@ export function validateEntityUpdate(
       break;
 
     case 'target_bid':
-    // @ts-ignore
+    // @ts-expect-error Legacy code type compatibility
     case 'target_status':
-      // @ts-ignore
+      // @ts-expect-error Complex function parameter types
       if (!params.targetId || !isValidAmazonId(params.targetId)) {
         result.valid = false;
         result.errors.push(`Invalid Amazon targetId: '${params.targetId}'. Must be a numeric string.`);
@@ -356,43 +356,43 @@ export function validateEntityUpdate(
       }
       break;
 
-    // @ts-ignore
+    // @ts-expect-error Legacy code type compatibility
     case 'campaign_budget':
     case 'campaign_status':
-      // @ts-ignore
+      // @ts-expect-error Complex function parameter types
       if (!params.campaignId || !isValidAmazonId(params.campaignId)) {
         result.valid = false;
         result.errors.push(`Invalid Amazon campaignId: '${params.campaignId}'. Must be a numeric string.`);
       }
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       break;
 
     case 'adGroup_status':
-      // @ts-ignore
+      // @ts-expect-error Complex function parameter types
       if (!params.adGroupId || !isValidAmazonId(params.adGroupId)) {
         result.valid = false;
         result.errors.push(`Invalid Amazon adGroupId: '${params.adGroupId}'. Must be a numeric string.`);
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       }
       break;
 
     case 'create_keyword':
-      // @ts-ignore
+      // @ts-expect-error Complex function parameter types
       if (!params.adGroupId || !isValidAmazonId(params.adGroupId)) {
         result.valid = false;
         result.errors.push(`Invalid Amazon adGroupId for keyword creation: '${params.adGroupId}'.`);
       }
-      // @ts-ignore
+      // @ts-expect-error Complex function parameter types
       if (!params.campaignId || !isValidAmazonId(params.campaignId)) {
         result.valid = false;
-        // @ts-ignore
+        // @ts-expect-error Complex function parameter types
         result.errors.push(`Invalid Amazon campaignId for keyword creation: '${params.campaignId}'.`);
       }
       if (!params.keywordText || typeof params.keywordText !== 'string' || params.keywordText.trim().length === 0) {
         result.valid = false;
         result.errors.push(`Invalid keywordText: must be a non-empty string.`);
       }
-      // @ts-ignore
+      // @ts-expect-error Dynamic property access
       if (!params.matchType || !['EXACT', 'PHRASE', 'BROAD'].includes(params.matchType)) {
         result.valid = false;
         result.errors.push(`Invalid matchType: '${params.matchType}'. Must be EXACT, PHRASE, or BROAD.`);
@@ -400,28 +400,28 @@ export function validateEntityUpdate(
       break;
 
     case 'create_negative_keyword':
-      // @ts-ignore
+      // @ts-expect-error Complex function parameter types
       if (!params.campaignId || !isValidAmazonId(params.campaignId)) {
         result.valid = false;
         result.errors.push(`Invalid Amazon campaignId for negative keyword: '${params.campaignId}'.`);
       }
       // adGroupId is optional for campaign-level negative keywords
-      // @ts-ignore
+      // @ts-expect-error Complex function parameter types
       if (params.adGroupId && !isValidAmazonId(params.adGroupId)) {
         result.valid = false;
-        // @ts-ignore
+        // @ts-expect-error Complex function parameter types
         result.errors.push(`Invalid Amazon adGroupId for negative keyword: '${params.adGroupId}'.`);
       }
       break;
 
     case 'create_negative_target':
-      // @ts-ignore
+      // @ts-expect-error Complex function parameter types
       if (!params.adGroupId || !isValidAmazonId(params.adGroupId)) {
-        // @ts-ignore
+        // @ts-expect-error Dynamic property access
         result.valid = false;
         result.errors.push(`Invalid Amazon adGroupId for negative target: '${params.adGroupId}'.`);
       }
-      // @ts-ignore
+      // @ts-expect-error Complex function parameter types
       if (!params.campaignId || !isValidAmazonId(params.campaignId)) {
         result.valid = false;
         result.errors.push(`Invalid Amazon campaignId for negative target: '${params.campaignId}'.`);
@@ -429,12 +429,12 @@ export function validateEntityUpdate(
       break;
 
     case 'create_product_target':
-      // @ts-ignore
+      // @ts-expect-error Complex function parameter types
       if (!params.adGroupId || !isValidAmazonId(params.adGroupId)) {
         result.valid = false;
         result.errors.push(`Invalid Amazon adGroupId for product target: '${params.adGroupId}'.`);
       }
-      // @ts-ignore
+      // @ts-expect-error Complex function parameter types
       if (!params.campaignId || !isValidAmazonId(params.campaignId)) {
         result.valid = false;
         result.errors.push(`Invalid Amazon campaignId for product target: '${params.campaignId}'.`);

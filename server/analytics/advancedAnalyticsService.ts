@@ -253,7 +253,7 @@ async function computeEventAttribution(db: DbInstance, event: OptimizationEvent)
     eventId: event.id,
     eventCategory: event.eventCategory,
     actionType: event.actionType,
-    // @ts-ignore
+    // @ts-expect-error Legacy code type compatibility
     campaignId: event.campaignId,
     campaignName: event.campaignName,
     keywordText: event.keywordText,
@@ -506,9 +506,9 @@ function calculateMovingAverage(
   
   const result: { date: string; value: number }[] = [];
   for (let i = window - 1; i < data.length; i++) {
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const windowData = data.slice(i - window + 1, i + 1);
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const avg = windowData.reduce((sum: number, d: Record<string, unknown>) => sum + d.value, 0) / window;
     result.push({ date: data[i].date, value: Math.round(avg * 100) / 100 });
   }
@@ -628,9 +628,9 @@ export async function detectAnomalies(params: {
     const values = enrichedData.map(d => (d as Record<string, unknown>)[metric] as number);
     
     // 计算均值和标准差
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const mean = values.reduce((a: unknown, b: unknown) => a + b, 0) / values.length;
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const variance = values.reduce((sum: number, v: Record<string, unknown>) => sum + Math.pow(v - mean, 2), 0) / values.length;
     const stdDev = Math.sqrt(variance);
     
@@ -681,7 +681,7 @@ export async function detectAnomalies(params: {
       // @ts-expect-error - runtime type mismatch
       return severityOrder[a.severity] - severityOrder[b.severity];
     }
-    // @ts-ignore
+    // @ts-expect-error Return type compatibility
     return b.date.localeCompare(a.date);
   });
 }
@@ -832,22 +832,22 @@ export async function getStrategyROIComparison(params: {
     const bidIncreases = bidEvents.filter(e => parseFloat(e.bidChangePercent || '0') > 0).length;
     const bidDecreases = bidEvents.filter(e => parseFloat(e.bidChangePercent || '0') < 0).length;
     const avgBidChange = bidEvents.length > 0
-      // @ts-ignore
+      // @ts-expect-error Amazon API response type flexibility
       ? bidEvents.reduce((sum: number, e: Record<string, unknown>) => sum + parseFloat(e.bidChangePercent || '0'), 0) / bidEvents.length
       : 0;
     
     // 效果追踪统计
-    // @ts-ignore
+    // @ts-expect-error Dynamic property access
     const trackedEvents = group.events.filter(e => e.actualProfit7D !== null);
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const totalEstimatedProfit = group.events.reduce((sum: number, e: Record<string, unknown>) => sum + parseFloat(e.expectedProfitIncrease || '0'), 0);
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const totalActualProfit7D = trackedEvents.reduce((sum: number, e: Record<string, unknown>) => sum + parseFloat(e.actualProfit7D || '0'), 0);
     const totalActualProfit14D = group.events.filter(e => e.actualProfit14D !== null)
-      // @ts-ignore
+      // @ts-expect-error Array method type inference
       .reduce((sum: number, e: Record<string, unknown>) => sum + parseFloat(e.actualProfit14D || '0'), 0);
     const totalActualProfit30D = group.events.filter(e => e.actualProfit30D !== null)
-      // @ts-ignore
+      // @ts-expect-error Array method type inference
       .reduce((sum: number, e: Record<string, unknown>) => sum + parseFloat(e.actualProfit30D || '0'), 0);
     
     // 计算ROI
@@ -888,7 +888,7 @@ export async function getStrategyROIComparison(params: {
       totalActualProfit14D: Math.round(totalActualProfit14D * 100) / 100,
       totalActualProfit30D: Math.round(totalActualProfit30D * 100) / 100,
       roi7D: roi7D !== null ? Math.round(roi7D * 100) / 100 : null,
-      // @ts-ignore
+      // @ts-expect-error Conditional type narrowing
       roi14D: roi14D !== null ? Math.round(roi14D * 100) / 100 : null,
       roi30D: roi30D !== null ? Math.round(roi30D * 100) / 100 : null,
       profitAccuracy: profitAccuracy !== null ? Math.round(profitAccuracy * 100) / 100 : null,
@@ -899,7 +899,7 @@ export async function getStrategyROIComparison(params: {
   }
   
   // 按总事件数排序
-  // @ts-ignore
+  // @ts-expect-error Return type compatibility
   return results.sort((a: unknown, b: unknown) => b.totalEvents - a.totalEvents);
 }
 
@@ -960,7 +960,7 @@ export async function getAdvancedAnalyticsSummary(params: {
   
   // 获取策略ROI数据
   const strategyROI = await getStrategyROIComparison({
-    // @ts-ignore
+    // @ts-expect-error Legacy code type compatibility
     accountId: params.accountId,
     performanceGroupId: params.performanceGroupId,
     days,
@@ -969,11 +969,11 @@ export async function getAdvancedAnalyticsSummary(params: {
   
   const validStrategies = strategyROI.filter(s => s.roi7D !== null && s.totalEvents >= 5);
   const bestStrategy = validStrategies.length > 0
-    // @ts-ignore
+    // @ts-expect-error Conditional type narrowing
     ? validStrategies.reduce((best: unknown, s: unknown) => (s.roi7D || 0) > (best.roi7D || 0) ? s : best)
     : null;
   const worstStrategy = validStrategies.length > 0
-    // @ts-ignore
+    // @ts-expect-error Conditional type narrowing
     ? validStrategies.reduce((worst: unknown, s: unknown) => (s.roi7D || 0) < (worst.roi7D || 0) ? s : worst)
     : null;
   

@@ -411,7 +411,7 @@ export async function triggerCollaborationNotification(params: {
     .from(teamMembers)
     .where(and(eq(teamMembers.status, "active")));
   
-  // @ts-ignore
+  // @ts-expect-error Dynamic property access
   const recipients = members.filter((m: unknown) => m.memberId !== actionUserId);
   
   if (recipients.length === 0) {
@@ -461,9 +461,9 @@ export async function triggerCollaborationNotification(params: {
       actionUserName,
       targetType: targetType || null,
       targetId: targetId || null,
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       targetName: targetName || null,
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       accountId: accountId || null,
       accountName: accountName || null,
       channel: "app",
@@ -487,10 +487,10 @@ export async function triggerCollaborationNotification(params: {
         actionUserId,
         actionUserName,
         targetType: targetType || null,
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         targetId: targetId || null,
         targetName: targetName || null,
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         accountId: accountId || null,
         accountName: accountName || null,
         channel: "email",

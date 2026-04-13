@@ -219,7 +219,7 @@ async function getAmsSyncStatus(db: DbInstance, accountId: number): Promise<Sync
     const sqsConsumer = getSQSConsumer();
     const consumerStatuses = sqsConsumer.getStatus();
     const hasRunningConsumers = consumerStatuses.some(s => s.isRunning);
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const totalMessagesProcessed = consumerStatuses.reduce((sum: number, s: Record<string, unknown>) => sum + s.messagesProcessed, 0);
     const lastProcessedAt = consumerStatuses
       .map(s => s.lastProcessedAt)
@@ -256,36 +256,36 @@ async function getAmsSyncStatus(db: DbInstance, accountId: number): Promise<Sync
     
     if (!hasRunningConsumers) {
       status = 'error';
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       errorMessage = 'SQS消费者服务未运行';
-    // @ts-ignore
+    // @ts-expect-error Conditional type narrowing
     } else if (!hasRecentAmsData && totalMessagesProcessed === 0) {
       status = 'degraded';
       errorMessage = '24小时内没有收到AMS数据';
-    // @ts-ignore
+    // @ts-expect-error Conditional type narrowing
     } else {
       status = 'healthy';
-      // @ts-ignore
+      // @ts-expect-error Conditional type narrowing
       recordCount = Math.max(totalMessagesProcessed, amsData?.totalRecords || 0);
     }
 
-    // @ts-ignore
+    // @ts-expect-error Return type compatibility
     return {
       source: 'ams',
       lastSyncAt,
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       recordCount,
       status,
       errorMessage,
     };
   } catch (error: unknown) {
     // 如果查询失败，尝试只检查SQS消费者状态
-    // @ts-ignore
+    // @ts-expect-error Legacy code type compatibility
     try {
       const sqsConsumer = getSQSConsumer();
       const consumerStatuses = sqsConsumer.getStatus();
       const hasRunningConsumers = consumerStatuses.some(s => s.isRunning);
-      // @ts-ignore
+      // @ts-expect-error Type inference limitation
       const totalMessagesProcessed = consumerStatuses.reduce((sum: number, s: Record<string, unknown>) => sum + s.messagesProcessed, 0);
       const lastProcessedAt = consumerStatuses
         .map(s => s.lastProcessedAt)
@@ -297,7 +297,7 @@ async function getAmsSyncStatus(db: DbInstance, accountId: number): Promise<Sync
         return {
           source: 'ams',
           lastSyncAt: lastProcessedAt ? new Date(lastProcessedAt) : null,
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           recordCount: totalMessagesProcessed,
           status: 'healthy',
           errorMessage: undefined,
@@ -727,19 +727,19 @@ export async function getRealtimeSpendForGuard(
  ${campaignId ? sql`AND campaignId = ${campaignId}` : sql``}
  `) as unknown;
 
-      // @ts-ignore
+      // @ts-expect-error Dynamic property access
       result = Array.isArray(apiRows) && apiRows.length > 0 ? apiRows[0] : null;
-    // @ts-ignore
+    // @ts-expect-error Legacy code type compatibility
     }
 
     return {
-      // @ts-ignore
+      // @ts-expect-error Conditional type narrowing
       todaySpend: result?.todaySpend || 0,
-      // @ts-ignore
+      // @ts-expect-error Conditional type narrowing
       todayClicks: result?.todayClicks || 0,
-      // @ts-ignore
+      // @ts-expect-error Conditional type narrowing
       todayImpressions: result?.todayImpressions || 0,
-      // @ts-ignore
+      // @ts-expect-error Conditional type narrowing
       lastUpdateTime: result?.lastUpdateTime ? new Date(result.lastUpdateTime) : null,
       dataSource,
       warning: dataSource === 'api' ? '使用API数据，可能有延迟' : undefined,

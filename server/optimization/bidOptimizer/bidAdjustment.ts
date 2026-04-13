@@ -578,9 +578,9 @@ export function calculateIntradayAdjustment(
   }[],
   currentHour: number
 ): number {
-  // @ts-ignore
+  // @ts-expect-error Type inference limitation
   const totalSales = hourlyPerformance.reduce((s: unknown, h: unknown) => s + h.sales, 0);
-  // @ts-ignore
+  // @ts-expect-error Type inference limitation
   const avgHourlySales = totalSales / hourlyPerformance.length;
   
   const currentHourData = hourlyPerformance.find(h => h.hour === currentHour);

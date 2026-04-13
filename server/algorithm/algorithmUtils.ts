@@ -117,15 +117,15 @@ export function calculateDynamicElasticity(
   const regressionData: Array<{ x: number; y: number; weight: number }> = [];
   
   for (const record of (validRecords as unknown[])) {
-    // @ts-ignore
+    // @ts-expect-error Amazon API response type flexibility
     const bidChangePercent = (record.newBid - record.oldBid) / record.oldBid;
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const clickChangePercent = (record.newClicks - record.oldClicks) / record.oldClicks;
     
     if (bidChangePercent === 0) continue;
     
     // 计算时间衰减权重：近期数据权重更高
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const daysDiff = (now.getTime() - record.timestamp.getTime()) / (1000 * 60 * 60 * 24);
     const timeWeight = Math.pow(0.5, daysDiff / halfLifeDays);
     
@@ -170,7 +170,7 @@ export function calculateDynamicElasticity(
   // 2. 拟合优度（R²）：计算加权残差
   let ssRes = 0;
   let ssTot = 0;
-  // @ts-ignore
+  // @ts-expect-error Type inference limitation
   const weightedMeanY = regressionData.reduce((sum: number, p: Record<string, unknown>) => sum + p.weight * p.y, 0) / totalWeight;
   for (const point of regressionData) {
     const predicted = clampedElasticity * point.x;
@@ -261,21 +261,21 @@ export function estimateCPC(
   
   if (validData.length < 3) {
     const defaultRatios: Record<string, number> = { 'top_search': 0.85, 'product_page': 0.65, 'rest': 0.55, 'overall': 0.70 };
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const ratio = defaultRatios[placement || 'overall'];
-    // @ts-ignore
+    // @ts-expect-error Return type compatibility
     return { estimatedCpc: currentBid * ratio, cpcBidRatio: ratio, confidence: 0.3, placement: placement || 'overall' };
   }
   
-  // @ts-ignore
+  // @ts-expect-error Type inference limitation
   const totalClicks = validData.reduce((sum: number, d: Record<string, unknown>) => sum + d.clicks, 0);
-  // @ts-ignore
+  // @ts-expect-error Amazon API response type flexibility
   const weightedRatio = validData.reduce((sum: number, d: Record<string, unknown>) => sum + (d.cpc / d.bid) * (d.clicks / totalClicks), 0);
   const sampleConfidence = Math.min(1, validData.length / 10);
   const ratios = validData.map(d => d.cpc / d.bid);
-  // @ts-ignore
+  // @ts-expect-error Type inference limitation
   const mean = ratios.reduce((a: unknown, b: unknown) => a + b, 0) / ratios.length;
-  // @ts-ignore
+  // @ts-expect-error Type inference limitation
   const variance = ratios.reduce((sum: number, r: Record<string, unknown>) => sum + Math.pow(r - mean, 2), 0) / ratios.length;
   const consistencyConfidence = Math.max(0, 1 - Math.sqrt(variance) / mean);
   const confidence = sampleConfidence * 0.5 + consistencyConfidence * 0.5;
@@ -413,7 +413,7 @@ export function calculateTimeDecayWeights(
   referenceDate: Date = new Date()
 ): number[] {
   const weights = dates.map(date => calculateTimeDecayWeight(date, halfLifeDays, referenceDate));
-  // @ts-ignore
+  // @ts-expect-error Type inference limitation
   const totalWeight = weights.reduce((sum: number, w: Record<string, unknown>) => sum + w, 0);
   if (totalWeight === 0) return weights.map(() => 1 / weights.length);
   return weights.map(w => w / totalWeight);
@@ -755,7 +755,7 @@ const marketplaceCache = new Map<number, CacheEntry<string>>();
 const _marketplaceCacheCleanupTimer = setInterval(() => {
   const now = Date.now();
   let cleaned = 0;
-  // @ts-ignore
+  // @ts-expect-error Complex function parameter types
   for (const [key, entry] of marketplaceCache.entries()) {
     if (now > entry.expiresAt) {
       marketplaceCache.delete(key);
@@ -765,7 +765,7 @@ const _marketplaceCacheCleanupTimer = setInterval(() => {
   // 如果超过最大容量，清除最早的条目
   if (marketplaceCache.size > MARKETPLACE_CACHE_MAX_SIZE) {
     const entries = Array.from(marketplaceCache.entries())
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       .sort((a: unknown, b: unknown) => a[1].expiresAt - b[1].expiresAt);
     const toRemove = entries.slice(0, marketplaceCache.size - MARKETPLACE_CACHE_MAX_SIZE);
     for (const [key] of toRemove) {

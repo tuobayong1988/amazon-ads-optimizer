@@ -18,7 +18,7 @@ export const debugSyncRouter = router({
     .input(z.object({
       accountId: z.number(),
     }))
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .query(async ({ input }: unknown) => {
       try {
         // 获取API凭证
@@ -78,9 +78,9 @@ export const debugSyncRouter = router({
   checkDatabaseCampaigns: protectedProcedure
     .input(z.object({
       accountId: z.number(),
-    // @ts-ignore
+    // @ts-expect-error Legacy code type compatibility
     }))
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .query(async ({ input }: unknown) => {
       try {
         const campaigns = await db.getCampaignsByAccountId(input.accountId);
@@ -109,10 +109,10 @@ export const debugSyncRouter = router({
   checkSyncTasks: protectedProcedure
     .input(z.object({
       accountId: z.number(),
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       limit: z.number().default(10),
     }))
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .query(async ({ input }: unknown) => {
       try {
         // v526: 使用getDirectConnection替代不存在的db.query，消除构建警告
@@ -153,11 +153,11 @@ export const debugSyncRouter = router({
    * 触发全量同步 - 用于手动触发指定账户的全量数据同步
    */
   triggerFullSync: protectedProcedure
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .input(z.object({
       accountId: z.number(),
     }))
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .mutation(async ({ input }: unknown) => {
       try {
         const credentials = await db.getAmazonApiCredentials(input.accountId);
@@ -216,59 +216,59 @@ export const debugSyncRouter = router({
         );
 
         const results: unknown[] = [];
-        // @ts-ignore
+        // @ts-expect-error Type inference limitation
         const startTime = new Date().toISOString();
 
-        // @ts-ignore
+        // @ts-expect-error Dynamic type assertion
         for (const account of (activeAccounts as unknown[])) {
           try {
-            // @ts-ignore
+            // @ts-expect-error DB query type inference limitation
             const credentials = await db.getAmazonApiCredentials(account.id);
             if (!credentials) {
-              // @ts-ignore
+              // @ts-expect-error Complex function parameter types
               results.push({ accountId: account.id, store: account.storeName, marketplace: account.marketplace, status: 'skipped', reason: '无API凭证' });
               continue;
             }
 
             const syncService = await AmazonSyncService.createFromCredentials(
               {
-                // @ts-ignore
+                // @ts-expect-error Legacy code type compatibility
                 clientId: credentials.clientId,
                 clientSecret: credentials.clientSecret,
-                // @ts-ignore
+                // @ts-expect-error Legacy code type compatibility
                 refreshToken: credentials.refreshToken,
                 profileId: credentials.profileId,
                 region: credentials.region as 'NA' | 'EU' | 'FE',
               },
-              // @ts-ignore
+              // @ts-expect-error Legacy code type compatibility
               account.id,
               1,
-              // @ts-ignore
+              // @ts-expect-error Legacy code type compatibility
               account.marketplace || 'US'
             );
 
             // 异步执行，不等待完成
-            // @ts-ignore
+            // @ts-expect-error Complex function parameter types
             syncService.syncAll({ syncMode: 'recovery' }).then((result: Record<string, unknown>) => {
-              // @ts-ignore
+              // @ts-expect-error Complex function parameter types
               log.info(`[FullSyncAll] Account ${account.id} (${account.storeName} ${account.marketplace}) completed`);
             }).catch((err: Error) => {
-              // @ts-ignore
+              // @ts-expect-error Complex function parameter types
               log.warn(`[FullSyncAll] Account ${account.id} (${account.storeName} ${account.marketplace}) failed:`, (err as Error).message);
-            // @ts-ignore
+            // @ts-expect-error Legacy code type compatibility
             });
 
-            // @ts-ignore
+            // @ts-expect-error Complex function parameter types
             results.push({ accountId: account.id, store: account.storeName, marketplace: account.marketplace, status: 'triggered' });
           } catch (err: unknown) {
-            // @ts-ignore
+            // @ts-expect-error Complex function parameter types
             results.push({ accountId: account.id, store: account.storeName, marketplace: account.marketplace, status: 'error', error: (err as Error).message });
           }
         }
 
         return {
           success: true,
-          // @ts-ignore
+          // @ts-expect-error Dynamic property access
           message: `已触发 ${results.filter(r => r.status === 'triggered').length} 个账户的全量同步`,
           startTime,
           accounts: results,

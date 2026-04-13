@@ -287,36 +287,36 @@ export async function optimizeBudgetPortfolio(
     for (const campaign of (activeCampaigns as unknown[])) {
       const curve = await estimateProfitCurve(
         db, accountId,
-        // @ts-ignore
+        // @ts-expect-error Amazon API response type flexibility
         String(campaign.campaignId),
-        // @ts-ignore
+        // @ts-expect-error Amazon API response type flexibility
         campaign.name || '',
-        // @ts-ignore
+        // @ts-expect-error Amazon API response type flexibility
         Number(campaign.dailyBudget) || 10
       );
       curves.push(curve);
     }
     
     // 运行边际效用分配
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const allocations = marginalUtilityAllocation(curves, totalBudget);
     
     // 计算汇总指标
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const expectedTotalProfit = allocations.reduce((sum: number, a: Record<string, unknown>) => sum + a.expectedProfit, 0);
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const totalAllocated = allocations.reduce((sum: number, a: Record<string, unknown>) => sum + a.optimalBudget, 0);
     const expectedTotalSales = curves.reduce((sum, c, i) => {
       const budget = allocations[i]?.optimalBudget || c.currentBudget;
       return sum + c.maxSales * (1 - Math.exp(-c.efficiency * budget));
     }, 0);
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const expectedTotalRoas = totalAllocated > 0 ? expectedTotalSales / totalAllocated : 0;
     
     const result: PortfolioOptimizationResult = {
       totalBudget,
       allocations,
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       expectedTotalProfit: Math.round(expectedTotalProfit * 100) / 100,
       expectedTotalRoas: Math.round(expectedTotalRoas * 100) / 100,
       expectedTotalSales: Math.round(expectedTotalSales * 100) / 100,

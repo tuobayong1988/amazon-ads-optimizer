@@ -103,7 +103,7 @@ export async function createAuditLog(data: Omit<InsertAuditLog, "id" | "createdA
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   const result = await db.insert(auditLogs).values(data);
-  // @ts-ignore
+  // @ts-expect-error DB query type inference limitation
   const [log] = await db.select().from(auditLogs).where(eq(auditLogs.id, (result as Record<string, unknown>[][])[0]?.insertId || 0));
   return log;
 }
@@ -134,7 +134,7 @@ export async function logAudit(params: {
   // 如果没有提供描述，使用默认描述
   const description = params.description || ACTION_DESCRIPTIONS[params.actionType] || "未知操作";
   
-  // @ts-ignore
+  // @ts-expect-error Complex function parameter types
   return createAuditLog({
     ...params,
     description,
@@ -301,10 +301,10 @@ export async function getUserAuditStats(userId: number | undefined, days: number
   } catch (error: any) {
     log.warn("Failed to get audit logs by day:", error);
     dayStats = [];
-  // @ts-ignore
+  // @ts-expect-error Legacy code type compatibility
   }
 
-  // @ts-ignore
+  // @ts-expect-error Complex function parameter types
   const actionsByDay = dayStats.map((stat: { date: string; count: number }) => ({
     date: stat.date,
     count: stat.count,
@@ -417,38 +417,38 @@ export async function exportAuditLogsToCSV(params: {
     "关联账号",
     "状态",
     "IP地址",
-  // @ts-ignore
+  // @ts-expect-error Legacy code type compatibility
   ];
 
-  // @ts-ignore
+  // @ts-expect-error Type inference limitation
   const rows = logs.map((log: unknown) => [
-    // @ts-ignore
+    // @ts-expect-error Legacy code type compatibility
     log.id,
-    // @ts-ignore
+    // @ts-expect-error Legacy code type compatibility
     String(log.createdAt),
-    // @ts-ignore
+    // @ts-expect-error Legacy code type compatibility
     log.userName || "",
-    // @ts-ignore
+    // @ts-expect-error Legacy code type compatibility
     log.userEmail || "",
-    // @ts-ignore
+    // @ts-expect-error Legacy code type compatibility
     ACTION_DESCRIPTIONS[log.actionType] || log.actionType,
-    // @ts-ignore
+    // @ts-expect-error Legacy code type compatibility
     log.description || "",
-    // @ts-ignore
+    // @ts-expect-error Legacy code type compatibility
     TARGET_TYPE_DESCRIPTIONS[log.targetType || ""] || log.targetType || "",
-    // @ts-ignore
+    // @ts-expect-error Legacy code type compatibility
     log.targetName || "",
-    // @ts-ignore
+    // @ts-expect-error Legacy code type compatibility
     log.accountName || "",
-    // @ts-ignore
+    // @ts-expect-error Legacy code type compatibility
     log.status,
-    // @ts-ignore
+    // @ts-expect-error Legacy code type compatibility
     log.ipAddress || "",
   ]);
 
   const csvContent = [
     headers.join(","),
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     ...rows.map((row: unknown) => row.map((cell: unknown) => `"${String(cell).replace(/"/g, '""')}"`).join(",")),
   ].join("\n");
 

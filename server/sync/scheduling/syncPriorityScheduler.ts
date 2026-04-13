@@ -122,11 +122,11 @@ export async function calculateAccountPriorities(
             GROUP BY account_id`
       );
       const rows = Array.isArray(targetResults) ? targetResults : 
-                   // @ts-ignore
+                   // @ts-expect-error Dynamic type assertion
                    (targetResults as unknown)?.[0] || [];
-      // @ts-ignore
+      // @ts-expect-error Dynamic type assertion
       for (const row of rows as unknown[]) {
-        // @ts-ignore
+        // @ts-expect-error DB query type inference limitation
         activeTargetCounts.set(Number(row.account_id), Number(row.target_count));
       }
     } catch (err: any) {
@@ -142,13 +142,13 @@ export async function calculateAccountPriorities(
             UNION
             SELECT DISTINCT account_id FROM optimization_events 
             WHERE created_at > DATE_SUB(NOW(), INTERVAL 30 MINUTE)`
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       );
       const rows = Array.isArray(activityResults) ? activityResults : 
-                   // @ts-ignore
+                   // @ts-expect-error Dynamic type assertion
                    (activityResults as unknown)?.[0] || [];
       for (const row of rows as unknown[]) {
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         recentlyActiveAccounts.add(Number(row.account_id));
       }
     } catch (err: any) {

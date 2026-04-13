@@ -20,7 +20,7 @@ export const systemRouter = router({
     .input(z.object({
       retentionDays: z.number().min(7).max(90).default(30),
     }))
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .mutation(async ({ input }: unknown) => {
       const conn = await getDirectConnection(120_000); // 2分钟超时
       const results: string[] = [];
@@ -29,36 +29,36 @@ export const systemRouter = router({
         const [r1] = await conn.execute(
           `DELETE FROM sync_conflicts WHERE created_at < DATE_SUB(NOW(), INTERVAL ? DAY)`,
           [input.retentionDays]
-        // @ts-ignore
+        // @ts-expect-error Dynamic type assertion
         ) as unknown[];
-        // @ts-ignore
+        // @ts-expect-error Complex function parameter types
         results.push(`sync_conflicts: 删除${r1.affectedRows}条`);
 
         // 清理sync_change_records
         const [r2] = await conn.execute(
           `DELETE FROM sync_change_records WHERE created_at < DATE_SUB(NOW(), INTERVAL ? DAY)`,
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           [input.retentionDays]
         ) as unknown[];
-        // @ts-ignore
+        // @ts-expect-error Complex function parameter types
         results.push(`sync_change_records: 删除${r2.affectedRows}条`);
 
         // 清理system_logs
         const [r3] = await conn.execute(
-          // @ts-ignore
+          // @ts-expect-error Conditional type narrowing
           `DELETE FROM system_logs WHERE timestamp < DATE_SUB(NOW(), INTERVAL ? DAY)`,
           [input.retentionDays]
         ) as unknown[];
-        // @ts-ignore
+        // @ts-expect-error Complex function parameter types
         results.push(`system_logs: 删除${r3.affectedRows}条`);
 
         // 清理optimization_tasks已完成的任务
-        // @ts-ignore
+        // @ts-expect-error DB query type inference limitation
         const [r4] = await conn.execute(
           `DELETE FROM optimization_tasks WHERE status IN ('synced', 'permanently_failed') AND created_at < DATE_SUB(NOW(), INTERVAL ? DAY)`,
           [input.retentionDays]
         ) as unknown[];
-        // @ts-ignore
+        // @ts-expect-error Complex function parameter types
         results.push(`optimization_tasks: 删除${r4.affectedRows}条`);
 
         return { success: true, results };
@@ -79,13 +79,13 @@ export const systemRouter = router({
 
   notifyOwner: adminProcedure
     .input(
-      // @ts-ignore
+      // @ts-expect-error Complex function parameter types
       z.object({
         title: z.string().min(1, "title is required"),
         content: z.string().min(1, "content is required"),
       })
     )
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .mutation(async ({ input }: unknown) => {
       const delivered = await notifyOwner(input);
       return {
@@ -94,14 +94,14 @@ export const systemRouter = router({
     }),
 
   // 数据库迁移端点 - 仅管理员可用
-  // @ts-ignore
+  // @ts-expect-error Legacy code type compatibility
   runMigration: adminProcedure
     .input(
       z.object({
         migrationName: z.string().min(1),
       })
     )
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .mutation(async ({ input }: unknown) => {
       const db = await getDb();
       if (!db) throw new Error("Database not available");
@@ -152,7 +152,7 @@ export const systemRouter = router({
   // 诊断端点 - 查询缺少Amazon keywordId的关键词
   diagnoseKeywords: adminProcedure
     .input(z.object({ accountId: z.number() }))
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .query(async ({ input }: unknown) => {
       const db = await getDb();
       if (!db) throw new Error("Database not available");

@@ -19,7 +19,7 @@ import { DbInstance, getDb } from '../db';
 import { sql } from 'drizzle-orm';
 import { createModuleLogger } from './logger';
 import { logMigration, logMigrationWarn, logMigrationError } from './opsLogger';
-// @ts-ignore
+// @ts-expect-error Module import type resolution
 import { extractCount } from '../types/utilTypes';
 
 const log = createModuleLogger('migrateCampaignIds');
@@ -104,11 +104,11 @@ async function findRecordsToMigrate(db: DbInstance, tableName: string): Promise<
     `));
     
     const rows = Array.isArray(directResult[0]) ? directResult[0] : directResult;
-    // @ts-ignore
+    // @ts-expect-error Dynamic type assertion
     for (const row of (rows as unknown[])) {
-      // @ts-ignore
+      // @ts-expect-error Conditional type narrowing
       if (row?.id && row?.correctCampaignId) {
-        // @ts-ignore
+        // @ts-expect-error Complex function parameter types
         records.push({ id: Number(row.id), correctCampaignId: String(row.correctCampaignId) });
       }
     }
@@ -130,14 +130,14 @@ async function findRecordsToMigrate(db: DbInstance, tableName: string): Promise<
         LIMIT 500
       `));
       
-      // @ts-ignore
+      // @ts-expect-error Type inference limitation
       const existingIds = new Set(records.map(r => r.id));
-      // @ts-ignore
+      // @ts-expect-error Type inference limitation
       const rows = Array.isArray(adGroupResult[0]) ? adGroupResult[0] : adGroupResult;
       for (const row of (rows as unknown[])) {
-        // @ts-ignore
+        // @ts-expect-error Complex function parameter types
         if (row?.id && row?.correctCampaignId && !existingIds.has(Number(row.id))) {
-          // @ts-ignore
+          // @ts-expect-error Complex function parameter types
           records.push({ id: Number(row.id), correctCampaignId: String(row.correctCampaignId) });
         }
       }
@@ -190,7 +190,7 @@ async function migrateTable(db: DbInstance, tableName: string): Promise<Migratio
       SELECT COUNT(*) as cnt FROM \`${tableName}\` 
       WHERE LENGTH(campaignId) < ${AMAZON_ID_MIN_LENGTH} AND campaignId REGEXP '^[0-9]+$'
     `));
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const orphanCount = extractCount(countResult);
     if (orphanCount > 0) {
       log.info(`  ${tableName}: ${orphanCount} 条记录无法映射到 campaigns 表（孤立记录），跳过`);
@@ -208,13 +208,13 @@ async function migrateTable(db: DbInstance, tableName: string): Promise<Migratio
     try {
       // @ts-expect-error - Drizzle raw SQL execution
       await db.execute(sql.raw(
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         `UPDATE \`${tableName}\` SET campaignId = '${record.correctCampaignId}' WHERE id = ${record.id}`
       ));
       updatedCount++;
     } catch (e: unknown) {
       failedCount++;
-      // @ts-ignore
+      // @ts-expect-error Type inference limitation
       const errMsg = `id=${record.id} → ${record.correctCampaignId} 失败: ${(e as Error).message}`;
       errors.push(errMsg);
       if (failedCount <= 3) {

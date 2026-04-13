@@ -134,15 +134,15 @@ export async function triggerInitialOptimization(
     // 快速聚合分析
     let totalSpend = 0, totalSales = 0, totalClicks = 0, totalOrders = 0, totalImpressions = 0;
     for (const c of (campaignsData as unknown[])) {
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       totalSpend += parseFloat(c.spend || '0');
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       totalSales += parseFloat(c.sales || '0');
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       totalClicks += c.clicks || 0;
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       totalOrders += c.orders || 0;
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       totalImpressions += c.impressions || 0;
     }
     

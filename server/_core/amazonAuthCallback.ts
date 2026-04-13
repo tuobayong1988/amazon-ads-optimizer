@@ -230,24 +230,24 @@ export function registerAmazonAuthCallbackRoutes(app: Express) {
               
               // 只更新属于同一卖家(sellerId)但尚未更新的其他站点
               for (const account of (allAccounts as unknown[])) {
-                // @ts-ignore
+                // @ts-expect-error Conditional type narrowing
                 if (updatedAccountIds.includes(account.id)) continue; // 跳过已更新的
-                // @ts-ignore
+                // @ts-expect-error Conditional type narrowing
                 if (!account.sellerId || !authorizedSellerIds.has(account.sellerId)) continue; // 跳过不同卖家
                 
-                // @ts-ignore
+                // @ts-expect-error DB query type inference limitation
                 const creds = await db.getAmazonApiCredentials(account.id);
                 if (!creds) continue;
                 
-                // @ts-ignore
+                // @ts-expect-error DB query type inference limitation
                 await db.updateAmazonApiCredentials(account.id, {
-                  // @ts-ignore
+                  // @ts-expect-error Legacy code type compatibility
                   refreshToken: newRefreshToken,
                 });
-                // @ts-ignore
+                // @ts-expect-error Array method type inference
                 updatedAccountIds.push(account.id);
                 credentialsSaved++;
-                // @ts-ignore
+                // @ts-expect-error Complex function parameter types
                 log.info(`[AmazonAuthCallback] v365: 更新同卖家(${account.sellerId})站点 ${account.id} (${account.marketplace}) 的refresh_token`);
               }
             } catch (batchUpdateError: unknown) {
@@ -297,15 +297,15 @@ export function registerAmazonAuthCallbackRoutes(app: Express) {
         params.set('profiles', JSON.stringify(profiles));
       }
 
-      // @ts-ignore
+      // @ts-expect-error Type inference limitation
       const redirectUrl = `/amazon-api?${params.toString()}`;
       log.info(`[AmazonAuthCallback] v342: Redirecting to settings page (backend saved ${credentialsSaved} credentials for accounts [${updatedAccountIds.join(',')}])`);
 
       res.redirect(302, redirectUrl);
     } catch (err: unknown) {
-      // @ts-ignore
+      // @ts-expect-error Dynamic type assertion
       log.warn("[AmazonAuthCallback] v342: Token exchange failed:", (err as Record<string, unknown>).response?.data || (err as Error).message);
-      // @ts-ignore
+      // @ts-expect-error Dynamic type assertion
       const errorMsg = (err as Record<string, unknown>).response?.data?.error_description || (err as Error).message || "Token换取失败";
       const redirectUrl = `/amazon-api?auth_error=${encodeURIComponent(errorMsg)}`;
       res.redirect(302, redirectUrl);

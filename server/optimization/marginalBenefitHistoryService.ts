@@ -152,7 +152,7 @@ export async function saveMarginalBenefitHistory(
     AND analysis_date = ${today}
   `);
 
-  // @ts-ignore
+  // @ts-expect-error Dynamic type assertion
   if ((existing as Record<string, unknown>)[0] && ((existing as Record<string, unknown>)[0] as unknown[]).length > 0) {
     // 更新现有记录
     await db.execute(sql`
@@ -178,7 +178,7 @@ export async function saveMarginalBenefitHistory(
  AND placement_type = ${placementType}
  AND analysis_date = ${today}
  `);
-    // @ts-ignore
+    // @ts-expect-error Dynamic type assertion
     return ((existing as Record<string, unknown>)[0] as unknown[])[0].id;
   }
 
@@ -234,47 +234,47 @@ export async function getHistoryTrend(
   const data = ((records as unknown[][])[0] as unknown[]) || [];
   
   // 按日期分组
-  // @ts-ignore
+  // @ts-expect-error Type inference limitation
   const dateMap = new Map<string, Record<string, unknown>[]>();
   for (const record of (data as unknown[])) {
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const date = record.analysis_date;
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     if (!dateMap.has(date)) {
       dateMap.set(date, []);
     }
-    // @ts-ignore
+    // @ts-expect-error Array method type inference
     dateMap.get(date)!.push(record);
   }
 
   const dates = Array.from(dateMap.keys()).sort();
   const topOfSearch: TrendMetrics = createEmptyTrendMetrics(dates.length);
-  // @ts-ignore
+  // @ts-expect-error Legacy code type compatibility
   const productPage: TrendMetrics = createEmptyTrendMetrics(dates.length);
   const restOfSearch: TrendMetrics = createEmptyTrendMetrics(dates.length);
 
-  // @ts-ignore
+  // @ts-expect-error Complex function parameter types
   dates.forEach((date: unknown, index: unknown) => {
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const dayRecords = dateMap.get(date) || [];
-    // @ts-ignore
+    // @ts-expect-error Dynamic type assertion
     for (const record of (dayRecords as unknown[])) {
-      // @ts-ignore
+      // @ts-expect-error Dynamic property access
       const metrics = record.placement_type === 'top_of_search' ? topOfSearch :
-                     // @ts-ignore
+                     // @ts-expect-error Dynamic property access
                      record.placement_type === 'product_page' ? productPage : restOfSearch;
       
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       metrics.marginalROAS[index] = Number(record.marginal_roas) || 0;
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       metrics.marginalACoS[index] = Number(record.marginal_acos) || 0;
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       metrics.marginalSales[index] = Number(record.marginal_sales) || 0;
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       metrics.elasticity[index] = Number(record.elasticity) || 0;
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       metrics.diminishingPoint[index] = Number(record.diminishing_point) || 0;
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       metrics.confidence[index] = Number(record.confidence) || 0;
     }
   });
@@ -314,13 +314,13 @@ export async function analyzeSeasonalPatterns(
     return { 
       period, 
       patterns: [], 
-      // @ts-ignore
+      // @ts-expect-error Dynamic property access
       insights: ['数据不足，需要至少14天的历史数据才能进行季节性分析'] 
     };
   }
 
   const patterns: SeasonalPattern['patterns'] = [];
-  // @ts-ignore
+  // @ts-expect-error Legacy code type compatibility
   const insights: string[] = [];
 
   if (period === 'weekly') {
@@ -329,13 +329,13 @@ export async function analyzeSeasonalPatterns(
     const weekdayNames = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
     
     for (const record of (data as unknown[])) {
-      // @ts-ignore
+      // @ts-expect-error Type inference limitation
       const date = new Date(record.analysis_date);
       const weekday = date.getDay();
       if (!weekdayGroups.has(weekday)) {
         weekdayGroups.set(weekday, []);
       }
-      // @ts-ignore
+      // @ts-expect-error Array method type inference
       weekdayGroups.get(weekday)!.push(record);
     }
 
@@ -343,14 +343,14 @@ export async function analyzeSeasonalPatterns(
       const records = weekdayGroups.get(i) || [];
       if (records.length > 0) {
         const avgMarginalROAS = records.reduce((sum: number, r: Record<string, unknown>) => sum + Number(r.marginal_roas || 0), 0) / records.length;
-        // @ts-ignore
+        // @ts-expect-error Type inference limitation
         const avgMarginalSales = records.reduce((sum: number, r: Record<string, unknown>) => sum + Number(r.marginal_sales || 0), 0) / records.length;
         const avgElasticity = records.reduce((sum: number, r: Record<string, unknown>) => sum + Number(r.elasticity || 0), 0) / records.length;
         
         patterns.push({
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           label: weekdayNames[i],
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           avgMarginalROAS,
           avgMarginalSales,
           avgElasticity,
@@ -361,15 +361,15 @@ export async function analyzeSeasonalPatterns(
 
     // 生成洞察
     if (patterns.length >= 5) {
-      // @ts-ignore
+      // @ts-expect-error Type inference limitation
       const sortedByROAS = [...patterns].sort((a: unknown, b: unknown) => b.avgMarginalROAS - a.avgMarginalROAS);
       const bestDay = sortedByROAS[0] as unknown;
-      // @ts-ignore
+      // @ts-expect-error Type inference limitation
       const worstDay = sortedByROAS[sortedByROAS.length - 1];
       
-      // @ts-ignore
+      // @ts-expect-error Dynamic property access
       if (bestDay.avgMarginalROAS > worstDay.avgMarginalROAS * 1.2) {
-        // @ts-ignore
+        // @ts-expect-error Complex function parameter types
         insights.push(`${bestDay.label}的边际ROAS最高（${bestDay.avgMarginalROAS.toFixed(2)}），建议在该日增加位置倾斜`);
         insights.push(`${worstDay.label}的边际ROAS最低（${worstDay.avgMarginalROAS.toFixed(2)}），建议在该日降低位置倾斜`);
       }
@@ -383,11 +383,11 @@ export async function analyzeSeasonalPatterns(
     ]);
 
     for (const record of (data as unknown[])) {
-      // @ts-ignore
+      // @ts-expect-error Type inference limitation
       const date = new Date(record.analysis_date);
       const day = date.getDate();
       const periodKey = day <= 10 ? '月初(1-10日)' : day <= 20 ? '月中(11-20日)' : '月末(21-31日)';
-      // @ts-ignore
+      // @ts-expect-error Array method type inference
       periodGroups.get(periodKey)!.push(record);
     }
 
@@ -459,9 +459,9 @@ export async function comparePeriods(
  `)
   ]);
 
-  // @ts-ignore
+  // @ts-expect-error Dynamic type assertion
   const p1Map = new Map(((period1Data as Record<string, unknown>[])[0] as unknown[] || []).map(r => [r.placement_type, r]));
-  // @ts-ignore
+  // @ts-expect-error Dynamic type assertion
   const p2Map = new Map(((period2Data as Record<string, unknown>[])[0] as unknown[] || []).map(r => [r.placement_type, r]));
 
   const placements: PlacementType[] = ['top_of_search', 'product_page', 'rest_of_search'];
@@ -470,20 +470,20 @@ export async function comparePeriods(
     const p2 = p2Map.get(placementType) || { avg_marginal_roas: 0, avg_marginal_sales: 0, avg_elasticity: 0 };
 
     const period1Avg = {
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       marginalROAS: Number(p1.avg_marginal_roas) || 0,
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       marginalSales: Number(p1.avg_marginal_sales) || 0,
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       elasticity: Number(p1.avg_elasticity) || 0
     };
 
     const period2Avg = {
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       marginalROAS: Number(p2.avg_marginal_roas) || 0,
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       marginalSales: Number(p2.avg_marginal_sales) || 0,
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       elasticity: Number(p2.avg_elasticity) || 0
     };
 

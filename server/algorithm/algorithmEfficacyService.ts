@@ -51,7 +51,7 @@ export async function getAlgorithmEfficacyForTarget(
     if (bidLogs && bidLogs.length > 0) {
       for (const log of (bidLogs as unknown[])) {
         try {
-          // @ts-ignore
+          // @ts-expect-error Dynamic property access
           const detail = typeof log.action_detail === 'string' ? JSON.parse(log.action_detail) : log.action_detail;
           if (!detail) continue;
           

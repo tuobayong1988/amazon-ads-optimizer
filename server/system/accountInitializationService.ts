@@ -502,22 +502,22 @@ export async function initializeMultipleAccounts(accounts: Array<{
   
   for (const account of (accounts as unknown[])) {
     try {
-      // @ts-ignore
+      // @ts-expect-error Type inference limitation
       const result = await initializeAccount(account);
       results.push(result);
       
-      // @ts-ignore
+      // @ts-expect-error Complex function parameter types
       if (accounts.indexOf(account) < accounts.length - 1) {
         await new Promise(resolve => setTimeout(resolve, 1000));
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       }
     } catch (error: unknown) {
-      // @ts-ignore
+      // @ts-expect-error Complex function parameter types
       log.warn(`账号 ${account.accountId} 初始化异常:`, error);
       results.push({
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         accountId: account.accountId,
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         marketplace: account.marketplace,
         syncResult: { success: false, error: (error as Error).message },
         scheduleResult: { success: false, error: (error as Error).message },

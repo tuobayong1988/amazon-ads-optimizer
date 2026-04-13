@@ -190,15 +190,15 @@ export function resolveConflictsAndCreatePlan(
 
   // 添加无冲突的操作
   for (const action of (actions as unknown[])) {
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     if (!skippedActionIds.has(action.id)) {
-      // @ts-ignore
+      // @ts-expect-error Array method type inference
       resolvedActions.push(action);
     }
   }
 
   // 按优先级排序
-  // @ts-ignore
+  // @ts-expect-error Legacy code type compatibility
   resolvedActions.sort((a: unknown, b: unknown) => b.priority - a.priority);
 
   // 计算总预期影响

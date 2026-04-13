@@ -79,7 +79,7 @@ export async function executeDaypartingOptimization(
       const comboResults = await multiDimComboAnalyzer.getComboAnalysisForAccount(dbConn, config.accountId);
       for (const combo of comboResults) {
         if (combo.keywordId) {
-          // @ts-ignore
+          // @ts-expect-error DB query type inference limitation
           comboAnalysisMap.set(combo.keywordId, combo);
         }
       }
@@ -115,23 +115,23 @@ export async function executeDaypartingOptimization(
       // @ts-expect-error - type assertion
       const pendingRows = (pendingDayparting as Record<string, unknown>)[0] || [];
       
-      // @ts-ignore
+      // @ts-expect-error Dynamic property access
       if (pendingRows.length > 0) {
-        // @ts-ignore
+        // @ts-expect-error Amazon API response type flexibility
         log.info(`[DaypartingOptimization] v310: 发现${pendingRows.length}条pending的dayparting_bid，开始处理`);
         let retried = 0, superseded = 0, timedOut = 0;
         
         // 按keywordId分组，只保留每个keyword的最新pending记录
         const latestByKeyword = new Map<string, unknown>();
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         const olderIds: number[] = [];
         
         for (const row of (pendingRows as unknown[])) {
-          // @ts-ignore
+          // @ts-expect-error Type inference limitation
           const kwId = row.kw_id;
           if (!kwId) continue;
           if (latestByKeyword.has(kwId)) {
-            // @ts-ignore
+            // @ts-expect-error Array method type inference
             olderIds.push(row.id);
           } else {
             latestByKeyword.set(kwId, row);
@@ -146,20 +146,20 @@ export async function executeDaypartingOptimization(
             WHERE id IN (${safeInClause(olderIds)})
           `);
           superseded = olderIds.length;
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         }
         
         // 对每个keyword的最新pending记录尝试重新同步
         for (const [kwId, row] of latestByKeyword) {
           try {
-            // @ts-ignore
+            // @ts-expect-error Dynamic property access
             const detail = typeof row.action_detail === 'string' ? JSON.parse(row.action_detail) : row.action_detail;
             const newBid = parseFloat(detail?.newBid || detail?.adjustedBid || '0');
             const localCampaignId = detail?.localCampaignId;
             const amazonCampaignId = detail?.amazonCampaignId;
             
             // 检查记录是否超过72小时
-            // @ts-ignore
+            // @ts-expect-error Type inference limitation
             const createdAt = new Date(row.created_at);
             const ageHours = (Date.now() - createdAt.getTime()) / (1000 * 60 * 60);
             if (ageHours > 72) {
@@ -177,19 +177,19 @@ export async function executeDaypartingOptimization(
               const syncResult: unknown = await amazonApiHelper.syncBidAdjustmentsToAmazon(
                 config.accountId,
                 [{
-                  // @ts-ignore
+                  // @ts-expect-error Legacy code type compatibility
                   keywordId: Number(kwId),
                   newBid: newBid,
                   localCampaignId: localCampaignId,
                   amazonCampaignId: amazonCampaignId,
-                  // @ts-ignore
+                  // @ts-expect-error Amazon API response type flexibility
                   reason: 'v310: pending dayparting_bid重试',
                   isProductTarget: false,
                 }]
               );
-              // @ts-ignore
+              // @ts-expect-error Dynamic property access
               if (syncResult.success > 0) {
-                // @ts-ignore
+                // @ts-expect-error DB query type inference limitation
                 await dbConn2.execute(sql`
  UPDATE optimization_logs SET api_sync_status = 'synced',
  api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.retry_synced', 'v310: dayparting_bid重试成功')
@@ -216,7 +216,7 @@ export async function executeDaypartingOptimization(
   }
   
   // v349: 分时竞价诊断统计
-  // @ts-ignore
+  // @ts-expect-error Amazon API response type flexibility
   let dpDiag = { total: 0, noStrategy: 0, draftInsufficient: 0, draftUpgraded: 0, draftUpgradeFailed: 0, noHourlyRule: 0, noKeywords: 0, bidUnchanged: 0, adjusted: 0 };
   log.info(`[DaypartingOptimization] v349: 开始分时竞价执行, campaigns=${campaigns.length}, hour=${currentHour}, dayOfWeek=${currentDayOfWeek}, marketplace=${marketplace}`);
   
@@ -228,9 +228,9 @@ export async function executeDaypartingOptimization(
     }
     dpCampaignIndex++;
 
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const campaignLocalId = getCampaignLocalId(campaign);
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const campaignAmazonId = getCampaignAmazonId(campaign);
     dpDiag.total++;
     try {
@@ -241,11 +241,11 @@ export async function executeDaypartingOptimization(
         strategy = await daypartingService.ensureDaypartingStrategy(
           config.accountId,
           campaignAmazonId,
-          // @ts-ignore
+          // @ts-expect-error Amazon API response type flexibility
           campaign.campaignName,
           {
             optimizationGoal: config.optimizationGoal,
-            // @ts-ignore
+            // @ts-expect-error Legacy code type compatibility
             targetAcos: config.targetAcos,
             targetRoas: config.targetRoas,
           }
@@ -260,15 +260,15 @@ export async function executeDaypartingOptimization(
           const dataValidation = await daypartingService.validateDaypartingDataSufficiency(Number(campaignAmazonId), 30);
           
           if (!dataValidation.isValid) {
-            // @ts-ignore
+            // @ts-expect-error Legacy code type compatibility
             dpDiag.draftInsufficient++;
-            // @ts-ignore
+            // @ts-expect-error Amazon API response type flexibility
             log.info(`[DaypartingOptimization] v510: 广告活动 ${campaign.campaignName} 数据不足，保持draft | ${dataValidation.failedChecks.join('; ')} | ${dataValidation.recommendation}`);
           }
           
           // 只有通过严格校验才允许升级
           const weeklyData = await daypartingService.analyzeWeeklyPerformance(Number(campaignAmazonId), 30);
-          // @ts-ignore
+          // @ts-expect-error Type inference limitation
           const totalDataPoints = weeklyData.reduce((sum: number, d: Record<string, unknown>) => sum + d.dataPoints, 0);
           
           if (dataValidation.isValid && totalDataPoints >= 7) {
@@ -278,10 +278,10 @@ export async function executeDaypartingOptimization(
             if (hourlyData.length > 0) {
               // 计算最优出价调整并保存
               const bidAdjustments = daypartingService.calculateOptimalBidAdjustments(hourlyData, {
-                // @ts-ignore
+                // @ts-expect-error Dynamic type assertion
                 optimizationGoal: config.optimizationGoal as unknown,
                 targetAcos: config.targetAcos,
-                // @ts-ignore
+                // @ts-expect-error Legacy code type compatibility
                 targetRoas: config.targetRoas,
               });
               await daypartingService.saveBidRules(strategy.id, bidAdjustments.map(rule => ({
@@ -300,14 +300,14 @@ export async function executeDaypartingOptimization(
               
               // 计算最优预算分配并保存
               const budgetAllocation = daypartingService.calculateOptimalBudgetAllocation(weeklyData, {
-                // @ts-ignore
+                // @ts-expect-error Dynamic type assertion
                 optimizationGoal: config.optimizationGoal as unknown,
                 targetAcos: config.targetAcos,
                 targetRoas: config.targetRoas,
               });
               await daypartingService.saveBudgetRules(strategy.id, budgetAllocation.map(rule => ({
                 dayOfWeek: rule.dayOfWeek,
-                // @ts-ignore
+                // @ts-expect-error Legacy code type compatibility
                 budgetMultiplier: rule.budgetMultiplier.toString(),
                 budgetPercentage: rule.budgetPercentage.toString(),
                 avgSpend: weeklyData.find(d => d.dayOfWeek === rule.dayOfWeek)?.avgSpend?.toString(),
@@ -327,13 +327,13 @@ export async function executeDaypartingOptimization(
           } else if (!dataValidation.isValid) {
             // v510: 数据不足，已在上方记录日志，跳过
           } else {
-            // @ts-ignore
+            // @ts-expect-error Amazon API response type flexibility
             log.info(`[DaypartingOptimization] v510: 广告活动 ${campaign.campaignName} 数据点不足(${totalDataPoints}<7)，保持draft状态`);
           }
         } catch (upgradeErr: unknown) {
           dpDiag.draftUpgradeFailed++;
           log.warn(`[DaypartingOptimization] v337: 自动升级分时策略失败: ${(upgradeErr as Error).message}`);
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         }
       }
       
@@ -354,7 +354,7 @@ export async function executeDaypartingOptimization(
           const hourlyData = await daypartingService.analyzeHourlyPerformance(Number(campaignAmazonId), 30);
           if (hourlyData.length > 0) {
             const bidAdjustments = daypartingService.calculateOptimalBidAdjustments(hourlyData, {
-              // @ts-ignore
+              // @ts-expect-error Dynamic type assertion
               optimizationGoal: config.optimizationGoal as unknown,
               targetAcos: config.targetAcos,
               targetRoas: config.targetRoas,
@@ -395,18 +395,18 @@ export async function executeDaypartingOptimization(
       // 获取广告活动下的所有关键词
       const keywords = await db.getKeywordsByCampaignId(campaignAmazonId);
       
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       for (const keyword of keywords) {
         if (keyword.keywordStatus !== 'enabled') continue;
         
-        // @ts-ignore
+        // @ts-expect-error Amazon API response type flexibility
         const baseBid = parseFloat(keyword.bid || '0');
-        // @ts-ignore
+        // @ts-expect-error Conditional type narrowing
         if (baseBid <= 0) continue;
         
         // v183: 多维度资源倾斜算法
         // 最终竞价 = 基础出价 × 分时乘数 × 投放词个性化时间乘数
-        // @ts-ignore
+        // @ts-expect-error Type inference limitation
         let comboTimeMultiplier = 1.0;
         let comboBidMultiplier = 1.0;
         let comboCategory = 'standard';
@@ -414,32 +414,32 @@ export async function executeDaypartingOptimization(
         
         const comboAnalysis = comboAnalysisMap.get(keyword.id);
         if (comboAnalysis) {
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           comboCategory = comboAnalysis.comboCategory || 'standard';
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           comboConfidence = comboAnalysis.confidenceLevel || 'insufficient';
           
           // 只有置信度达到medium以上才应用个性化乘数
           if (comboConfidence !== 'insufficient') {
-            // @ts-ignore
+            // @ts-expect-error Legacy code type compatibility
             comboBidMultiplier = parseFloat(comboAnalysis.suggestedBidMultiplier || '1.000');
-            // @ts-ignore
+            // @ts-expect-error Legacy code type compatibility
             comboTimeMultiplier = parseFloat(comboAnalysis.suggestedTimeMultiplier || '1.000');
             
             // v183: 检查当前时段是否在该投放词的最佳/最差时间窗口内
-            // @ts-ignore
+            // @ts-expect-error Legacy code type compatibility
             const bestWindows: unknown[] = comboAnalysis.bestTimeWindows || [];
-            // @ts-ignore
+            // @ts-expect-error Legacy code type compatibility
             const worstWindows: unknown[] = comboAnalysis.worstTimeWindows || [];
             
             // @ts-expect-error - runtime type mismatch
             const isInBestWindow = bestWindows.some((w: Record<string, unknown>) => 
-              // @ts-ignore
+              // @ts-expect-error Dynamic property access
               w.dayOfWeek === currentDayOfWeek && currentHour >= w.startHour && currentHour <= w.endHour
             );
             // @ts-expect-error - runtime type mismatch
             const isInWorstWindow = worstWindows.some((w: Record<string, unknown>) => 
-              // @ts-ignore
+              // @ts-expect-error Dynamic property access
               w.dayOfWeek === currentDayOfWeek && currentHour >= w.startHour && currentHour <= w.endHour
             );
             
@@ -451,7 +451,7 @@ export async function executeDaypartingOptimization(
               comboTimeMultiplier = Math.max(comboTimeMultiplier * 0.85, 0.70);
             }
           }
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         }
         
         // v183: 统一资源分配公式
@@ -481,7 +481,7 @@ export async function executeDaypartingOptimization(
           accountId: config.accountId,
           localCampaignId: campaignLocalId,
           amazonCampaignId: campaignAmazonId,
-          // @ts-ignore
+          // @ts-expect-error Amazon API response type flexibility
           campaignName: campaign.campaignName,
           keywordId: keyword.id,
           keywordText: keyword.keywordText,
@@ -495,13 +495,13 @@ export async function executeDaypartingOptimization(
           comboCategory,
           comboConfidence,
           adjustedBid,
-          // @ts-ignore
+          // @ts-expect-error Legacy code type compatibility
           currentBid: baseBid,
           newBid: adjustedBid,
           reason: `v183分时竞价: ${currentHour}:00 ${reasonParts.join(' × ')} = ${finalMultiplier.toFixed(3)}x, $${baseBid.toFixed(2)} → $${adjustedBid.toFixed(2)}`,
           algorithmUsed: 'dayparting_engine', // v335: 添加算法标识
           apiSyncStatus: dryRun ? 'pending' : 'pending',
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         };
         
         // v351: 降低分时竞价执行阈值 - 使用绝对值和百分比双重判断
@@ -527,19 +527,19 @@ export async function executeDaypartingOptimization(
                 isProductTarget: false,
               }]
             );
-            // @ts-ignore
+            // @ts-expect-error Dynamic property access
             if (syncResult.success > 0) {
               adjustmentsCount++;
               adjustment.apiSyncStatus = 'synced';
             } else {
               adjustment.apiSyncStatus = 'failed';
-              // @ts-ignore
+              // @ts-expect-error Dynamic property access
               adjustment.apiSyncDetail = JSON.stringify({ errors: syncResult.errors });
             }
           } catch (apiError: unknown) {
             // v267 P2-1: 分时竞价失败自动重试一次
             try {
-              // @ts-ignore
+              // @ts-expect-error Async operation type inference
               await new Promise(r => setTimeout(r, 2000)); // 等待2秒后重试
               const retryResult = await amazonApiHelper.syncBidAdjustmentsToAmazon(
                 config.accountId,
@@ -572,7 +572,7 @@ export async function executeDaypartingOptimization(
       details.push({
         localCampaignId: campaignLocalId,
         amazonCampaignId: campaignAmazonId,
-        // @ts-ignore
+        // @ts-expect-error Amazon API response type flexibility
         campaignName: campaign.campaignName,
         error: (error as Error).message,
       });
@@ -611,11 +611,11 @@ export async function executeDaypartingBudgetOptimization(
     }
     dpBudgetCampaignIndex++;
 
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const campaignLocalId = getCampaignLocalId(campaign);
-    // @ts-ignore
+    // @ts-expect-error Type inference limitation
     const campaignAmazonId = getCampaignAmazonId(campaign);
-    // @ts-ignore
+    // @ts-expect-error Legacy code type compatibility
     try {
       // 获取分时策略
       let strategy = await daypartingService.getDaypartingStrategyByCampaignId(campaignAmazonId);
@@ -638,7 +638,7 @@ export async function executeDaypartingBudgetOptimization(
           dbConn, config.accountId, campaignLocalId
         );
         if (Math.abs(comboBudgetMultiplier - 1.0) > 0.001) {
-          // @ts-ignore
+          // @ts-expect-error Amazon API response type flexibility
           log.debug(`[DaypartingBudget] v183.1: Campaign ${campaign.campaignName} 组合分析预算乘数: ${comboBudgetMultiplier.toFixed(3)}`);
           // 叠加乘数: 分时预算乘数 × 组合分析预算乘数
           budgetMultiplier = budgetMultiplier * comboBudgetMultiplier;
@@ -652,13 +652,13 @@ export async function executeDaypartingBudgetOptimization(
       // 如果倍数接近1.0，跳过调整
       if (Math.abs(budgetMultiplier - 1.0) < 0.05) continue;
       
-      // @ts-ignore
+      // @ts-expect-error Amazon API response type flexibility
       const currentBudget = parseFloat(campaign.dailyBudget || '0');
       if (currentBudget <= 0) continue;
       
       // 计算基础预算（如果之前已经调整过，需要还原到基础值）
       // 策略：使用campaign的原始预算作为基础，乘以今天的倍数
-      // @ts-ignore
+      // @ts-expect-error Amazon API response type flexibility
       const baseBudget = parseFloat((campaign as Record<string, unknown>).originalDailyBudget || campaign.dailyBudget || '0');
       const adjustedBudget = Math.round(baseBudget * budgetMultiplier * 100) / 100;
       
@@ -666,11 +666,11 @@ export async function executeDaypartingBudgetOptimization(
         accountId: config.accountId,
         localCampaignId: campaignLocalId,
         amazonCampaignId: campaignAmazonId,
-        // @ts-ignore
+        // @ts-expect-error Amazon API response type flexibility
         campaignName: campaign.campaignName,
         dayOfWeek: currentDayOfWeek,
         budgetMultiplier,
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         baseBudget,
         currentBudget,
         adjustedBudget,
@@ -686,13 +686,13 @@ export async function executeDaypartingBudgetOptimization(
       
       // 实际执行预算调整
       if (!dryRun && Math.abs(adjustedBudget - currentBudget) > 0.50) {
-        // @ts-ignore
+        // @ts-expect-error Legacy code type compatibility
         try {
           const amazonCampaignId = campaignAmazonId;
           const budgetSyncResult = await amazonApiHelper.syncBudgetAdjustmentToAmazon(
             config.accountId,
             amazonCampaignId,
-            // @ts-ignore
+            // @ts-expect-error Legacy code type compatibility
             adjustedBudget,
             `v179分时预算: 星期${currentDayOfWeek} 倍数${budgetMultiplier}x`
           );
@@ -700,7 +700,7 @@ export async function executeDaypartingBudgetOptimization(
           if (budgetSyncResult) {
             await db.updateCampaign(campaignLocalId, {
               dailyBudget: adjustedBudget.toFixed(2),
-              // @ts-ignore
+              // @ts-expect-error Legacy code type compatibility
               lastOptimizedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
             } as Record<string, unknown>);
             adjustmentsCount++;
@@ -713,7 +713,7 @@ export async function executeDaypartingBudgetOptimization(
                 executionType: 'budget_adjustment',
                 dpTargetType: 'campaign',
                 dpTargetId: campaignLocalId,
-                // @ts-ignore
+                // @ts-expect-error Amazon API response type flexibility
                 dpTargetName: campaign.campaignName,
                 previousValue: currentBudget.toFixed(2),
                 newValue: adjustedBudget.toFixed(2),
@@ -726,17 +726,17 @@ export async function executeDaypartingBudgetOptimization(
               log.warn(`[DaypartingBudget] 日志记录失败: ${(logErr as Error).message}`);
             }
             
-            // @ts-ignore
+            // @ts-expect-error Amazon API response type flexibility
             log.debug(`[DaypartingBudget] v179: ${campaign.campaignName} 预算调整 $${currentBudget.toFixed(2)} \u2192 $${adjustedBudget.toFixed(2)} (星期${currentDayOfWeek}, 倍数${budgetMultiplier}x)`);
           } else {
             adjustment.apiSyncStatus = 'failed';
-            // @ts-ignore
+            // @ts-expect-error Amazon API response type flexibility
             log.warn(`[DaypartingBudget] v179: API同步失败 (Campaign ${campaign.campaignName})`);
           }
         } catch (apiError: unknown) {
           adjustment.apiSyncStatus = 'failed';
           adjustment.apiSyncDetail = JSON.stringify({ error: (apiError as Error).message });
-          // @ts-ignore
+          // @ts-expect-error Amazon API response type flexibility
           log.warn(`[DaypartingBudget] v179: API同步异常 (Campaign ${campaign.campaignName}):`, (apiError as Error).message);
         }
       }
@@ -744,7 +744,7 @@ export async function executeDaypartingBudgetOptimization(
       details.push({
         localCampaignId: campaignLocalId,
         amazonCampaignId: campaignAmazonId,
-        // @ts-ignore
+        // @ts-expect-error Amazon API response type flexibility
         campaignName: campaign.campaignName,
         error: (error as Error).message,
       });

@@ -231,7 +231,7 @@ export async function checkAlgorithmHealth(): Promise<DefenseResult> {
     `);
 
     const algorithms: AlgorithmHealth[] = [];
-    // @ts-ignore
+    // @ts-expect-error Dynamic type assertion
     const statsRows = algorithmStats as any[];
 
     for (const row of statsRows) {
@@ -427,7 +427,7 @@ export async function detectAndIntervenDeathSpiral(): Promise<DefenseResult> {
         ORDER BY acos DESC
       `);
 
-      // @ts-ignore
+      // @ts-expect-error Dynamic type assertion
       const highAcosRows = highAcosCampaigns as any[];
       if (highAcosRows.length > 0) {
         for (const camp of highAcosRows) {
@@ -597,7 +597,7 @@ export async function executeRealEmergencyOptimization(): Promise<DefenseResult>
  LIMIT 20
  `);
 
-        // @ts-ignore
+        // @ts-expect-error Dynamic type assertion
         const extremeRows = extremeCampaigns as any[];
         for (const camp of extremeRows) {
           try {
@@ -672,7 +672,7 @@ export async function executeRealEmergencyOptimization(): Promise<DefenseResult>
  LIMIT 10
  `);
 
-        // @ts-ignore
+        // @ts-expect-error Dynamic type assertion
         const zeroConvRows = zeroConvCampaigns as any[];
         for (const camp of zeroConvRows) {
           try {

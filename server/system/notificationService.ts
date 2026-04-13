@@ -293,7 +293,7 @@ export function generateDailyReportContent(data: DailyReportData): string {
   if (data.topPerformers.length > 0) {
     content += `**🏆 表现最佳**\n`;
     data.topPerformers.forEach((p: unknown, i: unknown) => {
-      // @ts-ignore
+      // @ts-expect-error Complex function parameter types
       content += `${i + 1}. ${p.name} - ROAS: ${p.roas.toFixed(2)}, 销售: $${p.sales.toFixed(2)}\n`;
     });
     content += '\n';

@@ -32,7 +32,7 @@ export const biddingLogRouter = router({
       apiSyncStatus: z.enum(['pending', 'synced', 'failed', 'not_applicable']).optional(),  // 按同步状态过滤
       actionType: z.string().optional(),  // 按操作类型过滤
     }))
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       const result = await db.getOptimizationEvents({
@@ -57,9 +57,9 @@ export const biddingLogRouter = router({
       offset: z.number().optional().default(0),  // v333: 新增offset支持
       startDate: z.string().optional(),
       endDate: z.string().optional(),
-    // @ts-ignore
+    // @ts-expect-error Legacy code type compatibility
     }))
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .query(async ({ ctx, input }: unknown) => {
       const result = await db.getOptimizationEvents({
         campaignId: input.campaignId,
@@ -80,10 +80,10 @@ export const biddingLogRouter = router({
       offset: z.number().optional().default(0),
       startDate: z.string().optional(),
       endDate: z.string().optional(),
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       eventCategory: z.string().optional(),  // 允许查询所有类别的事件
     }))
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .query(async ({ ctx, input }: unknown) => {
       const result = await db.getOptimizationEvents({
         performanceGroupId: input.performanceGroupId,
@@ -100,11 +100,11 @@ export const biddingLogRouter = router({
   stats: protectedProcedure
     .input(z.object({
       accountId: z.number().optional(),
-      // @ts-ignore
+      // @ts-expect-error Legacy code type compatibility
       performanceGroupId: z.number().optional(),
       days: z.number().min(1).max(365).optional().default(30),
     }))
-    // @ts-ignore
+    // @ts-expect-error Complex function parameter types
     .query(async ({ input, ctx }: unknown) => {
       if (input.accountId) await verifyAccountAccess(ctx.user.id, input.accountId);
       return db.getOptimizationEventStats({
