@@ -1067,6 +1067,41 @@ const activeSyncs = new Map<string, {
 const emptyAccountDiagCache = new Map<number, { diagnosisType: string; count: number; firstSeen: Date }>();
 const DIAG_DEDUP_LOG_INTERVAL = 10;  // 每10次相同诊断才输出一次汇总日志
 
+/**
+ * v657: 获取空账户监控统计数据
+ * 用于 /api/ops/status 端点展示空账户预检机制的效果
+ */
+export function getEmptyAccountStats(): {
+  totalEmpty: number;
+  accounts: Array<{ accountId: number; diagnosisType: string; count: number; firstSeen: string; ageMins: number }>;
+  apiRequestsSaved: number;
+} {
+  const accounts: Array<{ accountId: number; diagnosisType: string; count: number; firstSeen: string; ageMins: number }> = [];
+  let totalSkippedCycles = 0;
+  const now = Date.now();
+  
+  for (const [accountId, diag] of emptyAccountDiagCache.entries()) {
+    const ageMins = Math.round((now - diag.firstSeen.getTime()) / 60000);
+    accounts.push({
+      accountId,
+      diagnosisType: diag.diagnosisType,
+      count: diag.count,
+      firstSeen: diag.firstSeen.toISOString(),
+      ageMins,
+    });
+    totalSkippedCycles += diag.count;
+  }
+  
+  // 每个跳过的同步周期约节省5-8个API请求（绩效报告、搜索词、建议竞价等）
+  const apiRequestsSaved = totalSkippedCycles * 6;
+  
+  return {
+    totalEmpty: emptyAccountDiagCache.size,
+    accounts: accounts.sort((a, b) => b.count - a.count),
+    apiRequestsSaved,
+  };
+}
+
 // v652: 并发排队机制 — 当检测到同层级/full层同步在运行时，不再直接拒绝，而是等待锁释放后重试
 // 解决v651验证报告R-5：22个账户因并发保护被直接拒绝的问题
 const QUEUE_POLL_INTERVAL_MS = 30_000;  // 每30秒检查一次锁状态

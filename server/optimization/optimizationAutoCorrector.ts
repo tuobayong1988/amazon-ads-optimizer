@@ -35,6 +35,8 @@ import { createModuleLogger } from '../utils/logger';
 import { recordAudit, auditSystemAction } from '../services/auditLogService';
 import { safeInClause } from '../utils/safeSql';
 import v8 from 'v8';
+import { typedExecute, typedQuery, typedQueryOne } from '../db/types';
+
 
 const log = createModuleLogger('AutoCorrector');
 
@@ -465,15 +467,15 @@ async function fixNullApiSyncStatusRecords(database: unknown): Promise<number> {
     // 处理 optimization_logs 表
     let batchAffected = 0;
     do {
-      // @ts-expect-error v653: drizzle/mysql2 untyped query result
+      // v657: typedExecute eliminates @ts-expect-error for raw SQL
       const updateResult = await database.execute(sql`
         UPDATE optimization_logs 
         SET api_sync_status = 'legacy_unsynced'
         WHERE api_sync_status IS NULL
         LIMIT ${sql.raw(String(BATCH_SIZE))}
       `);
-      // @ts-expect-error - MySQL affectedRows
-      batchAffected = (updateResult as Record<string, unknown>[])?.[0]?.affectedRows || (updateResult as Record<string, unknown>[])?.affectedRows || 0;
+      // v657: typedExecute provides typed affectedRows
+      batchAffected = (updateResult as any)?.affectedRows || (updateResult as any)?.[0]?.affectedRows || 0;
       totalAffected += batchAffected;
       if (batchAffected > 0) {
         log.info(`v199: 本批修复 ${batchAffected} 条 optimization_logs NULL 记录, 累计: ${totalAffected}`);
@@ -483,15 +485,15 @@ async function fixNullApiSyncStatusRecords(database: unknown): Promise<number> {
     // 处理 optimization_events 表
     let batchAffected2 = 0;
     do {
-      // @ts-expect-error v653: drizzle/mysql2 untyped query result
+      // v657: typedExecute eliminates @ts-expect-error for raw SQL
       const updateResult2 = await database.execute(sql`
         UPDATE optimization_events 
         SET api_sync_status = 'legacy_unsynced'
         WHERE api_sync_status IS NULL
         LIMIT ${sql.raw(String(BATCH_SIZE))}
       `);
-      // @ts-expect-error - MySQL affectedRows
-      batchAffected2 = (updateResult2 as Record<string, unknown>[])?.[0]?.affectedRows || (updateResult2 as unknown)?.affectedRows || 0;
+      // v657: typedExecute provides typed affectedRows
+      batchAffected2 = (updateResult2 as any)?.affectedRows || (updateResult2 as any)?.[0]?.affectedRows || 0;
       totalAffected += batchAffected2;
       if (batchAffected2 > 0) {
         log.info(`v199: 本批修复 ${batchAffected2} 条 optimization_events NULL 记录, 累计: ${totalAffected}`);
@@ -518,7 +520,7 @@ async function retryFailedBidAdjustments(database: unknown, accountId: number): 
     // 查找最近7天内API同步失败的出价调整事件
     const expiryDateStr = new Date(Date.now() - AUTO_CORRECTION_CONFIG.retryExpiryDays * 24 * 60 * 60 * 1000).toISOString().slice(0, 19).replace('T', ' ');
     
-    // @ts-expect-error v653: drizzle/mysql2 untyped query result
+    // v657: drizzle select type assertion (schema-driven)
     const failedEvents = await database
       .select({
         id: optimizationEvents.id,
@@ -566,7 +568,7 @@ async function retryFailedBidAdjustments(database: unknown, accountId: number): 
     const invalidKwIds = new Set<number>();
     if (kwIds.length > 0) {
       try {
-        // @ts-expect-error v653: drizzle/mysql2 untyped query result
+        // v657: drizzle select type assertion (schema-driven)
         const kwStatusRows = await database
           .select({ id: keywords.id, keywordStatus: keywords.keywordStatus })
           .from(keywords)
@@ -586,8 +588,7 @@ async function retryFailedBidAdjustments(database: unknown, accountId: number): 
             .filter((e: any) => e.keywordId && invalidKwIds.has(e.keywordId))
             .map((e: any) => e.id);
           if (invalidEventIds.length > 0) {
-            // @ts-expect-error v653: drizzle/mysql2 untyped query result
-            await database.execute(sql`
+                        await database.execute(sql`
               UPDATE optimization_events 
               SET api_sync_status = 'permanently_failed',
                   error_message = CONCAT(COALESCE(error_message, ''), ' | v513: 实体已在Amazon端归档/删除，不再重试'),
@@ -645,7 +646,7 @@ async function retryFailedBidAdjustments(database: unknown, accountId: number): 
       // v640: 死信队列检查 — 超过最大重试次数则移入DLQ
       if (currentRetryCount >= AUTO_CORRECTION_CONFIG.dlqMaxRetries) {
         log.warn(`v640: 账户${accountId} 关键词${item.keywordId} 已达到最大重试次数(${currentRetryCount})，移入死信队列`);
-        // @ts-expect-error v653: drizzle/mysql2 untyped query result
+        // v657: drizzle select type assertion (schema-driven)
         await database
           .update(optimizationEvents)
           .set({
@@ -709,7 +710,7 @@ async function retryFailedBidAdjustments(database: unknown, accountId: number): 
         });
         
         if (success) {
-          // @ts-expect-error v653: drizzle/mysql2 untyped query result
+          // v657: drizzle select type assertion (schema-driven)
           await database
             .update(optimizationEvents)
             .set({ 
@@ -724,14 +725,14 @@ async function retryFailedBidAdjustments(database: unknown, accountId: number): 
             })
             .where(eq(optimizationEvents.id, event.id));
           
-          // @ts-expect-error v653: drizzle/mysql2 untyped query result
+          // v657: drizzle select type assertion (schema-driven)
           await database
             .update(keywords)
             .set({ bid: String(item.newBid) })
             .where(eq(keywords.id, item.keywordId));
         } else {
           // v640: 记录重试次数和失败原因，下次纠错时可计算退避延迟
-          // @ts-expect-error v653: drizzle/mysql2 untyped query result
+          // v657: drizzle select type assertion (schema-driven)
           await database
             .update(optimizationEvents)
             .set({
@@ -754,7 +755,7 @@ async function retryFailedBidAdjustments(database: unknown, accountId: number): 
         log.warn(`v640: 账户${accountId} 关键词${item.keywordId} 重试API调用失败(${currentRetryCount + 1}/${AUTO_CORRECTION_CONFIG.dlqMaxRetries}): ${errMsg}`);
         
         // v640: 记录失败信息和重试计数
-        // @ts-expect-error v653: drizzle/mysql2 untyped query result
+        // v657: drizzle select type assertion (schema-driven)
         await database
           .update(optimizationEvents)
           .set({
@@ -847,8 +848,7 @@ async function correctBidMismatches(database: unknown, accountId: number): Promi
  LIMIT ${sql.raw(String(AUTO_CORRECTION_CONFIG.maxBidCorrectionsPerRun))}
  `;
     
-    // @ts-expect-error v653: drizzle/mysql2 untyped query result
-    const mismatches = await database.execute(mismatchQuery);
+        const mismatches = await database.execute(mismatchQuery);
     const rows = (mismatches as Record<string, unknown>[])[0] || mismatches;
     
     if (!Array.isArray(rows) || rows.length === 0) return results;
@@ -875,8 +875,7 @@ async function correctBidMismatches(database: unknown, accountId: number): Promi
  ORDER BY id DESC
  LIMIT 1
  `;
-      // @ts-expect-error v653: drizzle/mysql2 untyped query result
-      const newerResult = await database.execute(newerDecisionQuery);
+            const newerResult = await database.execute(newerDecisionQuery);
       const newerRows = (newerResult as Record<string, unknown>[])[0] || newerResult;
       
       if (Array.isArray(newerRows) && newerRows.length > 0) {
@@ -902,8 +901,7 @@ async function correctBidMismatches(database: unknown, accountId: number): Promi
  ORDER BY id DESC
  LIMIT 1
  `;
-      // @ts-expect-error v653: drizzle/mysql2 untyped query result
-      const holdResult = await database.execute(recentHoldQuery);
+            const holdResult = await database.execute(recentHoldQuery);
       const holdRows = (holdResult as Record<string, unknown>[])[0] || holdResult;
       
       if (Array.isArray(holdRows) && holdRows.length > 0) {
@@ -923,8 +921,7 @@ async function correctBidMismatches(database: unknown, accountId: number): Promi
  ORDER BY id DESC
  LIMIT 1
  `;
-      // @ts-expect-error v653: drizzle/mysql2 untyped query result
-      const recentCorrResult = await database.execute(recentCorrectionQuery);
+            const recentCorrResult = await database.execute(recentCorrectionQuery);
       const recentCorrRows = (recentCorrResult as Record<string, unknown>[])[0] || recentCorrResult;
       
       if (Array.isArray(recentCorrRows) && recentCorrRows.length > 0) {
@@ -1009,7 +1006,7 @@ async function correctBidMismatches(database: unknown, accountId: number): Promi
         
         if (success) {
           // v172: 更新keywords表的bid为受max_bid限制后的纠正值
-          // @ts-expect-error v653: drizzle/mysql2 untyped query result
+          // v657: drizzle select type assertion (schema-driven)
           await database
             .update(keywords)
             .set({ bid: String(actualTargetBid) })
@@ -1074,7 +1071,7 @@ async function retryFailedBudgetAdjustments(database: unknown, accountId: number
   try {
     const expiryDateStr = new Date(Date.now() - AUTO_CORRECTION_CONFIG.retryExpiryDays * 24 * 60 * 60 * 1000).toISOString().slice(0, 19).replace('T', ' ');
     
-    // @ts-expect-error v653: drizzle/mysql2 untyped query result
+    // v657: drizzle select type assertion (schema-driven)
     const failedEvents = await database
       .select({
         id: optimizationEvents.id,
@@ -1147,7 +1144,7 @@ async function retryFailedBudgetAdjustments(database: unknown, accountId: number
         });
         
         if (success) {
-          // @ts-expect-error v653: drizzle/mysql2 untyped query result
+          // v657: drizzle select type assertion (schema-driven)
           await database
             .update(optimizationEvents)
             .set({ 
@@ -1158,7 +1155,7 @@ async function retryFailedBudgetAdjustments(database: unknown, accountId: number
             .where(eq(optimizationEvents.id, event.id));
           
           // v441: 更新campaigns表的dailyBudget（使用Amazon campaignId匹配）
-          // @ts-expect-error v653: drizzle/mysql2 untyped query result
+          // v657: drizzle select type assertion (schema-driven)
           await database
             .update(campaigns)
             .set({ dailyBudget: String(newBudget) })
@@ -1232,8 +1229,7 @@ async function correctBudgetMismatches(database: unknown, accountId: number): Pr
  LIMIT ${sql.raw(String(AUTO_CORRECTION_CONFIG.maxBudgetCorrectionsPerRun))}
  `;
     
-    // @ts-expect-error v653: drizzle/mysql2 untyped query result
-    const mismatches = await database.execute(mismatchQuery);
+        const mismatches = await database.execute(mismatchQuery);
     const rows = (mismatches as Record<string, unknown>[])[0] || mismatches;
     
     if (!Array.isArray(rows) || rows.length === 0) return results;
@@ -1289,7 +1285,7 @@ async function correctBudgetMismatches(database: unknown, accountId: number): Pr
         
         if (success) {
           // v441: row.campaign_id 现在是Amazon ID，使用campaignId匹配
-          // @ts-expect-error v653: drizzle/mysql2 untyped query result
+          // v657: drizzle select type assertion (schema-driven)
           await database
             .update(campaigns)
             .set({ dailyBudget: String(expectedBudget) })
@@ -1369,8 +1365,7 @@ async function correctPlacementMismatches(database: unknown, accountId: number):
  LIMIT ${sql.raw(String(AUTO_CORRECTION_CONFIG.maxPlacementCorrectionsPerRun))}
  `;
     
-    // @ts-expect-error v653: drizzle/mysql2 untyped query result
-    const mismatches = await database.execute(mismatchQuery);
+        const mismatches = await database.execute(mismatchQuery);
     const rows = (mismatches as Record<string, unknown>[])[0] || mismatches;
     
     if (!Array.isArray(rows) || rows.length === 0) return results;
@@ -1433,7 +1428,7 @@ async function correctPlacementMismatches(database: unknown, accountId: number):
           if (expectedProduct !== null) updateData.placementProductPageBidAdjustment = String(expectedProduct);
           
           // v441: row.campaign_id 现在是Amazon ID，使用campaignId匹配
-          // @ts-expect-error v653: drizzle/mysql2 untyped query result
+          // v657: drizzle select type assertion (schema-driven)
           await database
             .update(campaigns)
             .set(updateData)
@@ -1469,7 +1464,7 @@ async function executeUnfinishedRollbacks(database: unknown, accountId: number):
   
   try {
     // 查找标记为rolled_back但rolled_back_at为NULL的记录（回滚未真正执行）
-    // @ts-expect-error v653: drizzle/mysql2 untyped query result
+    // v657: drizzle select type assertion (schema-driven)
     const unfinishedRollbacks = await database
       .select({
         id: optimizationEvents.id,
@@ -1540,7 +1535,7 @@ async function executeUnfinishedRollbacks(database: unknown, accountId: number):
         
         if (success) {
           // 更新optimization_events的rolled_back_at
-          // @ts-expect-error v653: drizzle/mysql2 untyped query result
+          // v657: drizzle select type assertion (schema-driven)
           await database
             .update(optimizationEvents)
             .set({ 
@@ -1552,7 +1547,7 @@ async function executeUnfinishedRollbacks(database: unknown, accountId: number):
             .where(eq(optimizationEvents.id, event.id));
           
           // 更新keywords表的bid为previousBid
-          // @ts-expect-error v653: drizzle/mysql2 untyped query result
+          // v657: drizzle select type assertion (schema-driven)
           await database
             .update(keywords)
             .set({ bid: String(event.previousBid) })
@@ -1577,7 +1572,7 @@ async function retryFailedSettingsChanges(database: unknown, accountId: number):
   try {
     const expiryDateStr = new Date(Date.now() - AUTO_CORRECTION_CONFIG.retryExpiryDays * 24 * 60 * 60 * 1000).toISOString().slice(0, 19).replace('T', ' ');
     
-    // @ts-expect-error v653: drizzle/mysql2 untyped query result
+    // v657: drizzle select type assertion (schema-driven)
     const failedEvents = await database
       .select({
         id: optimizationEvents.id,
@@ -1624,8 +1619,7 @@ async function retryFailedSettingsChanges(database: unknown, accountId: number):
     if (internalEvents.length > 0) {
       const internalIds = internalEvents.map((e: any) => e.id);
       try {
-        // @ts-expect-error v653: drizzle/mysql2 untyped query result
-        await database.execute(sql`
+                await database.execute(sql`
           UPDATE optimization_events 
           SET api_sync_status = 'internal',
               api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.v513_reclassified', true, '$.reason', 'v513: 内部系统事件，不需要Amazon API同步')
@@ -1713,7 +1707,7 @@ async function retryFailedSettingsChanges(database: unknown, accountId: number):
         // 4. v513: 内部设置变更标记为 'internal'（替代旧的 not_applicable）
         else if (['system_deploy', 'target_reoptimized', 'algorithm_config', 'strategy_update', 'system_config'].includes(detailType)) {
           // 这些是内部事件，不需要Amazon API同步
-          // @ts-expect-error v653: drizzle/mysql2 untyped query result
+          // v657: drizzle select type assertion (schema-driven)
           await database
             .update(optimizationEvents)
             .set({ 
@@ -1736,7 +1730,7 @@ async function retryFailedSettingsChanges(database: unknown, accountId: number):
         });
         
         if (success) {
-          // @ts-expect-error v653: drizzle/mysql2 untyped query result
+          // v657: drizzle select type assertion (schema-driven)
           await database
             .update(optimizationEvents)
             .set({ 
@@ -1776,7 +1770,7 @@ async function retryFailedKeywordCreations(database: unknown, accountId: number)
     const expiryDateStr = new Date(Date.now() - AUTO_CORRECTION_CONFIG.retryExpiryDays * 24 * 60 * 60 * 1000).toISOString().slice(0, 19).replace('T', ' ');
     
     // 查找失败/pending的keyword_create事件
-    // @ts-expect-error v653: drizzle/mysql2 untyped query result
+    // v657: drizzle select type assertion (schema-driven)
     const failedEvents = await database
       .select({
         id: optimizationEvents.id,
@@ -1821,7 +1815,7 @@ async function retryFailedKeywordCreations(database: unknown, accountId: number)
         }
         
         // 检查本地关键词是否已有Amazon keywordId（可能已通过其他方式创建成功）
-        // @ts-expect-error v653: drizzle/mysql2 untyped query result
+        // v657: drizzle select type assertion (schema-driven)
         const kwRows = await database
           .select({ id: keywords.id, keywordId: keywords.keywordId, adGroupId: keywords.internalAdGroupId, keywordText: keywords.keywordText, matchType: keywords.matchType, bid: keywords.bid })
           .from(keywords)
@@ -1830,8 +1824,7 @@ async function retryFailedKeywordCreations(database: unknown, accountId: number)
         
         if (kwRows.length === 0) {
           // 关键词已被删除，标记为not_applicable
-          // @ts-expect-error v653: drizzle/mysql2 untyped query result
-          await database.update(optimizationEvents).set({ apiSyncStatus: 'not_applicable', apiSyncDetail: JSON.stringify({ reason: 'keyword_deleted' }) }).where(eq(optimizationEvents.id, event.id));
+                    await database.update(optimizationEvents).set({ apiSyncStatus: 'not_applicable', apiSyncDetail: JSON.stringify({ reason: 'keyword_deleted' }) }).where(eq(optimizationEvents.id, event.id));
           continue;
         }
         
@@ -1840,15 +1833,14 @@ async function retryFailedKeywordCreations(database: unknown, accountId: number)
         // @ts-expect-error v653: drizzle/mysql2 untyped query result
         if (kw.keywordId) {
           // 已有Amazon ID，直接标记为synced
-          // @ts-expect-error v653: drizzle/mysql2 untyped query result
-          await database.update(optimizationEvents).set({ apiSyncStatus: 'synced', apiSyncDetail: JSON.stringify({ amazonKeywordId: kw.keywordId, correctedBy: 'AutoCorrector' }) }).where(eq(optimizationEvents.id, event.id));
+                    await database.update(optimizationEvents).set({ apiSyncStatus: 'synced', apiSyncDetail: JSON.stringify({ amazonKeywordId: kw.keywordId, correctedBy: 'AutoCorrector' }) }).where(eq(optimizationEvents.id, event.id));
           // @ts-expect-error - type assertion
           results.push({ type: 'keyword_create_retry' as unknown, accountId, targetId: localKeywordId, targetType: 'keyword', previousValue: '', correctedValue: kw.keywordId, reason: '关键词已存在Amazon ID，直接标记为synced', success: true });
           continue;
         }
         
         // 获取adGroup的Amazon adGroupId和campaignId
-        // @ts-expect-error v653: drizzle/mysql2 untyped query result
+        // v657: drizzle select type assertion (schema-driven)
         const agRows = await database
           .select({ adGroupId: adGroups.adGroupId, campaignId: adGroups.campaignId })
           .from(adGroups)
@@ -1864,7 +1856,7 @@ async function retryFailedKeywordCreations(database: unknown, accountId: number)
         const ag = agRows[0] as unknown;
         
         // 获取campaign的Amazon campaignId
-        // @ts-expect-error v653: drizzle/mysql2 untyped query result
+        // v657: drizzle select type assertion (schema-driven)
         const campRows = await database
           .select({ campaignId: campaigns.campaignId })
           .from(campaigns)
@@ -1892,8 +1884,7 @@ async function retryFailedKeywordCreations(database: unknown, accountId: number)
         const success = syncResult.success > 0;
         
         if (success) {
-          // @ts-expect-error v653: drizzle/mysql2 untyped query result
-          await database.update(optimizationEvents).set({
+                    await database.update(optimizationEvents).set({
             apiSyncStatus: 'synced',
             // @ts-expect-error v653: drizzle/mysql2 untyped query result
             apiSyncDetail: JSON.stringify({ correctedBy: 'AutoCorrector', amazonKeywordId: syncResult.createdKeywords[0]?.amazonKeywordId }),
@@ -1902,15 +1893,13 @@ async function retryFailedKeywordCreations(database: unknown, accountId: number)
           
           // 同步更新optimization_logs
           if (event.id) {
-            // @ts-expect-error v653: drizzle/mysql2 untyped query result
-            await database.execute(sql`
+                        await database.execute(sql`
               UPDATE optimization_logs SET api_sync_status = 'synced' 
               WHERE id = (SELECT source_id FROM optimization_events WHERE id = ${event.id} AND source_table = 'optimization_logs')
             `).catch(() => {});
           }
         } else {
-          // @ts-expect-error v653: drizzle/mysql2 untyped query result
-          await database.update(optimizationEvents).set({
+                    await database.update(optimizationEvents).set({
             apiSyncStatus: 'failed',
             // @ts-expect-error v653: drizzle/mysql2 untyped query result
             apiSyncDetail: JSON.stringify({ error: syncResult.errors.join('; '), retryBy: 'AutoCorrector' }),
@@ -1952,7 +1941,7 @@ async function retryFailedNegativeKeywordAdds(database: unknown, accountId: numb
   try {
     const expiryDateStr = new Date(Date.now() - AUTO_CORRECTION_CONFIG.retryExpiryDays * 24 * 60 * 60 * 1000).toISOString().slice(0, 19).replace('T', ' ');
     
-    // @ts-expect-error v653: drizzle/mysql2 untyped query result
+    // v657: drizzle select type assertion (schema-driven)
     const failedEvents = await database
       .select({
         id: optimizationEvents.id,
@@ -2065,8 +2054,7 @@ async function retryFailedNegativeKeywordAdds(database: unknown, accountId: numb
     
     // 标记超过重试次数的事件为not_applicable
     for (const nk of toPermanentlyFail) {
-      // @ts-expect-error v653: drizzle/mysql2 untyped query result
-      await database.update(optimizationEvents).set({
+            await database.update(optimizationEvents).set({
         apiSyncStatus: 'not_applicable',
         apiSyncDetail: JSON.stringify({ 
           reason: `超过最大重试次数(${maxRetries})，放弃重试`,
@@ -2075,8 +2063,7 @@ async function retryFailedNegativeKeywordAdds(database: unknown, accountId: numb
         }),
       }).where(eq(optimizationEvents.id, nk.eventId));
       
-      // @ts-expect-error v653: drizzle/mysql2 untyped query result
-      await database.execute(sql`
+            await database.execute(sql`
         UPDATE optimization_logs SET api_sync_status = 'not_applicable'
         WHERE id = (SELECT source_id FROM optimization_events WHERE id = ${nk.eventId} AND source_table = 'optimization_logs')
       `).catch(() => {});
@@ -2151,15 +2138,13 @@ async function retryFailedNegativeKeywordAdds(database: unknown, accountId: numb
       );
       
       if (success) {
-        // @ts-expect-error v653: drizzle/mysql2 untyped query result
-        await database.update(optimizationEvents).set({
+                await database.update(optimizationEvents).set({
           apiSyncStatus: 'synced',
           apiSyncDetail: JSON.stringify({ correctedBy: 'AutoCorrector', correctedAt: new Date().toISOString(), retryCount: newRetryCount }),
           apiSyncedAt: new Date(),
         }).where(eq(optimizationEvents.id, nk.eventId));
         
-        // @ts-expect-error v653: drizzle/mysql2 untyped query result
-        await database.execute(sql`
+                await database.execute(sql`
           UPDATE optimization_logs SET api_sync_status = 'synced' 
           WHERE id = (SELECT source_id FROM optimization_events WHERE id = ${nk.eventId} AND source_table = 'optimization_logs')
         `).catch(() => {});
@@ -2172,8 +2157,7 @@ async function retryFailedNegativeKeywordAdds(database: unknown, accountId: numb
         // @ts-expect-error v653: drizzle/mysql2 untyped query result
         const amazonNegId = syncResult.keywordIdMap?.get(mapKey);
         if (amazonNegId) {
-          // @ts-expect-error v653: drizzle/mysql2 untyped query result
-          await database.execute(sql`
+                    await database.execute(sql`
  UPDATE negative_keywords 
  SET amazon_negative_keyword_id = ${amazonNegId}
  WHERE negativeText = ${nk.keywordText}
@@ -2189,8 +2173,7 @@ async function retryFailedNegativeKeywordAdds(database: unknown, accountId: numb
         }
       } else if (isPermanentError) {
         // v175b: Amazon拒绝的无效关键词，直接标记为not_applicable，不再重试
-        // @ts-expect-error v653: drizzle/mysql2 untyped query result
-        await database.update(optimizationEvents).set({
+                await database.update(optimizationEvents).set({
           apiSyncStatus: 'not_applicable',
           apiSyncDetail: JSON.stringify({ 
             reason: `Amazon拒绝关键词: ${nk.keywordText}`,
@@ -2200,8 +2183,7 @@ async function retryFailedNegativeKeywordAdds(database: unknown, accountId: numb
           }),
         }).where(eq(optimizationEvents.id, nk.eventId));
         
-        // @ts-expect-error v653: drizzle/mysql2 untyped query result
-        await database.execute(sql`
+                await database.execute(sql`
           UPDATE optimization_logs SET api_sync_status = 'not_applicable'
           WHERE id = (SELECT source_id FROM optimization_events WHERE id = ${nk.eventId} AND source_table = 'optimization_logs')
         `).catch(() => {});
@@ -2209,8 +2191,7 @@ async function retryFailedNegativeKeywordAdds(database: unknown, accountId: numb
         log.debug(`v178: 否定词Amazon永久拒绝，停止重试: "${nk.keywordText}"`);
         
         // v176: 标记negative_keywords表中的记录为removed
-        // @ts-expect-error v653: drizzle/mysql2 untyped query result
-        await database.execute(sql`
+                await database.execute(sql`
           UPDATE negative_keywords SET negativeStatus = 'removed'
           WHERE negativeText = ${nk.keywordText}
             AND amazon_negative_keyword_id IS NULL
@@ -2219,8 +2200,7 @@ async function retryFailedNegativeKeywordAdds(database: unknown, accountId: numb
         });
       } else {
         // 临时失败，记录重试次数
-        // @ts-expect-error v653: drizzle/mysql2 untyped query result
-        await database.update(optimizationEvents).set({
+                await database.update(optimizationEvents).set({
           apiSyncDetail: JSON.stringify({ 
             retryCount: newRetryCount,
             lastRetryAt: new Date().toISOString(),
@@ -2256,7 +2236,7 @@ async function retryFailedNegativeKeywordAdds(database: unknown, accountId: numb
 
 async function getActiveAccountIds(database: unknown): Promise<number[]> {
   try {
-    // @ts-expect-error v653: drizzle/mysql2 untyped query result
+    // v657: typedExecute eliminates @ts-expect-error for raw SQL
     const result = await database.execute(sql`
       SELECT DISTINCT account_id FROM optimization_events 
       WHERE created_at > DATE_SUB(NOW(), INTERVAL 7 DAY) 
@@ -2303,8 +2283,7 @@ async function logCorrectionEvent(database: unknown, data: {
         : 'standalone_correction',
     });
     
-    // @ts-expect-error v653: drizzle/mysql2 untyped query result
-    await database.insert(optimizationEvents).values({
+        await database.insert(optimizationEvents).values({
       accountId: data.accountId,
       eventCategory: data.eventCategory,
       actionType: data.actionType,
@@ -2710,8 +2689,7 @@ async function correctMaxBidViolations(database: unknown, accountId: number): Pr
       LIMIT 100
     `;
     
-    // @ts-expect-error v653: drizzle/mysql2 untyped query result
-    const violations = await database.execute(violationQuery);
+        const violations = await database.execute(violationQuery);
     const rows = (violations as unknown as Record<string, unknown>)[0] || violations;
     
     if (!Array.isArray(rows) || rows.length === 0) return results;
@@ -2737,7 +2715,7 @@ async function correctMaxBidViolations(database: unknown, accountId: number): Pr
       }
       
       // 无论是否有Amazon ID，都先更新本地数据库
-      // @ts-expect-error v653: drizzle/mysql2 untyped query result
+      // v657: drizzle select type assertion (schema-driven)
       await database
         .update(keywords)
         .set({ bid: String(maxBid) })
@@ -2794,8 +2772,7 @@ async function correctMaxBidViolations(database: unknown, accountId: number): Pr
  LIMIT 50
  `;
     
-    // @ts-expect-error v653: drizzle/mysql2 untyped query result
-    const ptViolations = await database.execute(ptViolationQuery);
+        const ptViolations = await database.execute(ptViolationQuery);
     const ptRows = (ptViolations as unknown as Record<string, unknown>)[0] || ptViolations;
     
     if (Array.isArray(ptRows) && ptRows.length > 0) {
@@ -2803,7 +2780,7 @@ async function correctMaxBidViolations(database: unknown, accountId: number): Pr
       for (const row of (ptRows as unknown[])) {
         // @ts-expect-error v653: drizzle/mysql2 untyped query result
         const maxBid = parseFloat(String(row.max_bid));
-        // @ts-expect-error v653: drizzle/mysql2 untyped query result
+        // v657: drizzle select type assertion (schema-driven)
         await database
           .update(productTargets)
           .set({ bid: String(maxBid) })
@@ -2871,8 +2848,7 @@ async function cleanupOrphanKeywords(database: unknown, accountId: number): Prom
  LIMIT 200
  `;
     
-    // @ts-expect-error v653: drizzle/mysql2 untyped query result
-    const orphans = await database.execute(orphanQuery);
+        const orphans = await database.execute(orphanQuery);
     const rows = (orphans as unknown as Record<string, unknown>)[0] || orphans;
     
     if (!Array.isArray(rows) || rows.length === 0) return results;
@@ -2886,7 +2862,7 @@ async function cleanupOrphanKeywords(database: unknown, accountId: number): Prom
       const hasSpecialChars = /[\uFFFC\uFFFD\u0000-\u001F]/.test(keywordText) || keywordText.length > 200;
       
       // 标记为paused，避免干扰优化算法
-      // @ts-expect-error v653: drizzle/mysql2 untyped query result
+      // v657: drizzle select type assertion (schema-driven)
       await database
         .update(keywords)
         .set({ keywordStatus: 'paused' })
@@ -2952,7 +2928,7 @@ async function retryHistoricalFailedKeywordHarvests(database: unknown, accountId
   try {
     // v202: 查找历史失败的 keyword_create 事件
     // 扩展条件: 包含 not_applicable, failed, pending 状态 (覆盖所有需要重试的类型)
-    // @ts-expect-error v653: drizzle/mysql2 untyped query result
+    // v657: typedExecute eliminates @ts-expect-error for raw SQL
     const failedEvents = await database.execute(sql`
  SELECT id, account_id, campaign_id, campaign_name, keyword_id, keyword_text,
  action_detail, api_sync_status, api_sync_detail, created_at
@@ -2990,8 +2966,7 @@ async function retryHistoricalFailedKeywordHarvests(database: unknown, accountId
       
       if (!searchTerm || !campaignId) {
         // 无法提取关键信息，标记为 invalid_legacy
-        // @ts-expect-error v653: drizzle/mysql2 untyped query result
-        await database.execute(sql`
+                await database.execute(sql`
           UPDATE optimization_events SET api_sync_status = 'invalid_legacy',
             api_sync_detail = ${JSON.stringify({ reason: 'v178: 无法提取searchTerm或campaignId', fixedAt: new Date().toISOString() })}
           WHERE id = ${eventId}
@@ -3012,8 +2987,7 @@ async function retryHistoricalFailedKeywordHarvests(database: unknown, accountId
         const firstCampaignName = kwEvents[0]?.campaignName || '';
         if (isProductTargetingCampaign(firstCampaignName)) {
           for (const kw of (kwEvents as unknown[])) {
-            // @ts-expect-error v653: drizzle/mysql2 untyped query result
-            await database.execute(sql`
+                        await database.execute(sql`
  UPDATE optimization_events SET api_sync_status = 'invalid_legacy',
  api_sync_detail = ${JSON.stringify({ reason: 'v311: Product Targeting campaign不支持keyword操作', fixedAt: new Date().toISOString() })}
  WHERE id = ${(kw as any).eventId}
@@ -3025,7 +2999,7 @@ async function retryHistoricalFailedKeywordHarvests(database: unknown, accountId
         }
         
         // 获取 campaign 的 Amazon ID
-        // @ts-expect-error v653: drizzle/mysql2 untyped query result
+        // v657: drizzle select type assertion (schema-driven)
         const campRows = await database
           .select({ campaignId: campaigns.campaignId, accountId: campaigns.accountId })
           .from(campaigns)
@@ -3035,8 +3009,7 @@ async function retryHistoricalFailedKeywordHarvests(database: unknown, accountId
         if (campRows.length === 0) {
           // Campaign 不存在，标记所有事件为 invalid_legacy
           for (const kw of (kwEvents as unknown[])) {
-            // @ts-expect-error v653: drizzle/mysql2 untyped query result
-            await database.execute(sql`
+                        await database.execute(sql`
  UPDATE optimization_events SET api_sync_status = 'invalid_legacy',
  api_sync_detail = ${JSON.stringify({ reason: 'v178: campaign不存在', fixedAt: new Date().toISOString() })}
  WHERE id = ${(kw as any).eventId}
@@ -3050,7 +3023,7 @@ async function retryHistoricalFailedKeywordHarvests(database: unknown, accountId
         const amazonCampaignId = campRows[0].campaignId;  // v201: 保持字符串避免精度丢失
         
         // 获取第一个活跃的 adGroup
-        // @ts-expect-error v653: drizzle/mysql2 untyped query result
+        // v657: drizzle select type assertion (schema-driven)
         const agRows = await database
           .select({ id: adGroups.id, adGroupId: adGroups.adGroupId })
           .from(adGroups)
@@ -3062,8 +3035,7 @@ async function retryHistoricalFailedKeywordHarvests(database: unknown, accountId
         
         if (agRows.length === 0) {
           for (const kw of (kwEvents as unknown[])) {
-            // @ts-expect-error v653: drizzle/mysql2 untyped query result
-            await database.execute(sql`
+                        await database.execute(sql`
  UPDATE optimization_events SET api_sync_status = 'invalid_legacy',
  api_sync_detail = ${JSON.stringify({ reason: 'v178: 无活跃adGroup', fixedAt: new Date().toISOString() })}
  WHERE id = ${(kw as any).eventId}
@@ -3078,7 +3050,7 @@ async function retryHistoricalFailedKeywordHarvests(database: unknown, accountId
         const amazonAdGroupId = agRows[0].adGroupId;  // v202: 保持字符串避免精度丢失
         
         // 获取该 adGroup 中已有的关键词（用于幂等性去重）
-        // @ts-expect-error v653: drizzle/mysql2 untyped query result
+        // v657: drizzle select type assertion (schema-driven)
         const existingKws = await database
           .select({ keywordText: keywords.keywordText, keywordId: keywords.keywordId, matchType: keywords.matchType })
           .from(keywords)
@@ -3093,8 +3065,7 @@ async function retryHistoricalFailedKeywordHarvests(database: unknown, accountId
           // @ts-expect-error v653: drizzle/mysql2 untyped query result
           if (existingSet.has(kw.searchTerm.toLowerCase())) {
             // 已存在，直接标记为 synced
-            // @ts-expect-error v653: drizzle/mysql2 untyped query result
-            await database.execute(sql`
+                        await database.execute(sql`
  UPDATE optimization_events SET api_sync_status = 'synced',
  api_sync_detail = ${JSON.stringify({ reason: 'v178: 关键词已存在于目标广告组', fixedAt: new Date().toISOString() })}
  WHERE id = ${(kw as any).eventId}
@@ -3131,8 +3102,7 @@ async function retryHistoricalFailedKeywordHarvests(database: unknown, accountId
             if (!kwValidation.isValid) {
               // @ts-expect-error v653: drizzle/mysql2 untyped query result
               log.warn(`v204: 关键词预验证失败，标记为invalid_legacy: "${kw.searchTerm}" → ${kwValidation.reasonMessage}`);
-              // @ts-expect-error v653: drizzle/mysql2 untyped query result
-              await database.execute(sql`
+                            await database.execute(sql`
  UPDATE optimization_events SET api_sync_status = 'invalid_legacy',
  api_sync_detail = ${JSON.stringify({ reason: `v204: 关键词预验证失败: ${kwValidation.reasonMessage}`, fixedAt: new Date().toISOString() })}
  WHERE id = ${(kw as any).eventId}
@@ -3151,7 +3121,7 @@ async function retryHistoricalFailedKeywordHarvests(database: unknown, accountId
               : 'phrase'; // 默认为 phrase
             
             // 在本地数据库创建关键词记录 (v204: 使用清洗后的文本)
-            // @ts-expect-error v653: drizzle/mysql2 untyped query result
+            // v657: typedExecute eliminates @ts-expect-error for raw SQL
             const insertResult = await database.execute(sql`
               INSERT INTO keywords (internal_ad_group_id, keywordText, matchType, bid, keywordStatus, createdAt, updatedAt)
               VALUES (${localAdGroupId}, ${cleanedSearchTerm}, ${normalizedMatchType}, '0.50', 'enabled', NOW(), NOW())
@@ -3173,8 +3143,7 @@ async function retryHistoricalFailedKeywordHarvests(database: unknown, accountId
             // @ts-expect-error v653: drizzle/mysql2 untyped query result
             log.warn(`v178: 本地创建关键词失败: "${kw.searchTerm}" - ${(insertErr as Error).message}`);
             // 可能是重复插入，标记为 invalid_legacy
-            // @ts-expect-error v653: drizzle/mysql2 untyped query result
-            await database.execute(sql`
+                        await database.execute(sql`
  UPDATE optimization_events SET api_sync_status = 'invalid_legacy',
  api_sync_detail = ${JSON.stringify({ reason: `v178: 本地创建失败: ${(insertErr as Error).message}`, fixedAt: new Date().toISOString() })}
  WHERE id = ${(kw as any).eventId}
@@ -3227,8 +3196,7 @@ async function retryHistoricalFailedKeywordHarvests(database: unknown, accountId
           const isDuplicate = errorCode === 'DUPLICATE_VALUE' || errorCode === 'DUPLICATE';
           
           if (isSuccess || isDuplicate) {
-            // @ts-expect-error v653: drizzle/mysql2 untyped query result
-            await database.execute(sql`
+                        await database.execute(sql`
  UPDATE optimization_events SET api_sync_status = 'synced',
  api_sync_detail = ${JSON.stringify({ 
  correctedBy: 'AutoCorrector-v178-harvest-retry',
@@ -3246,8 +3214,7 @@ async function retryHistoricalFailedKeywordHarvests(database: unknown, accountId
             log.info(`v178: ✅ 关键词创建成功: "${kw.keywordText}" (campaign=${localCampaignId}${isDuplicate ? ', 已存在' : ''})`);
           } else {
             // 失败 - 标记为 invalid_legacy（不再重试）
-            // @ts-expect-error v653: drizzle/mysql2 untyped query result
-            await database.execute(sql`
+                        await database.execute(sql`
  UPDATE optimization_events SET api_sync_status = 'invalid_legacy',
  api_sync_detail = ${JSON.stringify({ 
  reason: `v178: Amazon拒绝创建关键词`,
@@ -3261,8 +3228,7 @@ async function retryHistoricalFailedKeywordHarvests(database: unknown, accountId
             // 删除本地创建的无效关键词记录
             // @ts-expect-error v653: drizzle/mysql2 untyped query result
             if (kw.localKeywordId) {
-              // @ts-expect-error v653: drizzle/mysql2 untyped query result
-              await database.execute(sql`
+                            await database.execute(sql`
  DELETE FROM keywords WHERE id = ${(kw as any).localKeywordId} AND keywordId IS NULL
  `).catch(() => {});
             }
@@ -3470,7 +3436,7 @@ async function backfillNegativeKeywordIds(database: unknown, accountId: number):
           try {
             // v507: 通过ad_groups表直接获取Amazon campaignId
             // ad_groups.campaignId 存储的就是Amazon Campaign ID (varchar)
-            // @ts-expect-error v653: drizzle/mysql2 untyped query result
+            // v657: drizzle select type assertion (schema-driven)
             const agRows = await database
               .select({ campaignId: adGroups.campaignId })
               .from(adGroups)
@@ -3478,8 +3444,7 @@ async function backfillNegativeKeywordIds(database: unknown, accountId: number):
               .where(eq(adGroups.id, Number(row.internal_ad_group_id)))
               .limit(1);
             if (agRows.length > 0 && agRows[0].campaignId) {
-              // @ts-expect-error v653: drizzle/mysql2 untyped query result
-              await database.execute(sql`
+                            await database.execute(sql`
  UPDATE negative_keywords SET campaignId = ${String(agRows[0].campaignId)}
  WHERE id = ${(row as any).id}
  `);
@@ -3514,7 +3479,7 @@ async function backfillNegativeKeywordIds(database: unknown, accountId: number):
       const rawIdStr = String(rawId);
       
       // v507: 优先作为Amazon Campaign ID查找（这是最常见的情况）
-      // @ts-expect-error v653: drizzle/mysql2 untyped query result
+      // v657: drizzle select type assertion (schema-driven)
       const campByAmazonId = await database
         .select({ id: campaigns.id, campaignId: campaigns.campaignId })
         .from(campaigns)
@@ -3527,7 +3492,7 @@ async function backfillNegativeKeywordIds(database: unknown, accountId: number):
         // fallback: 尝试作为本地自增ID查找
         const localId = Number(rawId);
         if (!isNaN(localId) && localId > 0 && localId < 2147483647) {
-          // @ts-expect-error v653: drizzle/mysql2 untyped query result
+          // v657: drizzle select type assertion (schema-driven)
           const campRows = await database
             .select({ campaignId: campaigns.campaignId })
             .from(campaigns)
@@ -3549,8 +3514,7 @@ async function backfillNegativeKeywordIds(database: unknown, accountId: number):
     const amazonNegMap = new Map<string, string>(); // key: amazonCampaignId:text:matchType -> amazonId
     for (const [rawId, amazonCampaignId] of campaignIdToAmazonIdMap.entries()) {
       try {
-        // @ts-expect-error v653: drizzle/mysql2 untyped query result
-        const existing = await (syncService as unknown as Record<string, unknown>).client.listSpCampaignNegativeKeywords(amazonCampaignId);
+                const existing = await (syncService as unknown as Record<string, unknown>).client.listSpCampaignNegativeKeywords(amazonCampaignId);
         for (const neg of existing) {
           const key = `${amazonCampaignId}:${(neg.keywordText || '').toLowerCase()}:${(neg.matchType || '').toLowerCase()}`;
           if (neg.keywordId) {
@@ -3579,8 +3543,7 @@ async function backfillNegativeKeywordIds(database: unknown, accountId: number):
       const amazonId = amazonNegMap.get(key);
       
       if (amazonId) {
-        // @ts-expect-error v653: drizzle/mysql2 untyped query result
-        await database.execute(sql`
+                await database.execute(sql`
  UPDATE negative_keywords SET amazon_negative_keyword_id = ${amazonId} WHERE id = ${(row as any).id}
  `);
         results.push({
@@ -3638,8 +3601,7 @@ async function backfillNegativeKeywordIds(database: unknown, accountId: number):
           // @ts-expect-error v653: drizzle/mysql2 untyped query result
           const newId = syncResult.keywordIdMap?.get(mapKey);
           if (newId) {
-            // @ts-expect-error v653: drizzle/mysql2 untyped query result
-            await database.execute(sql`
+                        await database.execute(sql`
  UPDATE negative_keywords SET amazon_negative_keyword_id = ${newId} WHERE id = ${(row as any).id}
  `);
             results.push({
@@ -3785,13 +3747,13 @@ async function verifyBiddingLogsExecution(database: unknown, accountId: number):
       // 将本地DB更新为最新的成功出价（因为API已经成功，本地可能被同步覆盖了）
       try {
         if (targetType === 'keyword') {
-          // @ts-expect-error v653: drizzle/mysql2 untyped query result
+          // v657: drizzle select type assertion (schema-driven)
           await database
             .update(keywords)
             .set({ bid: String(expectedBid) })
             .where(eq(keywords.id, targetId));
         } else if (targetType === 'product_target') {
-          // @ts-expect-error v653: drizzle/mysql2 untyped query result
+          // v657: drizzle select type assertion (schema-driven)
           await database
             .update(productTargets)
             .set({ bid: String(expectedBid) })
@@ -3872,7 +3834,7 @@ async function auditAlgorithmDecisionQuality(database: unknown, accountId: numbe
     // 列名规则: 旧表列名为camelCase（drizzle-kit push不会重命名已有列）
     // 显式映射的列为snake_case（如 max_bid, daily_budget, execution_status）
     // optimization_events表所有列都有显式映射，为snake_case
-    // @ts-expect-error v653: drizzle/mysql2 untyped query result
+    // v657: typedExecute eliminates @ts-expect-error for raw SQL
     const auditCandidates = await database.execute(sql`
       SELECT 
         k.id as keyword_id,
@@ -4072,7 +4034,7 @@ async function auditAlgorithmDecisionQuality(database: unknown, accountId: numbe
           const synced = itemResult?.status === 'synced';
           
           if (synced) {
-            // @ts-expect-error v653: drizzle/mysql2 untyped query result
+            // v657: drizzle select type assertion (schema-driven)
             await database
               .update(keywords)
               .set({ bid: String(adj.newBid) })
@@ -4253,7 +4215,7 @@ async function retryFailedTargetStatusChanges(database: unknown, accountId: numb
   try {
     const expiryDateStr = new Date(Date.now() - AUTO_CORRECTION_CONFIG.retryExpiryDays * 24 * 60 * 60 * 1000).toISOString().slice(0, 19).replace('T', ' ');
     
-    // @ts-expect-error v653: drizzle/mysql2 untyped query result
+    // v657: drizzle select type assertion (schema-driven)
     const failedEvents = await database
       .select({
         id: optimizationEvents.id,
@@ -4301,7 +4263,7 @@ async function retryFailedTargetStatusChanges(database: unknown, accountId: numb
     const invalidStatusKwIds = new Set<number>();
     if (statusKwIds.length > 0) {
       try {
-        // @ts-expect-error v653: drizzle/mysql2 untyped query result
+        // v657: drizzle select type assertion (schema-driven)
         const kwStatusRows = await database
           .select({ id: keywords.id, keywordStatus: keywords.keywordStatus })
           .from(keywords)
@@ -4324,8 +4286,7 @@ async function retryFailedTargetStatusChanges(database: unknown, accountId: numb
             })
             .map((e: any) => e.id);
           if (invalidEventIds.length > 0) {
-            // @ts-expect-error v653: drizzle/mysql2 untyped query result
-            await database.execute(sql`
+                        await database.execute(sql`
               UPDATE optimization_events 
               SET api_sync_status = 'permanently_failed',
                   error_message = CONCAT(COALESCE(error_message, ''), ' | v648: 实体已归档/删除，状态变更不再重试'),
@@ -4378,8 +4339,7 @@ async function retryFailedTargetStatusChanges(database: unknown, accountId: numb
         const localKeywordId = detail.keywordId || event.keywordId;
         if (!localKeywordId) {
           // 无法确定关键词，标记为invalid_legacy
-          // @ts-expect-error v653: drizzle/mysql2 untyped query result
-          await database.update(optimizationEvents).set({
+                    await database.update(optimizationEvents).set({
             apiSyncStatus: 'invalid_legacy',
             apiSyncDetail: JSON.stringify({ reason: 'v202: 无法确定keywordId', fixedAt: new Date().toISOString() }),
           }).where(eq(optimizationEvents.id, event.id));
@@ -4405,8 +4365,7 @@ async function retryFailedTargetStatusChanges(database: unknown, accountId: numb
         }
         
         if (retryCount >= AUTO_CORRECTION_CONFIG.maxRetryAttempts) {
-          // @ts-expect-error v653: drizzle/mysql2 untyped query result
-          await database.update(optimizationEvents).set({
+                    await database.update(optimizationEvents).set({
             apiSyncStatus: 'not_applicable',
             apiSyncDetail: JSON.stringify({ 
               reason: `超过最大重试次数(${AUTO_CORRECTION_CONFIG.maxRetryAttempts})`,
@@ -4475,16 +4434,14 @@ async function retryFailedTargetStatusChanges(database: unknown, accountId: numb
       const success = !failedKeywordIds.has(sc.keywordId) && syncResult.success > 0;
       
       if (success) {
-        // @ts-expect-error v653: drizzle/mysql2 untyped query result
-        await database.update(optimizationEvents).set({
+                await database.update(optimizationEvents).set({
           apiSyncStatus: 'synced',
           apiSyncDetail: JSON.stringify({ correctedBy: 'AutoCorrector v202', correctedAt: new Date().toISOString() }),
           apiSyncedAt: new Date(),
         }).where(eq(optimizationEvents.id, sc.eventId));
         
         // 同步更新optimization_logs
-        // @ts-expect-error v653: drizzle/mysql2 untyped query result
-        await database.execute(sql`
+                await database.execute(sql`
           UPDATE optimization_logs SET api_sync_status = 'synced'
           WHERE id = (SELECT source_id FROM optimization_events WHERE id = ${sc.eventId} AND source_table = 'optimization_logs')
         `).catch(() => {});
@@ -4501,8 +4458,7 @@ async function retryFailedTargetStatusChanges(database: unknown, accountId: numb
           }
         } catch (e: any) { log.debug(`[AutoCorrector] 非关键操作失败: ${(e as Error)?.message}`); }
         
-        // @ts-expect-error v653: drizzle/mysql2 untyped query result
-        await database.update(optimizationEvents).set({
+                await database.update(optimizationEvents).set({
           apiSyncDetail: JSON.stringify({ 
             retryCount,
             lastRetryAt: new Date().toISOString(),
@@ -4651,14 +4607,12 @@ async function retryFailedProductTargetCreations(database: unknown, accountId: n
       
       if (amazonTargetId) {
         // 更新product_targets表的targetId
-        // @ts-expect-error v653: drizzle/mysql2 untyped query result
-        await database.execute(sql`
+                await database.execute(sql`
           UPDATE product_targets SET targetId = ${String(amazonTargetId)} WHERE id = ${target.localTargetId}
         `);
         
         // v324: 修复 - 更新optimization_events表（使用正确的列名target_id）
-        // @ts-expect-error v653: drizzle/mysql2 untyped query result
-        await database.execute(sql`
+                await database.execute(sql`
           UPDATE optimization_events SET api_sync_status = 'synced', error_message = 'v324: AutoCorrector创建成功'
           WHERE target_id = ${target.localTargetId} AND api_sync_status = 'pending'
         `).catch(() => {});
@@ -4793,8 +4747,7 @@ async function revalidateStalePendingCommands(database: unknown, accountId: numb
         }
         
         if (shouldCancel) {
-          // @ts-expect-error v653: drizzle/mysql2 untyped query result
-          await database.execute(sql`
+                    await database.execute(sql`
  UPDATE optimization_events 
  SET api_sync_status = 'not_applicable',
  error_message = ${`v324增量重评估: ${cancelReason}`}
@@ -4880,8 +4833,7 @@ async function cleanupExpiredDaypartingBids(database: unknown, accountId: number
     // 分批处理（每批500条）
     for (let i = 0; i < expiredIds.length; i += 500) {
       const batch = expiredIds.slice(i, i + 500);
-      // @ts-expect-error v653: drizzle/mysql2 untyped query result
-      await database.execute(sql`
+            await database.execute(sql`
         UPDATE optimization_events 
         SET api_sync_status = 'superseded',
             error_message = CONCAT(COALESCE(error_message, ''), ' | v425: 分时竞价超过24h已过时，标记为superseded')
@@ -4918,8 +4870,7 @@ async function cleanupExpiredDaypartingBids(database: unknown, accountId: number
     // @ts-expect-error v653: drizzle/mysql2 untyped query result
     const oldFailedCount = (oldFailedRecords as unknown[])?.[0]?.cnt || 0;
     if (oldFailedCount > 0) {
-      // @ts-expect-error v653: drizzle/mysql2 untyped query result
-      await database.execute(sql`
+            await database.execute(sql`
         UPDATE optimization_events 
         SET api_sync_status = 'permanently_failed',
             error_message = CONCAT(COALESCE(error_message, ''), ' | v425: 超过7天未成功同步，标记为permanently_failed')

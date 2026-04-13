@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 656;  // v656: 全项目@ts-ignore彻底清理(5777个→0个代码级@ts-ignore) + 部署恢复门控验证
+export const SYSTEM_VERSION = 657;  // v657: 智能节流优化(部署恢复40min→15min) + 类型安全基础设施(db/types.ts+91个@ts-expect-error消除) + 空账户监控指标

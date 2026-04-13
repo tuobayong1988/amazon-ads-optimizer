@@ -85,6 +85,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 657,
+    description: 'v657: [智能节流+类型安全基础设施+空账户监控] — (1)P2-部署恢复智能节流: 步骤4e重优化时根据目标实际执行情况动态调整等待时间,无API调用目标从30秒降至2秒,无操作批次间等待从10秒降至1秒,预计部署恢复时间从40分钟压缩至15分钟以内 (2)P3-类型安全基础设施: 创建server/db/types.ts提供typedQuery/typedExecute/typedQueryOne/typedAggregate类型安全查询工具,在optimizationAutoCorrector.ts中示范消除了91个DB相关@ts-expect-error(329→238) (3)P3-空账户监控指标: 导出getEmptyAccountStats()到/api/ops/status端点,展示空账户数量/诊断历史/节省API请求数',
+    affectedModules: ['optimization', 'sync', 'system'],
+    correctionActions: [],
+  },
+  {
     version: 656,
     description: 'v656: [全项目@ts-ignore彻底清理+部署恢复门控验证] — (1)5.2 @ts-ignore深度清理: 全项目238个文件中5777个@ts-ignore替换为@ts-expect-error+原因说明,代码级@ts-ignore从5792降至0(清理率99.7%),累计从初始7884降至15(全部在注释/字符串中,清理率99.8%) (2)5.1部署恢复门控验证: 确认v491门控在步骤4b-4e期间正确阻止定期优化,步骤4h的markDeployRecoveryComplete()解除门控后优化正常恢复,符合设计预期',
     affectedModules: ['all'],
@@ -2573,18 +2579,27 @@ export async function runPostDeployOptimization(): Promise<PostDeployResult> {
           `优化=${result.optimizationActions}, 耗时=${result.duration}ms` +
           (result.errors.length > 0 ? `, 错误=${result.errors.length}` : ''));
         
-        // v476: 目标间节流 — 每个目标执行完成后等待15秒，避免API限流
-        // PostDeploy是全量重优化，API调用密度更高，需要更长的间隔
-        const INTER_TARGET_DELAY_MS = 30000;  // 30秒 — 优先保证100%成功率
-        log.info(`[PostDeployOptimizer] v476: 目标间节流 - 等待${INTER_TARGET_DELAY_MS / 1000}秒后执行下一个目标...`);
+        // v657: 智能节流 — 根据目标实际执行情况动态调整等待时间
+        // 如果目标没有执行任何模块（无API调用），则无需长时间等待
+        const hadActualApiCalls = result.modulesExecuted.length > 0 || result.optimizationActions > 0 || result.correctionsApplied > 0;
+        const INTER_TARGET_DELAY_MS = hadActualApiCalls ? 30000 : 2000;  // 有API调用:30秒 | 无操作:2秒
+        if (hadActualApiCalls) {
+          log.info(`[PostDeployOptimizer] v657: 目标间节流(有API调用) - 等待${INTER_TARGET_DELAY_MS / 1000}秒后执行下一个目标...`);
+        } else {
+          log.debug(`[PostDeployOptimizer] v657: 目标无操作(0模块/0优化/0纠正) - 快速跳过,仅等待${INTER_TARGET_DELAY_MS / 1000}秒...`);
+        }
         await sleep(INTER_TARGET_DELAY_MS);
       }
     }
     
-    // 批次间等待
+    // v657: 智能批次间等待 — 如果批次内所有目标都无操作，缩短等待
     if (i + POST_DEPLOY_CONFIG.batchSize < sortedTargets.length) {
-      log.debug(`[PostDeployOptimizer] 批次间等待 ${POST_DEPLOY_CONFIG.batchDelayMs / 1000}秒...`);
-      await sleep(POST_DEPLOY_CONFIG.batchDelayMs);
+      const batchHadApiCalls = targetResults.slice(-batch.length).some(
+        r => r.modulesExecuted.length > 0 || r.optimizationActions > 0 || r.correctionsApplied > 0
+      );
+      const batchDelay = batchHadApiCalls ? POST_DEPLOY_CONFIG.batchDelayMs : 1000;  // 有API:10秒 | 无操作:1秒
+      log.debug(`[PostDeployOptimizer] v657: 批次间等待 ${batchDelay / 1000}秒 (${batchHadApiCalls ? '有API调用' : '无操作快速跳过'})...`);
+      await sleep(batchDelay);
     }
   }
   

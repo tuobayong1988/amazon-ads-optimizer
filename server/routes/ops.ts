@@ -332,6 +332,15 @@ router.get('/status', async (req: Request, res: Response) => {
       opsLogger: opsSummary,
       // v384: 单实例模式
       instanceMode: 'standalone',
+      // v657: 空账户监控指标 — 展示空账户预检机制的效果和节省的API请求数
+      emptyAccounts: await (async () => {
+        try {
+          const { getEmptyAccountStats } = await import('../sync/unifiedSyncEngine');
+          return getEmptyAccountStats();
+        } catch {
+          return { totalEmpty: 0, accounts: [], apiRequestsSaved: 0 };
+        }
+      })(),
       timestamp: new Date().toISOString(),
     });
   } catch (e: unknown) {
