@@ -162,13 +162,49 @@ async function getScheduledTaskUserId(taskId: number): Promise<number | null> {
 
 // ==================== 验证函数 ====================
 
-/** 验证accountId是否属于指定用户 */
+/** v667: 获取用户所属组织的所有账户ID集合（带缓存） */
+const orgAccountCache = new Map<number, { accounts: Set<number>; expiry: number }>();
+async function getOrganizationAccountIds(userId: number): Promise<Set<number>> {
+  try {
+    const { getDb } = await import('../db/connection');
+    const { teamMembers, adAccounts } = await import('../../drizzle/schema');
+    const db = await getDb();
+    if (!db) return new Set();
+    // 先查用户的organizationId
+    const userRows = await db.select({ organizationId: teamMembers.organizationId })
+      .from(teamMembers).where(eq(teamMembers.id, userId)).limit(1);
+    if (!userRows.length || !userRows[0].organizationId) return new Set();
+    const orgId = userRows[0].organizationId;
+    // 检查缓存
+    const cached = orgAccountCache.get(orgId);
+    if (cached && cached.expiry > Date.now()) return cached.accounts;
+    // 查询组织内所有账户
+    const accounts = await db.select({ id: adAccounts.id })
+      .from(adAccounts)
+      .where(eq(adAccounts.organizationId, orgId));
+    const accountSet = new Set(accounts.map(a => a.id));
+    orgAccountCache.set(orgId, { accounts: accountSet, expiry: Date.now() + CACHE_TTL_MS });
+    return accountSet;
+  } catch (error) {
+    log.warn(`[v667] 查询用户 ${userId} 的组织账户列表失败:`, error);
+    return new Set();
+  }
+}
+
+/** 验证accountId是否属于指定用户（或其组织） */
 export async function verifyAccountAccess(userId: number, accountId: number): Promise<void> {
   if (!accountId || !userId) {
     throw new TRPCError({ code: 'BAD_REQUEST', message: '缺少必要的用户或账户信息' });
   }
-  // v447: admin角色拥有全部账户访问权限
-  if (await isAdminUser(userId)) return;
+  // v667: admin角色也需要验证组织归属，不再无条件跳过
+  if (await isAdminUser(userId)) {
+    const orgAccounts = await getOrganizationAccountIds(userId);
+    if (!orgAccounts.has(accountId)) {
+      log.warn(`[v667] 数据隔离拦截(admin-org): 管理员 ${userId} 试图访问不属于其组织的账户 ${accountId}`);
+      throw new TRPCError({ code: 'FORBIDDEN', message: '您没有权限访问此账户的数据' });
+    }
+    return;
+  }
   const userAccounts = await getUserAccountIds(userId);
   if (!userAccounts.has(accountId)) {
     log.warn(`[v370.4] 数据隔离拦截(account): 用户 ${userId} 试图访问不属于自己的账户 ${accountId}`);
@@ -176,11 +212,20 @@ export async function verifyAccountAccess(userId: number, accountId: number): Pr
   }
 }
 
-/** 验证多个accountId是否都属于指定用户 */
+/** 验证多个accountId是否都属于指定用户（或其组织） */
 export async function verifyMultipleAccountAccess(userId: number, accountIds: number[]): Promise<void> {
   if (!accountIds || accountIds.length === 0) return;
-  // v447: admin角色拥有全部账户访问权限
-  if (await isAdminUser(userId)) return;
+  // v667: admin角色也需要验证组织归属
+  if (await isAdminUser(userId)) {
+    const orgAccounts = await getOrganizationAccountIds(userId);
+    for (const accountId of accountIds) {
+      if (!orgAccounts.has(accountId)) {
+        log.warn(`[v667] 数据隔离拦截(admin-org-batch): 管理员 ${userId} 试图批量访问不属于其组织的账户 ${accountId}`);
+        throw new TRPCError({ code: 'FORBIDDEN', message: '您没有权限访问部分账户的数据' });
+      }
+    }
+    return;
+  }
   const userAccounts = await getUserAccountIds(userId);
   for (const accountId of accountIds) {
     if (!userAccounts.has(accountId)) {
@@ -190,13 +235,20 @@ export async function verifyMultipleAccountAccess(userId: number, accountIds: nu
   }
 }
 
-/** v370.4: 验证campaign是否属于指定用户 */
+/** v370.4: 验证campaign是否属于指定用户（或其组织） */
 export async function verifyCampaignAccess(userId: number, campaignId: number): Promise<void> {
-  // v447: admin角色拥有全部访问权限
-  if (await isAdminUser(userId)) return;
   const accountId = await getCampaignAccountId(campaignId);
   if (accountId === null) {
     throw new TRPCError({ code: 'NOT_FOUND', message: '广告活动不存在' });
+  }
+  // v667: admin角色也需要验证组织归属
+  if (await isAdminUser(userId)) {
+    const orgAccounts = await getOrganizationAccountIds(userId);
+    if (!orgAccounts.has(accountId)) {
+      log.warn(`[v667] 数据隔离拦截(admin-campaign): 管理员 ${userId} 试图访问不属于其组织的广告活动 ${campaignId}`);
+      throw new TRPCError({ code: 'FORBIDDEN', message: '您没有权限访问此广告活动' });
+    }
+    return;
   }
   const userAccounts = await getUserAccountIds(userId);
   if (!userAccounts.has(accountId)) {
@@ -205,13 +257,20 @@ export async function verifyCampaignAccess(userId: number, campaignId: number): 
   }
 }
 
-/** v370.4: 验证performanceGroup是否属于指定用户 */
+/** v370.4: 验证performanceGroup是否属于指定用户（或其组织） */
 export async function verifyPerformanceGroupAccess(userId: number, pgId: number): Promise<void> {
-  // v447: admin角色拥有全部访问权限
-  if (await isAdminUser(userId)) return;
   const ownership = await getPGOwnership(pgId);
   if (!ownership) {
     throw new TRPCError({ code: 'NOT_FOUND', message: '优化目标不存在' });
+  }
+  // v667: admin角色也需要验证组织归属
+  if (await isAdminUser(userId)) {
+    const orgAccounts = await getOrganizationAccountIds(userId);
+    if (!orgAccounts.has(ownership.accountId)) {
+      log.warn(`[v667] 数据隔离拦截(admin-pg): 管理员 ${userId} 试图访问不属于其组织的优化目标 ${pgId}`);
+      throw new TRPCError({ code: 'FORBIDDEN', message: '您没有权限访问此优化目标' });
+    }
+    return;
   }
   if (ownership.userId !== userId) {
     const userAccounts = await getUserAccountIds(userId);
@@ -222,12 +281,19 @@ export async function verifyPerformanceGroupAccess(userId: number, pgId: number)
   }
 }
 
-/** v370.4: 验证keyword是否属于指定用户 */
+/** v370.4: 验证keyword是否属于指定用户（或其组织） */
 export async function verifyKeywordAccess(userId: number, keywordId: number): Promise<void> {
-  // v447: admin角色拥有全部访问权限
-  if (await isAdminUser(userId)) return;
   const accountId = await getKeywordAccountId(keywordId);
   if (accountId === null) return; // 旧数据可能没有accountId
+  // v667: admin角色也需要验证组织归属
+  if (await isAdminUser(userId)) {
+    const orgAccounts = await getOrganizationAccountIds(userId);
+    if (!orgAccounts.has(accountId)) {
+      log.warn(`[v667] 数据隔离拦截(admin-keyword): 管理员 ${userId} 试图访问不属于其组织的关键词 ${keywordId}`);
+      throw new TRPCError({ code: 'FORBIDDEN', message: '您没有权限访问此关键词' });
+    }
+    return;
+  }
   const userAccounts = await getUserAccountIds(userId);
   if (!userAccounts.has(accountId)) {
     log.warn(`[v370.4] 数据隔离拦截(keyword): 用户 ${userId} 试图访问不属于自己的关键词 ${keywordId}`);
@@ -235,12 +301,19 @@ export async function verifyKeywordAccess(userId: number, keywordId: number): Pr
   }
 }
 
-/** v370.4: 验证adGroup是否属于指定用户 */
+/** v370.4: 验证adGroup是否属于指定用户（或其组织） */
 export async function verifyAdGroupAccess(userId: number, adGroupId: number): Promise<void> {
-  // v447: admin角色拥有全部访问权限
-  if (await isAdminUser(userId)) return;
   const accountId = await getAdGroupAccountId(adGroupId);
   if (accountId === null) return; // 旧数据可能没有accountId
+  // v667: admin角色也需要验证组织归属
+  if (await isAdminUser(userId)) {
+    const orgAccounts = await getOrganizationAccountIds(userId);
+    if (!orgAccounts.has(accountId)) {
+      log.warn(`[v667] 数据隔离拦截(admin-adGroup): 管理员 ${userId} 试图访问不属于其组织的广告组 ${adGroupId}`);
+      throw new TRPCError({ code: 'FORBIDDEN', message: '您没有权限访问此广告组' });
+    }
+    return;
+  }
   const userAccounts = await getUserAccountIds(userId);
   if (!userAccounts.has(accountId)) {
     log.warn(`[v370.4] 数据隔离拦截(adGroup): 用户 ${userId} 试图访问不属于自己的广告组 ${adGroupId}`);
@@ -250,7 +323,7 @@ export async function verifyAdGroupAccess(userId: number, adGroupId: number): Pr
 
 /** v370.4: 验证scheduledTask是否属于指定用户 */
 export async function verifyScheduledTaskAccess(userId: number, taskId: number): Promise<void> {
-  // v447: admin角色拥有全部访问权限
+  // 调度任务不涉及组织级隔离，保持用户级隔离
   if (await isAdminUser(userId)) return;
   const taskUserId = await getScheduledTaskUserId(taskId);
   if (taskUserId === null) {
@@ -275,4 +348,5 @@ export function clearAllAccountCache(): void {
   campaignAccountCache.clear();
   pgOwnershipCache.clear();
   adminUserCache.clear();
+  orgAccountCache.clear();
 }

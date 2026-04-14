@@ -17,15 +17,22 @@ function isSystemAdmin(user: unknown): boolean {
   return user.role === 'admin' && user.organizationId === 1;
 }
 
+// v667: 获取用户可见的账户列表（数据隔离修复）
+// 系统管理员看同组织内所有账户，普通用户只看自己的账户
+async function getUserVisibleAccounts(user: Record<string, unknown>) {
+  if (isSystemAdmin(user)) {
+    // v667: 系统管理员也只能看到自己组织内的账户，不再返回所有租户数据
+    return db.getAdAccountsByOrganizationId(user.organizationId as number);
+  }
+  return db.getAdAccountsByUserId(user.id as number);
+}
+
 // ==================== Ad Account Router ====================
 export const adAccountRouter = router({
-  // v452.8: 安全修复 — 只有系统管理员可查看所有账户，其他用户仅查看自己的账户
+  // v667: 数据隔离修复 — 所有用户（包括管理员）只能看到自己组织内的账户
   // @ts-expect-error Complex function parameter types
   list: protectedProcedure.query(async ({ ctx }: unknown) => {
-    if (isSystemAdmin(ctx.user)) {
-      return db.getAdAccounts();
-    }
-    return db.getAdAccountsByUserId(ctx.user.id);
+    return getUserVisibleAccounts(ctx.user);
   }),
   
   // v359: 安全修复 — 获取单个账号详情（需认证，验证归属）
@@ -36,8 +43,12 @@ export const adAccountRouter = router({
       if (!account) {
         throw new TRPCError({ code: 'NOT_FOUND', message: '账号不存在' });
       }
-      // v359: 非管理员只能查看自己的账户
-      if (!isSystemAdmin(ctx.user) && account.userId !== ctx.user.id) {
+      // v667: 数据隔离修复 — 系统管理员检查组织归属，普通用户检查userId归属
+      if (isSystemAdmin(ctx.user)) {
+        if (account.organizationId !== (ctx.user as Record<string, unknown>).organizationId) {
+          throw new TRPCError({ code: 'FORBIDDEN', message: '无权访问此账号' });
+        }
+      } else if (account.userId !== ctx.user.id) {
         throw new TRPCError({ code: 'FORBIDDEN', message: '无权访问此账号' });
       }
       return account;
@@ -49,10 +60,8 @@ export const adAccountRouter = router({
     .input(z.object({ userId: z.number().optional() }).optional())
     // @ts-expect-error Complex function parameter types
     .query(async ({ ctx }: unknown) => {
-      // v359: 使用认证用户的ID获取其账户列表
-      const accounts = isSystemAdmin(ctx.user)
-        ? await db.getAdAccounts()
-        : await db.getAdAccountsByUserId(ctx.user.id);
+      // v667: 数据隔离修复 — 使用组织级隔离
+      const accounts = await getUserVisibleAccounts(ctx.user);
       return accounts.find(a => a.isDefault) || accounts[0] || null;
     }),
   
@@ -217,9 +226,8 @@ export const adAccountRouter = router({
 
     const timeRange = input?.timeRange || '7days';
     // 管理员可以访问所有账户
-    const accounts = isSystemAdmin(ctx.user) 
-      ? await db.getAdAccounts() 
-      : await db.getAdAccountsByUserId(ctx.user.id);
+    // v667: 数据隔离修复 — 使用组织级隔离
+    const accounts = await getUserVisibleAccounts(ctx.user as Record<string, unknown>);
     
     // 过滤掉空店铺占位记录（marketplace为空）
     const actualSites = accounts.filter(a => a.marketplace && a.marketplace !== '');
@@ -372,10 +380,8 @@ export const adAccountRouter = router({
   // 获取账号统计信息
   // @ts-expect-error Complex function parameter types
   getStats: protectedProcedure.query(async ({ ctx }: unknown) => {
-    // 管理员可以访问所有账户
-    const accounts = isSystemAdmin(ctx.user) 
-      ? await db.getAdAccounts() 
-      : await db.getAdAccountsByUserId(ctx.user.id);
+    // v667: 数据隔离修复 — 使用组织级隔离
+    const accounts = await getUserVisibleAccounts(ctx.user as Record<string, unknown>);
     
     // 过滤掉空店铺占位记录（marketplace为空），只统计实际站点
     const actualSites = accounts.filter(a => a.marketplace && a.marketplace !== '');
@@ -424,10 +430,8 @@ export const adAccountRouter = router({
       const cached = apiCache.get<unknown>(cacheKey);
       if (cached) return cached;
 
-      // 管理员可以访问所有账户
-      const accounts = isSystemAdmin(ctx.user) 
-        ? await db.getAdAccounts() 
-        : await db.getAdAccountsByUserId(ctx.user.id);
+      // v667: 数据隔离修复 — 使用组织级隔离
+      const accounts = await getUserVisibleAccounts(ctx.user as Record<string, unknown>);
       const actualSites = accounts.filter(a => a.marketplace && a.marketplace !== '');
       const accountIds = actualSites.map(a => a.id);
       
@@ -477,10 +481,8 @@ export const adAccountRouter = router({
   // 获取数据可用日期范围（用于自定义日期选择器的限制）
   // @ts-expect-error Complex function parameter types
   getDataDateRange: protectedProcedure.query(async ({ ctx }: unknown) => {
-    // 管理员可以访问所有账户
-    const accounts = isSystemAdmin(ctx.user) 
-      ? await db.getAdAccounts() 
-      : await db.getAdAccountsByUserId(ctx.user.id);
+    // v667: 数据隔离修复 — 使用组织级隔离
+    const accounts = await getUserVisibleAccounts(ctx.user as Record<string, unknown>);
     const actualSites = accounts.filter(a => a.marketplace && a.marketplace !== '');
     const accountIds = actualSites.map(a => a.id);
     

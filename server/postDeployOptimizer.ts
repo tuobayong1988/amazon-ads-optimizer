@@ -86,8 +86,8 @@ type CorrectionAction =
 const VERSION_CHANGELOG: VersionChange[] = [
   {
     version: 667,
-    description: 'v667: [EB配置回退修复+超时优化保留] — (1)P0-回退EB配置到v664稳定版: 移除v665引入的IgnoreHealthCheck:true和HealthCheckSuccessThreshold:Degraded,这些配置导致v666部署后应用崩溃时EB无法自动回滚,100%请求返回5xx (2)P0-回退AutoScaling配置到v664稳定版: 移除v665的Cooldown:900和PauseTime:PT5M (3)保留v665所有代码优化: SP建议竞价60min+SP否定关键词45min+SIGTERM checkpoint保存+僵尸任务快速检测+竞价查询自适应节流 (4)保留v666超时优化: sp_keywords 50min+sp_negative_targets 50min',
-    affectedModules: ['system', 'sync'],
+    description: 'v667: [EB配置回退修复+数据隔离修复+超时优化保留] — (1)P0-回退EB配置到v664稳定版: 移除v665引入的IgnoreHealthCheck:true和HealthCheckSuccessThreshold:Degraded (2)P0-多租户数据隔离修复: 系统管理员不再能看到所有租户数据,改为按组织ID隔离; adAccount.list/listWithPerformance/getStats/getDailyTrend/getDataDateRange全部使用getUserVisibleAccounts; accessControl中verifyAccountAccess/verifyCampaignAccess/verifyKeywordAccess/verifyAdGroupAccess/verifyPerformanceGroupAccess全部增加组织级验证 (3)保留v665/v666所有代码优化',
+    affectedModules: ['system', 'sync', 'security'],
     correctionActions: [],
   },
   {

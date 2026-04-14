@@ -29,6 +29,19 @@ export async function getAdAccountsByUserId(userId: number) {
 }
 
 /**
+ * v667: 按组织ID获取账户列表 — 用于系统管理员的数据隔离
+ * 系统管理员可以看到同一组织内所有用户的账户，但不能跨组织查看
+ */
+export async function getAdAccountsByOrganizationId(organizationId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return db.select().from(adAccounts)
+    .where(eq(adAccounts.organizationId, organizationId))
+    .orderBy(adAccounts.sortOrder, adAccounts.createdAt);
+}
+
+/**
  * @deprecated v361: 此函数不进行租户隔离，仅限系统级内部任务使用（如数据迁移、全局调度）。
  * 面向用户的查询请使用 getAdAccountsByUserId(userId) 确保数据隔离。
  */
