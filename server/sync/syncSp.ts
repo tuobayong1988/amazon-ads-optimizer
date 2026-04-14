@@ -34,6 +34,7 @@ import {
   getRecentlyOptimizedKeywordIds,
   getRecentlyOptimizedCampaignIds,
 } from './syncHelpers';
+import { processBatch, BATCH_PROCESSING_THRESHOLD, BATCH_SIZE } from './batchSyncProcessor';
 
 const log = createModuleLogger('syncSp');
 
@@ -514,97 +515,94 @@ AmazonSyncService.prototype.syncSpKeywords = async function(this: AmazonSyncServ
     let keywordIdRepaired = 0;
     log.info(`syncSpKeywords: 批量查询完成, ${apiKeywords.length}个API关键词, ${existingKeywordRows.length}个已存在, ${protectedKeywordIds.size}个有近期出价优化事件, ${corruptedKeywordIdCount}个待修复keywordId`);
 
-    for (const apiKeyword of apiKeywords) {
-      // v363: 使用批量预查询结果替代循环内查询
-      const adGroupInfo = adGroupFullMap.get(String(apiKeyword.adGroupId));
-      if (!adGroupInfo) continue;
-      const adGroup = adGroupInfo;
+    // v671: 使用批次处理器替代原始for循环，降低Super-XL账户的内存峰值和DB瞬时压力
+    const batchResult = await processBatch({
+      items: apiKeywords,
+      accountId: this.accountId,
+      stepName: 'SP关键词入库',
+      processItem: async (apiKeyword) => {
+        // v363: 使用批量预查询结果替代循环内查询
+        const adGroupInfo = adGroupFullMap.get(String(apiKeyword.adGroupId));
+        if (!adGroupInfo) return;
+        const adGroup = adGroupInfo;
 
-      // v363: 使用批量预查询结果
-      let existing = existingKeywordMap.get(`${adGroup.id}:${String(apiKeyword.keywordId)}`) || null;
-      
-      // v647: 二次匹配 — 当通过keywordId匹配不到时，通过adGroupId+keywordText+matchType匹配
-      // 这可以修复keywordId被污染为text:前缀表达式的记录
-      if (!existing && apiKeyword.keywordText) {
-        const normalizedMatch = (apiKeyword.matchType || 'broad').toLowerCase();
-        const textKey = `${adGroup.id}:${apiKeyword.keywordText.toLowerCase().trim()}:${normalizedMatch}`;
-        const textMatched = textMatchMap.get(textKey);
-        if (textMatched) {
-          // 找到了通过文本匹配的记录，检查其keywordId是否需要修复
-          const oldKwId = textMatched.keywordId || '';
-          const newKwId = String(apiKeyword.keywordId);
-          if (oldKwId !== newKwId) {
-            log.info(`[v647] 修复keywordId: keyword="${apiKeyword.keywordText?.substring(0, 40)}" 旧ID="${oldKwId.substring(0, 50)}" → 新ID="${newKwId}" (adGroup=${adGroup.id})`);
-            keywordIdRepaired++;
-          }
-          existing = textMatched;
-        }
-      }
-
-      // 增量同步：如果有上次同步时间且记录已存在，检查是否需要更新
-      // v215修复: 移除错误的updatedAt跳过逻辑
-      // 始终使用Amazon API返回的最新数据更新本地记录
-
-      const keywordData: Record<string, unknown> = {
-        internalAdGroupId: adGroup.id,  // v418: ID体系重构
-        accountId: this.accountId,
-        campaignId: adGroup.campaignId || '',  // v357
-        keywordId: String(apiKeyword.keywordId),
-        keywordText: apiKeyword.keywordText,
-        matchType: (apiKeyword.matchType || 'broad').toLowerCase() as 'broad' | 'phrase' | 'exact',
-        keywordStatus: (apiKeyword.state || 'enabled').toLowerCase() as 'enabled' | 'paused' | 'archived',
-        bid: String(apiKeyword.bid),
-        updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
-      };
-
-      if (existing) {
-        // v523.2: 保护 amazon_deleted 状态不被同步覆盖
-        const normalizedApiState = (apiKeyword.state || 'enabled').toLowerCase();
-        if (existing.keywordStatus === 'amazon_deleted' && normalizedApiState !== 'archived') {
-          log.debug(`v523.2: 保护SP(syncSp) keyword amazon_deleted状态 - keyword=${existing.keywordText}(id=${existing.id})`);
-          delete keywordData.keywordStatus;
-        }
-        // v150: 智能出价保护策略
-        // 检查optimization_events表，如果该关键词有24小时内成功同步到Amazon的出价优化事件，
-        // 则保留本地出价不被覆盖（因为Amazon API数据可能有延迟）
-        const localBid = parseFloat(existing.bid || '0');
-        const apiBid = parseFloat(String(apiKeyword.bid || '0'));
+        // v363: 使用批量预查询结果
+        let existing = existingKeywordMap.get(`${adGroup.id}:${String(apiKeyword.keywordId)}`) || null;
         
-        if (Math.abs(localBid - apiBid) > SYNC_PROTECTION_CONFIG.BID_THRESHOLD && localBid > 0) {
-          // 出价不一致，检查是否有近期优化事件（使用批量查询结果）
-          const hasRecentOpt = protectedKeywordIds.has(existing.id);
-          if (hasRecentOpt) {
-            // 有近期优化事件，保留本地出价，只更新其他字段
-            log.debug(`v150: 出价保护生效 - keyword=${existing.keywordText}, local=$${localBid}, api=$${apiBid}, 保留本地优化出价`);
-            delete keywordData.bid;
-            protectionStats.bidProtected++;
-            protectionStats.protectedEntities.push(`kw:${existing.keywordText}`);
-          } else {
-            log.debug(`v150: 出价差异 - keyword=${existing.keywordText}, local=$${localBid}, api=$${apiBid}, 以API为准`);
-            protectionStats.bidOverwritten++;
+        // v647: 二次匹配 — 当通过keywordId匹配不到时，通过adGroupId+keywordText+matchType匹配
+        if (!existing && apiKeyword.keywordText) {
+          const normalizedMatch = (apiKeyword.matchType || 'broad').toLowerCase();
+          const textKey = `${adGroup.id}:${apiKeyword.keywordText.toLowerCase().trim()}:${normalizedMatch}`;
+          const textMatched = textMatchMap.get(textKey);
+          if (textMatched) {
+            const oldKwId = textMatched.keywordId || '';
+            const newKwId = String(apiKeyword.keywordId);
+            if (oldKwId !== newKwId) {
+              log.info(`[v647] 修复keywordId: keyword="${apiKeyword.keywordText?.substring(0, 40)}" 旧ID="${oldKwId.substring(0, 50)}" → 新ID="${newKwId}" (adGroup=${adGroup.id})`);
+              keywordIdRepaired++;
+            }
+            existing = textMatched;
           }
         }
-        
-        await db
-          .update(keywords)
-          .set(keywordData)
-          .where(eq(keywords.id, existing.id));
-      } else {
-        // @ts-expect-error - Drizzle query builder type
-        // v529: 添加onDuplicateKeyUpdate处理竞态条件下的DUP_ENTRY错误
-        await db.insert(keywords).values({
-          ...keywordData,
-          createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
-        }).onDuplicateKeyUpdate({
-          set: {
-            bid: sql`VALUES(bid)`,
-            keywordStatus: sql`VALUES(keywordStatus)`,
-            updatedAt: sql`VALUES(updatedAt)`,
+
+        const keywordData: Record<string, unknown> = {
+          internalAdGroupId: adGroup.id,
+          accountId: this.accountId,
+          campaignId: adGroup.campaignId || '',
+          keywordId: String(apiKeyword.keywordId),
+          keywordText: apiKeyword.keywordText,
+          matchType: (apiKeyword.matchType || 'broad').toLowerCase() as 'broad' | 'phrase' | 'exact',
+          keywordStatus: (apiKeyword.state || 'enabled').toLowerCase() as 'enabled' | 'paused' | 'archived',
+          bid: String(apiKeyword.bid),
+          updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+        };
+
+        if (existing) {
+          // v523.2: 保护 amazon_deleted 状态不被同步覆盖
+          const normalizedApiState = (apiKeyword.state || 'enabled').toLowerCase();
+          if (existing.keywordStatus === 'amazon_deleted' && normalizedApiState !== 'archived') {
+            log.debug(`v523.2: 保护SP(syncSp) keyword amazon_deleted状态 - keyword=${existing.keywordText}(id=${existing.id})`);
+            delete keywordData.keywordStatus;
           }
-        });
-      // @ts-expect-error Legacy code type compatibility
-      }
-      synced++;
+          // v150: 智能出价保护策略
+          const localBid = parseFloat(existing.bid || '0');
+          const apiBid = parseFloat(String(apiKeyword.bid || '0'));
+          
+          if (Math.abs(localBid - apiBid) > SYNC_PROTECTION_CONFIG.BID_THRESHOLD && localBid > 0) {
+            const hasRecentOpt = protectedKeywordIds.has(existing.id);
+            if (hasRecentOpt) {
+              log.debug(`v150: 出价保护生效 - keyword=${existing.keywordText}, local=$${localBid}, api=$${apiBid}, 保留本地优化出价`);
+              delete keywordData.bid;
+              protectionStats.bidProtected++;
+              protectionStats.protectedEntities.push(`kw:${existing.keywordText}`);
+            } else {
+              log.debug(`v150: 出价差异 - keyword=${existing.keywordText}, local=$${localBid}, api=$${apiBid}, 以API为准`);
+              protectionStats.bidOverwritten++;
+            }
+          }
+          
+          await db
+            .update(keywords)
+            .set(keywordData)
+            .where(eq(keywords.id, existing.id));
+        } else {
+          // @ts-expect-error - Drizzle query builder type
+          await db.insert(keywords).values({
+            ...keywordData,
+            createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+          }).onDuplicateKeyUpdate({
+            set: {
+              bid: sql`VALUES(bid)`,
+              keywordStatus: sql`VALUES(keywordStatus)`,
+              updatedAt: sql`VALUES(updatedAt)`,
+            }
+          });
+        }
+        synced++;
+      },
+    });
+    if (batchResult.usedBatchMode) {
+      log.info(`[v671] syncSpKeywords 批次处理完成: ${batchResult.totalBatches}批, 耗时${Math.round(batchResult.durationMs / 1000)}秒`);
     }
 
     logSyncProtectionSummary('syncSpKeywords', protectionStats);
@@ -660,10 +658,15 @@ AmazonSyncService.prototype.syncSpProductTargets = async function(this: AmazonSy
     const protectionStats = createSyncProtectionStats();
     log.info(`syncSpProductTargets: 批量查询完成, ${apiTargets.length}个API定向, ${existingTargetRows.length}个已存在, ${protectedTargetIds.size}个有近期出价优化事件`);
 
-    for (const apiTarget of apiTargets) {
+    // v671: 使用批次处理器替代原始for循环
+    const batchResult = await processBatch({
+      items: apiTargets,
+      accountId: this.accountId,
+      stepName: 'SP商品定向入库',
+      processItem: async (apiTarget) => {
       // v363: 使用批量预查询结果替代循环内查询
       const targetAdGroupInfo = targetAdGroupFullMap.get(String(apiTarget.adGroupId));
-      if (!targetAdGroupInfo) continue;
+      if (!targetAdGroupInfo) return;
       const adGroup = targetAdGroupInfo;
 
       // ============================================================
@@ -859,6 +862,10 @@ AmazonSyncService.prototype.syncSpProductTargets = async function(this: AmazonSy
         });
       }
       synced++;
+      },
+    });
+    if (batchResult.usedBatchMode) {
+      log.info(`[v671] syncSpProductTargets 批次处理完成: ${batchResult.totalBatches}批, 耗时${Math.round(batchResult.durationMs / 1000)}秒`);
     }
 
     log.info(`SP产品定向同步完成: synced=${synced}, skipped=${skipped}`);

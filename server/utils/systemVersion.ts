@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 670;  // v670: 修复否定关键词字段缺失 + 同步进度条实时更新
+export const SYSTEM_VERSION = 671;  // v671: 大任务批次拆分 + WebSocket实时进度推送

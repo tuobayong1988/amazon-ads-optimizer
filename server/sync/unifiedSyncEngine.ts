@@ -1819,13 +1819,12 @@ export async function syncAccount(
               // v651: 自动同步 — 直接更新data_sync_jobs中该账户最近的running任务的updated_at
               // MySQL的ON UPDATE CURRENT_TIMESTAMP会自动更新updated_at
               // v670: 修复心跳更新缺失progressPercent — 前端依赖此字段显示进度百分比
-              // 根因：心跳只更新了currentStep/currentStepIndex/totalSteps，但没有更新progressPercent
-              // 导致前端轮询到的progressPercent始终为旧值，进度条长期停滞不前
+              // v671: 同时通过WebSocket广播进度更新
               try {
                 const database = await db.getDb();
+                const heartbeatProgressPercent = Math.round(((i + 1) / steps.length) * 100);
                 if (database) {
                   const { dataSyncJobs } = await import('../../drizzle/schema');
-                  const heartbeatProgressPercent = Math.round(((i + 1) / steps.length) * 100);
                   await database.update(dataSyncJobs)
                     .set({ currentStep: step.name, currentStepIndex: i, totalSteps: steps.length, progressPercent: heartbeatProgressPercent })
                     .where(and(
@@ -1833,6 +1832,17 @@ export async function syncAccount(
                       eq(dataSyncJobs.status, 'running')
                     ));
                 }
+                // v671: WebSocket实时推送进度
+                try {
+                  const { broadcastSyncProgress } = await import('./syncProgressWs');
+                  broadcastSyncProgress(account.accountId, {
+                    step: step.name,
+                    stepIndex: i,
+                    totalSteps: steps.length,
+                    progressPercent: heartbeatProgressPercent,
+                    status: 'running',
+                  });
+                } catch (_wsErr) { /* WebSocket广播失败不影响同步 */ }
               } catch (dbErr: any) {
                 // DB更新失败不影响同步继续
               }
@@ -2473,13 +2483,21 @@ export async function syncAllAccounts(tier: SyncTier): Promise<BatchSyncResult> 
     }
     
     // v651: 为自动同步创建onProgress回调
+    // v671: 同时通过WebSocket广播进度更新
     const autoSyncOnProgress = async (step: string, index: number, total: number) => {
+      const progressPercent = Math.round(((index + 1) / total) * 100);
+      // v671: WebSocket实时推送
+      try {
+        const { broadcastSyncProgress } = await import('./syncProgressWs');
+        broadcastSyncProgress(account.accountId, {
+          step, stepIndex: index, totalSteps: total, progressPercent, status: 'running',
+        });
+      } catch (_wsErr) { /* WebSocket广播失败不影响同步 */ }
       if (autoSyncJobId) {
         try {
           const database = await db.getDb();
           if (database) {
             const { dataSyncJobs } = await import('../../drizzle/schema');
-            const progressPercent = Math.round(((index + 1) / total) * 100);
             await database.update(dataSyncJobs)
               .set({ currentStep: step, currentStepIndex: index, totalSteps: total, progressPercent })
               .where(eq(dataSyncJobs.id, autoSyncJobId));
@@ -2513,6 +2531,20 @@ export async function syncAllAccounts(tier: SyncTier): Promise<BatchSyncResult> 
         log.debug(`[UnifiedSync] v659: 更新自动同步Job#${autoSyncJobId}最终状态失败: ${(jobUpdateErr as Error).message}`);
       }
     }
+    // v671: WebSocket广播同步完成/失败状态
+    try {
+      const { broadcastSyncCompleted, broadcastSyncFailed } = await import('./syncProgressWs');
+      if (accountResult.success || accountResult.partialSuccess) {
+        broadcastSyncCompleted(account.accountId, {
+          recordsSynced: typeof accountResult.totalSynced === 'number' ? accountResult.totalSynced : 0,
+          progressPercent: 100,
+        });
+      } else {
+        broadcastSyncFailed(account.accountId, {
+          errorMessage: accountResult.errors.slice(0, 3).join('; '),
+        });
+      }
+    } catch (_wsErr) { /* WebSocket广播失败不影响流程 */ }
     
     // 统计结果
     batchResult.accountResults.push(accountResult);

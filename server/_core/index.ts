@@ -28,6 +28,7 @@ import { isShuttingDown } from '../utils/taskLifecycle';
 import { ensureNextGenTables } from '../optimization/nextGenMigration';
 import { startObservabilityService } from '../system/observabilityService';
 import { runAutoDbMigration } from '../dbAutoMigration';
+import { initSyncProgressWebSocket } from '../sync/syncProgressWs';
 import { runPrelaunchDbMigration } from '../prelaunchDbMigration';
 import { migrateCampaignIdsToAmazonIds } from '../utils/migrateCampaignIds';
 import { logSystem, logMigration } from '../utils/opsLogger';
@@ -203,6 +204,10 @@ async function startServer() {
       log.info(`Port ${preferredPort} is busy, using port ${port} instead`);
     }
   }
+
+  // v671: 初始化WebSocket同步进度推送服务
+  initSyncProgressWebSocket(server);
+  log.info('[v671] WebSocket同步进度推送服务已初始化 (路径: /api/sync-progress)');
 
   server.listen(port, () => {
     log.info(`Server running on http://localhost:${port}/ (v${SYSTEM_VERSION})`);

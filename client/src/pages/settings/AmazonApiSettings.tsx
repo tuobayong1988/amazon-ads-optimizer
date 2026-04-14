@@ -52,6 +52,7 @@ import {
   TrendingUp
 } from "lucide-react";
 import { useGlobalAccountId } from "@/hooks/useGlobalAccountId";
+import { useSyncProgressWs } from "@/hooks/useSyncProgressWs";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -255,12 +256,27 @@ export default function AmazonApiSettings() {
     refetchInterval: syncProgress.step !== 'idle' && syncProgress.step !== 'complete' && syncProgress.step !== 'error' ? 2000 : false,
   });
 
+  // v671: WebSocket实时同步进度推送 — 优先使用WebSocket，降级到HTTP轮询
+  const { progress: wsProgress, isWsActive } = useSyncProgressWs({
+    accountId: selectedAccountId,
+    enabled: isSyncing && !!selectedAccountId,
+    onCompleted: (recordsSynced) => {
+      console.log(`[v671] WebSocket: 同步完成, 共同步${recordsSynced}条记录`);
+      refetchAccountActiveSyncJob();
+    },
+    onFailed: (errorMessage) => {
+      console.warn(`[v671] WebSocket: 同步失败 - ${errorMessage}`);
+      refetchAccountActiveSyncJob();
+    },
+  });
+
   // 获取当前账户正在进行的同步任务
+  // v671: 当WebSocket活跃时降低轮询频率（从2秒→10秒），减少服务器负载
   const { data: accountActiveSyncJob, refetch: refetchAccountActiveSyncJob } = trpc.amazonApi.getAccountActiveSyncJob.useQuery(
     { accountId: selectedAccountId! },
     {
       enabled: !!selectedAccountId,
-      refetchInterval: 2000, // 每2秒轮询一次
+      refetchInterval: isWsActive ? 10000 : 2000, // v671: WebSocket活跃时10秒轮询作为兜底，否则保持2秒
     }
   );
 
@@ -272,9 +288,49 @@ export default function AmazonApiSettings() {
     enabled: !!user,
   });
 
+  // v671: 当WebSocket活跃时，优先使用WebSocket推送的进度更新前端状态
+  useEffect(() => {
+    if (isWsActive && wsProgress.status === 'running' && wsProgress.lastUpdated) {
+      setSyncProgress(prev => {
+        const stepLabel = wsProgress.step || '同步中...';
+        const progressPercent = wsProgress.progressPercent || prev.progress;
+        const batchDetail = wsProgress.batchInfo 
+          ? ` (批次 ${wsProgress.batchInfo.currentBatch}/${wsProgress.batchInfo.totalBatches})` 
+          : '';
+        
+        const siteStatuses = (prev.siteStatuses || []).map(s => {
+          if (s.id === selectedAccountId && s.status === 'syncing') {
+            return {
+              ...s,
+              currentStep: stepLabel + batchDetail,
+              stepProgress: progressPercent,
+              currentStepIndex: wsProgress.stepIndex,
+              totalSteps: wsProgress.totalSteps,
+              progress: Math.max(s.progress, progressPercent),
+            };
+          }
+          return s;
+        });
+        
+        return {
+          ...prev,
+          step: 'sp',
+          progress: progressPercent,
+          current: `正在同步: ${stepLabel}${batchDetail}`,
+          siteStatuses,
+        };
+      });
+    }
+  }, [isWsActive, wsProgress, selectedAccountId]);
+
   // v217: 当有活动的同步任务时，更新前端进度状态
+  // v671: 当WebSocket活跃时，此轮询仅作为兜底机制
   // 注意：此useEffect必须在accounts定义之后，避免ReferenceError
   useEffect(() => {
+    // v671: 如果WebSocket活跃且有数据，跳过HTTP轮询更新（避免覆盖WebSocket的更实时数据）
+    if (isWsActive && wsProgress.status === 'running' && wsProgress.lastUpdated) {
+      return; // WebSocket已在处理进度更新
+    }
     if (accountActiveSyncJob && accountActiveSyncJob.status === 'running') {
       setSyncProgress(prev => {
         const stepLabel = accountActiveSyncJob.currentStep || '同步中...';

@@ -1,0 +1,266 @@
+/**
+ * v671: WebSocket同步进度实时推送Hook
+ * 
+ * 通过WebSocket长连接接收后端同步进度推送，替代2秒一次的HTTP短轮询。
+ * 
+ * 设计原则：
+ * - 渐进增强：WebSocket不可用时自动降级为HTTP轮询
+ * - 自动重连：连接断开后指数退避重连（最大30秒间隔）
+ * - 心跳保活：响应服务端ping保持连接活跃
+ * - 类型安全：与后端syncProgressWs.ts共享消息类型定义
+ */
+import { useState, useEffect, useRef, useCallback } from 'react';
+
+// 与后端syncProgressWs.ts保持一致的消息类型
+interface SyncProgressMessage {
+  type: 'progress' | 'completed' | 'failed' | 'ping' | 'error';
+  data?: {
+    step?: string;
+    stepIndex?: number;
+    totalSteps?: number;
+    progressPercent?: number;
+    status?: string;
+    errorMessage?: string;
+    recordsSynced?: number;
+    batchInfo?: {
+      currentBatch: number;
+      totalBatches: number;
+      batchProgress: number;
+    };
+  };
+  timestamp?: string;
+}
+
+interface SyncProgressState {
+  step: string;
+  stepIndex: number;
+  totalSteps: number;
+  progressPercent: number;
+  status: 'idle' | 'running' | 'completed' | 'failed';
+  recordsSynced: number;
+  batchInfo: {
+    currentBatch: number;
+    totalBatches: number;
+    batchProgress: number;
+  } | null;
+  lastUpdated: Date | null;
+}
+
+interface UseSyncProgressWsOptions {
+  accountId: string | number | null;
+  enabled: boolean;
+  onCompleted?: (recordsSynced: number) => void;
+  onFailed?: (errorMessage: string) => void;
+  onProgress?: (progress: SyncProgressState) => void;
+}
+
+interface UseSyncProgressWsResult {
+  progress: SyncProgressState;
+  isConnected: boolean;
+  isWsActive: boolean;  // WebSocket是否活跃（用于判断是否需要降级到轮询）
+}
+
+const INITIAL_STATE: SyncProgressState = {
+  step: '',
+  stepIndex: 0,
+  totalSteps: 0,
+  progressPercent: 0,
+  status: 'idle',
+  recordsSynced: 0,
+  batchInfo: null,
+  lastUpdated: null,
+};
+
+// 重连参数
+const RECONNECT_BASE_DELAY = 2000;  // 初始重连延迟2秒
+const RECONNECT_MAX_DELAY = 30000;  // 最大重连延迟30秒
+const MAX_RECONNECT_ATTEMPTS = 10;  // 最大重连次数
+
+export function useSyncProgressWs(options: UseSyncProgressWsOptions): UseSyncProgressWsResult {
+  const { accountId, enabled, onCompleted, onFailed, onProgress } = options;
+  
+  const [progress, setProgress] = useState<SyncProgressState>(INITIAL_STATE);
+  const [isConnected, setIsConnected] = useState(false);
+  const [isWsActive, setIsWsActive] = useState(false);
+  
+  const wsRef = useRef<WebSocket | null>(null);
+  const reconnectAttemptRef = useRef(0);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mountedRef = useRef(true);
+
+  // 构建WebSocket URL
+  const getWsUrl = useCallback(() => {
+    if (!accountId) return null;
+    const token = localStorage.getItem('authToken') || '';
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const host = window.location.host;
+    return `${protocol}//${host}/api/sync-progress?accountId=${accountId}&token=${encodeURIComponent(token)}`;
+  }, [accountId]);
+
+  // 清理WebSocket连接
+  const cleanup = useCallback(() => {
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
+    if (wsRef.current) {
+      wsRef.current.onopen = null;
+      wsRef.current.onmessage = null;
+      wsRef.current.onerror = null;
+      wsRef.current.onclose = null;
+      if (wsRef.current.readyState === WebSocket.OPEN || wsRef.current.readyState === WebSocket.CONNECTING) {
+        wsRef.current.close(1000, 'cleanup');
+      }
+      wsRef.current = null;
+    }
+    setIsConnected(false);
+  }, []);
+
+  // 重连逻辑
+  const scheduleReconnect = useCallback(() => {
+    if (!mountedRef.current || !enabled || reconnectAttemptRef.current >= MAX_RECONNECT_ATTEMPTS) {
+      setIsWsActive(false);
+      return;
+    }
+    
+    const delay = Math.min(
+      RECONNECT_BASE_DELAY * Math.pow(2, reconnectAttemptRef.current),
+      RECONNECT_MAX_DELAY
+    );
+    
+    reconnectTimerRef.current = setTimeout(() => {
+      if (mountedRef.current && enabled) {
+        reconnectAttemptRef.current++;
+        connect();
+      }
+    }, delay);
+  }, [enabled]);
+
+  // 建立WebSocket连接
+  const connect = useCallback(() => {
+    const url = getWsUrl();
+    if (!url || !enabled) return;
+
+    cleanup();
+
+    try {
+      const ws = new WebSocket(url);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        if (!mountedRef.current) return;
+        setIsConnected(true);
+        setIsWsActive(true);
+        reconnectAttemptRef.current = 0; // 重置重连计数
+        console.log('[v671] WebSocket同步进度连接已建立');
+      };
+
+      ws.onmessage = (event) => {
+        if (!mountedRef.current) return;
+        try {
+          const msg: SyncProgressMessage = JSON.parse(event.data);
+          
+          switch (msg.type) {
+            case 'ping':
+              // 响应心跳
+              if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'pong' }));
+              }
+              break;
+              
+            case 'progress': {
+              const newState: SyncProgressState = {
+                step: msg.data?.step || '',
+                stepIndex: msg.data?.stepIndex || 0,
+                totalSteps: msg.data?.totalSteps || 0,
+                progressPercent: msg.data?.progressPercent || 0,
+                status: 'running',
+                recordsSynced: msg.data?.recordsSynced || 0,
+                batchInfo: msg.data?.batchInfo || null,
+                lastUpdated: new Date(),
+              };
+              setProgress(newState);
+              onProgress?.(newState);
+              break;
+            }
+              
+            case 'completed': {
+              const completedState: SyncProgressState = {
+                ...progress,
+                progressPercent: 100,
+                status: 'completed',
+                recordsSynced: msg.data?.recordsSynced || 0,
+                lastUpdated: new Date(),
+              };
+              setProgress(completedState);
+              onCompleted?.(msg.data?.recordsSynced || 0);
+              break;
+            }
+              
+            case 'failed': {
+              const failedState: SyncProgressState = {
+                ...progress,
+                status: 'failed',
+                lastUpdated: new Date(),
+              };
+              setProgress(failedState);
+              onFailed?.(msg.data?.errorMessage || '同步失败');
+              break;
+            }
+              
+            case 'error':
+              console.warn('[v671] WebSocket服务端错误:', msg.data?.errorMessage);
+              break;
+          }
+        } catch (parseErr) {
+          console.warn('[v671] WebSocket消息解析失败:', parseErr);
+        }
+      };
+
+      ws.onerror = () => {
+        if (!mountedRef.current) return;
+        console.warn('[v671] WebSocket连接错误');
+      };
+
+      ws.onclose = (event) => {
+        if (!mountedRef.current) return;
+        setIsConnected(false);
+        
+        // 非正常关闭时尝试重连
+        if (event.code !== 1000 && enabled) {
+          scheduleReconnect();
+        } else {
+          setIsWsActive(false);
+        }
+      };
+    } catch (err) {
+      console.warn('[v671] WebSocket创建失败:', err);
+      setIsWsActive(false);
+    }
+  }, [getWsUrl, enabled, cleanup, scheduleReconnect, onCompleted, onFailed, onProgress]);
+
+  // 当accountId或enabled变化时重新连接
+  useEffect(() => {
+    mountedRef.current = true;
+    
+    if (enabled && accountId) {
+      reconnectAttemptRef.current = 0;
+      connect();
+    } else {
+      cleanup();
+      setIsWsActive(false);
+      setProgress(INITIAL_STATE);
+    }
+
+    return () => {
+      mountedRef.current = false;
+      cleanup();
+    };
+  }, [accountId, enabled]);
+
+  return {
+    progress,
+    isConnected,
+    isWsActive,
+  };
+}
