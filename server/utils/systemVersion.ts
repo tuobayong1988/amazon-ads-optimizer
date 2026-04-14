@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 665;  // v665: SP建议竞价60min + SP否定关键词45min + EB健康检查容忍度 + SIGTERM checkpoint + 僵尸任务快速检测 + 竞价自适应节流
+export const SYSTEM_VERSION = 666;  // v666: sp_keywords & sp_negative_targets 提升至 50min (针对 90084/90052 等超大账户)

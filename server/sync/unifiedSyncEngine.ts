@@ -1855,10 +1855,10 @@ export async function syncAccount(
           // 列表步骤: 10分钟（从3分钟放宽，大账户列表数据量大）
           'sp_campaigns': 10, 'sb_campaigns': 10, 'sd_campaigns': 10,
           'sp_ad_groups': 10, 'sb_ad_groups': 10, 'sd_ad_groups': 10,
-          'sp_keywords': 10, 'sb_keywords': 10,
+          'sp_keywords': 50, 'sb_keywords': 10, // v666: sp_keywords从10→50分钟（针对90084/90023等8万+关键词账户）
           'sp_product_targets': 10, 'sb_product_targets': 10, 'sd_product_targets': 10,
-          'sp_negative_keywords': 45, 'sb_negative_keywords': 30, // v665: sp_negative_keywords从15→45分钟（v664实测90084超大账户5000+ campaigns需要更多时间）
-          'sp_negative_targets': 15, 'sb_negative_targets': 15, 'sd_negative_targets': 15,
+          'sp_negative_keywords': 45, 'sb_negative_keywords': 30,
+          'sp_negative_targets': 50, 'sb_negative_targets': 15, 'sd_negative_targets': 15, // v666: sp_negative_targets从15→50分钟（针对90052等大账户）
           'sp_auto_targeting': 10, 'sd_targeting': 10, 'sb_targeting': 10,
           'sb_ads': 10, 'sp_budget_rules': 10,
           // 报告步骤: 30-45分钟（从10-15分钟放宽，异步报告提交+轮询+下载耗时较长）
