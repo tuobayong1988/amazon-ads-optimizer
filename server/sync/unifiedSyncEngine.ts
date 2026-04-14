@@ -1562,10 +1562,10 @@ export async function syncAccount(
       log.debug(`[UnifiedSync] v340: 查询账户广告活动数失败: ${(e as Error).message}`);
     }
 
-    // v648: 增强空账户预检机制 — 不仅检查总数为0，还检查活跃广告活动数为0（全部已归档）
-    // 对没有活跃广告活动的账户，跳过报告类步骤以节省API配额和时间
+    // v673: 增强空账户预检机制 — 对无广告活动的站点实施彻底跳过
+    // 修复v648的两个缺陷：1) isManual条件导致手动同步不跳过；2) 仅跳过报告步骤不够彻底
     let activeCampaignCount = campaignCount;
-    if (campaignCount > 0 && !options?.isManual) {
+    if (campaignCount > 0) {
       try {
         const database = await db.getDb();
         if (database) {
@@ -1580,24 +1580,39 @@ export async function syncAccount(
           activeCampaignCount = activeResult[0]?.count || 0;
         }
       } catch (e: unknown) {
-        log.debug(`[v648] 查询活跃广告活动数失败: ${(e as Error).message}`);
+        log.debug(`[v673] 查询活跃广告活动数失败: ${(e as Error).message}`);
       }
     }
-    if ((campaignCount === 0 || activeCampaignCount === 0) && !options?.isManual) {
-      const REPORT_STEPS = new Set([
+
+    // v673: 对完全无广告活动的账户（campaignCount === 0），仅保留3个campaign检查步骤
+    // 这样可以检测是否有新创建的广告活动，同时避免浪费时间在空站点上
+    if (campaignCount === 0) {
+      const CAMPAIGN_CHECK_STEPS = new Set(['sp_campaigns', 'sb_campaigns', 'sd_campaigns']);
+      const originalCount = steps.length;
+      steps = steps.filter(s => CAMPAIGN_CHECK_STEPS.has(s.id));
+      const skippedCount = originalCount - steps.length;
+      const syncType = options?.isManual ? '手动' : '自动';
+      log.info(`[v673] 空站点快速跳过(${syncType}): 账户${account.accountId}(${account.accountName})无广告活动，仅执行${steps.length}个campaign检查步骤，跳过${skippedCount}个步骤`);
+      result.skippedSteps = (result.skippedSteps || 0) + skippedCount;
+      result.totalSteps = steps.length;
+    }
+    // v673: 对全部已归档的账户（有campaign但activeCampaignCount === 0），跳过报告和竞价类步骤
+    else if (activeCampaignCount === 0) {
+      const SKIP_FOR_ARCHIVED = new Set([
         'performance_today', 'performance_7d', 'performance_95d',
         'sp_search_terms', 'sb_search_terms',
         'sp_placement_performance', 'sb_placement_performance',
         'sp_auto_targeting', 'sd_targeting', 'sb_targeting',
         'keyword_performance', 'target_performance', 'ad_group_performance',
         'sp_budget_rules',
+        'sp_bid_recommendations', 'sb_bid_recommendations', 'sd_bid_recommendations', 'sd_audience_bid_recommendations',
       ]);
       const originalCount = steps.length;
-      steps = steps.filter(s => !REPORT_STEPS.has(s.id));
+      steps = steps.filter(s => !SKIP_FOR_ARCHIVED.has(s.id));
       const skippedCount = originalCount - steps.length;
+      const syncType = options?.isManual ? '手动' : '自动';
       if (skippedCount > 0) {
-        const reason = campaignCount === 0 ? '无广告活动' : `${campaignCount}个广告活动全部已归档(活跃${activeCampaignCount})`;
-        log.info(`[v648] 空账户预检: 账户${account.accountId}(${account.accountName})${reason}，跳过${skippedCount}个报告步骤，仅执行${steps.length}个基础同步步骤`);
+        log.info(`[v673] 归档账户优化(${syncType}): 账户${account.accountId}(${account.accountName})${campaignCount}个广告活动全部已归档，跳过${skippedCount}个报告/竞价步骤，执行${steps.length}个基础步骤`);
         result.skippedSteps = (result.skippedSteps || 0) + skippedCount;
       }
       result.totalSteps = steps.length;

@@ -1272,6 +1272,12 @@ const VERSION_CHANGELOG: VersionChange[] = [
     affectedModules: ['security', 'db', 'optimization', 'ops'],
     correctionActions: ['rerun_optimization'],
   },
+  {
+    version: 673,
+    description: 'v673: [空站点彻底跳过 + API分批参数调优] — (1)P0-空站点快速跳过: 移除isManual条件限制,0广告活动的站点仅执行3个campaign检查步骤(原36个),手动和自动同步均生效 (2)P0-API分批参数调优: 触发阈值500→2000,每批campaign数50→300,批次延迟200ms→3000ms,缓解v672导致的Amazon API每分钟600次限流问题 (3)P1-归档账户优化: 全部已归档的账户跳过报告和竞价步骤',
+    affectedModules: ['sync'],
+    correctionActions: [],
+  },
 ];
 
 // ==================== 配置 ====================

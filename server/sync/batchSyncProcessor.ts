@@ -284,16 +284,20 @@ export async function processBatchBulk<T>(options: {
   };
 }
 
-// ==================== v672: API拉取阶段的分批请求 ====================
+// ==================== v672→v673: API拉取阶段的分批请求（参数调优）====================
+// v673: 根据v672生产环境实测反馈调优参数
+// 问题：v672原参数（50/200ms/500阈值）导致大账户产生过多API调用，
+//       ElaraFit美国站(3225 campaigns)仅SP关键词就需65批调用，
+//       全部同步步骤加起来约260次额外调用，直接打爆Amazon API每分钟600次限额
 
-/** 启用API分批拉取的广告活动数阈值 */
-export const API_BATCH_FETCH_CAMPAIGN_THRESHOLD = 500;
+/** 启用API分批拉取的广告活动数阈值 (v673: 500→2000) */
+export const API_BATCH_FETCH_CAMPAIGN_THRESHOLD = 2000;
 
-/** 每批API请求包含的广告活动数 */
-export const API_BATCH_CAMPAIGN_SIZE = 50;
+/** 每批API请求包含的广告活动数 (v673: 50→300) */
+export const API_BATCH_CAMPAIGN_SIZE = 300;
 
-/** API批次间延迟（毫秒）*/
-export const API_BATCH_DELAY_MS = 200;
+/** API批次间延迟（毫秒）(v673: 200→3000，给限流器足够的冷却时间) */
+export const API_BATCH_DELAY_MS = 3000;
 
 export interface ApiBatchFetchOptions<T> {
   /** 账户下所有广告活动ID列表 */
@@ -357,7 +361,7 @@ export async function batchApiFetch<T>(options: ApiBatchFetchOptions<T>): Promis
   const totalBatches = Math.ceil(campaignIds.length / batchCampaignSize);
   const allData: T[] = [];
 
-  log.info(`[v672] API分批拉取启动: ${stepName}, 账户${accountId}, 广告活动数=${campaignIds.length}, 每批=${batchCampaignSize}个, 总批次=${totalBatches}`);
+  log.info(`[v673] API分批拉取启动: ${stepName}, 账户${accountId}, 广告活动数=${campaignIds.length}, 每批=${batchCampaignSize}个, 总批次=${totalBatches}, 批次延迟=${batchDelayMs}ms`);
 
   for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
     const batchStart = batchIndex * batchCampaignSize;
@@ -371,7 +375,7 @@ export async function batchApiFetch<T>(options: ApiBatchFetchOptions<T>): Promis
       // 进度日志（每5批或最后一批）
       if ((batchIndex + 1) % 5 === 0 || batchIndex === totalBatches - 1) {
         const elapsed = Date.now() - startTime;
-        log.info(`[v672] API分批进度: ${stepName}, 账户${accountId}, 批次${batchIndex + 1}/${totalBatches}, 已拉取${allData.length}条, 耗时${Math.round(elapsed / 1000)}秒`);
+        log.info(`[v673] API分批进度: ${stepName}, 账户${accountId}, 批次${batchIndex + 1}/${totalBatches}, 已拉取${allData.length}条, 耗时${Math.round(elapsed / 1000)}秒`);
       }
 
       // WebSocket推送API拉取进度
@@ -386,7 +390,7 @@ export async function batchApiFetch<T>(options: ApiBatchFetchOptions<T>): Promis
         });
       }
     } catch (error: unknown) {
-      log.warn(`[v672] API分批拉取失败: ${stepName}, 账户${accountId}, 批次${batchIndex + 1}/${totalBatches}, campaigns=${batchCampaignIds.length}, error=${(error as Error).message}`);
+      log.warn(`[v673] API分批拉取失败: ${stepName}, 账户${accountId}, 批次${batchIndex + 1}/${totalBatches}, campaigns=${batchCampaignIds.length}, error=${(error as Error).message}`);
       // 单批失败不中断整个同步，记录并继续下一批
       // 数据自愈机制会在后续同步中补充缺失的数据
     }
@@ -403,7 +407,7 @@ export async function batchApiFetch<T>(options: ApiBatchFetchOptions<T>): Promis
   }
 
   const durationMs = Date.now() - startTime;
-  log.info(`[v672] API分批拉取完成: ${stepName}, 账户${accountId}, 总记录=${allData.length}, 总批次=${totalBatches}, 耗时=${Math.round(durationMs / 1000)}秒`);
+  log.info(`[v673] API分批拉取完成: ${stepName}, 账户${accountId}, 总记录=${allData.length}, 总批次=${totalBatches}, 耗时=${Math.round(durationMs / 1000)}秒`);
 
   return {
     data: allData,

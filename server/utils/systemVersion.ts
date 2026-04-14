@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 672;  // v672: API拉取阶段分批请求 - 从源头控制内存占用
+export const SYSTEM_VERSION = 673;  // v673: 空站点彻底跳过 + API分批参数调优(缓解限流)
