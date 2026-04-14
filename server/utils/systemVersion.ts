@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 671;  // v671: 大任务批次拆分 + WebSocket实时进度推送
+export const SYSTEM_VERSION = 672;  // v672: API拉取阶段分批请求 - 从源头控制内存占用

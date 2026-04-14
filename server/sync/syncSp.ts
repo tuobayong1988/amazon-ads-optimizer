@@ -34,7 +34,7 @@ import {
   getRecentlyOptimizedKeywordIds,
   getRecentlyOptimizedCampaignIds,
 } from './syncHelpers';
-import { processBatch, BATCH_PROCESSING_THRESHOLD, BATCH_SIZE } from './batchSyncProcessor';
+import { processBatch, BATCH_PROCESSING_THRESHOLD, BATCH_SIZE, batchApiFetch, API_BATCH_FETCH_CAMPAIGN_THRESHOLD } from './batchSyncProcessor';
 
 const log = createModuleLogger('syncSp');
 
@@ -460,7 +460,24 @@ AmazonSyncService.prototype.syncSpKeywords = async function(this: AmazonSyncServ
   if (!db) return { synced: 0, skipped: 0 };
 
   try {
-    const apiKeywords = await this.client.listSpKeywords();
+    // v672: 从DDB查询该账户的所有campaignId，用于API分批拉取
+    const allCampaignRows = await db.select({ campaignId: campaigns.campaignId })
+      .from(campaigns)
+      .where(eq(campaigns.accountId, this.accountId));
+    const allCampaignIds = allCampaignRows.map(r => r.campaignId);
+
+    // v672: 使用batchApiFetch实现API拉取阶段的分批请求
+    const fetchResult = await batchApiFetch({
+      campaignIds: allCampaignIds,
+      fetchBatch: (batchIds) => this.client.listSpKeywords(undefined, { campaignIds: batchIds }),
+      fetchAll: () => this.client.listSpKeywords(),
+      accountId: this.accountId,
+      stepName: 'SP关键词',
+    });
+    const apiKeywords = fetchResult.data;
+    if (fetchResult.usedBatchMode) {
+      log.info(`[v672] syncSpKeywords: API分批拉取完成, ${fetchResult.totalBatches}批次, 共${apiKeywords.length}个关键词, 耗时${Math.round(fetchResult.durationMs / 1000)}秒`);
+    }
     let synced = 0;
     let skipped = 0;
 
@@ -630,7 +647,24 @@ AmazonSyncService.prototype.syncSpProductTargets = async function(this: AmazonSy
   if (!db) return { synced: 0, skipped: 0 };
 
   try {
-    const apiTargets = await this.client.listSpProductTargets();
+    // v672: 从DDB查询该账户的所有campaignId，用于API分批拉取
+    const allCampaignRows = await db.select({ campaignId: campaigns.campaignId })
+      .from(campaigns)
+      .where(eq(campaigns.accountId, this.accountId));
+    const allCampaignIds = allCampaignRows.map(r => r.campaignId);
+
+    // v672: 使用batchApiFetch实现API拉取阶段的分批请求
+    const fetchResult = await batchApiFetch({
+      campaignIds: allCampaignIds,
+      fetchBatch: (batchIds) => this.client.listSpProductTargets(undefined, { campaignIds: batchIds }),
+      fetchAll: () => this.client.listSpProductTargets(),
+      accountId: this.accountId,
+      stepName: 'SP商品定位',
+    });
+    const apiTargets = fetchResult.data;
+    if (fetchResult.usedBatchMode) {
+      log.info(`[v672] syncSpProductTargets: API分批拉取完成, ${fetchResult.totalBatches}批次, 共${apiTargets.length}个商品定位, 耗时${Math.round(fetchResult.durationMs / 1000)}秒`);
+    }
     let synced = 0;
     let skipped = 0;
 
@@ -897,8 +931,15 @@ AmazonSyncService.prototype.syncSpNegativeKeywords = async function(this: Amazon
     let synced = 0;
     let updated = 0;
 
+    // v672: 从DDB查询该账户的所有campaignId，用于API分批拉取
+    const allCampaignRows = await db.select({ campaignId: campaigns.campaignId })
+      .from(campaigns)
+      .where(eq(campaigns.accountId, this.accountId));
+    const allCampaignIds = allCampaignRows.map(r => r.campaignId);
+
     // 1. 同步活动级别否定关键词
     log.info(`开始同步SP活动级别否定关键词...`);
+    // 注意: listSpCampaignNegativeKeywords是活动级别API，不支持campaignIdFilter，保持全量拉取
     const campaignNegatives = await this.client.listSpCampaignNegativeKeywords();
     log.debug(`获取到 ${campaignNegatives.length} 个活动级别否定关键词`);
 
@@ -966,7 +1007,18 @@ AmazonSyncService.prototype.syncSpNegativeKeywords = async function(this: Amazon
 
     // 2. 同步广告组级别否定关键词
     log.info(`开始同步SP广告组级别否定关键词...`);
-    const adGroupNegatives = await this.client.listSpNegativeKeywords();
+    // v672: 使用batchApiFetch实现广告组级否定关键词的分批拉取
+    const negKwFetchResult = await batchApiFetch<Record<string, unknown>>({
+      campaignIds: allCampaignIds,
+      fetchBatch: (batchIds) => this.client.listSpNegativeKeywords(undefined, { campaignIds: batchIds }),
+      fetchAll: () => this.client.listSpNegativeKeywords(),
+      accountId: this.accountId,
+      stepName: 'SP广告组否定关键词',
+    });
+    const adGroupNegatives = negKwFetchResult.data;
+    if (negKwFetchResult.usedBatchMode) {
+      log.info(`[v672] syncSpNegativeKeywords(广告组级): API分批拉取完成, ${negKwFetchResult.totalBatches}批次, 共${adGroupNegatives.length}个, 耗时${Math.round(negKwFetchResult.durationMs / 1000)}秒`);
+    }
     log.debug(`获取到 ${adGroupNegatives.length} 个广告组级别否定关键词`);
 
     for (const neg of adGroupNegatives) {
@@ -1059,8 +1111,16 @@ AmazonSyncService.prototype.syncSpNegativeProductTargets = async function(this: 
   try {
     let synced = 0;
     let updated = 0;
+
+    // v672: 从DDB查询该账户的所有campaignId，用于API分批拉取
+    const allCampaignRows = await db.select({ campaignId: campaigns.campaignId })
+      .from(campaigns)
+      .where(eq(campaigns.accountId, this.accountId));
+    const allCampaignIds = allCampaignRows.map(r => r.campaignId);
+
     // 1. 同步活动级别否定商品定向
     log.info(`开始同步SP活动级别否定商品定向...`);
+    // 注意: listSpCampaignNegativeTargets是活动级别API，不支持campaignIdFilter，保持全量拉取
     const campaignNegTargets = await this.client.listSpCampaignNegativeTargets();
     log.debug(`获取到 ${campaignNegTargets.length} 个活动级别否定商品定向`);
     for (const neg of campaignNegTargets) {
@@ -1123,7 +1183,18 @@ AmazonSyncService.prototype.syncSpNegativeProductTargets = async function(this: 
     }
     // 2. 同步广告组级别否定商品定向
     log.info(`开始同步SP广告组级别否定商品定向...`);
-    const adGroupNegTargets = await this.client.listSpNegativeTargets();
+    // v672: 使用batchApiFetch实现广告组级否定商品定向的分批拉取
+    const negTargetFetchResult = await batchApiFetch<Record<string, unknown>>({
+      campaignIds: allCampaignIds,
+      fetchBatch: (batchIds) => this.client.listSpNegativeTargets(undefined, { campaignIds: batchIds }),
+      fetchAll: () => this.client.listSpNegativeTargets(),
+      accountId: this.accountId,
+      stepName: 'SP广告组否定商品定向',
+    });
+    const adGroupNegTargets = negTargetFetchResult.data;
+    if (negTargetFetchResult.usedBatchMode) {
+      log.info(`[v672] syncSpNegativeProductTargets(广告组级): API分批拉取完成, ${negTargetFetchResult.totalBatches}批次, 共${adGroupNegTargets.length}个, 耗时${Math.round(negTargetFetchResult.durationMs / 1000)}秒`);
+    }
     log.debug(`获取到 ${adGroupNegTargets.length} 个广告组级别否定商品定向`);
     for (const neg of adGroupNegTargets) {
       // @ts-expect-error Type inference limitation

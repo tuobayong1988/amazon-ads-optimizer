@@ -990,7 +990,7 @@ export class AmazonAdsApiClient {
    * 获取SP关键词列表
    * 已修复：添加分页逻辑，确保获取所有数据
    */
-  async listSpKeywords(adGroupId?: number): Promise<SpKeyword[]> {
+  async listSpKeywords(adGroupId?: number, options?: { campaignIds?: string[] }): Promise<SpKeyword[]> {
     const allKeywords: SpKeyword[] = [];
     let nextToken: string | undefined;
     
@@ -1008,6 +1008,10 @@ export class AmazonAdsApiClient {
       if (adGroupId) {
         // v129: Amazon SP API v3要求adGroupId为字符串类型
         body.adGroupIdFilter = { include: [String(adGroupId)] };
+      }
+      // v672: 支持按campaignId过滤，实现API拉取阶段的分批请求
+      if (options?.campaignIds && options.campaignIds.length > 0) {
+        body.campaignIdFilter = { include: options.campaignIds };
       }
       // v132: 包含所有状态的关键词（enabled, paused, archived），确保补偿同步能匹配到所有关键词
       body.stateFilter = { include: ['ENABLED', 'PAUSED', 'ARCHIVED'] };
@@ -1630,7 +1634,7 @@ export class AmazonAdsApiClient {
    * 获取SP商品定位列表
    * 已修复：添加分页逻辑，确保获取所有数据
    */
-  async listSpProductTargets(adGroupId?: number): Promise<SpProductTarget[]> {
+  async listSpProductTargets(adGroupId?: number, options?: { campaignIds?: string[] }): Promise<SpProductTarget[]> {
     const allTargets: SpProductTarget[] = [];
     let nextToken: string | undefined;
     
@@ -1646,6 +1650,10 @@ export class AmazonAdsApiClient {
       const body: Record<string, unknown> = { maxResults: 100 };
       if (adGroupId) {
         body.adGroupIdFilter = { include: [String(adGroupId)] };
+      }
+      // v672: 支持按campaignId过滤，实现API拉取阶段的分批请求
+      if (options?.campaignIds && options.campaignIds.length > 0) {
+        body.campaignIdFilter = { include: options.campaignIds };
       }
       if (nextToken) {
         body.nextToken = nextToken;
@@ -5098,7 +5106,7 @@ export class AmazonAdsApiClient {
    * 获取SP广告组级别否定关键词列表
    * 已修复：添加分页逻辑，确保获取所有数据
    */
-  async listSpNegativeKeywords(adGroupId?: number): Promise<Record<string, unknown>[]> {
+  async listSpNegativeKeywords(adGroupId?: number, options?: { campaignIds?: string[] }): Promise<Record<string, unknown>[]> {
     const allNegatives: unknown[] = [];
     let nextToken: string | undefined;
     
@@ -5106,6 +5114,10 @@ export class AmazonAdsApiClient {
       const body: Record<string, unknown> = { maxResults: 100 };
       if (adGroupId) {
         body.adGroupIdFilter = { include: [String(adGroupId)] };
+      }
+      // v672: 支持按campaignId过滤，实现API拉取阶段的分批请求
+      if (options?.campaignIds && options.campaignIds.length > 0) {
+        body.campaignIdFilter = { include: options.campaignIds };
       }
       if (nextToken) {
         body.nextToken = nextToken;
@@ -5291,7 +5303,7 @@ export class AmazonAdsApiClient {
   /**
    * 获取SP否定商品定位列表（广告组级别）
    */
-  async listSpNegativeTargets(adGroupId?: number): Promise<Record<string, unknown>[]> {
+  async listSpNegativeTargets(adGroupId?: number, options?: { campaignIds?: string[] }): Promise<Record<string, unknown>[]> {
     // v199: 添加分页循环，确保获取所有广告组级否定商品定位
     const allTargets: unknown[] = [];
     let nextToken: string | undefined;
@@ -5300,6 +5312,10 @@ export class AmazonAdsApiClient {
       const body: Record<string, unknown> = { maxResults: 100 };
       if (adGroupId) {
         body.adGroupIdFilter = { include: [String(adGroupId)] };
+      }
+      // v672: 支持按campaignId过滤，实现API拉取阶段的分批请求
+      if (options?.campaignIds && options.campaignIds.length > 0) {
+        body.campaignIdFilter = { include: options.campaignIds };
       }
       if (nextToken) {
         body.nextToken = nextToken;

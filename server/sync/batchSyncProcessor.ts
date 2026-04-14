@@ -284,6 +284,135 @@ export async function processBatchBulk<T>(options: {
   };
 }
 
+// ==================== v672: API拉取阶段的分批请求 ====================
+
+/** 启用API分批拉取的广告活动数阈值 */
+export const API_BATCH_FETCH_CAMPAIGN_THRESHOLD = 500;
+
+/** 每批API请求包含的广告活动数 */
+export const API_BATCH_CAMPAIGN_SIZE = 50;
+
+/** API批次间延迟（毫秒）*/
+export const API_BATCH_DELAY_MS = 200;
+
+export interface ApiBatchFetchOptions<T> {
+  /** 账户下所有广告活动ID列表 */
+  campaignIds: string[];
+  /** 按campaignId批次调用API的函数 */
+  fetchBatch: (campaignIds: string[]) => Promise<T[]>;
+  /** 不带过滤器的全量拉取函数（小账户降级使用）*/
+  fetchAll: () => Promise<T[]>;
+  /** 账户ID（用于日志和WebSocket推送）*/
+  accountId: number;
+  /** 步骤名称（用于日志和WebSocket推送）*/
+  stepName: string;
+  /** 自定义每批campaign数（可选，默认50）*/
+  batchCampaignSize?: number;
+  /** 自定义批次间延迟（可选，默认200ms）*/
+  batchDelayMs?: number;
+}
+
+export interface ApiBatchFetchResult<T> {
+  data: T[];
+  totalBatches: number;
+  durationMs: number;
+  usedBatchMode: boolean;
+}
+
+/**
+ * v672: API拉取阶段的分批请求处理器
+ * 
+ * 当账户广告活动数超过 API_BATCH_FETCH_CAMPAIGN_THRESHOLD 时，
+ * 将campaignId分成每批 API_BATCH_CAMPAIGN_SIZE 个，
+ * 通过 campaignIdFilter 参数分批调用Amazon API，
+ * 从源头控制每次API请求的数据量和内存占用。
+ * 
+ * 小账户（<500个广告活动）仍使用原有的全量拉取方式，无额外开销。
+ */
+export async function batchApiFetch<T>(options: ApiBatchFetchOptions<T>): Promise<ApiBatchFetchResult<T>> {
+  const {
+    campaignIds,
+    fetchBatch,
+    fetchAll,
+    accountId,
+    stepName,
+    batchCampaignSize = API_BATCH_CAMPAIGN_SIZE,
+    batchDelayMs = API_BATCH_DELAY_MS,
+  } = options;
+
+  const startTime = Date.now();
+
+  // 小账户：直接全量拉取，无额外开销
+  if (campaignIds.length < API_BATCH_FETCH_CAMPAIGN_THRESHOLD) {
+    const data = await fetchAll();
+    return {
+      data,
+      totalBatches: 1,
+      durationMs: Date.now() - startTime,
+      usedBatchMode: false,
+    };
+  }
+
+  // 大账户：按campaignId分批拉取
+  const totalBatches = Math.ceil(campaignIds.length / batchCampaignSize);
+  const allData: T[] = [];
+
+  log.info(`[v672] API分批拉取启动: ${stepName}, 账户${accountId}, 广告活动数=${campaignIds.length}, 每批=${batchCampaignSize}个, 总批次=${totalBatches}`);
+
+  for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
+    const batchStart = batchIndex * batchCampaignSize;
+    const batchEnd = Math.min(batchStart + batchCampaignSize, campaignIds.length);
+    const batchCampaignIds = campaignIds.slice(batchStart, batchEnd);
+
+    try {
+      const batchData = await fetchBatch(batchCampaignIds);
+      allData.push(...batchData);
+
+      // 进度日志（每5批或最后一批）
+      if ((batchIndex + 1) % 5 === 0 || batchIndex === totalBatches - 1) {
+        const elapsed = Date.now() - startTime;
+        log.info(`[v672] API分批进度: ${stepName}, 账户${accountId}, 批次${batchIndex + 1}/${totalBatches}, 已拉取${allData.length}条, 耗时${Math.round(elapsed / 1000)}秒`);
+      }
+
+      // WebSocket推送API拉取进度
+      if ((batchIndex + 1) % 3 === 0) {
+        broadcastSyncProgress(accountId, {
+          step: `${stepName} (API拉取)`,
+          batchInfo: {
+            currentBatch: batchIndex + 1,
+            totalBatches,
+            batchProgress: Math.round(((batchIndex + 1) / totalBatches) * 100),
+          },
+        });
+      }
+    } catch (error: unknown) {
+      log.warn(`[v672] API分批拉取失败: ${stepName}, 账户${accountId}, 批次${batchIndex + 1}/${totalBatches}, campaigns=${batchCampaignIds.length}, error=${(error as Error).message}`);
+      // 单批失败不中断整个同步，记录并继续下一批
+      // 数据自愈机制会在后续同步中补充缺失的数据
+    }
+
+    // 批次间延迟，缓解API负载
+    if (batchIndex < totalBatches - 1) {
+      await sleep(batchDelayMs);
+    }
+
+    // 每10批触发GC提示
+    if ((batchIndex + 1) % 10 === 0 && global.gc) {
+      try { global.gc(); } catch { /* ignore */ }
+    }
+  }
+
+  const durationMs = Date.now() - startTime;
+  log.info(`[v672] API分批拉取完成: ${stepName}, 账户${accountId}, 总记录=${allData.length}, 总批次=${totalBatches}, 耗时=${Math.round(durationMs / 1000)}秒`);
+
+  return {
+    data: allData,
+    totalBatches,
+    durationMs,
+    usedBatchMode: true,
+  };
+}
+
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
