@@ -143,24 +143,26 @@ export default function GlobalAccountSelector({ compact = false }: GlobalAccount
   // @ts-ignore
   const { data: accounts, isLoading } = trpc.adAccount.list.useQuery() as unknown;
 
-  // 获取唯一的店铺列表（trim空格避免匹配问题）
+  // 获取唯一的店铺列表（trim空格避免匹配问题，过滤已归档账户）
   const stores = useMemo(() => {
     if (!accounts) return [];
     const uniqueStores = new Set<string>();
     // @ts-expect-error - runtime type mismatch
     accounts.forEach(account => {
+      if (account.status === 'archived') return; // v668: 隐藏已归档账户
       const storeName = (account.storeName || account.accountName).trim();
       uniqueStores.add(storeName);
     });
     return Array.from(uniqueStores).sort();
   }, [accounts]);
 
-  // 获取当前店铺的站点列表（trim空格避免匹配问题）
+  // 获取当前店铺的站点列表（trim空格避免匹配问题，过滤已归档账户）
   const marketplaces = useMemo(() => {
     if (!accounts || !currentStore) return [];
     const uniqueMarketplaces = new Set<string>();
     // @ts-expect-error - runtime type mismatch
     accounts.forEach(account => {
+      if (account.status === 'archived') return; // v668: 隐藏已归档账户
       const storeName = (account.storeName || account.accountName).trim();
       if (storeName === currentStore) {
         uniqueMarketplaces.add(account.marketplace);

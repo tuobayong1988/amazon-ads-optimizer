@@ -204,6 +204,9 @@ export default function AccountSwitcher({ compact = false, showStatus = true }: 
     
     // @ts-expect-error - array method type inference
     return accounts.filter(account => {
+      // v668: 隐藏已归档账户
+      if (account.status === 'archived') return false;
+      
       // 按区域筛选
       if (filterRegion) {
         const region = REGIONS.find(r => r.id === filterRegion);

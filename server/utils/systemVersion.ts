@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 667;  // v667: 回退EB配置到v664稳定版(修复v666部署后应用崩溃) + 保留v665/v666所有超时优化
+export const SYSTEM_VERSION = 668;  // v668: 前端隐藏已归档账户 + EB配置安全审查注释 + DB默认值修复

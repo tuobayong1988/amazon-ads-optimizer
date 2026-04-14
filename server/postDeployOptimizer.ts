@@ -85,6 +85,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 668,
+    description: 'v668: [前端已归档账户隐藏+EB配置安全审查+DB默认值修复] — (1)P1-前端店铺选择器过滤已归档账户: GlobalAccountSelector和AccountSwitcher中过滤status=archived的账户,不再显示HomePro Store和YC006A Store (2)P1-EB配置安全审查注释: 在.ebextensions/03_graceful_shutdown.config和04_autoscaling.config中添加安全警告和禁止修改项说明,防止重复v666事故 (3)P1-DB默认值修复: ad_accounts表organization_id默认值从1改为NULL,强制创建时指定组织',
+    affectedModules: ['system', 'security'],
+    correctionActions: [],
+  },
+  {
     version: 667,
     description: 'v667: [EB配置回退修复+数据隔离修复+超时优化保留] — (1)P0-回退EB配置到v664稳定版: 移除v665引入的IgnoreHealthCheck:true和HealthCheckSuccessThreshold:Degraded (2)P0-多租户数据隔离修复: 系统管理员不再能看到所有租户数据,改为按组织ID隔离; adAccount.list/listWithPerformance/getStats/getDailyTrend/getDataDateRange全部使用getUserVisibleAccounts; accessControl中verifyAccountAccess/verifyCampaignAccess/verifyKeywordAccess/verifyAdGroupAccess/verifyPerformanceGroupAccess全部增加组织级验证 (3)保留v665/v666所有代码优化',
     affectedModules: ['system', 'sync', 'security'],
