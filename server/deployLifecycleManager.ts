@@ -374,7 +374,20 @@ async function persistShutdownState(): Promise<void> {
       log.warn(`[LifecycleManager]   ⚠ 重置processing任务失败: ${(e as Error).message}`);
     }
     
-    // 3a-2: v409 修复: shutdown时不再无条件杀死running同步任务
+    // 3a-2: v665: SIGTERM时主动保存所有活跃同步的checkpoint（断点续传）
+    try {
+      const { saveAllActiveCheckpoints } = await import('./sync/unifiedSyncEngine');
+      const savedCount = await saveAllActiveCheckpoints();
+      if (savedCount > 0) {
+        log.info(`[LifecycleManager] v665: SIGTERM时已保存 ${savedCount} 个活跃同步的checkpoint，下次启动可断点续传`);
+      } else {
+        log.debug('[LifecycleManager] v665: SIGTERM时无活跃同步需要保存checkpoint');
+      }
+    } catch (cpErr: unknown) {
+      log.warn(`[LifecycleManager] v665: 保存同步checkpoint失败: ${(cpErr as Error).message}`);
+    }
+
+    // 3a-3: v409 修复: shutdown时不再无条件杀死running同步任务
     // 原因: 在单实例环境中，shutdown后新实例的startup cleanup (dataSyncScheduler) 会基于updated_at阈值正确清理卡死任务
     // 无条件清理会导致正在正常运行的同步任务被误杀（心跳正常但被标记为failed）
     try {

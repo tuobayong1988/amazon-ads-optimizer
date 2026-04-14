@@ -1051,8 +1051,6 @@ export async function cleanupStaleJobs(maxRunningMinutes: number = 120): Promise
     const cutoffStr = cutoffTime.toISOString().slice(0, 19).replace('T', ' ');
 
     // v408: 使用updated_at替代startedAt判断任务是否卡死
-    // 原因：全量同步可能需要45-90分钟，但每个步骤完成时都会更新updated_at
-    // 如果updated_at长时间未更新，说明任务真的卡死了（而不是正在正常执行长步骤）
     const staleJobs = await db.select({
       id: dataSyncJobs.id,
       accountId: dataSyncJobs.accountId,
@@ -1065,39 +1063,79 @@ export async function cleanupStaleJobs(maxRunningMinutes: number = 120): Promise
         sql`${dataSyncJobs.updatedAt} < ${cutoffStr}`
       ));
 
-    if (staleJobs.length === 0) {
+    // v665: 进程心跳交叉验证 — 检查DB中running但心跳未超时的任务是否在当前进程中运行
+    // 如果DB中有running任务但不在当前进程的activeSyncs中，说明是上一个进程遗留的僵尸任务
+    let orphanJobs: typeof staleJobs = [];
+    try {
+      const { getActiveSyncAccountIds } = await import('./unifiedSyncEngine');
+      const activeIds = getActiveSyncAccountIds();
+      // 查找所有DB中running但不在当前进程中的任务（心跳超过30分钟即可判定）
+      const orphanCutoff = new Date(Date.now() - 30 * 60 * 1000);
+      const orphanCutoffStr = orphanCutoff.toISOString().slice(0, 19).replace('T', ' ');
+      const allRunningJobs = await db.select({
+        id: dataSyncJobs.id,
+        accountId: dataSyncJobs.accountId,
+        startedAt: dataSyncJobs.startedAt,
+        updatedAt: dataSyncJobs.updatedAt,
+        syncType: dataSyncJobs.syncType,
+      }).from(dataSyncJobs)
+        .where(and(
+          eq(dataSyncJobs.status, 'running'),
+          sql`${dataSyncJobs.updatedAt} < ${orphanCutoffStr}`
+        ));
+      orphanJobs = allRunningJobs.filter(j => !activeIds.has(j.accountId));
+      if (orphanJobs.length > 0) {
+        log.info(`[DataSync] v665: 发现 ${orphanJobs.length} 个僵尸任务（DB中running但不在当前进程中，心跳>30分钟）: ${orphanJobs.map(j => `Job#${j.id}(账户${j.accountId})`).join(', ')}`);
+      }
+    } catch (crossCheckErr: unknown) {
+      // 交叉验证失败不影响主流程
+      log.debug(`[DataSync] v665: 僵尸任务交叉验证失败: ${(crossCheckErr as Error).message}`);
+    }
+
+    // 合并两类僵尸任务：心跳超时(180分钟) + 进程不存在(30分钟)
+    const allStaleJobIds = new Set<number>();
+    for (const j of staleJobs) allStaleJobIds.add(j.id);
+    for (const j of orphanJobs) allStaleJobIds.add(j.id);
+    const allStaleJobs = [...staleJobs, ...orphanJobs.filter(j => !allStaleJobIds.has(j.id) || !staleJobs.find(s => s.id === j.id))];
+    // 去重：确保每个job只出现一次
+    const uniqueStaleJobs = Array.from(new Map(allStaleJobs.map(j => [j.id, j])).values());
+
+    if (uniqueStaleJobs.length === 0) {
       return { cleaned: 0, jobIds: [] };
     }
 
-    const jobIds = staleJobs.map(j => j.id);
+    const jobIds = uniqueStaleJobs.map(j => j.id);
 
     // 批量更新为failed状态
-    await db.update(dataSyncJobs)
-      .set({
-        status: 'failed',
-        completedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
-        // v664: 改进错误消息，区分“心跳超时”和“启动清理”，避免误导
-        errorMessage: `v334: 任务心跳超时（updated_at超过${maxRunningMinutes}分钟未更新），由卡死任务清理机制自动标记为失败`,
-      })
-      .where(and(
-        eq(dataSyncJobs.status, 'running'),
-        sql`${dataSyncJobs.updatedAt} < ${cutoffStr}`
-      ));
+    for (const job of uniqueStaleJobs) {
+      const isOrphan = orphanJobs.some(o => o.id === job.id) && !staleJobs.some(s => s.id === job.id);
+      const reason = isOrphan 
+        ? `v665: 僵尸任务（进程不存在，心跳>30分钟），由快速检测机制清理`
+        : `v334: 任务心跳超时（updated_at超过${maxRunningMinutes}分钟未更新），由卡死任务清理机制自动标记为失败`;
+      await db.update(dataSyncJobs)
+        .set({
+          status: 'failed',
+          completedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+          errorMessage: reason,
+        })
+        .where(eq(dataSyncJobs.id, job.id));
+    }
 
     // 记录清理日志
-    for (const job of staleJobs) {
-      // v664: 日志中增加实际运行时间和updated_at信息，便于诊断是启动清理还是真正卡死
+    for (const job of uniqueStaleJobs) {
       const startedMs = job.startedAt ? new Date(job.startedAt).getTime() : 0;
       const updatedMs = job.updatedAt ? new Date(job.updatedAt as string).getTime() : 0;
       const actualRuntimeMin = startedMs ? ((Date.now() - startedMs) / 60000).toFixed(1) : 'unknown';
       const heartbeatAgeMin = updatedMs ? ((Date.now() - updatedMs) / 60000).toFixed(1) : 'unknown';
-      log.warn(`[DataSync] v334: 清理卡死任务 Job#${job.id} (账户${job.accountId}, 类型${job.syncType}, 启动时间${job.startedAt}, 实际运行${actualRuntimeMin}分钟, 心跳停止${heartbeatAgeMin}分钟前)`);
+      const isOrphan = orphanJobs.some(o => o.id === job.id) && !staleJobs.some(s => s.id === job.id);
+      const cleanupType = isOrphan ? '僵尸任务(进程不存在)' : '卡死任务(心跳超时)';
+      log.warn(`[DataSync] v665: 清理${cleanupType} Job#${job.id} (账户${job.accountId}, 类型${job.syncType}, 实际运行${actualRuntimeMin}分钟, 心跳停止${heartbeatAgeMin}分钟前)`);
       await logSyncActivity(0, 'cleanup_stale', 'success', 
-        `v334: 清理卡死任务 Job#${job.id}, 账户${job.accountId}, 实际运行${actualRuntimeMin}分钟, 心跳停止${heartbeatAgeMin}分钟前`);
+        `v665: 清理${cleanupType} Job#${job.id}, 账户${job.accountId}, 实际运行${actualRuntimeMin}分钟, 心跳停止${heartbeatAgeMin}分钟前`);
     }
 
-    log.info(`[DataSync] v334: 卡死任务清理完成，共清理 ${staleJobs.length} 个任务: ${jobIds.join(', ')}`);
-    return { cleaned: staleJobs.length, jobIds };
+    log.info(`[DataSync] v665: 僵尸任务清理完成，共清理 ${uniqueStaleJobs.length} 个任务 (心跳超时:${staleJobs.length}, 进程不存在:${orphanJobs.filter(o => !staleJobs.some(s => s.id === o.id)).length}): ${jobIds.join(', ')}`);
+    return { cleaned: uniqueStaleJobs.length, jobIds };
   } catch (error: unknown) {
     log.warn(`[DataSync] v334: 卡死任务清理失败: ${(error as Error).message}`);
     return { cleaned: 0, jobIds: [] };

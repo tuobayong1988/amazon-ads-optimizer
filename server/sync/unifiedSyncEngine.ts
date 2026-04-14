@@ -1079,6 +1079,43 @@ const activeSyncs = new Map<string, {
   timeoutMs: number;         // 绝对超时（安全网，防止无限运行）
 }>();
 
+// v665: 活跃同步上下文引用 — 用于SIGTERM时主动保存所有活跃同步的checkpoint
+const activeSyncContexts = new Map<string, {
+  accountId: number;
+  tier: string;
+  context: { completedSteps: string[]; totalSynced: number; checkpoint: Record<string, unknown> };
+  startTime: Date;
+}>();
+
+/**
+ * v665: 导出函数 — SIGTERM时主动保存所有活跃同步的checkpoint
+ * 由deployLifecycleManager在persistShutdownState中调用
+ */
+export async function saveAllActiveCheckpoints(): Promise<number> {
+  let saved = 0;
+  for (const [key, entry] of activeSyncContexts.entries()) {
+    try {
+      const checkpointData: SyncCheckpointData = {
+        completedSteps: [...entry.context.completedSteps],
+        interruptReason: 'shutdown',
+        totalSynced: entry.context.totalSynced,
+        elapsedMs: Date.now() - entry.startTime.getTime(),
+        stepCheckpoints: Object.fromEntries(
+          entry.context.completedSteps.map(sid => [sid, { status: 'completed', synced: (entry.context.checkpoint[sid] as { synced?: number })?.synced || 0 }])
+        ),
+        recordCheckpoints: {},
+        savedAt: new Date().toISOString(),
+      };
+      await saveSyncCheckpoint(entry.accountId, entry.tier, checkpointData);
+      saved++;
+      log.info(`[v665] SIGTERM checkpoint已保存: 账户${entry.accountId} ${entry.tier}层, 已完成${entry.context.completedSteps.length}步`);
+    } catch (err: unknown) {
+      log.warn(`[v665] SIGTERM checkpoint保存失败: 账户${entry.accountId} ${entry.tier}层: ${(err as Error).message}`);
+    }
+  }
+  return saved;
+}
+
 // v653: 空账户诊断去重缓存 — 连续相同诊断结果的账户不再重复输出warn日志
 // 解决v652验证报告4.1：日志缓冲区使用率从84%升至100%的问题
 const emptyAccountDiagCache = new Map<number, { diagnosisType: string; count: number; firstSeen: Date }>();
@@ -1088,6 +1125,19 @@ const DIAG_DEDUP_LOG_INTERVAL = 10;  // 每10次相同诊断才输出一次汇�
  * v657: 获取空账户监控统计数据
  * 用于 /api/ops/status 端点展示空账户预检机制的效果
  */
+/**
+ * v665: 导出当前进程中活跃同步的账户ID列表
+ * 用于cleanupStaleJobs交叉验证：DB中running但不在当前进程的activeSyncs中的任务是僵尸任务
+ */
+export function getActiveSyncAccountIds(): Set<number> {
+  const ids = new Set<number>();
+  for (const [key] of activeSyncs.entries()) {
+    const accountId = parseInt(key.split(':')[0], 10);
+    if (!isNaN(accountId)) ids.add(accountId);
+  }
+  return ids;
+}
+
 export function getEmptyAccountStats(): {
   totalEmpty: number;
   accounts: Array<{ accountId: number; diagnosisType: string; count: number; firstSeen: string; ageMins: number }>;
@@ -1604,6 +1654,9 @@ export async function syncAccount(
       incrementalReportDays: reportDays,
     };
 
+    // v665: 注册活跃同步上下文，用于SIGTERM时主动保存checkpoint
+    activeSyncContexts.set(lockKey, { accountId: account.accountId, tier, context, startTime });
+
     // 逐步执行同步
     for (let i = 0; i < steps.length; i++) {
       const step = steps[i];
@@ -1804,7 +1857,7 @@ export async function syncAccount(
           'sp_ad_groups': 10, 'sb_ad_groups': 10, 'sd_ad_groups': 10,
           'sp_keywords': 10, 'sb_keywords': 10,
           'sp_product_targets': 10, 'sb_product_targets': 10, 'sd_product_targets': 10,
-          'sp_negative_keywords': 15, 'sb_negative_keywords': 15,
+          'sp_negative_keywords': 45, 'sb_negative_keywords': 30, // v665: sp_negative_keywords从15→45分钟（v664实测90084超大账户5000+ campaigns需要更多时间）
           'sp_negative_targets': 15, 'sb_negative_targets': 15, 'sd_negative_targets': 15,
           'sp_auto_targeting': 10, 'sd_targeting': 10, 'sb_targeting': 10,
           'sb_ads': 10, 'sp_budget_rules': 10,
@@ -1815,8 +1868,8 @@ export async function syncAccount(
           'keyword_performance': 45, 'target_performance': 45, 'ad_group_performance': 45,
           // 素材步骤: 15分钟（从5分钟放宽）
           'sb_asset_urls': 15,
-          // 竞价步骤: 30分钟（v664: 从20分钟放宽，v663实测90045的SP建议竞价20分钟不够）
-          'sp_bid_recommendations': 30, 'sb_bid_recommendations': 30,
+          // 竞价步骤: v665: SP建议竞价提升到60分钟（v664实测90045/90052在30分钟内仍无法完成），其他竞价步骤30分钟
+          'sp_bid_recommendations': 60, 'sb_bid_recommendations': 30,
           'sd_bid_recommendations': 30, 'sd_audience_bid_recommendations': 30,
         };
         const timeoutMinutes = STEP_TIMEOUT_MAP[step.id] || 30; // v663: 默认超时从15分钟提升到30分钟（v662实测90107的SP否定关键词/商品定位15分钟不够）
@@ -2128,6 +2181,7 @@ export async function syncAccount(
   } finally {
     // 清理
     activeSyncs.delete(lockKey);
+    activeSyncContexts.delete(lockKey); // v665: 清理活跃同步上下文引用
     // v221: 只清理当前层级的条目，不影响其他层级的并行同步
     engineStatus.currentlyRunning = engineStatus.currentlyRunning.filter(
       r => !(r.accountId === account.accountId && r.tier === tier)

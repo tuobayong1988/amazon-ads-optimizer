@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 664;  // v664: 步骤超时精调(performance_7d 45min, bid 30min) + cleanupStaleJobs诊断信息增强 + API限流告警聚合
+export const SYSTEM_VERSION = 665;  // v665: SP建议竞价60min + SP否定关键词45min + EB健康检查容忍度 + SIGTERM checkpoint + 僵尸任务快速检测 + 竞价自适应节流

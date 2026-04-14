@@ -1261,6 +1261,10 @@ AmazonSyncService.prototype.syncSpBidRecommendations = async function(this: Amaz
     // 按adGroup批量请求建议竞价
     // @ts-expect-error Type inference limitation
     let adGroupIndex = 0;
+    const totalAdGroups = kwByAdGroup.size;
+    // v665: 自适应节流（替代固定5秒间隔），大账户显著缩短总耗时
+    let kwApiDelay = totalAdGroups > 200 ? 1000 : 2000; // 大账户初始1秒，小账户2秒
+    let kwConsecutiveSuccess = 0;
     for (const [internalAgId, kwList] of kwByAdGroup) {
       const amazonAgId = internalToAmazonAdGroupId.get(internalAgId);
       if (!amazonAgId) {
@@ -1268,11 +1272,15 @@ AmazonSyncService.prototype.syncSpBidRecommendations = async function(this: Amaz
         continue;
       }
 
-      // v476: API节流 — 每个adGroup的建议竞价请求间隔5秒，优先保证100%成功率
+      // v665: 自适应API节流 — 根据429响应动态调整延迟
       if (adGroupIndex > 0) {
-        await new Promise(resolve => setTimeout(resolve, 5000));
+        await new Promise(resolve => setTimeout(resolve, kwApiDelay));
       }
       adGroupIndex++;
+      // v665: 每处理50个adGroup输出一次进度日志
+      if (adGroupIndex % 50 === 0 || adGroupIndex === totalAdGroups) {
+        log.info(`[v665] SP关键词建议竞价进度: ${adGroupIndex}/${totalAdGroups} adGroups, 已更新${keywordBidsUpdated}个关键词, 当前延迟${kwApiDelay}ms`);
+      }
 
       try {
         // 每批最多100个关键词
@@ -1324,10 +1332,22 @@ AmazonSyncService.prototype.syncSpBidRecommendations = async function(this: Amaz
             log.debug(`[v436] adGroup ${internalAgId} API返回空建议竞价 (batch=${batch.length})`);
           }
         }
+        // v665: 成功后逐步缩减延迟，最低500ms
+        kwConsecutiveSuccess++;
+        if (kwConsecutiveSuccess >= 5 && kwApiDelay > 500) {
+          kwApiDelay = Math.max(500, kwApiDelay - 250);
+          kwConsecutiveSuccess = 0;
+        }
       } catch (err: unknown) {
         // 单个adGroup失败不影响其他adGroup
         errors++;
         const errMsg = (err as Error).message || 'unknown';
+        // v665: 429限流时加倍延迟，最高8秒
+        if (errMsg.includes('429') || errMsg.includes('Too Many') || errMsg.includes('HTML响应')) {
+          kwApiDelay = Math.min(8000, kwApiDelay * 2);
+          kwConsecutiveSuccess = 0;
+          log.warn(`[v665] 关键词建议竞价429限流，延迟加倍至 ${kwApiDelay}ms`);
+        }
         log.warn(`[v414] adGroup ${internalAgId} 关键词建议竞价获取失败: ${errMsg}`);
         // v457: Amazon API失败时，使用本地历史数据推荐引擎为该adGroup的关键词提供建议竞价
         try {
@@ -1396,11 +1416,17 @@ AmazonSyncService.prototype.syncSpBidRecommendations = async function(this: Amaz
 
     // 按adGroup批量请求建议竞价
     let tgtAdGroupIndex = 0;
-    let tgtApiDelay = 2000; // v522: 自适应节流 — 初始2秒，429时加倍，成功时缩减
+    const totalTgtAdGroups = tgtByAdGroup.size;
+    // v665: 大账户初始延迟缩短到1秒（与关键词竞价一致）
+    let tgtApiDelay = totalTgtAdGroups > 200 ? 1000 : 2000;
     let tgtConsecutiveSuccess = 0;
     for (const [internalAgId, tgtList] of tgtByAdGroup) {
       const amazonAgId = internalToAmazonAdGroupId.get(internalAgId);
       if (!amazonAgId) continue;
+      // v665: 每处理50个adGroup输出一次进度日志
+      if (tgtAdGroupIndex > 0 && tgtAdGroupIndex % 50 === 0) {
+        log.info(`[v665] SP商品定位建议竞价进度: ${tgtAdGroupIndex}/${totalTgtAdGroups} adGroups, 已更新${targetBidsUpdated}个定位, 当前延迟${tgtApiDelay}ms`);
+      }
       // v522: 自适应API节流 — 根据429响应动态调整延迟
       if (tgtAdGroupIndex > 0) {
         await new Promise(resolve => setTimeout(resolve, tgtApiDelay));
@@ -1475,12 +1501,12 @@ AmazonSyncService.prototype.syncSpBidRecommendations = async function(this: Amaz
             log.debug(`[v436] adGroup ${internalAgId} 商品定位API返回空建议竞价 (batch=${batch.length})`);
           }
         }
-        // v522: 成功后逐步缩减延迟，最低1秒
+        // v665: 成功后逐步缩减延迟，最低500ms
         tgtConsecutiveSuccess++;
-        if (tgtConsecutiveSuccess >= 5 && tgtApiDelay > 1000) {
-          tgtApiDelay = Math.max(1000, tgtApiDelay - 500);
+        if (tgtConsecutiveSuccess >= 5 && tgtApiDelay > 500) {
+          tgtApiDelay = Math.max(500, tgtApiDelay - 250);
           tgtConsecutiveSuccess = 0;
-          log.debug(`[v522] Target建议竞价节流缩减至 ${tgtApiDelay}ms`);
+          log.debug(`[v665] Target建议竞价节流缩减至 ${tgtApiDelay}ms`);
         }
       } catch (err: unknown) {
         errors++;
