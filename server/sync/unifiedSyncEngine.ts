@@ -1818,12 +1818,16 @@ export async function syncAccount(
             } else {
               // v651: 自动同步 — 直接更新data_sync_jobs中该账户最近的running任务的updated_at
               // MySQL的ON UPDATE CURRENT_TIMESTAMP会自动更新updated_at
+              // v670: 修复心跳更新缺失progressPercent — 前端依赖此字段显示进度百分比
+              // 根因：心跳只更新了currentStep/currentStepIndex/totalSteps，但没有更新progressPercent
+              // 导致前端轮询到的progressPercent始终为旧值，进度条长期停滞不前
               try {
                 const database = await db.getDb();
                 if (database) {
                   const { dataSyncJobs } = await import('../../drizzle/schema');
+                  const heartbeatProgressPercent = Math.round(((i + 1) / steps.length) * 100);
                   await database.update(dataSyncJobs)
-                    .set({ currentStep: step.name, currentStepIndex: i, totalSteps: steps.length })
+                    .set({ currentStep: step.name, currentStepIndex: i, totalSteps: steps.length, progressPercent: heartbeatProgressPercent })
                     .where(and(
                       eq(dataSyncJobs.accountId, account.accountId),
                       eq(dataSyncJobs.status, 'running')

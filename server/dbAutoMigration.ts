@@ -1141,7 +1141,37 @@ export async function runAutoDbMigration(): Promise<{ success: boolean; results:
       log.warn('v513: 历史内部事件重分类失败: ' + (e as Error).message);
     }
 
-    log.info(`v513: 数据库自动迁移完成, 结果: ${results.join('; ')}`);
+    // ========== v670: negative_keywords 表补齐缺失字段 ==========
+    // 根因：schema中定义了 amazonNegativeKeywordId、campaignTypeNeg、negativeScope 等字段，
+    // 但 dbAutoMigration 中从未添加对应的 ALTER TABLE ADD COLUMN 迁移，
+    // 导致生产数据库中这些列不存在，SP否定关键词同步时报 "Unknown column 'amazonNegativeKeywordId' in 'field list'" 错误
+    const v670NegKwColumns: [string, string][] = [
+      ['amazon_negative_keyword_id', "VARCHAR(64) NULL DEFAULT NULL COMMENT 'v670: Amazon否定关键词/定向ID'"],
+      ['campaignTypeNeg', "ENUM('sp','sb','sd') DEFAULT 'sp' COMMENT 'v670: 来源广告活动类型'"],
+      ['negativeScope', "ENUM('campaign','ad_group') DEFAULT 'campaign' COMMENT 'v670: 否定层级'"],
+      ['blocked_impressions', "INT DEFAULT 0 COMMENT 'v670: 屏蔽展示次数'"],
+      ['blocked_spend', "DECIMAL(10,2) DEFAULT 0 COMMENT 'v670: 屏蔽花费'"],
+      ['pre_negative_acos', "DECIMAL(5,2) NULL DEFAULT NULL COMMENT 'v670: 否定前ACoS'"],
+      ['pre_negative_spend', "DECIMAL(10,2) NULL DEFAULT NULL COMMENT 'v670: 否定前花费'"],
+    ];
+    for (const [colName, colDef] of v670NegKwColumns) {
+      await safeDDL(database, sql.raw(
+        `ALTER TABLE \`negative_keywords\` ADD COLUMN \`${colName}\` ${colDef}`
+      ), `negative_keywords.${colName}`, results);
+    }
+    // v670: 扩展 negativeSource ENUM 以支持新增的否定来源类型
+    await safeDDL(database, sql.raw(`
+      ALTER TABLE \`negative_keywords\` MODIFY COLUMN \`negativeSource\` ENUM(
+        'manual','ngram_analysis','traffic_conflict','funnel_migration',
+        'search_term_harvest','auto_optimization','smart_negation'
+      ) DEFAULT 'manual'
+    `), 'negative_keywords.negativeSource_expand', results);
+    // v670: 为 amazon_negative_keyword_id 添加索引，加速按Amazon ID查找
+    await safeDDL(database, sql.raw(
+      `ALTER TABLE \`negative_keywords\` ADD INDEX \`idx_negKw_amazonNegKwId\` (\`amazon_negative_keyword_id\`)`
+    ), 'negative_keywords.idx_negKw_amazonNegKwId', results);
+
+    log.info(`v670: 数据库自动迁移完成, 结果: ${results.join('; ')}`);
     return { success: true, results };
 
   } catch (error: unknown) {
