@@ -296,8 +296,8 @@ export const API_BATCH_FETCH_CAMPAIGN_THRESHOLD = 2000;
 /** 每批API请求包含的广告活动数 (v673: 50→300) */
 export const API_BATCH_CAMPAIGN_SIZE = 300;
 
-/** API批次间延迟（毫秒）(v673: 200→3000，给限流器足够的冷却时间) */
-export const API_BATCH_DELAY_MS = 3000;
+/** API批次间延迟（毫秒）(v675: 3000→5000，给其他消费者(PostOptVerifier/OptSyncEngine)留出RPM空间) */
+export const API_BATCH_DELAY_MS = 5000;
 
 export interface ApiBatchFetchOptions<T> {
   /** 账户下所有广告活动ID列表 */

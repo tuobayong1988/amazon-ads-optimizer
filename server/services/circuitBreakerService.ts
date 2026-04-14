@@ -92,8 +92,8 @@ export interface CircuitBreakerStatus {
 const DEFAULT_CONFIG: CircuitBreakerConfig = {
   errorRateThreshold: 0.5,
   windowSize: 20,
-  cooldownMs: 5 * 60 * 1000,       // 5 分钟
-  halfOpenMaxRequests: 3,
+  cooldownMs: 2 * 60 * 1000,       // v675: 5分钟→降为2分钟，加快熔断恢复速度，减少雷群效应
+  halfOpenMaxRequests: 5,           // v675: 3→5，更快确认恢复状态
   halfOpenSuccessThreshold: 0.8,
   maxCooldownMultiplier: 4,
 };

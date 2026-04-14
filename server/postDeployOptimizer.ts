@@ -1284,6 +1284,12 @@ const VERSION_CHANGELOG: VersionChange[] = [
     affectedModules: ['auth', 'frontend'],
     correctionActions: [],
   },
+  {
+    version: 675,
+    description: 'v675: [API限流参数微调] — 基于ElaraFit美国站(3225个广告活动)生产环境监控数据: (1)P0-Per-account list RPM: 400→600,TPS: 8→12,突发: 15→25,解决多消费者(同步+验证+优化)并发竞争导致per-account层过早限流 (2)P0-全局list RPM: 600→800,TPS: 15→20,突发: 20→30,确保全局限额大于per-account以容纳多账户并发 (3)P1-熔断器冷却: 5分钟→2分钟,半开探针: 3→5,加快恢复速度 (4)P2-API分批延迟: 3s→5s,给PostOptVerifier/OptSyncEngine留出RPM空间',
+    affectedModules: ['rateLimit', 'circuitBreaker', 'batchSync'],
+    correctionActions: [],
+  },
 ];
 
 // ==================== 配置 ====================

@@ -157,10 +157,10 @@ class InMemoryRateLimitStore implements RateLimitStore {
  */
 const DEFAULT_ENDPOINT_CONFIGS: Record<ApiEndpointType, EndpointRateConfig> = {
   list: {
-    maxRequestsPerSecond: 8,      // 官方~10 TPS，保守设为8
-    maxRequestsPerMinute: 400,
-    burstCapacity: 15,            // 允许短时突发到15
-    refillRatePerSecond: 8,
+    maxRequestsPerSecond: 12,     // v675: 从8提升到12，给多消费者(同步+验证+优化)留出空间
+    maxRequestsPerMinute: 600,    // v675: 从400提升到600，匹配全局限额，避免per-account层过早限流
+    burstCapacity: 25,            // v675: 从15提升到25，容纳同步+验证的并发突发
+    refillRatePerSecond: 12,      // v675: 匹配TPS
   },
   mutate: {
     maxRequestsPerSecond: 4,      // 官方~5 TPS，保守设为4
@@ -197,10 +197,10 @@ const DEFAULT_ENDPOINT_CONFIGS: Record<ApiEndpointType, EndpointRateConfig> = {
 // 核心原则：宁可慢一点，也要确保每个请求都成功
 const GLOBAL_ENDPOINT_CONFIGS: Record<ApiEndpointType, EndpointRateConfig> = {
   list: {
-    maxRequestsPerSecond: 15,     // v658: 从30降到15
-    maxRequestsPerMinute: 600,    // v658: 从1500降到600
-    burstCapacity: 20,            // v658: 从50降到20
-    refillRatePerSecond: 15,
+    maxRequestsPerSecond: 20,     // v675: 从15提升到20，全局限额需覆盖多账户并发
+    maxRequestsPerMinute: 800,    // v675: 从600提升到800，全局RPM需大于per-account以容纳多账户
+    burstCapacity: 30,            // v675: 从20提升到30，容纳多账户并发突发
+    refillRatePerSecond: 20,
   },
   mutate: {
     maxRequestsPerSecond: 8,      // v658: 从15降到8
