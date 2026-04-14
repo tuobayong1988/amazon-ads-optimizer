@@ -431,10 +431,12 @@ export async function syncAdGroupPerformanceData(service: SyncContext, days: num
     }
     
     log.info(`[v413] 广告组报告批量提交: ${reportRequests.map(r => r.name).join(', ')}`);
+    // v676: 全量同步时跳过P5异步模式，强制同步等待
+    const adGroupReportTimeout = service._reportWaitTimeoutMs || 600000;
     const reportResults = reportRequests.length > 0
-      ? (process.env.P5_ASYNC_REPORTS === 'true'
+      ? (process.env.P5_ASYNC_REPORTS === 'true' && !service._forceSync
           ? (await service.client.submitReportsToAsyncQueue(reportRequests, { accountId: service.accountId, syncType: 'ad_group_sync' })).results.map(r => ({ name: r.name, data: r.data as Record<string, unknown>[] | null, error: r.error }))
-          : await service.client.submitAndWaitMultipleReports(reportRequests, 300000, 2000))
+          : await service.client.submitAndWaitMultipleReports(reportRequests, adGroupReportTimeout, 2000))
       : [];
 
     /**

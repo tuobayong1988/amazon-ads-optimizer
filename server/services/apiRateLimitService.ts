@@ -726,10 +726,13 @@ export async function acquireApiPermit(
 
 /**
  * 便捷函数: 分类API端点类型
- * 根据API方法名自动判断端点类型
+ * v676: 增强版 — 同时考虑URL路径和HTTP方法，大幅减少落入default端点的请求
+ * 根因：Amazon API URL设计不一致，SD使用GET /sd/xxx，SP v3使用POST /sp/xxx/list
+ * PUT请求的URL不含 update/create 等关键词，导致被错误归类为default
  */
-export function classifyEndpoint(methodName: string): ApiEndpointType {
+export function classifyEndpoint(methodName: string, httpMethod?: string): ApiEndpointType {
   const lowerName = methodName.toLowerCase();
+  const method = (httpMethod || '').toUpperCase();
   
   // 报告类
   if (lowerName.includes('report') || lowerName.includes('performance') || lowerName.includes('searchterm')) {
@@ -741,17 +744,50 @@ export function classifyEndpoint(methodName: string): ApiEndpointType {
     return 'snapshot';
   }
   
-  // 变更类
+  // 变更类 - URL关键词匹配
   if (lowerName.includes('update') || lowerName.includes('create') || lowerName.includes('delete') ||
       lowerName.includes('sync') || lowerName.includes('apply') || lowerName.includes('add') ||
       lowerName.includes('remove') || lowerName.includes('archive')) {
     return 'mutate';
   }
   
-  // 查询类
+  // v676: PUT请求始终是变更操作（更新广告活动/关键词/出价等）
+  if (method === 'PUT') {
+    return 'mutate';
+  }
+  
+  // v676: DELETE请求始终是变更操作
+  if (method === 'DELETE') {
+    return 'mutate';
+  }
+  
+  // 查询类 - URL关键词匹配
   if (lowerName.includes('list') || lowerName.includes('get') || lowerName.includes('fetch') ||
       lowerName.includes('query') || lowerName.includes('search')) {
     return 'list';
+  }
+  
+  // v676: 推荐竞价API是查询类（POST /sb/recommendations/bids, POST /sd/targets/bid/recommendations）
+  if (lowerName.includes('recommendation')) {
+    return 'list';
+  }
+  
+  // v676: Budget Rules API是查询类（GET /sp/campaigns/{id}/budgetRules）
+  if (lowerName.includes('budgetrule')) {
+    return 'list';
+  }
+  
+  // v676: GET请求默认为查询类（覆盖SD API的 GET /sd/campaigns, /sd/adGroups, /sd/targets 等）
+  if (method === 'GET') {
+    return 'list';
+  }
+  
+  // v676: POST请求到非/list端点的是创建操作（如 POST /sp/keywords, POST /sp/negativeKeywords）
+  // 排除已被上面规则匹配的报告/快照/查询类
+  if (method === 'POST' && !lowerName.includes('list')) {
+    // POST到非-list端点通常是创建操作（如创建否定关键词、创建广告活动等）
+    // 但也可能是查询（如 POST /streams/subscriptions），归类为mutate更安全
+    return 'mutate';
   }
   
   return 'default';

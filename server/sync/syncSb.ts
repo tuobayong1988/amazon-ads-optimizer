@@ -758,7 +758,7 @@ AmazonSyncService.prototype.syncSbSearchTerms = async function(this: AmazonSyncS
       }
       log.info(`[v413] SB搜索词: ${batches}批次批量提交开始`);
       // P5: 异步报告模式
-      if (process.env.P5_ASYNC_REPORTS === 'true') {
+      if (process.env.P5_ASYNC_REPORTS === 'true' && !this._forceSync) { // v676
         const asyncResult = await this.client.submitReportsToAsyncQueue(batchRequests, {
           accountId: this.accountId,
           syncType: 'sb_sync',
@@ -766,7 +766,7 @@ AmazonSyncService.prototype.syncSbSearchTerms = async function(this: AmazonSyncS
         log.info(`[P5] Async SB reports submitted: ${asyncResult.queued} queued`);
         // P5: async mode
       } else {
-      const results = await this.client.submitAndWaitMultipleReports(batchRequests, 600000, 2000); // v449: SB报告超时从5分钟增加到10分钟
+      const results = await this.client.submitAndWaitMultipleReports(batchRequests, this._reportWaitTimeoutMs || 600000, 2000); // v676: 动态超时: SB报告超时从5分钟增加到10分钟
       for (const result of results) {
         if (result.data && result.data.length > 0) {
           allReportData = allReportData.concat(result.data);
@@ -1000,7 +1000,7 @@ AmazonSyncService.prototype.syncSbTargeting = async function(this: AmazonSyncSer
       }
       log.info(`[v413] SB定向: ${batches}批次批量提交开始`);
       // P5: 异步报告模式
-      if (process.env.P5_ASYNC_REPORTS === 'true') {
+      if (process.env.P5_ASYNC_REPORTS === 'true' && !this._forceSync) { // v676
         const asyncResult = await this.client.submitReportsToAsyncQueue(batchRequests, {
           accountId: this.accountId,
           syncType: 'sb_sync',
@@ -1008,7 +1008,7 @@ AmazonSyncService.prototype.syncSbTargeting = async function(this: AmazonSyncSer
         log.info(`[P5] Async SB reports submitted: ${asyncResult.queued} queued`);
         // P5: async mode
       } else {
-      const results = await this.client.submitAndWaitMultipleReports(batchRequests, 600000, 2000); // v449: SB报告超时从5分钟增加到10分钟
+      const results = await this.client.submitAndWaitMultipleReports(batchRequests, this._reportWaitTimeoutMs || 600000, 2000); // v676: 动态超时: SB报告超时从5分钟增加到10分钟
       for (const result of results) {
         if (result.data && result.data.length > 0) {
           // @ts-expect-error Legacy code type compatibility
@@ -1474,7 +1474,7 @@ AmazonSyncService.prototype.syncSbPlacementPerformance = async function(this: Am
       }
       log.info(`[v413] SB广告位: ${batches}批次批量提交开始`);
       // P5: 异步报告模式
-      if (process.env.P5_ASYNC_REPORTS === 'true') {
+      if (process.env.P5_ASYNC_REPORTS === 'true' && !this._forceSync) { // v676
         const asyncResult = await this.client.submitReportsToAsyncQueue(batchRequests, {
           accountId: this.accountId,
           syncType: 'sb_sync',
@@ -1482,7 +1482,7 @@ AmazonSyncService.prototype.syncSbPlacementPerformance = async function(this: Am
         log.info(`[P5] Async SB reports submitted: ${asyncResult.queued} queued`);
         // P5: async mode
       } else {
-      const results = await this.client.submitAndWaitMultipleReports(batchRequests, 600000, 2000); // v449: SB报告超时从5分钟增加到10分钟
+      const results = await this.client.submitAndWaitMultipleReports(batchRequests, this._reportWaitTimeoutMs || 600000, 2000); // v676: 动态超时: SB报告超时从5分钟增加到10分钟
       for (const result of results) {
         if (result.data && result.data.length > 0) {
           allReportData = allReportData.concat(result.data);

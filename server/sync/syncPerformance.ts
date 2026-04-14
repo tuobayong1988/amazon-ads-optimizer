@@ -343,7 +343,8 @@ AmazonSyncService.prototype.syncPerformanceDataBatch = async function(this: Amaz
   }
   
   // P5: 异步报告模式 - 提交到队列后立即返回，由 ReportJobScheduler 异步处理
-  if (process.env.P5_ASYNC_REPORTS === 'true') {
+  // v676: 全量同步时(_forceSync=true)跳过异步模式，强制使用同步等待确保数据完整性
+  if (process.env.P5_ASYNC_REPORTS === 'true' && !this._forceSync) {
     const asyncResult = await this.client.submitReportsToAsyncQueue(reportRequestList, {
       accountId: this.accountId,
       profileId: String(this.client.credentials?.profileId || ''),
@@ -355,8 +356,12 @@ AmazonSyncService.prototype.syncPerformanceDataBatch = async function(this: Amaz
     return totalSynced; // 数据将由 ReportJobScheduler 异步处理
   }
 
-  // v523.3: 超时时间从300秒增加到600秒，避免高并发时Amazon排队导致的超时
-  const reportResults = await this.client.submitAndWaitMultipleReports(reportRequestList, 600000, 2000);
+  // v676: 使用实例级超时配置，全量同步时为1800秒，日常同步为600秒
+  const reportWaitTimeout = this._reportWaitTimeoutMs || 600000;
+  if (this._forceSync) {
+    log.info(`[v676] 强制同步模式: 使用submitAndWaitMultipleReports, 超时=${Math.round(reportWaitTimeout / 1000)}秒`);
+  }
+  const reportResults = await this.client.submitAndWaitMultipleReports(reportRequestList, reportWaitTimeout, 2000);
   
   // v523.3: 使用动态的reportAdTypes替代硬编码的adTypes
   for (let i = 0; i < reportResults.length; i++) {
@@ -912,9 +917,8 @@ AmazonSyncService.prototype.syncKeywordPerformanceData = async function(this: Am
         });
       }
       log.info(`[v413] 关键词绩效: ${batches}批次批量提交开始`);
-      // v523.3: 超时时间从300秒增加到600秒
-      // P5: 异步报告模式
-      if (process.env.P5_ASYNC_REPORTS === 'true') {
+      // v676: 全量同步时跳过P5异步模式，强制同步等待
+      if (process.env.P5_ASYNC_REPORTS === 'true' && !this._forceSync) {
         const asyncResult = await this.client.submitReportsToAsyncQueue(batchRequests, {
           accountId: this.accountId,
           syncType: 'keyword_performance',
@@ -922,7 +926,8 @@ AmazonSyncService.prototype.syncKeywordPerformanceData = async function(this: Am
         log.info(`[P5] Async keyword reports submitted: ${asyncResult.queued} queued`);
         // P5: async mode - skip sync processing
       } else {
-      const results = await this.client.submitAndWaitMultipleReports(batchRequests, 600000, 2000);
+      const kwReportTimeout = this._reportWaitTimeoutMs || 600000;
+      const results = await this.client.submitAndWaitMultipleReports(batchRequests, kwReportTimeout, 2000);
       for (const result of results) {
         if (result.data && result.data.length > 0) {
           allReportData = allReportData.concat(result.data);
@@ -1542,17 +1547,17 @@ AmazonSyncService.prototype.syncAdGroupPerformanceData = async function(this: Am
       // @ts-expect-error - legacy type assertion
       log.info(`[v413] ${reportName}: ${rBatches}批次批量提交开始`);
       // @ts-expect-error - legacy type assertion
-      // v523.3: 超时时间从300秒增加到600秒
-      // P5: 异步报告模式
-      if (process.env.P5_ASYNC_REPORTS === 'true') {
+      // v676: 全量同步时跳过P5异步模式，强制同步等待
+      if (process.env.P5_ASYNC_REPORTS === 'true' && !this._forceSync) {
         const asyncResult = await this.client.submitReportsToAsyncQueue(batchRequests, {
           accountId: this.accountId,
           syncType: 'keyword_performance',
         });
-        log.info(`[P5] Async keyword reports submitted: ${asyncResult.queued} queued`);
+        log.info(`[P5] Async ad group reports submitted: ${asyncResult.queued} queued`);
         // P5: async mode - skip sync processing
       } else {
-      const results = await this.client.submitAndWaitMultipleReports(batchRequests, 600000, 2000);
+      const agReportTimeout = this._reportWaitTimeoutMs || 600000;
+      const results = await this.client.submitAndWaitMultipleReports(batchRequests, agReportTimeout, 2000);
       
       let allData: unknown[] = [];
       for (const result of results) {
@@ -1845,17 +1850,17 @@ AmazonSyncService.prototype.syncPlacementPerformance = async function(this: Amaz
         });
       }
       log.info(`[v413] SP广告位: ${batches}批次批量提交开始`);
-      // v523.3: 超时时间从300秒增加到600秒
-      // P5: 异步报告模式
-      if (process.env.P5_ASYNC_REPORTS === 'true') {
+      // v676: 全量同步时跳过P5异步模式，强制同步等待
+      if (process.env.P5_ASYNC_REPORTS === 'true' && !this._forceSync) {
         const asyncResult = await this.client.submitReportsToAsyncQueue(batchRequests, {
           accountId: this.accountId,
-          syncType: 'placement_sync', // v649: 修正为 placement_sync（原来错误标记为 keyword_performance）
+          syncType: 'placement_sync',
         });
         log.info(`[P5] Async SP placement reports submitted: ${asyncResult.queued} queued`);
         // P5: async mode - skip sync processing
       } else {
-      const results = await this.client.submitAndWaitMultipleReports(batchRequests, 600000, 2000);
+      const placementReportTimeout = this._reportWaitTimeoutMs || 600000;
+      const results = await this.client.submitAndWaitMultipleReports(batchRequests, placementReportTimeout, 2000);
       for (const result of results) {
         if (result.data && result.data.length > 0) {
           allReportData = allReportData.concat(result.data);

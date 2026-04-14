@@ -274,6 +274,11 @@ export class AmazonSyncService {
   public accountId: number;
   public userId: number;
   public marketplace: string; // 站点代码，用于时区计算
+  // v676: 强制同步模式标志 — 当为true时，所有P5异步报告分支将被跳过，
+  // 改用同步等待模式（submitAndWaitMultipleReports），确保全量同步时数据完整性
+  public _forceSync: boolean = false;
+  // v676: 同步等待超时时间（毫秒），全量同步时使用1800秒（30分钟），日常同步使用600秒
+  public _reportWaitTimeoutMs: number = 600000;
 
   constructor(client: AmazonAdsApiClient, accountId: number, userId: number, marketplace: string = 'US') {
     this.client = client;
@@ -358,7 +363,18 @@ export class AmazonSyncService {
     const sbDays = isFullSync ? FULL_SB_DAYS : DAILY_SYNC_DAYS;
     const sdDays = isFullSync ? FULL_SD_DAYS : DAILY_SYNC_DAYS;
     
-    log.info(`[syncAll] ⏱️ 账户${this.accountId} 开始${syncMode}模式同步 (SP=${spDays}天, SB=${sbDays}天, SD=${sdDays}天)`);
+    // v676: 全量同步时强制使用同步等待模式，确保绩效数据完整性
+    // 日常增量同步保持P5异步模式，数据由ReportJobScheduler后台处理
+    if (isFullSync) {
+      this._forceSync = true;
+      this._reportWaitTimeoutMs = 1800000; // 30分钟，适应Super-XL账户的Amazon报告生成时间
+      log.info(`[v676] 全量同步模式: _forceSync=true, 报告等待超时=1800秒, 跳过P5异步队列`);
+    } else {
+      this._forceSync = false;
+      this._reportWaitTimeoutMs = 600000; // 10分钟，日常同步超时
+    }
+    
+    log.info(`[syncAll] ⏱️ 账户${this.accountId} 开始${syncMode}模式同步 (SP=${spDays}天, SB=${sbDays}天, SD=${sdDays}天, forceSync=${this._forceSync})`);
 
     // v345: 步骤级重试配置
     // v371: 增加重试次数到3次（原1次），增强429/5xx错误的恢复能力
@@ -972,8 +988,8 @@ AmazonSyncService.prototype.syncSearchTerms = async function(this: AmazonSyncSer
           });
         }
         log.info(`[v413] SP搜索词: ${batches}批次批量提交开始`);
-        // P5: 异步报告模式
-        if (process.env.P5_ASYNC_REPORTS === 'true') {
+        // v676: 全量同步时跳过P5异步模式
+        if (process.env.P5_ASYNC_REPORTS === 'true' && !this._forceSync) {
           const asyncResult = await this.client.submitReportsToAsyncQueue(batchRequests, {
             accountId: this.accountId,
             syncType: 'search_term_sync',
@@ -981,7 +997,8 @@ AmazonSyncService.prototype.syncSearchTerms = async function(this: AmazonSyncSer
           log.info(`[P5] Async search term reports submitted: ${asyncResult.queued} queued`);
           // P5: async mode
         } else {
-        const results = await this.client.submitAndWaitMultipleReports(batchRequests, 300000, 2000);
+        const stReportTimeout = this._reportWaitTimeoutMs || 600000;
+        const results = await this.client.submitAndWaitMultipleReports(batchRequests, stReportTimeout, 2000);
         // @ts-expect-error - legacy type assertion
         for (const result of results) {
           if (result.data && result.data.length > 0) {
@@ -1244,8 +1261,8 @@ AmazonSyncService.prototype.syncAutoTargeting = async function(this: AmazonSyncS
           });
         }
         log.info(`[v413] SP自动定向: ${batches}批次批量提交开始`);
-        // P5: 异步报告模式
-        if (process.env.P5_ASYNC_REPORTS === 'true') {
+        // v676: 全量同步时跳过P5异步模式
+        if (process.env.P5_ASYNC_REPORTS === 'true' && !this._forceSync) {
           const asyncResult = await this.client.submitReportsToAsyncQueue(batchRequests, {
             accountId: this.accountId,
             syncType: 'search_term_sync',
@@ -1253,7 +1270,8 @@ AmazonSyncService.prototype.syncAutoTargeting = async function(this: AmazonSyncS
           log.info(`[P5] Async search term reports submitted: ${asyncResult.queued} queued`);
           // P5: async mode
         } else {
-        const results = await this.client.submitAndWaitMultipleReports(batchRequests, 300000, 2000);
+        const autoTargetTimeout = this._reportWaitTimeoutMs || 600000;
+        const results = await this.client.submitAndWaitMultipleReports(batchRequests, autoTargetTimeout, 2000);
         for (const result of results) {
           if (result.data && result.data.length > 0) {
             allReportData = allReportData.concat(result.data);

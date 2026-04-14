@@ -81,7 +81,8 @@ type CorrectionAction =
   | 'cold_start'                   // v344: 触发冷启动流程
   | 'rerun_correction_scan'       // v513: 重新运行纠错扫描
   | 'cleanup_bid_set_backlog'      // v648: 清理bid_set积压+无效状态变更积压
-  | 'cleanup_harvest_backlog';     // v648: 清理搜索词收割积压
+  | 'cleanup_harvest_backlog'     // v648: 清理搜索词收割积压
+  | 'repair_organization_id_90107';  // v676: 修复账户90107的organization_id从1到30012
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
@@ -1290,6 +1291,12 @@ const VERSION_CHANGELOG: VersionChange[] = [
     affectedModules: ['rateLimit', 'circuitBreaker', 'batchSync'],
     correctionActions: [],
   },
+  {
+    version: 676,
+    description: 'v676: [P5报告同步等待+端点分类修复+预算规则平滑] — 基于v675美国站全量同步监控报告: (1)P0-P5异步报告重构: 全量同步时强制同步等待报告完成,超时从600s延长到18分钟(Super-XL账户),解决绩效数据全0问题 (2)P1-classifyEndpoint增强: 同时考虑HTTP方法和URL路径,PUT→mutate/GET→list/POST非-list→mutate,消除PostOptVerifier导致的default端点熔断 (3)P1-SP预算规则平滑: 批次大小5→3,批次延迟200ms→3000ms,避免list端点熔断 (4)P2-账户90107 organization_id修复: 1→30012',
+    affectedModules: ['syncPerformance', 'apiRateLimit', 'budgetRules', 'dataRepair'],
+    correctionActions: ['repair_organization_id_90107'],
+  },
 ];
 
 // ==================== 配置 ====================
@@ -2058,6 +2065,28 @@ async function reoptimizeTarget(
               }
             } catch (cleanErr: unknown) {
               errors.push(`v648 搜索词收割积压清理失败: ${(cleanErr as Error).message}`);
+            }
+            break;
+          }
+          
+          case 'repair_organization_id_90107': {
+            log.info(`[PostDeployOptimizer] [${config.name}] v676: 修复账户90107的organization_id...`);
+            try {
+              const database = await getDb();
+              if (database) {
+                // 将账户90107(CYAFIXED)的organization_id从1修正为30012
+                const repairResult = await database.execute(
+                  sql`UPDATE ad_accounts SET organization_id = 30012 WHERE id = 90107 AND organization_id = 1`
+                );
+                // @ts-expect-error - legacy type assertion
+                const repaired = (repairResult as Record<string, unknown>[])?.[0]?.affectedRows || 0;
+                log.info(`[PostDeployOptimizer] v676: 账户90107 organization_id修复: ${repaired}行受影响`);
+                // @ts-expect-error - legacy type assertion
+                correctionsApplied += repaired;
+                modulesExecuted.push('repair_organization_id_90107');
+              }
+            } catch (repairErr: unknown) {
+              errors.push(`v676 账户90107 organization_id修复失败: ${(repairErr as Error).message}`);
             }
             break;
           }

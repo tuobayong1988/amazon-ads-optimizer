@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 675;  // v675: API限流参数微调 — 提升per-account RPM/TPS、降低熔断冷却时间、增大分批延迟
+export const SYSTEM_VERSION = 676;  // v676: P5报告同步等待+端点分类修复+预算规则平滑+账户90107修复

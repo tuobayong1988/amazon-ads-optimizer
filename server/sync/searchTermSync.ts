@@ -44,7 +44,7 @@ export async function syncSbSearchTerms(service: SyncContext, days: number = 14)
     log.info(`开始同步SB搜索词数据: ${startDate} - ${endDate}`);
 
     // v649: P5 异步报告模式 — 提交到队列后立即返回
-    if (process.env.P5_ASYNC_REPORTS === 'true') {
+    if (process.env.P5_ASYNC_REPORTS === 'true' && !this._forceSync) { // v676
       const asyncResult = await service.client.submitReportsToAsyncQueue(
         [{ name: `SB搜索词(${startDate}~${endDate})`, requestFn: () => service.client.requestSbSearchTermReport(startDate, endDate) }],
         { accountId: service.accountId, syncType: 'search_term_sync', startDate, endDate }
@@ -233,7 +233,7 @@ export async function syncSearchTerms(service: SyncContext,days: number = 14): P
     log.info(`v196: 开始同步搜索词数据: ${startDate} - ${endDate}`);
 
     // v649: P5 异步报告模式 — 提交到队列后立即返回
-    if (process.env.P5_ASYNC_REPORTS === 'true') {
+    if (process.env.P5_ASYNC_REPORTS === 'true' && !this._forceSync) { // v676
       const asyncResult = await service.client.submitReportsToAsyncQueue(
         [{ name: `SP搜索词(${startDate}~${endDate})`, requestFn: () => service.client.requestSpSearchTermReport(startDate, endDate) }],
         { accountId: service.accountId, syncType: 'search_term_sync', startDate, endDate }

@@ -221,8 +221,9 @@ export class AmazonAdsApiClient {
       const token = await this.getAccessToken();
       config.headers.Authorization = `Bearer ${token}`;
       // v360+v369: 在每次API请求发出前获取限流许可，使用真实accountId
+      // v676: 同时传入HTTP方法，提升端点分类准确性
       try {
-        const endpointType = classifyEndpoint(config.url || 'default');
+        const endpointType = classifyEndpoint(config.url || 'default', config.method);
         await acquireApiPermit(this.accountId, endpointType);
       } catch (_: any) { /* 限流服务异常不影响主流程 */ }
       return config;
@@ -318,7 +319,7 @@ export class AmazonAdsApiClient {
         // v374: 同时通知动态并发控制，触发并发降级
         if (status === 429) {
           try {
-            const endpointType = classifyEndpoint(config.url || 'default');
+            const endpointType = classifyEndpoint(config.url || 'default', config.method);
             getApiRateLimitService().recordExternalThrottle(this.accountId, endpointType);
             recordThrottleEvent(); // v374: 连接动态并发控制反馈回路
           } catch (_: any) { /* 限流服务异常不影响主流程 */ }
@@ -7011,7 +7012,12 @@ export class AmazonAdsApiClient {
     onProgress?: (completed: number, total: number) => void
   ): Promise<Map<string, Record<string, unknown>[]>> {
     const result = new Map<string, Record<string, unknown>[]>();
-    const batchSize = 5; // 每批处理5个广告活动
+    // v676: 从5降低到3，减少短时间内的并发list请求数，避免触发list端点熔断
+    const batchSize = 3;
+    // v676: 批次间延迟从200ms增加到3000ms，给其他消费者留出RPM空间
+    const BATCH_DELAY_MS = 3000;
+    
+    log.info(`[v676] Budget Rules同步: ${campaignIds.length}个广告活动, 批次大小=${batchSize}, 批次延迟=${BATCH_DELAY_MS}ms`);
     
     for (let i = 0; i < campaignIds.length; i += batchSize) {
       const batch = campaignIds.slice(i, i + batchSize);
@@ -7034,9 +7040,9 @@ export class AmazonAdsApiClient {
         onProgress(Math.min(i + batchSize, campaignIds.length), campaignIds.length);
       }
       
-      // 批次间延迟，避免API速率限制
+      // v676: 增加批次间延迟，避免短时间内大量请求导致list端点熔断
       if (i + batchSize < campaignIds.length) {
-        await new Promise(resolve => setTimeout(resolve, 200));
+        await new Promise(resolve => setTimeout(resolve, BATCH_DELAY_MS));
       }
     }
     

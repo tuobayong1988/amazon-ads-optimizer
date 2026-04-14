@@ -44,7 +44,7 @@ export async function syncAutoTargeting(service: SyncContext,days: number = 14):
     log.info(`开始同步自动定向数据: ${startDate} - ${endDate}`);
 
     // v649: P5 异步报告模式 — 提交到队列后立即返回
-    if (process.env.P5_ASYNC_REPORTS === 'true') {
+    if (process.env.P5_ASYNC_REPORTS === 'true' && !this._forceSync) { // v676
       const asyncResult = await service.client.submitReportsToAsyncQueue(
         [{ name: `SP自动定向(${startDate}~${endDate})`, requestFn: () => service.client.requestSpAutoTargetingReport(startDate, endDate) }],
         { accountId: service.accountId, syncType: 'targeting_sync', startDate, endDate }
@@ -240,7 +240,7 @@ export async function syncSdTargeting(service: SyncContext,days: number = 14): P
     log.info(`开始同步SD定向数据: ${startDate} - ${endDate}`);
 
     // v649: P5 异步报告模式 — 提交到队列后立即返回
-    if (process.env.P5_ASYNC_REPORTS === 'true') {
+    if (process.env.P5_ASYNC_REPORTS === 'true' && !this._forceSync) { // v676
       const asyncResult = await service.client.submitReportsToAsyncQueue(
         [{ name: `SD定向(${startDate}~${endDate})`, requestFn: () => service.client.requestSdTargetingReport(startDate, endDate) }],
         { accountId: service.accountId, syncType: 'sd_sync', startDate, endDate }
@@ -434,7 +434,7 @@ export async function syncSbTargeting(service: SyncContext,days: number = 14): P
     log.info(`开始同步SB定向数据: ${startDate} - ${endDate}`);
 
     // v649: P5 异步报告模式 — 提交到队列后立即返回
-    if (process.env.P5_ASYNC_REPORTS === 'true') {
+    if (process.env.P5_ASYNC_REPORTS === 'true' && !this._forceSync) { // v676
       const asyncResult = await service.client.submitReportsToAsyncQueue(
         [{ name: `SB定向(${startDate}~${endDate})`, requestFn: () => service.client.requestSbTargetingReport(startDate, endDate) }],
         { accountId: service.accountId, syncType: 'sb_sync', startDate, endDate }

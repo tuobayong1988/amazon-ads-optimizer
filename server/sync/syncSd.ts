@@ -544,7 +544,7 @@ AmazonSyncService.prototype.syncSdTargeting = async function(this: AmazonSyncSer
       }
       log.info(`[v413] SD定向: ${batches}批次批量提交开始`);
       // P5: 异步报告模式
-      if (process.env.P5_ASYNC_REPORTS === 'true') {
+      if (process.env.P5_ASYNC_REPORTS === 'true' && !this._forceSync) { // v676
         const asyncResult = await this.client.submitReportsToAsyncQueue(batchRequests, {
           accountId: this.accountId,
           syncType: 'sd_sync',
@@ -552,7 +552,8 @@ AmazonSyncService.prototype.syncSdTargeting = async function(this: AmazonSyncSer
         log.info(`[P5] Async SD reports submitted: ${asyncResult.queued} queued`);
         // P5: async mode
       } else {
-      const results = await this.client.submitAndWaitMultipleReports(batchRequests, 300000, 2000);
+      const sdReportTimeout = this._reportWaitTimeoutMs || 600000;
+      const results = await this.client.submitAndWaitMultipleReports(batchRequests, sdReportTimeout, 2000);
       // @ts-expect-error Legacy code type compatibility
       for (const result of results) {
         if (result.data && result.data.length > 0) {
