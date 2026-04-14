@@ -578,7 +578,8 @@ export default function AmazonApiSettings() {
         } else if (profiles.length > 0) {
           // v343: 后端未保存任何凭证，说明是首次授权，需要创建新账户
           // @ts-ignore
-          const storeName = selectedAccount?.storeName || formData.storeName || profiles[0].accountName || '我的店铺';
+          // v674: 移除 profiles[0].accountName 回退，防止使用Amazon真实卖家名称作为店铺名（张冠李戴问题）
+          const storeName = selectedAccount?.storeName || formData.storeName || '我的店铺';
           
           console.log('[v343 OAuth Callback] 首次授权，调用saveMultipleProfiles创建新账户:', {
             // @ts-ignore
@@ -599,7 +600,8 @@ export default function AmazonApiSettings() {
                 profileId: p.profileId,
                 countryCode: p.countryCode,
                 currencyCode: 'USD',
-                accountName: p.accountName || storeName,
+                // v674: accountName始终使用用户自定义店铺名，不使用Amazon返回的真实卖家名
+                accountName: storeName,
               })),
             });
             toast.success(`授权完成！已处理 ${profiles.length} 个站点账号。`);

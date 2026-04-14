@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 673;  // v673: 空站点彻底跳过 + API分批参数调优(缓解限流)
+export const SYSTEM_VERSION = 674;  // v674: 修复店铺名称"张冠李戴"问题 — 阻止Amazon真实卖家名称覆盖用户自定义店铺名

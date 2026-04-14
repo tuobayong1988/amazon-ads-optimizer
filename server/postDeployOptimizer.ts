@@ -1278,6 +1278,12 @@ const VERSION_CHANGELOG: VersionChange[] = [
     affectedModules: ['sync'],
     correctionActions: [],
   },
+  {
+    version: 674,
+    description: 'v674: [修复店铺名称“张冠李戴”问题] — (1)P0-BatchAuth路径: accountName不再使用Amazon真实卖家名称(profile.accountInfo.name),改为使用用户自定义店铺名+国家代码 (2)P0-saveMultipleProfiles路径: accountName统一使用effectiveStoreName+marketplaceCode (3)P0-前端OAuth回调: 移除profiles[0].accountName回退链,防止Amazon真实卖家名称作为店铺名创建幽灵店铺 (4)P1-前端profiles传递: accountName始终使用用户自定义店铺名',
+    affectedModules: ['auth', 'frontend'],
+    correctionActions: [],
+  },
 ];
 
 // ==================== 配置 ====================

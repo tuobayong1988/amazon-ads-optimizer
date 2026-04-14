@@ -498,7 +498,8 @@ export const amazonApiRouter = router({
               userId: ctx.user.id,
               organizationId: (ctx.user as Record<string, unknown>).organizationId as number || 1,
               storeName: effectiveStoreName,
-              accountName: `${effectiveStoreName} ${marketplaceName}`,
+              // v674: accountName使用用户自定义店铺名 + 国家代码，不使用Amazon真实卖家名称
+              accountName: `${effectiveStoreName} ${marketplaceCode}`,
               accountId: profile.profileId,
               marketplace: marketplaceCode,
               profileId: profile.profileId,
@@ -2211,8 +2212,8 @@ export const amazonApiRouter = router({
                   userId: ctx.user.id,
                   organizationId: (ctx.user as Record<string, unknown>).organizationId as number || 1,
                   accountId: String(profile.profileId),
-                  // @ts-expect-error - dynamic property access
-                  accountName: (profile as Record<string, unknown>).accountInfo?.name || `${input.storeName} - ${profile.countryCode}`,
+                  // v674: accountName使用用户自定义店铺名，不再使用Amazon真实卖家名称（防止张冠李戴）
+                  accountName: `${input.storeName} ${profile.countryCode}`,
                   storeName: input.storeName,
                   marketplace: profile.countryCode,
                   profileId: String(profile.profileId),
