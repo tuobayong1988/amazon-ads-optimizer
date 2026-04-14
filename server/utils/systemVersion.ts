@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 666;  // v666: sp_keywords & sp_negative_targets 提升至 50min (针对 90084/90052 等超大账户)
+export const SYSTEM_VERSION = 667;  // v667: 回退EB配置到v664稳定版(修复v666部署后应用崩溃) + 保留v665/v666所有超时优化

@@ -85,6 +85,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 667,
+    description: 'v667: [EB配置回退修复+超时优化保留] — (1)P0-回退EB配置到v664稳定版: 移除v665引入的IgnoreHealthCheck:true和HealthCheckSuccessThreshold:Degraded,这些配置导致v666部署后应用崩溃时EB无法自动回滚,100%请求返回5xx (2)P0-回退AutoScaling配置到v664稳定版: 移除v665的Cooldown:900和PauseTime:PT5M (3)保留v665所有代码优化: SP建议竞价60min+SP否定关键词45min+SIGTERM checkpoint保存+僵尸任务快速检测+竞价查询自适应节流 (4)保留v666超时优化: sp_keywords 50min+sp_negative_targets 50min',
+    affectedModules: ['system', 'sync'],
+    correctionActions: [],
+  },
+  {
     version: 664,
     description: 'v664: [步骤超时精调+卡死任务诊断增强+API限流告警聚合] — (1)performance_7d步骤超时从30分钟提升到45分钟(解决v663实测90045在30分钟内未完成) (2)竞价步骤(bid_recommendations)超时从20分钟提升到30分钟(解决v663实测90045的SP建议竞价20分钟不够) (3)cleanupStaleJobs错误消息增强:增加实际运行时间和心跳停止时间信息,便于区分启动清理和真正卡死 (4)API限流告警聚合:每个账户+端点组合每60秒最多告警1次,避免日志洪泛',
     affectedModules: ['sync', 'system'],
