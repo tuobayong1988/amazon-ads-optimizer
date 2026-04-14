@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 669;  // v669: 数据库索引优化 + 连接池监控增强 + CloudFront CDN验证
+export const SYSTEM_VERSION = 670;  // v670: 修复否定关键词字段缺失 + 同步进度条实时更新
