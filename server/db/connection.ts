@@ -228,7 +228,7 @@ export async function getDirectConnection(timeoutMs: number = 30_000): Promise<m
 }
 
 /**
- * v394: 获取连接池监控指标（增强版）
+ * v668: 获取连接池监控指标（增强版 - 含mysql2原生池指标）
  */
 export function getPoolStats() {
   // v394: 计算当前活跃（未释放）的连接数
@@ -243,16 +243,74 @@ export function getPoolStats() {
     }
   }
   
+  // v668: 获取mysql2连接池原生指标
+  let nativePoolStats = {
+    allConnections: 0,
+    freeConnections: 0,
+    activeConnections: 0,
+    queuedRequests: 0,
+    connectionLimit: 0,
+    utilizationPercent: 0,
+  };
+  if (_pool) {
+    try {
+      const pool = _pool as any;
+      const allConns = pool.pool?._allConnections?.length ?? 0;
+      const freeConns = pool.pool?._freeConnections?.length ?? 0;
+      const queuedReqs = pool.pool?._connectionQueue?.length ?? 0;
+      const connLimit = pool.pool?.config?.connectionLimit ?? 100;
+      nativePoolStats = {
+        allConnections: allConns,
+        freeConnections: freeConns,
+        activeConnections: allConns - freeConns,
+        queuedRequests: queuedReqs,
+        connectionLimit: connLimit,
+        utilizationPercent: connLimit > 0 ? Math.round(((allConns - freeConns) / connLimit) * 1000) / 10 : 0,
+      };
+    } catch { /* ignore */ }
+  }
+  
   return {
     ..._poolStats,
     poolExists: !!_pool,
     dbExists: !!_db,
     leakedConnections: _poolStats.directConnBorrowed - _poolStats.directConnReturned,
-    // v394: 新增监控指标
+    // v394: 追踪指标
     activeDirectConnections: activeCount,
     oldestActiveConnectionMs: oldestActiveMs,
     trackedConnectionsTotal: _activeConnections.size,
+    // v668: mysql2原生池指标
+    nativePool: nativePoolStats,
   };
+}
+
+/**
+ * v668: 定期连接池状态日志输出（每5分钟）
+ * 便于在EB日志中排查多租户并发场景下的连接池瓶颈
+ */
+let _poolMonitorTimer: ReturnType<typeof setInterval> | null = null;
+export function startPoolMonitor() {
+  if (_poolMonitorTimer) return;
+  const MONITOR_INTERVAL = 5 * 60 * 1000; // 5分钟
+  _poolMonitorTimer = setInterval(() => {
+    if (!_pool) return;
+    const stats = getPoolStats();
+    const np = stats.nativePool;
+    const utilStr = `${np.activeConnections}/${np.connectionLimit} (${np.utilizationPercent}%)`;
+    const leakStr = stats.leakedConnections > 0 ? ` | LEAKED: ${stats.leakedConnections}` : '';
+    const queueStr = np.queuedRequests > 0 ? ` | QUEUED: ${np.queuedRequests}` : '';
+    log.info(`[PoolMonitor] v668: util=${utilStr} | total=${np.allConnections} free=${np.freeConnections}${queueStr}${leakStr} | rebuilds=${stats.rebuilds} hcFails=${stats.healthChecksFailed}`);
+    
+    // v668: 连接池利用率告警
+    if (np.utilizationPercent > 80) {
+      log.warn(`[PoolMonitor] v668: 连接池利用率过高 ${np.utilizationPercent}%，活跃=${np.activeConnections}/${np.connectionLimit}，队列=${np.queuedRequests}`);
+    }
+    if (np.queuedRequests > 10) {
+      log.warn(`[PoolMonitor] v668: 连接池等待队列过长 ${np.queuedRequests}，可能存在并发瓶颈`);
+    }
+  }, MONITOR_INTERVAL);
+  if (_poolMonitorTimer.unref) _poolMonitorTimer.unref();
+  log.info('[PoolMonitor] v668: 连接池定期监控已启动（每5分钟输出状态）');
 }
 
 // v223: 注册数据库查询提供者（延迟到模块加载完成后执行）

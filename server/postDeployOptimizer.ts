@@ -85,6 +85,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 669,
+    description: 'v669: [数据库索引优化+连接池监控增强+CloudFront CDN验证] — (1)P1-清理冗余索引: 删除ad_accounts表上重复的idx_organization_id索引,保留idx_ad_organization (2)P1-复合索引优化: 创建idx_ad_org_sort_created(organization_id,sortOrder,createdAt)复合索引,消除ORDER BY filesort (3)P2-连接池监控增强: getPoolStats新增mysql2原生池指标(activeConnections/idleConnections/queuedRequests/utilizationPercent),每5分钟定期日志输出,利用率>80%或队列>10时自动告警 (4)P3-CloudFront CDN验证: 确认/assets/*静态资源缓存命中(Hit from cloudfront,1年TTL),HTTP/3已启用,PriceClass_200覆盖全球',
+    affectedModules: ['system'],
+    correctionActions: [],
+  },
+  {
     version: 668,
     description: 'v668: [前端已归档账户隐藏+EB配置安全审查+DB默认值修复] — (1)P1-前端店铺选择器过滤已归档账户: GlobalAccountSelector和AccountSwitcher中过滤status=archived的账户,不再显示HomePro Store和YC006A Store (2)P1-EB配置安全审查注释: 在.ebextensions/03_graceful_shutdown.config和04_autoscaling.config中添加安全警告和禁止修改项说明,防止重复v666事故 (3)P1-DB默认值修复: ad_accounts表organization_id默认值从1改为NULL,强制创建时指定组织',
     affectedModules: ['system', 'security'],

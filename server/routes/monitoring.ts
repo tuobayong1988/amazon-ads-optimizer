@@ -329,6 +329,10 @@ export const monitoringRouter = router({
               directConnBorrowed: poolStats.directConnBorrowed,
               directConnReturned: poolStats.directConnReturned,
               leakedConnections: poolStats.leakedConnections,
+              // v668: mysql2原生连接池指标
+              nativePool: (poolStats as any).nativePool ?? null,
+              activeDirectConnections: (poolStats as any).activeDirectConnections ?? 0,
+              oldestActiveConnectionMs: (poolStats as any).oldestActiveConnectionMs ?? 0,
             },
             system: {
               platform: os.platform(),
@@ -352,6 +356,10 @@ export const monitoringRouter = router({
         if (heapUsageRatio > 0.85) result.resources.alerts.push(`Node.js堆内存使用率过高: ${Math.round(heapUsageRatio * 100)}% (${heapUsedMB}MB / ${heapSizeLimitMB}MB)`);
         if (poolStats.leakedConnections > 3) result.resources.alerts.push(`检测到${poolStats.leakedConnections}个可能泄漏的数据库连接`);
         if (poolStats.healthChecksFailed > 10) result.resources.alerts.push(`数据库健康检查失败${poolStats.healthChecksFailed}次`);
+        // v668: 连接池利用率告警
+        const nativePool = (poolStats as any).nativePool;
+        if (nativePool?.utilizationPercent > 80) result.resources.alerts.push(`连接池利用率过高: ${nativePool.utilizationPercent}% (${nativePool.activeConnections}/${nativePool.connectionLimit})`);
+        if (nativePool?.queuedRequests > 10) result.resources.alerts.push(`连接池等待队列过长: ${nativePool.queuedRequests}个请求排队`);
 
         apiCache.set(cacheKey, result, 15 * 1000); // 15秒缓存
         return result;

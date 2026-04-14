@@ -370,6 +370,13 @@ async function startServer() {
     // v450: 启动 CloudWatch 自定义指标推送（每5分钟推送连接池/内存指标）
     startCloudWatchMonitor();
 
+    // v668: 启动连接池定期监控（每5分钟输出连接池利用率、活跃连接数、队列长度等指标）
+    import('../db/connection').then(({ startPoolMonitor }) => {
+      startPoolMonitor();
+    }).catch((err: any) => {
+      log.warn(`[PoolMonitor] v668: 连接池监控启动失败: ${(err as Error).message}`);
+    });
+
     // v451: 启动时初始化汇率服务，避免首次访问时返回not_initialized
     getExchangeRates().then(rates => {
       log.info(`[ExchangeRate] v451: 汇率服务初始化完成，共${Object.keys(rates).length}种货币`);
