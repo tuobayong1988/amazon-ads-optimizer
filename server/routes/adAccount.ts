@@ -92,6 +92,7 @@ export const adAccountRouter = router({
       
       const id = await db.createAdAccount({
         userId: ctx.user.id,
+        organizationId: (ctx.user as Record<string, unknown>).organizationId as number || 1,
         ...input,
         isDefault: input.isDefault ? 1 : 0,
         connectionStatus: 'pending',
@@ -117,6 +118,7 @@ export const adAccountRouter = router({
       // 创建空店铺（使用店铺名称作为accountId和accountName，marketplace为空）
       const id = await db.createAdAccount({
         userId: ctx.user.id,
+        organizationId: (ctx.user as Record<string, unknown>).organizationId as number || 1,
         storeName: input.storeName,
         storeDescription: input.storeDescription,
         storeColor: input.storeColor,

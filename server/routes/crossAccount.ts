@@ -389,6 +389,7 @@ export const crossAccountRouter = router({
           // 创建新账号
           await db.createAdAccount({
             userId: ctx.user.id,
+            organizationId: (ctx.user as Record<string, unknown>).organizationId as number || 1,
             // @ts-expect-error Spread operator type compatibility
             ...account,
             // @ts-expect-error Conditional type narrowing

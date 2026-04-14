@@ -496,6 +496,7 @@ export const amazonApiRouter = router({
             // 创建新账号
             accountId = await db.createAdAccount({
               userId: ctx.user.id,
+              organizationId: (ctx.user as Record<string, unknown>).organizationId as number || 1,
               storeName: effectiveStoreName,
               accountName: `${effectiveStoreName} ${marketplaceName}`,
               accountId: profile.profileId,
@@ -2208,6 +2209,7 @@ export const amazonApiRouter = router({
                 // 创建新账号
                 accountId = await db.createAdAccount({
                   userId: ctx.user.id,
+                  organizationId: (ctx.user as Record<string, unknown>).organizationId as number || 1,
                   accountId: String(profile.profileId),
                   // @ts-expect-error - dynamic property access
                   accountName: (profile as Record<string, unknown>).accountInfo?.name || `${input.storeName} - ${profile.countryCode}`,
