@@ -639,6 +639,14 @@ async function executeUnifiedSync(tier: SyncTier): Promise<void> {
   }
 
   try {
+  // v679.4: 手动同步覆盖检查 — 当手动全量同步运行时，自动同步应主动退让
+  // 解决问题：setManualOverride()/shouldAbortAutoSync()已定义但从未被调用
+  if (shouldAbortAutoSync()) {
+    log.info(`[DataSyncScheduler] v679.4: ${tier}层跳过 - 手动同步覆盖已激活，自动同步暂停以避免API配额竞争`);
+    logSync('DataSyncScheduler', `v679.4: ${tier}层被手动同步覆盖暂停`, { tier });
+    return;
+  }
+
   // v384: 单实例模式，无需Leader检查，直接执行同步
   // v410: 数据库级别的全局并发检查 - 检查是否有任何running状态的同步任务
   // 解决问题：手动触发的全量同步不会设置tierRunningState，导致调度器仍然会创建新任务
@@ -646,8 +654,9 @@ async function executeUnifiedSync(tier: SyncTier): Promise<void> {
   try {
     const database = await db.getDb();
     if (database) {
-      // v488: 检查所有running任务（包括手动同步），因为全局互斥锁已经保证了层级间不会并发
-      // 但手动同步的冲突由SyncCoordinator的MANUAL_OVERRIDE机制处理
+      // v679.4: 检查所有running任务（包括手动同步和自动同步），作为DB级别的并发安全网
+      // 修复：移除 trigger_source 过滤条件，之前只检查auto任务导致手动同步的running任务被忽略
+      // 这使得自动同步调度器在手动全量同步运行期间仍然会创建新任务，加剧429限流
       const runningJobs = await database.execute(
         sql`SELECT id, accountId, syncType, trigger_source, current_step, current_step_index, total_steps,
  TIMESTAMPDIFF(MINUTE, startedAt, NOW()) as running_minutes,
@@ -655,7 +664,6 @@ async function executeUnifiedSync(tier: SyncTier): Promise<void> {
  FROM data_sync_jobs
  WHERE status = 'running'
  AND updated_at >= DATE_SUB(NOW(), INTERVAL 180 MINUTE)
- AND (trigger_source IS NULL OR trigger_source = 'auto')
  ORDER BY id`
       );
       // Drizzle mysql2返回 [rows, fields]，取第一个元素

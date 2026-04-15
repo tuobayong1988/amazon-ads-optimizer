@@ -2975,12 +2975,25 @@ export async function triggerManualFullSync(
 
   log.info(`[UnifiedSync] v404: 手动全量同步账户 ${accountId}，执行 ${orderedStepIds.length} 个步骤（含nightly层级）`);
 
+  // v679.4: 激活手动同步覆盖 — 通知自动同步调度器暂停
+  // 解决问题：手动全量同步与自动同步同时运行导致API配额竞争和严重429限流
+  const { setManualOverride } = await import('./syncCoordinator');
+  setManualOverride(true);
+  log.info(`[UnifiedSync] v679.4: 手动同步覆盖已激活，自动同步将被暂停`);
+
+  let result: AccountSyncResult | null = null;
+  try {
   // v406: 使用full层级+isManual标记，确保手动同步不会被自动同步阻塞
-  const result = await syncAccount(account, 'full', {
+  result = await syncAccount(account, 'full', {
     specificSteps: orderedStepIds,
     onProgress: wrappedOnProgress,
     isManual: true,
   });
+  } finally {
+    // v679.4: 无论同步成功或失败，都取消手动同步覆盖
+    setManualOverride(false);
+    log.info(`[UnifiedSync] v679.4: 手动同步覆盖已取消，自动同步恢复`);
+  }
 
   // v404: 同步完成后更新data_sync_jobs最终状态
   if (options?.jobId && result) {
