@@ -312,6 +312,65 @@ export async function runAutoCorrection(accountId?: number): Promise<CorrectionS
         if (typeof global.gc === 'function') global.gc();
         break;
       }
+      
+      // ===== v679: 自动优化开关检查 — 核心安全修复 =====
+      // 客户反馈"关闭自动优化后系统仍在调整出价"的根因：
+      // 纠错模块完全绕过了performance_groups.auto_optimize开关检查
+      // 修复策略：在主循环入口处检查账户下所有优化目标的auto_optimize状态
+      // 如果账户下所有优化目标都关闭了自动优化，则完全跳过该账户
+      // 如果部分关闭，则获取已关闭的campaign ID集合，传递给子函数过滤
+      try {
+        const autoOptResult = await database.execute(sql`
+          SELECT pg.id as pg_id, pg.auto_optimize, pg.status, pg.name,
+                 GROUP_CONCAT(c.campaignId) as campaign_ids
+          FROM performance_groups pg
+          LEFT JOIN campaigns c ON c.performanceGroupId = pg.id
+          WHERE pg.accountId = ${accId}
+          GROUP BY pg.id, pg.auto_optimize, pg.status, pg.name
+        `);
+        // @ts-ignore v679: drizzle/mysql2 untyped query result
+        const pgRows = (autoOptResult as unknown as Record<string, unknown>[][])[0] || autoOptResult;
+        
+        if (Array.isArray(pgRows) && pgRows.length > 0) {
+          // @ts-ignore v679: drizzle/mysql2 untyped query result
+          const allDisabled = pgRows.every((r: any) => r.auto_optimize === 0 || r.status === 'paused' || r.status === 'archived');
+          
+          if (allDisabled) {
+            log.info(`[AutoCorrector] v679: 账户${accId} 所有优化目标的自动优化已关闭或已暂停/归档，跳过全部纠错操作`);
+            continue;
+          }
+          
+          // 收集已关闭自动优化的campaign IDs，用于子函数过滤
+          const disabledCampaignIds = new Set<number>();
+          for (const pgRow of (pgRows as any[])) {
+            if (pgRow.auto_optimize === 0 || pgRow.status === 'paused' || pgRow.status === 'archived') {
+              if (pgRow.campaign_ids) {
+                const ids = String(pgRow.campaign_ids).split(',').map(Number).filter(Boolean);
+                ids.forEach((id: number) => disabledCampaignIds.add(id));
+              }
+            }
+          }
+          
+          if (disabledCampaignIds.size > 0) {
+            // @ts-ignore v679: drizzle/mysql2 untyped query result
+            const disabledPgNames = pgRows.filter((r: any) => r.auto_optimize === 0 || r.status === 'paused' || r.status === 'archived').map((r: any) => r.name).join(', ');
+            log.info(`[AutoCorrector] v679: 账户${accId} 部分优化目标已关闭自动优化(${disabledPgNames})，涉及${disabledCampaignIds.size}个campaigns将被排除`);
+            
+            // 将已关闭的campaign IDs存储到上下文中，供子函数使用
+            // @ts-ignore v679: runtime context injection
+            (database as any).__v679_disabled_campaign_ids = disabledCampaignIds;
+          } else {
+            // @ts-ignore v679: runtime context injection
+            (database as any).__v679_disabled_campaign_ids = null;
+          }
+        }
+      } catch (autoOptError: unknown) {
+        log.warn(`[AutoCorrector] v679: 账户${accId} 检查auto_optimize状态失败: ${(autoOptError as Error).message}，继续执行纠错`);
+        // @ts-ignore v679: runtime context injection
+        (database as any).__v679_disabled_campaign_ids = null;
+      }
+      // ===== v679 END =====
+      
       try {
         // v426: 将cleanupExpiredDaypartingBids提升为第1步，确保每次扫描都优先清理过期记录
         // 这是最重要的清理步骤，因为分时出价失败占总失败数的92.6%
@@ -552,11 +611,22 @@ async function retryFailedBidAdjustments(database: unknown, accountId: number): 
     
     if (failedEvents.length === 0) return results;
     
-    log.info(`v178: 账户${accountId} 发现${failedEvents.length}条失败的出价调整需要重试`);
+    // v679: 过滤已关闭自动优化的campaigns下的事件
+    // @ts-ignore v679: runtime context injection
+    const disabledCids = (database as any).__v679_disabled_campaign_ids as Set<number> | null;
+    const filteredEvents = disabledCids 
+      ? failedEvents.filter((e: any) => !disabledCids.has(Number(e.campaignId)))
+      : failedEvents;
+    if (filteredEvents.length < failedEvents.length) {
+      log.info(`[AutoCorrector] v679: 账户${accountId} retryFailedBidAdjustments 过滤了${failedEvents.length - filteredEvents.length}条已关闭自动优化的事件`);
+    }
+    if (filteredEvents.length === 0) return results;
+    
+    log.info(`v178: 账户${accountId} 发现${filteredEvents.length}条失败的出价调整需要重试`);
     
     // 按keyword分组，只保留每个keyword最新的一条
     const latestByKeyword = new Map<number, typeof failedEvents[0]>();
-    for (const event of failedEvents) {
+    for (const event of filteredEvents) {
       if (event.keywordId && !latestByKeyword.has(event.keywordId)) {
         latestByKeyword.set(event.keywordId, event);
       }
@@ -825,6 +895,8 @@ async function correctBidMismatches(database: unknown, accountId: number): Promi
  JOIN campaigns c ON ag.campaignId = c.campaignId
  LEFT JOIN performance_groups pg ON c.performanceGroupId = pg.id
  WHERE oe.account_id = ${accountId}
+ AND (pg.auto_optimize = 1 OR pg.auto_optimize IS NULL)
+ AND (pg.status = 'active' OR pg.status IS NULL)
  AND oe.event_category = 'bid_adjustment'
  AND oe.status = 'success'
  AND oe.api_sync_status = 'synced'
@@ -1100,12 +1172,23 @@ async function retryFailedBudgetAdjustments(database: unknown, accountId: number
     
     if (failedEvents.length === 0) return results;
     
-    log.warn(`v178: 账户${accountId} 发现${failedEvents.length}条失败的预算调整需要重试`);
+    // v679: 过滤已关闭自动优化的campaigns下的事件
+    // @ts-ignore v679: runtime context injection
+    const disabledCids = (database as any).__v679_disabled_campaign_ids as Set<number> | null;
+    const filteredBudgetEvents = disabledCids 
+      ? failedEvents.filter((e: any) => !disabledCids.has(Number(e.campaignId)))
+      : failedEvents;
+    if (filteredBudgetEvents.length < failedEvents.length) {
+      log.info(`[AutoCorrector] v679: 账户${accountId} retryFailedBudgetAdjustments 过滤了${failedEvents.length - filteredBudgetEvents.length}条已关闭自动优化的事件`);
+    }
+    if (filteredBudgetEvents.length === 0) return results;
+    
+    log.warn(`v178: 账户${accountId} 发现${filteredBudgetEvents.length}条失败的预算调整需要重试`);
     
     // 按campaign分组，只保留最新的一条
     // v441: campaignId现在存储的是Amazon ID（字符串），不再是本地自增ID
     const latestByCampaign = new Map<string, typeof failedEvents[0]>();
-    for (const event of failedEvents) {
+    for (const event of filteredBudgetEvents) {
       const cid = event.campaignId != null ? String(event.campaignId) : '';
       if (cid && !latestByCampaign.has(cid)) {
         latestByCampaign.set(cid, event);
@@ -1216,6 +1299,8 @@ async function correctBudgetMismatches(database: unknown, accountId: number): Pr
  AND oe.created_at > DATE_SUB(NOW(), INTERVAL 3 DAY)
  AND (oe.change_reason IS NULL OR oe.change_reason NOT LIKE '%AutoCorrector%')
  AND (pg.daypartingEnabled IS NULL OR pg.daypartingEnabled = 0)
+ AND (pg.auto_optimize = 1 OR pg.auto_optimize IS NULL)
+ AND (pg.status = 'active' OR pg.status IS NULL)
  AND ABS(CAST(c.dailyBudget AS DECIMAL(10,2)) - CAST(REPLACE(REPLACE(oe.new_value, '$', ''), ',', '') AS DECIMAL(10,2))) > ${budgetTolerance}
  AND oe.id = (
  SELECT MAX(oe2.id) FROM optimization_events oe2 
@@ -1350,7 +1435,10 @@ async function correctPlacementMismatches(database: unknown, accountId: number):
  oe.created_at as optimized_at
  FROM optimization_events oe
  JOIN campaigns c ON oe.campaign_id = c.id
+ LEFT JOIN performance_groups pg ON c.performanceGroupId = pg.id
  WHERE oe.account_id = ${accountId}
+ AND (pg.auto_optimize = 1 OR pg.auto_optimize IS NULL)
+ AND (pg.status = 'active' OR pg.status IS NULL)
  AND oe.event_category = 'placement_adjustment'
  AND oe.status = 'success'
  AND oe.api_sync_status IN ('synced', 'pending')
@@ -1490,11 +1578,22 @@ async function executeUnfinishedRollbacks(database: unknown, accountId: number):
     
     if (unfinishedRollbacks.length === 0) return results;
     
-    log.info(`v178: 账户${accountId} 发现${unfinishedRollbacks.length}条未执行的回滚`);
+    // v679: 过滤已关闭自动优化的campaigns下的回滚
+    // @ts-ignore v679: runtime context injection
+    const disabledCids = (database as any).__v679_disabled_campaign_ids as Set<number> | null;
+    const filteredRollbacks = disabledCids 
+      ? unfinishedRollbacks.filter((e: any) => !disabledCids.has(Number(e.campaignId)))
+      : unfinishedRollbacks;
+    if (filteredRollbacks.length < unfinishedRollbacks.length) {
+      log.info(`[AutoCorrector] v679: 账户${accountId} executeUnfinishedRollbacks 过滤了${unfinishedRollbacks.length - filteredRollbacks.length}条已关闭自动优化的回滚`);
+    }
+    if (filteredRollbacks.length === 0) return results;
+    
+    log.info(`v178: 账户${accountId} 发现${filteredRollbacks.length}条未执行的回滚`);
     
     // 按keyword分组，只保留最新的一条
     const latestByKeyword = new Map<number, typeof unfinishedRollbacks[0]>();
-    for (const event of unfinishedRollbacks) {
+    for (const event of filteredRollbacks) {
       if (event.keywordId && !latestByKeyword.has(event.keywordId)) {
         latestByKeyword.set(event.keywordId, event);
       }
@@ -1598,12 +1697,23 @@ async function retryFailedSettingsChanges(database: unknown, accountId: number):
     
     if (failedEvents.length === 0) return results;
     
-    log.warn(`v178: 账户${accountId} 发现${failedEvents.length}条失败的设置变更需要重试`);
+    // v679: 过滤已关闭自动优化的campaigns下的事件
+    // @ts-ignore v679: runtime context injection
+    const disabledCids = (database as any).__v679_disabled_campaign_ids as Set<number> | null;
+    const filteredSettingsEvents = disabledCids 
+      ? failedEvents.filter((e: any) => !disabledCids.has(Number(e.campaignId)))
+      : failedEvents;
+    if (filteredSettingsEvents.length < failedEvents.length) {
+      log.info(`[AutoCorrector] v679: 账户${accountId} retryFailedSettingsChanges 过滤了${failedEvents.length - filteredSettingsEvents.length}条已关闭自动优化的事件`);
+    }
+    if (filteredSettingsEvents.length === 0) return results;
+    
+    log.warn(`v178: 账户${accountId} 发现${filteredSettingsEvents.length}条失败的设置变更需要重试`);
     
     // v513: 预检机制 — 先批量将内部事件标记为 'internal'，避免无效重试
     const internalEvents: typeof failedEvents = [];
     const apiEvents: typeof failedEvents = [];
-    for (const event of failedEvents) {
+    for (const event of filteredSettingsEvents) {
       const actionType = event.actionType || '';
       const detail = event.actionDetail ? (() => { try { return JSON.parse(event.actionDetail || '{}'); } catch { return {}; } })() : {};
       const detailType = detail.type || '';
@@ -1798,9 +1908,20 @@ async function retryFailedKeywordCreations(database: unknown, accountId: number)
     
     if (failedEvents.length === 0) return results;
     
-    log.warn(`v178: 账户${accountId} 发现${failedEvents.length}条失败/pending的关键词创建需要重试`);
+    // v679: 过滤已关闭自动优化的campaigns下的事件
+    // @ts-ignore v679: runtime context injection
+    const disabledCids = (database as any).__v679_disabled_campaign_ids as Set<number> | null;
+    const filteredKwEvents = disabledCids 
+      ? failedEvents.filter((e: any) => !disabledCids.has(Number(e.campaignId)))
+      : failedEvents;
+    if (filteredKwEvents.length < failedEvents.length) {
+      log.info(`[AutoCorrector] v679: 账户${accountId} retryFailedKeywordCreations 过滤了${failedEvents.length - filteredKwEvents.length}条已关闭自动优化的事件`);
+    }
+    if (filteredKwEvents.length === 0) return results;
     
-    for (const event of failedEvents) {
+    log.warn(`v178: 账户${accountId} 发现${filteredKwEvents.length}条失败/pending的关键词创建需要重试`);
+    
+    for (const event of filteredKwEvents) {
       try {
         // 从 action_detail 中提取关键信息
         let detail: Record<string, unknown> = {};
@@ -1969,7 +2090,18 @@ async function retryFailedNegativeKeywordAdds(database: unknown, accountId: numb
     
     if (failedEvents.length === 0) return results;
     
-    log.warn(`v178: 账户${accountId} 发现${failedEvents.length}条失败/pending的否定关键词添加需要重试`);
+    // v679: 过滤已关闭自动优化的campaigns下的事件
+    // @ts-ignore v679: runtime context injection
+    const disabledCids = (database as any).__v679_disabled_campaign_ids as Set<number> | null;
+    const filteredNegEvents = disabledCids 
+      ? failedEvents.filter((e: any) => !disabledCids.has(Number(e.campaignId)))
+      : failedEvents;
+    if (filteredNegEvents.length < failedEvents.length) {
+      log.info(`[AutoCorrector] v679: 账户${accountId} retryFailedNegativeKeywordAdds 过滤了${failedEvents.length - filteredNegEvents.length}条已关闭自动优化的事件`);
+    }
+    if (filteredNegEvents.length === 0) return results;
+    
+    log.warn(`v178: 账户${accountId} 发现${filteredNegEvents.length}条失败/pending的否定关键词添加需要重试`);
     
     // 批量收集否定关键词信息
     const negKeywordsToSync: Array<{
@@ -1981,7 +2113,7 @@ async function retryFailedNegativeKeywordAdds(database: unknown, accountId: numb
       level: 'campaign' | 'adgroup';
     }> = [];
     
-    for (const event of failedEvents) {
+    for (const event of filteredNegEvents) {
       try {
         let detail: Record<string, unknown> = {};
         if (event.actionDetail) {
@@ -2683,6 +2815,8 @@ async function correctMaxBidViolations(database: unknown, accountId: number): Pr
       JOIN performance_groups pg ON c.performanceGroupId = pg.id
       WHERE c.accountId = ${accountId}
         AND k.keywordStatus = 'enabled'
+        AND pg.auto_optimize = 1
+        AND pg.status = 'active'
         AND pg.max_bid IS NOT NULL AND pg.max_bid > 0
         AND CAST(k.bid AS DECIMAL(10,2)) > pg.max_bid
       ORDER BY CAST(k.bid AS DECIMAL(10,2)) - pg.max_bid DESC
@@ -2946,12 +3080,23 @@ async function retryHistoricalFailedKeywordHarvests(database: unknown, accountId
     const events = (failedEvents as unknown as Record<string, unknown>)[0] || failedEvents;
     if (!events || events.length === 0) return results;
     
-    log.warn(`v178: 账户${accountId} 发现${events.length}条历史失败的搜索词收割需要重试`);
+    // v679: 过滤已关闭自动优化的campaigns下的事件
+    // @ts-ignore v679: runtime context injection
+    const disabledCids = (database as any).__v679_disabled_campaign_ids as Set<number> | null;
+    const filteredHarvestEvents = disabledCids 
+      ? (events as any[]).filter((e: any) => !disabledCids.has(Number(e.campaign_id || e.campaignId)))
+      : events;
+    if ((filteredHarvestEvents as any[]).length < (events as any[]).length) {
+      log.info(`[AutoCorrector] v679: 账户${accountId} retryHistoricalFailedKeywordHarvests 过滤了${(events as any[]).length - (filteredHarvestEvents as any[]).length}条已关闭自动优化的事件`);
+    }
+    if (!filteredHarvestEvents || (filteredHarvestEvents as any[]).length === 0) return results;
+    
+    log.warn(`v178: 账户${accountId} 发现${(filteredHarvestEvents as any[]).length}条历史失败的搜索词收割需要重试`);
     
     // 按 campaign 分组，减少重复查询
     const byCampaign = new Map<number, Array<{ eventId: number; searchTerm: string; matchType: string; campaignName: string }>>();
     
-    for (const event of events) {
+    for (const event of (filteredHarvestEvents as any[])) {
       let detail: Record<string, unknown> = {};
       try {
         const raw = event.action_detail || event.actionDetail;
@@ -3874,6 +4019,7 @@ async function auditAlgorithmDecisionQuality(database: unknown, accountId: numbe
       WHERE k.keywordStatus = 'enabled'
         AND c.campaignStatus = 'enabled'
         AND pg.status = 'active'
+        AND pg.auto_optimize = 1
         AND CAST(k.bid AS DECIMAL(10,2)) > 0
         AND (k.impressions > 0 OR CAST(k.spend AS DECIMAL(10,2)) > 0)
         AND (
@@ -4249,10 +4395,21 @@ async function retryFailedTargetStatusChanges(database: unknown, accountId: numb
     
     if (failedEvents.length === 0) return results;
     
-    log.warn(`v202: 账户${accountId} 发现${failedEvents.length}条失败的关键词状态变更需要重试`);
+    // v679: 过滤已关闭自动优化的campaigns下的事件
+    // @ts-ignore v679: runtime context injection
+    const disabledCids = (database as any).__v679_disabled_campaign_ids as Set<number> | null;
+    const filteredStatusEvents = disabledCids 
+      ? failedEvents.filter((e: any) => !disabledCids.has(Number(e.campaignId)))
+      : failedEvents;
+    if (filteredStatusEvents.length < failedEvents.length) {
+      log.info(`[AutoCorrector] v679: 账户${accountId} retryFailedTargetStatusChanges 过滤了${failedEvents.length - filteredStatusEvents.length}条已关闭自动优化的事件`);
+    }
+    if (filteredStatusEvents.length === 0) return results;
+    
+    log.warn(`v202: 账户${accountId} 发现${filteredStatusEvents.length}条失败的关键词状态变更需要重试`);
     
     // v648: 预检机制 — 过滤已归档/已删除的关键词，避免无效API调用
-    const statusKwIds = failedEvents.map((e: any) => {
+    const statusKwIds = filteredStatusEvents.map((e: any) => {
       let detail: Record<string, unknown> = {};
       if (e.actionDetail) {
         try { detail = typeof e.actionDetail === 'string' ? JSON.parse(e.actionDetail) : e.actionDetail; } catch (_e: any) {}
@@ -4516,11 +4673,15 @@ async function retryFailedProductTargetCreations(database: unknown, accountId: n
  ag.adGroupId as amazon_ad_group_id, ag.campaignId as amazon_campaign_id
  FROM product_targets pt
  INNER JOIN ad_groups ag ON pt.internal_ad_group_id = ag.id
+ INNER JOIN campaigns c ON ag.campaignId = c.campaignId
+ LEFT JOIN performance_groups pg ON c.performanceGroupId = pg.id
  WHERE pt.accountId = ${accountId}
  AND (pt.targetId IS NULL OR pt.targetId = '' OR pt.targetId = '0')
  AND pt.targetStatus != 'archived'
  AND ag.adGroupId IS NOT NULL
  AND ag.campaignId IS NOT NULL
+ AND (pg.auto_optimize = 1 OR pg.auto_optimize IS NULL)
+ AND (pg.status = 'active' OR pg.status IS NULL)
  LIMIT 200
  `);
     
@@ -4678,11 +4839,15 @@ async function revalidateStalePendingCommands(database: unknown, accountId: numb
       FROM optimization_events oe
       LEFT JOIN keywords k ON oe.keyword_id IS NOT NULL AND oe.keyword_id = k.id
       LEFT JOIN product_targets pt ON oe.target_id IS NOT NULL AND oe.target_id = pt.id
+      LEFT JOIN campaigns c ON oe.campaign_id = c.id
+      LEFT JOIN performance_groups pg ON c.performanceGroupId = pg.id
       WHERE oe.api_sync_status = 'pending'
         AND oe.action_type IN ('bid_increase', 'bid_decrease', 'target_pause', 'target_enable', 'dayparting_bid')
         AND oe.created_at < DATE_SUB(NOW(), INTERVAL 24 HOUR)
         AND oe.created_at > DATE_SUB(NOW(), INTERVAL 14 DAY)
         AND oe.account_id = ${accountId}
+        AND (pg.auto_optimize = 1 OR pg.auto_optimize IS NULL)
+        AND (pg.status = 'active' OR pg.status IS NULL)
       ORDER BY oe.created_at ASC
       LIMIT 500
     `);
