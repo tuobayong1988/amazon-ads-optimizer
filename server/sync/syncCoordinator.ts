@@ -135,6 +135,26 @@ export async function cleanupExpiredOverrides(): Promise<void> {
   }
 }
 
+// ==================== 同步状态查询 ====================
+
+/**
+ * v681: 查询当前是否有全量同步正在运行
+ * 供PostOptVerifier等模块判断是否需要延迟执行以避免API配额争抢
+ */
+export function isSyncRunning(): boolean {
+  return currentLockHolder !== null;
+}
+
+/**
+ * v681: 获取当前同步锁持有者信息
+ */
+export function getSyncLockInfo(): { holder: string | null; holdDurationSec: number } {
+  return {
+    holder: currentLockHolder,
+    holdDurationSec: currentLockHolder ? Math.round((Date.now() - lockAcquiredAt) / 1000) : 0,
+  };
+}
+
 // ==================== 协调器状态 ====================
 
 export function getCoordinatorStatus(): Record<string, unknown> {

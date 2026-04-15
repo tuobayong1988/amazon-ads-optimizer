@@ -13,4 +13,4 @@
  * 每次发版时，只需修改此文件中的版本号，并在 postDeployOptimizer.ts 的
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
-export const SYSTEM_VERSION = 680;  // v680: P0紧急修复 — 手动同步互斥保护(setManualOverride激活)+自动同步退让(shouldAbortAutoSync检查)+DB并发检查修复(移除trigger_source过滤)
+export const SYSTEM_VERSION = 681;  // v681: 数据同步模块全面优化 — N+1查询修复(批量预加载)+PostOptVerifier配额隔离(同步感知)+统一API配额调度器(消费者优先级)+报告流式解析(降低内存峰值)

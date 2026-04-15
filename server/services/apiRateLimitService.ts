@@ -26,6 +26,70 @@ const log = createModuleLogger('ApiRateLimitService');
 /** API端点类型 */
 export type ApiEndpointType = 'list' | 'mutate' | 'report' | 'snapshot' | 'default';
 
+/**
+ * v681: API消费者优先级
+ * 用于统一API配额调度器，高优先级任务运行时自动压缩低优先级任务的配额
+ */
+export type ApiConsumerPriority = 'manual_sync' | 'auto_sync' | 'optimization' | 'verification' | 'background';
+
+/** 消费者优先级配置 */
+const CONSUMER_PRIORITY_CONFIG: Record<ApiConsumerPriority, {
+  /** 优先级数值，越小越高 */
+  priority: number;
+  /** 当更高优先级消费者活跃时，此消费者的配额压缩系数 (0-1) */
+  throttleFactor: number;
+  /** 当更高优先级消费者活跃时，额外等待时间(ms) */
+  extraDelayMs: number;
+}> = {
+  manual_sync:   { priority: 1, throttleFactor: 1.0, extraDelayMs: 0 },
+  auto_sync:     { priority: 2, throttleFactor: 0.8, extraDelayMs: 0 },
+  optimization:  { priority: 3, throttleFactor: 0.6, extraDelayMs: 200 },
+  verification:  { priority: 4, throttleFactor: 0.4, extraDelayMs: 500 },
+  background:    { priority: 5, throttleFactor: 0.3, extraDelayMs: 1000 },
+};
+
+/** v681: 当前活跃的最高优先级消费者 */
+let activeHighestPriority: ApiConsumerPriority | null = null;
+let activeHighestPrioritySetAt: number = 0;
+const PRIORITY_EXPIRY_MS = 300_000; // 5分钟无活动自动过期
+
+/**
+ * v681: 设置当前活跃的最高优先级消费者
+ * 在同步/优化任务开始时调用
+ */
+export function setActiveConsumerPriority(consumer: ApiConsumerPriority | null): void {
+  const prev = activeHighestPriority;
+  activeHighestPriority = consumer;
+  activeHighestPrioritySetAt = consumer ? Date.now() : 0;
+  if (prev !== consumer) {
+    log.info(`[v681] 活跃消费者优先级变更: ${prev || 'none'} -> ${consumer || 'none'}`);
+  }
+}
+
+/**
+ * v681: 获取当前活跃的最高优先级消费者
+ */
+export function getActiveConsumerPriority(): ApiConsumerPriority | null {
+  if (!activeHighestPriority) return null;
+  // 自动过期检查
+  if (Date.now() - activeHighestPrioritySetAt > PRIORITY_EXPIRY_MS) {
+    log.info(`[v681] 活跃消费者优先级已过期(${activeHighestPriority}), 自动清除`);
+    activeHighestPriority = null;
+    activeHighestPrioritySetAt = 0;
+    return null;
+  }
+  return activeHighestPriority;
+}
+
+/**
+ * v681: 刷新活跃消费者的心跳，防止过期
+ */
+export function refreshConsumerPriorityHeartbeat(): void {
+  if (activeHighestPriority) {
+    activeHighestPrioritySetAt = Date.now();
+  }
+}
+
 /** 单个端点的限流配置 */
 export interface EndpointRateConfig {
   /** 每秒允许的最大请求数 (TPS) */
@@ -709,18 +773,38 @@ export function setApiRateLimitService(service: ApiRateLimitService): void {
 
 /**
  * 便捷函数: 在API调用前获取限流许可
+ * v681: 增强版 — 支持消费者优先级，高优先级任务运行时自动压缩低优先级任务的配额
  * 
  * 使用示例:
  * ```typescript
- * await acquireApiPermit(accountId, 'mutate');
+ * await acquireApiPermit(accountId, 'mutate', 'auto_sync');
  * const result = await amazonApi.updateKeywordBids(bids);
  * ```
  */
 export async function acquireApiPermit(
   accountId: number,
-  endpointType: ApiEndpointType = 'default'
+  endpointType: ApiEndpointType = 'default',
+  consumer?: ApiConsumerPriority
 ): Promise<void> {
   const service = getApiRateLimitService();
+  
+  // v681: 消费者优先级调度 — 当更高优先级消费者活跃时，低优先级消费者额外等待
+  if (consumer) {
+    const activeHighest = getActiveConsumerPriority();
+    if (activeHighest) {
+      const activePriorityNum = CONSUMER_PRIORITY_CONFIG[activeHighest].priority;
+      const myPriorityNum = CONSUMER_PRIORITY_CONFIG[consumer].priority;
+      
+      if (myPriorityNum > activePriorityNum) {
+        // 我的优先级低于当前活跃的最高优先级，需要额外等待
+        const myConfig = CONSUMER_PRIORITY_CONFIG[consumer];
+        if (myConfig.extraDelayMs > 0) {
+          await new Promise(resolve => setTimeout(resolve, myConfig.extraDelayMs));
+        }
+      }
+    }
+  }
+  
   await service.acquirePermit(accountId, endpointType, true);
 }
 

@@ -4062,10 +4062,19 @@ export class AmazonAdsApiClient {
         
         const zlib = await import('zlib');
         
+        // v681: 流式JSON解析 — 使用增量式解析器降低内存峰值
+        // 核心改进：不再将整个解压后的JSON字符串缓存在内存中再解析，
+        // 而是边解压边解析，每次只在内存中保留当前块和已解析的结果对象
         const data = await new Promise<Record<string, unknown>[]>((resolve, reject) => {
-          const chunks: Buffer[] = [];
+          const results: Record<string, unknown>[] = [];
           let totalSize = 0;
           const MAX_SIZE = 500 * 1024 * 1024; // 500MB限制
+          let jsonBuffer = ''; // 增量式JSON解析缓冲区
+          let depth = 0; // JSON嵌套深度跟踪
+          let inString = false; // 是否在字符串内
+          let escapeNext = false; // 下一个字符是否转义
+          let objectStart = -1; // 当前对象的起始位置
+          let arrayStarted = false; // 是否已进入顶层数组
           
           // v449: 流级别超时 — 如果120秒内没有新数据到达，中断下载
           let lastDataTime = Date.now();
@@ -4080,6 +4089,72 @@ export class AmazonAdsApiClient {
           
           const gunzip = zlib.createGunzip();
           
+          // v681: 流式解析器 — 逐字符扫描，提取顶层数组中的每个对象
+          const parseChunk = (text: string) => {
+            for (let i = 0; i < text.length; i++) {
+              const ch = text[i];
+              
+              if (escapeNext) {
+                escapeNext = false;
+                continue;
+              }
+              
+              if (ch === '\\' && inString) {
+                escapeNext = true;
+                continue;
+              }
+              
+              if (ch === '"') {
+                inString = !inString;
+                continue;
+              }
+              
+              if (inString) continue;
+              
+              if (ch === '[' && !arrayStarted && depth === 0) {
+                arrayStarted = true;
+                continue;
+              }
+              
+              if (ch === '{') {
+                if (depth === 0 && arrayStarted) {
+                  objectStart = jsonBuffer.length + i;
+                }
+                depth++;
+              } else if (ch === '}') {
+                depth--;
+                if (depth === 0 && arrayStarted && objectStart >= 0) {
+                  // 提取完整的顶层对象
+                  const fullText = jsonBuffer + text;
+                  const objStr = fullText.substring(objectStart, jsonBuffer.length + i + 1);
+                  try {
+                    results.push(JSON.parse(objStr));
+                  } catch {
+                    // 单个对象解析失败，跳过
+                    log.debug(`[Amazon API] v681: 流式解析跳过一个无效对象`);
+                  }
+                  // 重置：截断已解析的部分，释放内存
+                  jsonBuffer = '';
+                  // 调整i使其从当前位置后继续
+                  text = text.substring(i + 1);
+                  i = -1; // 会被循环的i++变为0
+                  objectStart = -1;
+                }
+              }
+            }
+            // 保留未解析完的部分
+            if (objectStart >= 0 && objectStart < jsonBuffer.length) {
+              // objectStart在旧的jsonBuffer中，追加新text
+              jsonBuffer = jsonBuffer + text;
+            } else if (objectStart >= 0) {
+              // objectStart在当前文本中，只保留从对象开始的部分
+              jsonBuffer = text;
+            } else {
+              // 没有未完成的对象，清空缓冲区
+              jsonBuffer = '';
+            }
+          };
+          
           response.data
             .pipe(gunzip)
             .on('data', (chunk: Buffer) => {
@@ -4091,17 +4166,30 @@ export class AmazonAdsApiClient {
                 reject(new Error(`Report too large: ${totalSize} bytes exceeds ${MAX_SIZE} bytes limit`));
                 return;
               }
-              chunks.push(chunk);
+              // v681: 流式解析每个块，而不是缓存所有块
+              parseChunk(chunk.toString('utf-8'));
             })
             .on('end', () => {
               clearInterval(idleTimer);
-              try {
-                const data = Buffer.concat(chunks).toString('utf-8');
-                const result = JSON.parse(data);
-                log.info(`[Amazon API] v449: 报告解压完成，原始大小: ${totalSize} bytes, 数据条数: ${result?.length || 0}, 尝试: ${attempt}/${retries}`);
-                resolve(result);
-              } catch (parseError: unknown) {
-                reject(new Error(`Failed to parse report JSON: ${(parseError as Error).message}`));
+              // v681: 如果流式解析成功提取了数据，直接返回
+              if (results.length > 0) {
+                log.info(`[Amazon API] v681: 报告流式解析完成，解压大小: ${totalSize} bytes, 数据条数: ${results.length}, 尝试: ${attempt}/${retries}`);
+                resolve(results);
+              } else if (jsonBuffer.length > 0 || totalSize > 0) {
+                // v681: 回退方案 — 如果流式解析未提取到数据，尝试传统解析
+                // 这可能发生在空报告([])或非标准JSON格式时
+                try {
+                  const fullText = jsonBuffer || '[]';
+                  const fallbackResult = JSON.parse(fullText);
+                  log.info(`[Amazon API] v681: 报告回退解析完成，解压大小: ${totalSize} bytes, 数据条数: ${fallbackResult?.length || 0}, 尝试: ${attempt}/${retries}`);
+                  resolve(Array.isArray(fallbackResult) ? fallbackResult : [fallbackResult]);
+                } catch (parseError: unknown) {
+                  reject(new Error(`Failed to parse report JSON (streaming+fallback): ${(parseError as Error).message}`));
+                }
+              } else {
+                // 空报告
+                log.info(`[Amazon API] v681: 报告为空，解压大小: 0 bytes`);
+                resolve([]);
               }
             })
             .on('error', (err: Error) => {

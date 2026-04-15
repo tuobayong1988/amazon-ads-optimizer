@@ -2339,6 +2339,12 @@ export async function syncAllAccounts(tier: SyncTier): Promise<BatchSyncResult> 
   log.info(`[UnifiedSync] 开始${tier}层批量同步...`);
   logSync('UnifiedSync', `开始${tier}层批量同步`, { tier });
 
+  // v681: 设置消费者优先级为自动同步
+  try {
+    const { setActiveConsumerPriority, refreshConsumerPriorityHeartbeat } = await import('../services/apiRateLimitService');
+    setActiveConsumerPriority('auto_sync');
+  } catch { /* 优先级设置失败不影响同步 */ }
+
   // 自动发现所有可同步账户
   const allAccounts = await discoverSyncableAccounts();
   batchResult.totalAccounts = allAccounts.length;
@@ -2697,6 +2703,12 @@ export async function syncAllAccounts(tier: SyncTier): Promise<BatchSyncResult> 
     }
   }
 
+  // v681: 清除自动同步消费者优先级
+  try {
+    const { setActiveConsumerPriority } = await import('../services/apiRateLimitService');
+    setActiveConsumerPriority(null);
+  } catch { /* 优先级清除失败不影响结果 */ }
+
   return batchResult;
 }
 
@@ -2981,6 +2993,10 @@ export async function triggerManualFullSync(
   setManualOverride(true);
   log.info(`[UnifiedSync] v679.4: 手动同步覆盖已激活，自动同步将被暂停`);
 
+  // v681: 设置消费者优先级为手动同步（最高优先级）
+  const { setActiveConsumerPriority } = await import('../services/apiRateLimitService');
+  setActiveConsumerPriority('manual_sync');
+
   let result: AccountSyncResult | null = null;
   try {
   // v406: 使用full层级+isManual标记，确保手动同步不会被自动同步阻塞
@@ -2992,7 +3008,9 @@ export async function triggerManualFullSync(
   } finally {
     // v679.4: 无论同步成功或失败，都取消手动同步覆盖
     setManualOverride(false);
-    log.info(`[UnifiedSync] v679.4: 手动同步覆盖已取消，自动同步恢复`);
+    // v681: 清除消费者优先级，恢复正常配额分配
+    setActiveConsumerPriority(null);
+    log.info(`[UnifiedSync] v679.4+v681: 手动同步覆盖已取消，消费者优先级已清除，自动同步恢复`);
   }
 
   // v404: 同步完成后更新data_sync_jobs最终状态

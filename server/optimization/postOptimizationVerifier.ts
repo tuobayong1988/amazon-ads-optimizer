@@ -27,6 +27,7 @@ import { keywords, campaigns, negativeKeywords, syncConflicts, sdAudiences } fro
 import { eq, and, inArray, sql, gte, lte } from 'drizzle-orm';
 import { getAmazonSyncService } from '../services/amazonApiHelper';
 import { createModuleLogger } from '../utils/logger';
+import { isSyncRunning, getSyncLockInfo } from '../sync/syncCoordinator';
 
 const log = createModuleLogger('PostOptVerifier');
 
@@ -332,11 +333,24 @@ function scheduleVerificationTask(accountId: number, items: VerificationItem[]):
 
 /**
  * 执行验证任务
+ * v681: 添加同步感知 — 全量同步运行时自动延迟验证任务，避免API配额争抢
  */
 async function executeVerificationTask(taskId: string): Promise<void> {
   const task = pendingTasks.get(taskId);
   if (!task) {
     log.warn(`任务 ${taskId} 不存在，可能已被取消`);
+    return;
+  }
+  
+  // v681: 同步感知 — 全量同步运行时延迟验证任务，避免API配额争抢
+  if (isSyncRunning()) {
+    const lockInfo = getSyncLockInfo();
+    const VERIFIER_DEFER_DELAY_SEC = 120; // 同步运行时延迟120秒后重试
+    log.info(`v681: 验证任务${taskId}延迟执行 — 全量同步正在运行(holder=${lockInfo.holder}, 已运行${lockInfo.holdDurationSec}s)，${VERIFIER_DEFER_DELAY_SEC}s后重试`);
+    const timer = setTimeout(async () => {
+      await executeVerificationTask(taskId);
+    }, VERIFIER_DEFER_DELAY_SEC * 1000);
+    activeTimers.set(taskId, timer);
     return;
   }
   

@@ -47,14 +47,24 @@ export async function syncSbProductTargets(service: SyncContext,): Promise<{ syn
 
     log.debug(`获取到 ${apiTargets.length} 个SB商品定位`);
 
-    for (const apiTarget of apiTargets) {
-      // 查找对应的ad group
-      const [adGroup] = await db
-        .select()
-        .from(adGroups)
-        .where(eq(adGroups.adGroupId, String(apiTarget.adGroupId)))
-        .limit(1);
+    // v681: 批量预加载 — 消除N+1查询问题
+    const allAdGroups = await db.select().from(adGroups);
+    const adGroupByAmazonId = new Map<string, typeof allAdGroups[0]>();
+    for (const ag of allAdGroups) {
+      if (ag.adGroupId) adGroupByAmazonId.set(String(ag.adGroupId), ag);
+    }
+    const allTargets = await db.select().from(productTargets);
+    const ptByAgIdAndTargetId = new Map<string, typeof allTargets[0]>();
+    for (const pt of allTargets) {
+      if (pt.internalAdGroupId && pt.targetId) {
+        ptByAgIdAndTargetId.set(`${pt.internalAdGroupId}_${pt.targetId}`, pt);
+      }
+    }
+    log.info(`v681: SB商品定位批量预加载完成 — ${allAdGroups.length}个广告组, ${allTargets.length}个产品定向, API返回${apiTargets.length}个`);
 
+    for (const apiTarget of apiTargets) {
+      // v681: 使用Map查找替代DB查询
+      const adGroup = adGroupByAmazonId.get(String(apiTarget.adGroupId));
       if (!adGroup) continue;
 
       // 解析定向表达式和匹配类型 - 支持ASIN定向和品类定向
@@ -119,17 +129,8 @@ export async function syncSbProductTargets(service: SyncContext,): Promise<{ syn
         targetExpression = exprArray;
       }
 
-      // 检查是否已存在
-      const [existing] = await db
-        .select()
-        .from(productTargets)
-        .where(
-          and(
-            eq(productTargets.internalAdGroupId, adGroup.id),
-            eq(productTargets.targetId, String(apiTarget.targetId))
-          )
-        )
-        .limit(1);
+      // v681: 使用Map查找existing target
+      const existing = ptByAgIdAndTargetId.get(`${adGroup.id}_${String(apiTarget.targetId)}`);
 
       const normalizedState = (apiTarget.state || 'enabled').toLowerCase() as 'enabled' | 'paused' | 'archived';
 
@@ -206,14 +207,24 @@ export async function syncSdProductTargets(service: SyncContext,): Promise<{ syn
 
     log.debug(`获取到 ${apiTargets.length} 个SD商品定位`);
 
-    for (const apiTarget of apiTargets) {
-      // 查找对应的ad group
-      const [adGroup] = await db
-        .select()
-        .from(adGroups)
-        .where(eq(adGroups.adGroupId, String(apiTarget.adGroupId)))
-        .limit(1);
+    // v681: 批量预加载 — 消除N+1查询问题
+    const allAdGroups = await db.select().from(adGroups);
+    const adGroupByAmazonId = new Map<string, typeof allAdGroups[0]>();
+    for (const ag of allAdGroups) {
+      if (ag.adGroupId) adGroupByAmazonId.set(String(ag.adGroupId), ag);
+    }
+    const allTargets = await db.select().from(productTargets);
+    const ptByAgIdAndTargetId = new Map<string, typeof allTargets[0]>();
+    for (const pt of allTargets) {
+      if (pt.internalAdGroupId && pt.targetId) {
+        ptByAgIdAndTargetId.set(`${pt.internalAdGroupId}_${pt.targetId}`, pt);
+      }
+    }
+    log.info(`v681: SD商品定位批量预加载完成 — ${allAdGroups.length}个广告组, ${allTargets.length}个产品定向, API返回${apiTargets.length}个`);
 
+    for (const apiTarget of apiTargets) {
+      // v681: 使用Map查找替代DB查询
+      const adGroup = adGroupByAmazonId.get(String(apiTarget.adGroupId));
       if (!adGroup) continue;
 
       // 解析定向表达式和匹配类型 - 支持ASIN定向和品类定向
@@ -282,17 +293,8 @@ export async function syncSdProductTargets(service: SyncContext,): Promise<{ syn
         }
       }
 
-      // 检查是否已存在
-      const [existing] = await db
-        .select()
-        .from(productTargets)
-        .where(
-          and(
-            eq(productTargets.internalAdGroupId, adGroup.id),
-            eq(productTargets.targetId, String(apiTarget.targetId))
-          )
-        )
-        .limit(1);
+      // v681: 使用Map查找existing target
+      const existing = ptByAgIdAndTargetId.get(`${adGroup.id}_${String(apiTarget.targetId)}`);
 
       const normalizedState = (apiTarget.state || 'enabled').toLowerCase() as 'enabled' | 'paused' | 'archived';
 
@@ -499,14 +501,29 @@ export async function syncSpProductTargets(service: SyncContext,lastSyncTime?: s
     let synced = 0;
     let skipped = 0;
 
-    // v150.1: 批量预查询所有需要保护的产品定向ID（减少循环内DB查询）
+    // v681: 批量预加载 — 消除N+1查询问题
+    // 1. 预加载所有adGroups的 adGroupId -> record 映射
+    const allAdGroups = await db.select().from(adGroups);
+    const adGroupByAmazonId = new Map<string, typeof allAdGroups[0]>();
+    for (const ag of allAdGroups) {
+      if (ag.adGroupId) adGroupByAmazonId.set(String(ag.adGroupId), ag);
+    }
+    // 2. 预加载所有productTargets，建立索引
+    const allTargets = await db.select().from(productTargets);
+    const ptByAgIdAndTargetId = new Map<string, typeof allTargets[0]>();
+    for (const pt of allTargets) {
+      if (pt.internalAdGroupId && pt.targetId) {
+        ptByAgIdAndTargetId.set(`${pt.internalAdGroupId}_${pt.targetId}`, pt);
+      }
+    }
+    log.info(`v681: SP产品定向批量预加载完成 — ${allAdGroups.length}个广告组, ${allTargets.length}个产品定向, API返回${apiTargets.length}个`);
+
+    // v150.1: 使用预加载的Map批量收集existing target IDs（不再逐条DB查询）
     const allExistingTargetIds: number[] = [];
     for (const at of apiTargets) {
-      const [ag] = await db.select({ id: adGroups.id }).from(adGroups)
-        .where(eq(adGroups.adGroupId, String(at.adGroupId))).limit(1);
+      const ag = adGroupByAmazonId.get(String(at.adGroupId));
       if (!ag) continue;
-      const [ex] = await db.select({ id: productTargets.id }).from(productTargets)
-        .where(and(eq(productTargets.internalAdGroupId, ag.id), eq(productTargets.targetId, String(at.targetId)))).limit(1);
+      const ex = ptByAgIdAndTargetId.get(`${ag.id}_${String(at.targetId)}`);
       if (ex) allExistingTargetIds.push(ex.id);
     }
     const protectedTargetIds = await getRecentlyOptimizedKeywordIds(allExistingTargetIds, SYNC_PROTECTION_CONFIG.BID_PROTECTION_HOURS);
@@ -514,13 +531,8 @@ export async function syncSpProductTargets(service: SyncContext,lastSyncTime?: s
     log.info(`syncSpProductTargets: 批量查询完成, ${protectedTargetIds.size}个产品定向有近期出价优化事件`);
 
     for (const apiTarget of apiTargets) {
-      // 查找对应的ad group
-      const [adGroup] = await db
-        .select()
-        .from(adGroups)
-        .where(eq(adGroups.adGroupId, String(apiTarget.adGroupId)))
-        .limit(1);
-
+      // v681: 使用Map查找替代DB查询
+      const adGroup = adGroupByAmazonId.get(String(apiTarget.adGroupId));
       if (!adGroup) continue;
 
       // ============================================================
@@ -628,17 +640,8 @@ export async function syncSpProductTargets(service: SyncContext,lastSyncTime?: s
       // Amazon API返回的state可能是大写，需要转换为小写
       const normalizedState = (apiTarget.state || 'enabled').toLowerCase() as 'enabled' | 'paused' | 'archived';
 
-      // 检查是否已存在
-      const [existing] = await db
-        .select()
-        .from(productTargets)
-        .where(
-          and(
-            eq(productTargets.internalAdGroupId, adGroup.id),
-            eq(productTargets.targetId, String(apiTarget.targetId))
-          )
-        )
-        .limit(1);
+      // v681: 使用Map查找existing target
+      const existing = ptByAgIdAndTargetId.get(`${adGroup.id}_${String(apiTarget.targetId)}`);
 
       // 增量同步：如果有上次同步时间且记录已存在，检查是否需要更新
       // v215修复: 移除错误的updatedAt跳过逻辑

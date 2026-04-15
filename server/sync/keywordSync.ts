@@ -111,43 +111,42 @@ export async function syncSbKeywords(service: SyncContext,): Promise<{ synced: n
 
     log.debug(`获取到 ${apiKeywords.length} 个SB关键词`);
 
-    for (const apiKeyword of apiKeywords) {
-      // 查找对应的ad group
-      const [adGroup] = await db
-        .select()
-        .from(adGroups)
-        .where(eq(adGroups.adGroupId, String(apiKeyword.adGroupId)))
-        .limit(1);
+    // v681: 批量预加载 — 消除N+1查询问题
+    // 1. 预加载所有adGroups的 adGroupId -> record 映射
+    const allAdGroups = await db.select().from(adGroups);
+    const adGroupByAmazonId = new Map<string, typeof allAdGroups[0]>();
+    for (const ag of allAdGroups) {
+      if (ag.adGroupId) adGroupByAmazonId.set(String(ag.adGroupId), ag);
+    }
+    // 2. 预加载所有keywords，建立多维索引
+    const allKeywords = await db.select().from(keywords);
+    // 索引1: internalAdGroupId + keywordId -> record
+    const kwByAgIdAndKwId = new Map<string, typeof allKeywords[0]>();
+    // 索引2: internalAdGroupId + keywordText + matchType -> record (v647二次匹配)
+    const kwByAgIdTextMatch = new Map<string, typeof allKeywords[0]>();
+    for (const kw of allKeywords) {
+      if (kw.internalAdGroupId && kw.keywordId) {
+        kwByAgIdAndKwId.set(`${kw.internalAdGroupId}_${kw.keywordId}`, kw);
+      }
+      if (kw.internalAdGroupId && kw.keywordText && kw.matchType) {
+        kwByAgIdTextMatch.set(`${kw.internalAdGroupId}_${kw.keywordText.toLowerCase()}_${kw.matchType.toLowerCase()}`, kw);
+      }
+    }
+    log.info(`v681: SB关键词批量预加载完成 — ${allAdGroups.length}个广告组, ${allKeywords.length}个关键词, API返回${apiKeywords.length}个`);
 
+    for (const apiKeyword of apiKeywords) {
+      // v681: 使用Map查找替代DB查询
+      const adGroup = adGroupByAmazonId.get(String(apiKeyword.adGroupId));
       if (!adGroup) continue;
 
-      // 检查是否已存在
-      let [existing] = await db
-        .select()
-        .from(keywords)
-        .where(
-          and(
-            eq(keywords.internalAdGroupId, adGroup.id),
-            eq(keywords.keywordId, String(apiKeyword.keywordId))
-          )
-        )
-        .limit(1);
+      // v681: 使用Map查找existing keyword
+      let existing = kwByAgIdAndKwId.get(`${adGroup.id}_${String(apiKeyword.keywordId)}`);
       
       // v647: 二次匹配 — 通过adGroupId+keywordText+matchType修复被污染的keywordId
       if (!existing && (apiKeyword.keywordText || apiKeyword.keyword)) {
         const kwText = apiKeyword.keywordText || apiKeyword.keyword || '';
         const normalizedMatch = (apiKeyword.matchType || 'broad').toLowerCase();
-        const [textMatched] = await db
-          .select()
-          .from(keywords)
-          .where(
-            and(
-              eq(keywords.internalAdGroupId, adGroup.id),
-              eq(keywords.keywordText, kwText),
-              eq(keywords.matchType, normalizedMatch)
-            )
-          )
-          .limit(1);
+        const textMatched = kwByAgIdTextMatch.get(`${adGroup.id}_${kwText.toLowerCase()}_${normalizedMatch}`);
         if (textMatched) {
           const oldKwId = textMatched.keywordId || '';
           if (oldKwId !== String(apiKeyword.keywordId)) {
@@ -229,14 +228,35 @@ export async function syncSpKeywords(service: SyncContext,lastSyncTime?: string 
     let synced = 0;
     let skipped = 0;
 
-    // v150.1: 批量预查询所有需要保护的关键词ID（减少循环内DB查询）
+    // v681: 批量预加载 — 消除N+1查询问题（原先循环内每个关键词2-4次DB查询，现在只需要2次批量查询）
+    // 1. 预加载所有adGroups的 adGroupId -> record 映射
+    const allAdGroups = await db.select().from(adGroups);
+    const adGroupByAmazonId = new Map<string, typeof allAdGroups[0]>();
+    for (const ag of allAdGroups) {
+      if (ag.adGroupId) adGroupByAmazonId.set(String(ag.adGroupId), ag);
+    }
+    // 2. 预加载所有keywords，建立多维索引
+    const allKeywords = await db.select().from(keywords);
+    // 索引1: internalAdGroupId + keywordId -> record
+    const kwByAgIdAndKwId = new Map<string, typeof allKeywords[0]>();
+    // 索引2: internalAdGroupId + keywordText + matchType -> record (v647二次匹配)
+    const kwByAgIdTextMatch = new Map<string, typeof allKeywords[0]>();
+    for (const kw of allKeywords) {
+      if (kw.internalAdGroupId && kw.keywordId) {
+        kwByAgIdAndKwId.set(`${kw.internalAdGroupId}_${kw.keywordId}`, kw);
+      }
+      if (kw.internalAdGroupId && kw.keywordText && kw.matchType) {
+        kwByAgIdTextMatch.set(`${kw.internalAdGroupId}_${kw.keywordText.toLowerCase()}_${kw.matchType.toLowerCase()}`, kw);
+      }
+    }
+    log.info(`v681: SP关键词批量预加载完成 — ${allAdGroups.length}个广告组, ${allKeywords.length}个关键词, API返回${apiKeywords.length}个`);
+
+    // v150.1: 使用预加载的Map批量收集existing keyword IDs（不再逐条DB查询）
     const allExistingKeywordIds: number[] = [];
     for (const ak of apiKeywords) {
-      const [ag] = await db.select({ id: adGroups.id }).from(adGroups)
-        .where(eq(adGroups.adGroupId, String(ak.adGroupId))).limit(1);
+      const ag = adGroupByAmazonId.get(String(ak.adGroupId));
       if (!ag) continue;
-      const [ex] = await db.select({ id: keywords.id }).from(keywords)
-        .where(and(eq(keywords.internalAdGroupId, ag.id), eq(keywords.keywordId, String(ak.keywordId)))).limit(1);
+      const ex = kwByAgIdAndKwId.get(`${ag.id}_${String(ak.keywordId)}`);
       if (ex) allExistingKeywordIds.push(ex.id);
     }
     const protectedKeywordIds = await getRecentlyOptimizedKeywordIds(allExistingKeywordIds, SYNC_PROTECTION_CONFIG.BID_PROTECTION_HOURS);
@@ -244,41 +264,17 @@ export async function syncSpKeywords(service: SyncContext,lastSyncTime?: string 
     log.info(`syncSpKeywords: 批量查询完成, ${protectedKeywordIds.size}个关键词有近期出价优化事件`);
 
     for (const apiKeyword of apiKeywords) {
-      // 查找对应的ad group
-      const [adGroup] = await db
-        .select()
-        .from(adGroups)
-        .where(eq(adGroups.adGroupId, String(apiKeyword.adGroupId)))
-        .limit(1);
-
+      // v681: 使用Map查找替代DB查询
+      const adGroup = adGroupByAmazonId.get(String(apiKeyword.adGroupId));
       if (!adGroup) continue;
 
-      // 检查是否已存在
-      let [existing] = await db
-        .select()
-        .from(keywords)
-        .where(
-          and(
-            eq(keywords.internalAdGroupId, adGroup.id),
-            eq(keywords.keywordId, String(apiKeyword.keywordId))
-          )
-        )
-        .limit(1);
+      // v681: 使用Map查找existing keyword
+      let existing = kwByAgIdAndKwId.get(`${adGroup.id}_${String(apiKeyword.keywordId)}`);
       
       // v647: 二次匹配 — 通过adGroupId+keywordText+matchType修复被污染的keywordId
       if (!existing && apiKeyword.keywordText) {
         const normalizedMatch = (apiKeyword.matchType || 'broad').toLowerCase();
-        const [textMatched] = await db
-          .select()
-          .from(keywords)
-          .where(
-            and(
-              eq(keywords.internalAdGroupId, adGroup.id),
-              eq(keywords.keywordText, apiKeyword.keywordText),
-              eq(keywords.matchType, normalizedMatch)
-            )
-          )
-          .limit(1);
+        const textMatched = kwByAgIdTextMatch.get(`${adGroup.id}_${apiKeyword.keywordText.toLowerCase()}_${normalizedMatch}`);
         if (textMatched) {
           const oldKwId = textMatched.keywordId || '';
           if (oldKwId !== String(apiKeyword.keywordId)) {
