@@ -1123,7 +1123,7 @@ export default function AmazonApiSettings() {
   // 轮询同步任务状态的辅助函数
   const pollSyncJobStatus = async (
     jobId: number, 
-    maxAttempts = 2700,
+    maxAttempts = 7200, // v682: 从2700(90分钟)增加到7200(240分钟)，避免大账户全量同步前端超时
     onProgress?: (currentStep: string, stepProgress: number, currentStepIndex: number, totalSteps: number) => void
   ): Promise<{
     success: boolean;
@@ -1209,7 +1209,7 @@ export default function AmazonApiSettings() {
       updateProgress(progressStatuses);
       
       // v215: 轮询同步任务状态，并实时更新站点级步骤信息
-      const pollResult = await pollSyncJobStatus(result.jobId, 2700, (currentStep, stepProgress, currentStepIndex, totalSteps) => {
+      const pollResult = await pollSyncJobStatus(result.jobId, 7200, (currentStep, stepProgress, currentStepIndex, totalSteps) => {
         // v407: 实时更新站点卡片中的同步步骤和真实进度
         const stepStatuses = siteStatuses.map(s => 
           s.id === (site as any).id ? { 
@@ -1292,7 +1292,7 @@ export default function AmazonApiSettings() {
       }
       
       // 轮询同步任务状态，并实时更新进度
-      const pollResult = await pollSyncJobStatus(result.jobId, 2700, (currentStep, stepProgress, currentStepIndex, totalSteps) => {
+      const pollResult = await pollSyncJobStatus(result.jobId, 7200, (currentStep, stepProgress, currentStepIndex, totalSteps) => {
         setSyncProgress(prev => {
           const updatedSiteStatuses = (prev.siteStatuses || []).map(s => 
             s.id === siteId ? { 
@@ -1512,7 +1512,7 @@ export default function AmazonApiSettings() {
             // v215: 轮询同步任务状态，并实时更新进度（超时增加到90分钟）
             const pollResult = await pollSyncJobStatus(
               result.jobId,
-              2700,
+              7200, // v682: 从2700(90分钟)增加到7200(240分钟)
               (currentStep, stepProgress, currentStepIndex, totalSteps) => {
                 // v407: 更新站点的当前步骤、进度、步骤索引和总步骤数
                 currentSiteStatuses = currentSiteStatuses.map(s => 

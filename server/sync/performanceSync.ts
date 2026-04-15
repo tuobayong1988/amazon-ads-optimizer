@@ -1028,27 +1028,31 @@ export async function syncPerformanceOnly(service: SyncContext,days: number = 14
     keywordPerf: 0,
     targetPerf: 0,
   };
-  try {
-    results.performance = await service.syncPerformanceData(days);
-    log.info(`绩效数据同步完成: ${results.performance} 条记录`);
-  } catch (error) {
-    log.warn('绩效数据同步失败:', error);
+  // v682: 并行化 — 绩效/关键词绩效/定位绩效三个报告同时提交，大幅缩短等待时间
+  // 之前串行执行需要3轮报告等待（每轮5-10分钟），并行后只需1轮
+  log.info(`[v682] syncPerformanceOnly: 并行提交3类绩效报告（${days}天）`);
+  const [perfResult, kwPerfResult, ptPerfResult] = await Promise.allSettled([
+    service.syncPerformanceData(days),
+    service.syncKeywordPerformanceData(days),
+    service.syncProductTargetPerformanceData(days),
+  ]);
+  if (perfResult.status === 'fulfilled') {
+    results.performance = perfResult.value;
+    log.info(`[v682] 绩效数据同步完成: ${results.performance} 条记录`);
+  } else {
+    log.warn('[v682] 绩效数据同步失败:', perfResult.reason);
   }
-  // v192: 同步关键词级别绩效数据（之前仅在syncAll中执行，导致keywords表绩效全为0）
-  try {
-    log.info(`开始同步关键词级别绩效数据（${days}天）...`);
-    results.keywordPerf = await service.syncKeywordPerformanceData(days);
-    log.info(`关键词绩效数据同步完成: ${results.keywordPerf}条`);
-  } catch (kwPerfError: unknown) {
-    log.warn('关键词绩效数据同步失败:', (kwPerfError as Error).message);
+  if (kwPerfResult.status === 'fulfilled') {
+    results.keywordPerf = kwPerfResult.value;
+    log.info(`[v682] 关键词绩效数据同步完成: ${results.keywordPerf}条`);
+  } else {
+    log.warn('[v682] 关键词绩效数据同步失败:', (kwPerfResult.reason as Error).message);
   }
-  // v192: 同步商品定位级别绩效数据
-  try {
-    log.info(`开始同步商品定位级别绩效数据（${days}天）...`);
-    results.targetPerf = await service.syncProductTargetPerformanceData(days);
-    log.info(`商品定位绩效数据同步完成: ${results.targetPerf}条`);
-  } catch (ptPerfError: unknown) {
-    log.warn('商品定位绩效数据同步失败:', (ptPerfError as Error).message);
+  if (ptPerfResult.status === 'fulfilled') {
+    results.targetPerf = ptPerfResult.value;
+    log.info(`[v682] 商品定位绩效数据同步完成: ${results.targetPerf}条`);
+  } else {
+    log.warn('[v682] 商品定位绩效数据同步失败:', (ptPerfResult.reason as Error).message);
   }
   return results;
 }

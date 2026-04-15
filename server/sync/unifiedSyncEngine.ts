@@ -416,6 +416,7 @@ export interface SyncStep {
   id: string;
   name: string;
   tier: SyncTier; // 该步骤属于哪个同步层级
+  parallelGroup?: string; // v682: 同一parallelGroup的步骤可以并行执行，大幅减少报告等待时间
   execute: (service: AmazonSyncService, context: SyncContext) => Promise<StepResult>;
 }
 
@@ -779,6 +780,7 @@ const SYNC_STEPS: SyncStep[] = [
     id: 'sp_search_terms',
     name: 'SP搜索词',
     tier: 'full',
+    parallelGroup: 'search_terms', // v682: SP/SB搜索词并行执行
     execute: async (service, ctx) => {
       try {
         const days = ctx.incrementalMode ? ctx.incrementalReportDays.sp : 95; // v663: 增量模式缩短天数
@@ -794,6 +796,7 @@ const SYNC_STEPS: SyncStep[] = [
     id: 'sb_search_terms',
     name: 'SB搜索词',
     tier: 'full',
+    parallelGroup: 'search_terms', // v682: SP/SB搜索词并行执行
     execute: async (service, ctx) => {
       try {
         const days = ctx.incrementalMode ? ctx.incrementalReportDays.sb : 60; // v663: 增量模式缩短天数
@@ -809,6 +812,7 @@ const SYNC_STEPS: SyncStep[] = [
     id: 'sp_placement_performance',
     name: 'SP广告位绩效',
     tier: 'full',
+    parallelGroup: 'placement_perf', // v682: SP/SB广告位绩效并行执行
     execute: async (service, ctx) => {
       try {
         const days = ctx.incrementalMode ? ctx.incrementalReportDays.sp : 95; // v663: 增量模式缩短天数
@@ -824,6 +828,7 @@ const SYNC_STEPS: SyncStep[] = [
     id: 'sb_placement_performance',
     name: 'SB广告位绩效',
     tier: 'full',
+    parallelGroup: 'placement_perf', // v682: SP/SB广告位绩效并行执行
     execute: async (service, ctx) => {
       try {
         const days = ctx.incrementalMode ? ctx.incrementalReportDays.sb : 60; // v663: 增量模式缩短天数
@@ -839,6 +844,7 @@ const SYNC_STEPS: SyncStep[] = [
     id: 'sp_auto_targeting',
     name: 'SP自动定向',
     tier: 'full',
+    parallelGroup: 'targeting_reports', // v682: SP/SD/SB定向报告并行执行
     execute: async (service, ctx) => {
       try {
         const days = ctx.incrementalMode ? ctx.incrementalReportDays.sp : 95; // v663: 增量模式缩短天数
@@ -854,6 +860,7 @@ const SYNC_STEPS: SyncStep[] = [
     id: 'sd_targeting',
     name: 'SD定向报告',
     tier: 'full',
+    parallelGroup: 'targeting_reports', // v682: SP/SD/SB定向报告并行执行
     execute: async (service, ctx) => {
       try {
         const days = ctx.incrementalMode ? ctx.incrementalReportDays.sd : 95; // v663: 增量模式缩短天数
@@ -869,6 +876,7 @@ const SYNC_STEPS: SyncStep[] = [
     id: 'sb_targeting',
     name: 'SB定向报告',
     tier: 'full',
+    parallelGroup: 'targeting_reports', // v682: SP/SD/SB定向报告并行执行
     execute: async (service, ctx) => {
       try {
         const days = ctx.incrementalMode ? ctx.incrementalReportDays.sb : 60; // v663: 增量模式缩短天数
@@ -1023,7 +1031,8 @@ const SYNC_STEPS: SyncStep[] = [
   {
     id: 'keyword_performance',
     name: '关键词绩效',
-    tier: 'nightly', // v403: 从 full 迁移到 nightly，避免 full 层级超时
+    tier: 'nightly',
+    parallelGroup: 'nightly_perf', // v682: 关键词/定位/广告组绩效并行执行 // v403: 从 full 迁移到 nightly，避免 full 层级超时
     execute: async (service, ctx) => {
       try {
         const days = ctx.incrementalMode ? ctx.incrementalReportDays.sp : 95; // v663: 增量模式缩短天数
@@ -1038,7 +1047,8 @@ const SYNC_STEPS: SyncStep[] = [
   {
     id: 'target_performance',
     name: '定位绩效',
-    tier: 'nightly', // v403: 从 full 迁移到 nightly，避免 full 层级超时
+    tier: 'nightly',
+    parallelGroup: 'nightly_perf', // v682: 关键词/定位/广告组绩效并行执行 // v403: 从 full 迁移到 nightly，避免 full 层级超时
     execute: async (service, ctx) => {
       try {
         const days = ctx.incrementalMode ? ctx.incrementalReportDays.sp : 95; // v663: 增量模式缩短天数
@@ -1053,7 +1063,8 @@ const SYNC_STEPS: SyncStep[] = [
   {
     id: 'ad_group_performance',
     name: '广告组绩效',
-    tier: 'nightly', // v403: 从 full 迁移到 nightly，避免 full 层级超时
+    tier: 'nightly',
+    parallelGroup: 'nightly_perf', // v682: 关键词/定位/广告组绩效并行执行 // v403: 从 full 迁移到 nightly，避免 full 层级超时
     execute: async (service, ctx) => {
       try {
         const days = ctx.incrementalMode ? ctx.incrementalReportDays.sp : 95; // v663: 增量模式缩短天数
@@ -1706,9 +1717,117 @@ export async function syncAccount(
     // v665: 注册活跃同步上下文，用于SIGTERM时主动保存checkpoint
     activeSyncContexts.set(lockKey, { accountId: account.accountId, tier, context, startTime });
 
-    // 逐步执行同步
+    // v682: 将步骤分组 — 同一parallelGroup的步骤合并为一个并行执行单元
+    // 效果: 7个串行报告步骤(35-210分钟) → 3个并行组(15-70分钟)
+    interface StepGroup {
+      steps: { step: SyncStep; originalIndex: number }[];
+      isParallel: boolean;
+      groupName: string;
+    }
+    const stepGroups: StepGroup[] = [];
+    let currentGroupKey: string | null = null;
+    let currentGroup: StepGroup | null = null;
     for (let i = 0; i < steps.length; i++) {
       const step = steps[i];
+      const groupKey = step.parallelGroup || `__single_${i}`;
+      if (groupKey === currentGroupKey && currentGroup) {
+        // 同一并行组，追加到当前组
+        currentGroup.steps.push({ step, originalIndex: i });
+      } else {
+        // 新组
+        if (currentGroup) stepGroups.push(currentGroup);
+        currentGroup = {
+          steps: [{ step, originalIndex: i }],
+          isParallel: !!step.parallelGroup,
+          groupName: step.parallelGroup || step.name,
+        };
+        currentGroupKey = groupKey;
+      }
+    }
+    if (currentGroup) stepGroups.push(currentGroup);
+    
+    const parallelGroupCount = stepGroups.filter(g => g.isParallel && g.steps.length > 1).length;
+    if (parallelGroupCount > 0) {
+      log.info(`[v682] 并行组优化: ${steps.length}个步骤分为${stepGroups.length}个执行单元，其中${parallelGroupCount}个并行组`);
+    }
+    
+    // 逐组执行同步（组内并行，组间串行）
+    let globalStepIndex = 0; // 用于进度计算
+    for (const group of stepGroups) {
+      
+      // 并行组执行（组内所有步骤同时启动）
+      if (group.isParallel && group.steps.length > 1) {
+        const groupStepNames = group.steps.map(s => s.step.name).join(', ');
+        log.info(`[v682] 并行组开始: [${group.groupName}] 包含${group.steps.length}个步骤: ${groupStepNames}`);
+        
+        // 更新进度显示为并行组名称
+        context.currentStep = `并行: ${groupStepNames}`;
+        const runningEntry = engineStatus.currentlyRunning.find(r => r.accountId === account.accountId);
+        if (runningEntry) {
+          runningEntry.step = `并行: ${group.groupName}`;
+        }
+        if (options?.onProgress) {
+          try { await options.onProgress(`并行: ${groupStepNames}`, globalStepIndex, steps.length); } catch (_e) {}
+        }
+        
+        // 并行执行组内所有步骤
+        const parallelPromises = group.steps.map(async ({ step }) => {
+          const STEP_TIMEOUT_MAP: Record<string, number> = {
+            'performance_today': 25, 'performance_7d': 25, 'performance_95d': 45,
+            'sp_search_terms': 30, 'sb_search_terms': 30,
+            'sp_placement_performance': 30, 'sb_placement_performance': 30,
+            'keyword_performance': 30, 'target_performance': 30, 'ad_group_performance': 30,
+            'sp_auto_targeting': 30, 'sd_targeting': 30, 'sb_targeting': 30,
+          };
+          const timeoutMinutes = STEP_TIMEOUT_MAP[step.id] || 30;
+          const STEP_TIMEOUT_MS = timeoutMinutes * 60 * 1000;
+          try {
+            rateController.recordApiCall();
+            const stepResult = await Promise.race([
+              step.execute(syncService, context),
+              new Promise<never>((_, reject) => setTimeout(() => reject(new Error(`STEP_TIMEOUT: 步骤${step.name}超时(${timeoutMinutes}分钟)`)), STEP_TIMEOUT_MS)),
+            ]);
+            return { stepId: step.id, stepName: step.name, result: stepResult };
+          } catch (e: unknown) {
+            return { stepId: step.id, stepName: step.name, result: { success: false, synced: 0, errors: [(e as Error).message] } as StepResult };
+          }
+        });
+        
+        const parallelResults = await Promise.allSettled(parallelPromises);
+        
+        // 处理并行组结果
+        for (const settled of parallelResults) {
+          const { stepId, stepName, result: stepResult } = settled.status === 'fulfilled' 
+            ? settled.value 
+            : { stepId: 'unknown', stepName: 'unknown', result: { success: false, synced: 0, errors: [(settled.reason as Error).message] } as StepResult };
+          
+          result.stepResults[stepId] = stepResult;
+          const safeSynced = typeof stepResult.synced === 'number' ? stepResult.synced : 0;
+          // @ts-expect-error - runtime type
+          stepResult.synced = safeSynced;
+          if (stepResult.success) {
+            result.completedSteps++;
+            context.completedSteps.push(stepId);
+            result.totalSynced += safeSynced;
+            context.totalSynced += safeSynced;
+            log.info(`[v682] 并行步骤完成: ${stepName} — 同步${safeSynced}条记录`);
+          } else {
+            result.failedSteps++;
+            context.failedSteps.push(stepId);
+            result.errors.push(`${stepName}: ${stepResult.errors.join(', ')}`);
+            log.warn(`[v682] 并行步骤失败: ${stepName} — ${stepResult.errors.join(', ')}`);
+          }
+        }
+        
+        globalStepIndex += group.steps.length;
+        log.info(`[v682] 并行组完成: [${group.groupName}] ${group.steps.length}个步骤已全部完成`);
+        continue; // 跳过下方的单步执行逻辑
+      }
+      
+      // 单步执行（原有逻辑）
+      const { step } = group.steps[0];
+      const i = globalStepIndex;
+      globalStepIndex++;
       context.currentStep = step.id;
 
       // 更新引擎状态
