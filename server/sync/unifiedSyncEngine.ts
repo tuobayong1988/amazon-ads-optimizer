@@ -1215,7 +1215,7 @@ async function waitForSyncSlot(accountId: number, tier: string, blockingTier: st
 // v528: 心跳超时 — 僵尸判定的主要依据
 // 如果一个任务超过此时间没有心跳更新，才判定为僵尸
 // 心跳每1分钟发送一次（v521），所以10分钟无心跳说明任务确实卡死
-const HEARTBEAT_ZOMBIE_TIMEOUT_MS = 30 * 60 * 1000; // v660: 30分钟无心跳 = 僵尸（从10分钟延长，匹配步骤超时最长45分钟）
+const HEARTBEAT_ZOMBIE_TIMEOUT_MS = 120 * 60 * 1000; // v677: 120分钟无心跳 = 僵尸（从30分钟延长，匹配步骤超时最长120分钟 — v676实测90023的performance_95d需要60-90分钟）
 
 // v528: 绝对超时（安全网） — 即使心跳正常，也不允许无限运行
 // 这是防止心跳正常但任务实际卡在无限循环中的极端情况
@@ -1902,11 +1902,11 @@ export async function syncAccount(
           'sp_negative_targets': 50, 'sb_negative_targets': 15, 'sd_negative_targets': 15, // v666: sp_negative_targets从15→50分钟（针对90052等大账户）
           'sp_auto_targeting': 10, 'sd_targeting': 10, 'sb_targeting': 10,
           'sb_ads': 10, 'sp_budget_rules': 10,
-          // 报告步骤: 30-45分钟（从10-15分钟放宽，异步报告提交+轮询+下载耗时较长）
-          'performance_today': 30, 'performance_7d': 45, 'performance_95d': 45, // v664: performance_7d从30→45分钟（v663实测90045在30分钟内未完成）
+          // 报告步骤: v677: 大幅放宽绩效报告步骤超时 — v676实测90023(3225广告活动)的performance_95d需要20+批报告，每批2-7分钟，总计60-90分钟
+          'performance_today': 30, 'performance_7d': 60, 'performance_95d': 120, // v677: performance_95d从45→120分钟, performance_7d从45→60分钟（v676实测STEP_TIMEOUT导致95天绩效全部丢失）
           'sp_search_terms': 30, 'sb_search_terms': 30,
           'sp_placement_performance': 30, 'sb_placement_performance': 30,
-          'keyword_performance': 45, 'target_performance': 45, 'ad_group_performance': 45,
+          'keyword_performance': 90, 'target_performance': 90, 'ad_group_performance': 90, // v677: 从45→90分钟（nightly层级的绩效报告同样需要处理95天数据，大账户需要更长时间）
           // 素材步骤: 15分钟（从5分钟放宽）
           'sb_asset_urls': 15,
           // 竞价步骤: v665: SP建议竞价提升到60分钟（v664实测90045/90052在30分钟内仍无法完成），其他竞价步骤30分钟
