@@ -1510,6 +1510,18 @@ export async function syncAccount(
       account.marketplace
     );
 
+    // v676-fix: 手动全量同步时强制使用同步等待模式
+    // triggerManualFullSync 不经过 syncAll()，所以需要在这里设置 _forceSync
+    // 判断条件：isManual=true 且包含 nightly 步骤（如 performance_95d）
+    const hasNightlySteps = options?.specificSteps?.some(s => 
+      ['performance_95d', 'keyword_performance', 'ad_group_performance', 'target_performance', 'placement_performance'].includes(s)
+    );
+    if (options?.isManual && (hasNightlySteps || tier === 'full')) {
+      syncService._forceSync = true;
+      syncService._reportWaitTimeoutMs = 1800000; // 30分钟
+      log.info(`[v676-fix] syncAccount: 手动全量同步模式, _forceSync=true, 报告等待超时=1800秒`);
+    }
+
     // 确定要执行的步骤
     // v404: 当传入specificSteps时，从所有SYNC_STEPS中过滤（支持手动全量同步跨层级执行）
     let steps: SyncStep[];
