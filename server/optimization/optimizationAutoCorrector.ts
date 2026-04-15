@@ -34,6 +34,7 @@ import { sanitizeAndValidateKeyword, isProductTargetingCampaign } from '../utils
 import { createModuleLogger } from '../utils/logger';
 import { recordAudit, auditSystemAction } from '../services/auditLogService';
 import { safeInClause } from '../utils/safeSql';
+import { AutoOptimizeGuard } from '../services/autoOptimizeGuard';
 import v8 from 'v8';
 import { typedExecute, typedQuery, typedQueryOne } from '../db/types';
 
@@ -313,145 +314,116 @@ export async function runAutoCorrection(accountId?: number): Promise<CorrectionS
         break;
       }
       
-      // ===== v679: 自动优化开关检查 — 核心安全修复 =====
-      // 客户反馈"关闭自动优化后系统仍在调整出价"的根因：
-      // 纠错模块完全绕过了performance_groups.auto_optimize开关检查
-      // 修复策略：在主循环入口处检查账户下所有优化目标的auto_optimize状态
-      // 如果账户下所有优化目标都关闭了自动优化，则完全跳过该账户
-      // 如果部分关闭，则获取已关闭的campaign ID集合，传递给子函数过滤
+      // ===== v679.3: 统一AutoOptimizeGuard中间件 =====
+      // v679原始修复使用手动SQL查询+database属性注入，v679.3替换为统一Guard服务
+      // Guard提供：账户级跳过、campaign级过滤、被拦截操作审计、5分钟TTL缓存
+      let guard: AutoOptimizeGuard | null = null;
       try {
-        const autoOptResult = await database.execute(sql`
-          SELECT pg.id as pg_id, pg.auto_optimize, pg.status, pg.name,
-                 GROUP_CONCAT(c.campaignId) as campaign_ids
-          FROM performance_groups pg
-          LEFT JOIN campaigns c ON c.performanceGroupId = pg.id
-          WHERE pg.accountId = ${accId}
-          GROUP BY pg.id, pg.auto_optimize, pg.status, pg.name
-        `);
-        // @ts-ignore v679: drizzle/mysql2 untyped query result
-        const pgRows = (autoOptResult as unknown as Record<string, unknown>[][])[0] || autoOptResult;
+        guard = await AutoOptimizeGuard.create(accId, 'auto_correction');
         
-        if (Array.isArray(pgRows) && pgRows.length > 0) {
-          // @ts-ignore v679: drizzle/mysql2 untyped query result
-          const allDisabled = pgRows.every((r: any) => r.auto_optimize === 0 || r.status === 'paused' || r.status === 'archived');
-          
-          if (allDisabled) {
-            log.info(`[AutoCorrector] v679: 账户${accId} 所有优化目标的自动优化已关闭或已暂停/归档，跳过全部纠错操作`);
-            continue;
-          }
-          
-          // 收集已关闭自动优化的campaign IDs，用于子函数过滤
-          const disabledCampaignIds = new Set<number>();
-          for (const pgRow of (pgRows as any[])) {
-            if (pgRow.auto_optimize === 0 || pgRow.status === 'paused' || pgRow.status === 'archived') {
-              if (pgRow.campaign_ids) {
-                const ids = String(pgRow.campaign_ids).split(',').map(Number).filter(Boolean);
-                ids.forEach((id: number) => disabledCampaignIds.add(id));
-              }
-            }
-          }
-          
-          if (disabledCampaignIds.size > 0) {
-            // @ts-ignore v679: drizzle/mysql2 untyped query result
-            const disabledPgNames = pgRows.filter((r: any) => r.auto_optimize === 0 || r.status === 'paused' || r.status === 'archived').map((r: any) => r.name).join(', ');
-            log.info(`[AutoCorrector] v679: 账户${accId} 部分优化目标已关闭自动优化(${disabledPgNames})，涉及${disabledCampaignIds.size}个campaigns将被排除`);
-            
-            // 将已关闭的campaign IDs存储到上下文中，供子函数使用
-            // @ts-ignore v679: runtime context injection
-            (database as any).__v679_disabled_campaign_ids = disabledCampaignIds;
-          } else {
-            // @ts-ignore v679: runtime context injection
-            (database as any).__v679_disabled_campaign_ids = null;
-          }
+        if (guard.isAccountFullyDisabled()) {
+          const disabledPgNames = guard.getDisabledPgNames().join(', ');
+          log.info(`[AutoCorrector] v679.3: 账户${accId} 所有优化目标的自动优化已关闭(${disabledPgNames})，跳过全部纠错操作`);
+          continue;
         }
-      } catch (autoOptError: unknown) {
-        log.warn(`[AutoCorrector] v679: 账户${accId} 检查auto_optimize状态失败: ${(autoOptError as Error).message}，继续执行纠错`);
-        // @ts-ignore v679: runtime context injection
-        (database as any).__v679_disabled_campaign_ids = null;
+        
+        const disabledCount = guard.getDisabledCampaignIds().size;
+        if (disabledCount > 0) {
+          const disabledPgNames = guard.getDisabledPgNames().join(', ');
+          log.info(`[AutoCorrector] v679.3: 账户${accId} 部分优化目标已关闭自动优化(${disabledPgNames})，涉及${disabledCount}个campaigns将被排除`);
+        }
+      } catch (guardError: unknown) {
+        log.warn(`[AutoCorrector] v679.3: 账户${accId} AutoOptimizeGuard初始化失败: ${(guardError as Error).message}，继续执行纠错（无Guard保护）`);
+        guard = null;
       }
-      // ===== v679 END =====
+      // ===== v679.3 END =====
       
       try {
+        // v679.3: 实时审计辅助函数 — 每个子函数执行后立即记录审计日志
+        const auditCorrections = (stepCorrections: CorrectionResult[], stepName: string) => {
+          for (const c of stepCorrections) {
+            recordAudit({
+              action: 'optimization.auto_bid',
+              accountId: c.accountId,
+              entityType: c.targetType || 'keyword',
+              entityId: c.targetId,
+              previousValue: { value: c.previousValue },
+              newValue: { value: c.correctedValue, type: c.type },
+              source: 'system',
+              result: c.success ? 'success' : 'failure',
+              errorMessage: c.success ? undefined : (c.errorMessage || `${stepName}失败`),
+              metadata: {
+                module: 'AutoCorrector',
+                scanId,
+                step: stepName,
+                source: 'auto_correction',
+                reason: c.reason,
+              },
+            });
+          }
+          corrections.push(...stepCorrections);
+        };
+        
         // v426: 将cleanupExpiredDaypartingBids提升为第1步，确保每次扫描都优先清理过期记录
         // 这是最重要的清理步骤，因为分时出价失败占总失败数的92.6%
-        const daypartingCleanups = await cleanupExpiredDaypartingBids(database, accId);
-        corrections.push(...daypartingCleanups);
+        auditCorrections(await cleanupExpiredDaypartingBids(database, accId), 'cleanupExpiredDaypartingBids');
         
-        // 2. 重试API同步失败的出价调整
-        const bidRetries = await retryFailedBidAdjustments(database, accId);
-        corrections.push(...bidRetries);
+        // 2. 重试API同步失败的出价调整 (v679.3: 传递guard)
+        auditCorrections(await retryFailedBidAdjustments(database, accId, guard), 'retryFailedBidAdjustments');
         
-        // 2. 检测并纠正出价不一致
-        const bidMismatches = await correctBidMismatches(database, accId);
-        corrections.push(...bidMismatches);
+        // 2. 检测并纠正出价不一致 (v679.3: 传递guard)
+        auditCorrections(await correctBidMismatches(database, accId, guard), 'correctBidMismatches');
         
-        // 3. 重试API同步失败的预算调整
-        const budgetRetries = await retryFailedBudgetAdjustments(database, accId);
-        corrections.push(...budgetRetries);
+        // 3. 重试API同步失败的预算调整 (v679.3: 传递guard)
+        auditCorrections(await retryFailedBudgetAdjustments(database, accId, guard), 'retryFailedBudgetAdjustments');
         
         // 4. 检测并纠正预算不一致
-        const budgetMismatches = await correctBudgetMismatches(database, accId);
-        corrections.push(...budgetMismatches);
+        auditCorrections(await correctBudgetMismatches(database, accId), 'correctBudgetMismatches');
         
         // 5. 检测并纠正位置倾斜不一致
-        const placementMismatches = await correctPlacementMismatches(database, accId);
-        corrections.push(...placementMismatches);
+        auditCorrections(await correctPlacementMismatches(database, accId), 'correctPlacementMismatches');
         
-        // 6. 执行未真正执行的回滚
-        const rollbacks = await executeUnfinishedRollbacks(database, accId);
-        corrections.push(...rollbacks);
+        // 6. 执行未真正执行的回滚 (v679.3: 传递guard)
+        auditCorrections(await executeUnfinishedRollbacks(database, accId, guard), 'executeUnfinishedRollbacks');
         
-        // 7. 重试失败的设置变更
-        const settingsRetries = await retryFailedSettingsChanges(database, accId);
-        corrections.push(...settingsRetries);
+        // 7. 重试失败的设置变更 (v679.3: 传递guard)
+        auditCorrections(await retryFailedSettingsChanges(database, accId, guard), 'retryFailedSettingsChanges');
         
-        // 8. 重试失败/pending的关键词创建
-        const keywordCreateRetries = await retryFailedKeywordCreations(database, accId);
-        corrections.push(...keywordCreateRetries);
+        // 8. 重试失败/pending的关键词创建 (v679.3: 传递guard)
+        auditCorrections(await retryFailedKeywordCreations(database, accId, guard), 'retryFailedKeywordCreations');
         
-        // 9. 重试失败/pending的否定关键词添加
-        const negKeywordRetries = await retryFailedNegativeKeywordAdds(database, accId);
-        corrections.push(...negKeywordRetries);
+        // 9. 重试失败/pending的否定关键词添加 (v679.3: 传递guard)
+        auditCorrections(await retryFailedNegativeKeywordAdds(database, accId, guard), 'retryFailedNegativeKeywordAdds');
         
         // 10. v172: 检测并纠正超出max_bid的关键词出价
-        const maxBidViolations = await correctMaxBidViolations(database, accId);
-        corrections.push(...maxBidViolations);
+        auditCorrections(await correctMaxBidViolations(database, accId), 'correctMaxBidViolations');
         
         // 11. v172: 清理缺少Amazon ID的孤儿关键词（标记为invalid_legacy）
-        const orphanCleanups = await cleanupOrphanKeywords(database, accId);
-        corrections.push(...orphanCleanups);
+        auditCorrections(await cleanupOrphanKeywords(database, accId), 'cleanupOrphanKeywords');
         
-        // 12. v178: 重试历史失败的搜索词收割（从action_detail中提取信息重新创建关键词）
-        const harvestRetries = await retryHistoricalFailedKeywordHarvests(database, accId);
-        corrections.push(...harvestRetries);
+        // 12. v178: 重试历史失败的搜索词收割 (v679.3: 传递guard)
+        auditCorrections(await retryHistoricalFailedKeywordHarvests(database, accId, guard), 'retryHistoricalFailedKeywordHarvests');
         
         // 13. v190: 恢复permanently_failed的optimization_tasks队列任务
-        const taskRescues = await rescuePermanentlyFailedTasks(accId);
-        corrections.push(...taskRescues);
+        auditCorrections(await rescuePermanentlyFailedTasks(accId), 'rescuePermanentlyFailedTasks');
         
         // 14. v196: 回填缺少amazon_negative_keyword_id的否定词
-        const negIdBackfills = await backfillNegativeKeywordIds(database, accId);
-        corrections.push(...negIdBackfills);
+        auditCorrections(await backfillNegativeKeywordIds(database, accId), 'backfillNegativeKeywordIds');
         
         // 15. v196: 基于bidding_logs的出价执行确认 — 验证Amazon是否真正执行了出价调整
-        const bidConfirmations = await verifyBiddingLogsExecution(database, accId);
-        corrections.push(...bidConfirmations);
+        auditCorrections(await verifyBiddingLogsExecution(database, accId), 'verifyBiddingLogsExecution');
         
         // 16. v198: NextGen算法决策质量审计 — 检测旧算法遗留的不合理出价并用NextGen纠正
-        const qualityAudits = await auditAlgorithmDecisionQuality(database, accId);
-        corrections.push(...qualityAudits);
+        auditCorrections(await auditAlgorithmDecisionQuality(database, accId), 'auditAlgorithmDecisionQuality');
         
-        // 17. v202: 重试失败的关键词/投放目标状态变更(target_enable/target_pause)
-        const statusRetries = await retryFailedTargetStatusChanges(database, accId);
-        corrections.push(...statusRetries);
+        // 17. v202: 重试失败的关键词/投放目标状态变更 (v679.3: 传递guard)
+        auditCorrections(await retryFailedTargetStatusChanges(database, accId, guard), 'retryFailedTargetStatusChanges');
         
         // 18. v310: 重试失败/pending的商品定向创建
-        const ptCreateRetries = await retryFailedProductTargetCreations(database, accId);
-        corrections.push(...ptCreateRetries);
+        auditCorrections(await retryFailedProductTargetCreations(database, accId), 'retryFailedProductTargetCreations');
         
         // 19. v310: 增量pending指令合理性重评估
-        const pendingRevalidations = await revalidateStalePendingCommands(database, accId);
-        corrections.push(...pendingRevalidations);
+        auditCorrections(await revalidateStalePendingCommands(database, accId), 'revalidateStalePendingCommands');
         
         // 20. (v426: 已提升到第1步)
         
@@ -484,22 +456,8 @@ export async function runAutoCorrection(accountId?: number): Promise<CorrectionS
       },
     });
     
-    // v361: 对每个纠正动作记录审计日志
-    for (const correction of corrections) {
-      if (correction.success) {
-        recordAudit({
-          action: 'optimization.auto_bid',
-          accountId: correction.accountId,
-          entityType: correction.targetType || 'keyword',
-          entityId: correction.targetId,
-          previousValue: { value: correction.previousValue },
-          newValue: { value: correction.correctedValue, type: correction.type },
-          source: 'system',
-          result: 'success',
-          metadata: { module: 'AutoCorrector', scanId, reason: correction.reason },
-        });
-      }
-    }
+    // v679.3: 审计日志已在每个子函数执行后实时记录（包含成功和失败），无需批量审计
+    // 原 v361 批量审计循环已移除，避免重复记录
     
     // v204: 同步健康度评估和告警
     await evaluateSyncHealth(database, result);
@@ -572,7 +530,7 @@ async function fixNullApiSyncStatusRecords(database: unknown): Promise<number> {
 
 // ==================== 1. 重试失败的出价调整 ====================
 
-async function retryFailedBidAdjustments(database: unknown, accountId: number): Promise<CorrectionResult[]> {
+async function retryFailedBidAdjustments(database: unknown, accountId: number, guard?: AutoOptimizeGuard | null): Promise<CorrectionResult[]> {
   const results: CorrectionResult[] = [];
   
   try {
@@ -611,14 +569,21 @@ async function retryFailedBidAdjustments(database: unknown, accountId: number): 
     
     if (failedEvents.length === 0) return results;
     
-    // v679: 过滤已关闭自动优化的campaigns下的事件
-    // @ts-ignore v679: runtime context injection
-    const disabledCids = (database as any).__v679_disabled_campaign_ids as Set<number> | null;
-    const filteredEvents = disabledCids 
-      ? failedEvents.filter((e: any) => !disabledCids.has(Number(e.campaignId)))
+    // v679.3: 使用AutoOptimizeGuard过滤已关闭自动优化的campaigns下的事件
+    const filteredEvents = guard 
+      ? failedEvents.filter((e: any) => guard.isCampaignAllowed(Number(e.campaignId)))
       : failedEvents;
     if (filteredEvents.length < failedEvents.length) {
-      log.info(`[AutoCorrector] v679: 账户${accountId} retryFailedBidAdjustments 过滤了${failedEvents.length - filteredEvents.length}条已关闭自动优化的事件`);
+      const blockedCount = failedEvents.length - filteredEvents.length;
+      log.info(`[AutoCorrector] v679.3: 账户${accountId} retryFailedBidAdjustments 过滤了${blockedCount}条已关闭自动优化的事件`);
+      // v679.3: 记录被拦截的操作到审计日志
+      if (guard) {
+        guard.recordBlockedOperation({
+          operationType: 'retryFailedBidAdjustments',
+          entityType: 'keyword',
+          details: `拦截${blockedCount}条已关闭自动优化的出价重试事件`,
+        });
+      }
     }
     if (filteredEvents.length === 0) return results;
     
@@ -861,7 +826,7 @@ async function retryFailedBidAdjustments(database: unknown, accountId: number): 
 
 // ==================== 2. 检测并纠正出价不一致 ====================
 
-async function correctBidMismatches(database: unknown, accountId: number): Promise<CorrectionResult[]> {
+async function correctBidMismatches(database: unknown, accountId: number, guard?: AutoOptimizeGuard | null): Promise<CorrectionResult[]> {
   const results: CorrectionResult[] = [];
   
   try {
@@ -1137,7 +1102,7 @@ async function correctBidMismatches(database: unknown, accountId: number): Promi
 
 // ==================== 3. 重试失败的预算调整 ====================
 
-async function retryFailedBudgetAdjustments(database: unknown, accountId: number): Promise<CorrectionResult[]> {
+async function retryFailedBudgetAdjustments(database: unknown, accountId: number, guard?: AutoOptimizeGuard | null): Promise<CorrectionResult[]> {
   const results: CorrectionResult[] = [];
   
   try {
@@ -1172,14 +1137,20 @@ async function retryFailedBudgetAdjustments(database: unknown, accountId: number
     
     if (failedEvents.length === 0) return results;
     
-    // v679: 过滤已关闭自动优化的campaigns下的事件
-    // @ts-ignore v679: runtime context injection
-    const disabledCids = (database as any).__v679_disabled_campaign_ids as Set<number> | null;
-    const filteredBudgetEvents = disabledCids 
-      ? failedEvents.filter((e: any) => !disabledCids.has(Number(e.campaignId)))
+    // v679.3: 使用AutoOptimizeGuard过滤已关闭自动优化的campaigns下的事件
+    const filteredBudgetEvents = guard 
+      ? failedEvents.filter((e: any) => guard.isCampaignAllowed(Number(e.campaignId)))
       : failedEvents;
     if (filteredBudgetEvents.length < failedEvents.length) {
-      log.info(`[AutoCorrector] v679: 账户${accountId} retryFailedBudgetAdjustments 过滤了${failedEvents.length - filteredBudgetEvents.length}条已关闭自动优化的事件`);
+      const blockedCount = failedEvents.length - filteredBudgetEvents.length;
+      log.info(`[AutoCorrector] v679.3: 账户${accountId} retryFailedBudgetAdjustments 过滤了${blockedCount}条已关闭自动优化的事件`);
+      if (guard) {
+        guard.recordBlockedOperation({
+          operationType: 'retryFailedBudgetAdjustments',
+          entityType: 'campaign',
+          details: `拦截${blockedCount}条已关闭自动优化的预算重试事件`,
+        });
+      }
     }
     if (filteredBudgetEvents.length === 0) return results;
     
@@ -1547,7 +1518,7 @@ async function correctPlacementMismatches(database: unknown, accountId: number):
 
 // ==================== 6. 执行未完成的回滚 ====================
 
-async function executeUnfinishedRollbacks(database: unknown, accountId: number): Promise<CorrectionResult[]> {
+async function executeUnfinishedRollbacks(database: unknown, accountId: number, guard?: AutoOptimizeGuard | null): Promise<CorrectionResult[]> {
   const results: CorrectionResult[] = [];
   
   try {
@@ -1578,14 +1549,20 @@ async function executeUnfinishedRollbacks(database: unknown, accountId: number):
     
     if (unfinishedRollbacks.length === 0) return results;
     
-    // v679: 过滤已关闭自动优化的campaigns下的回滚
-    // @ts-ignore v679: runtime context injection
-    const disabledCids = (database as any).__v679_disabled_campaign_ids as Set<number> | null;
-    const filteredRollbacks = disabledCids 
-      ? unfinishedRollbacks.filter((e: any) => !disabledCids.has(Number(e.campaignId)))
+    // v679.3: 使用AutoOptimizeGuard过滤已关闭自动优化的campaigns下的回滚
+    const filteredRollbacks = guard 
+      ? unfinishedRollbacks.filter((e: any) => guard.isCampaignAllowed(Number(e.campaignId)))
       : unfinishedRollbacks;
     if (filteredRollbacks.length < unfinishedRollbacks.length) {
-      log.info(`[AutoCorrector] v679: 账户${accountId} executeUnfinishedRollbacks 过滤了${unfinishedRollbacks.length - filteredRollbacks.length}条已关闭自动优化的回滚`);
+      const blockedCount = unfinishedRollbacks.length - filteredRollbacks.length;
+      log.info(`[AutoCorrector] v679.3: 账户${accountId} executeUnfinishedRollbacks 过滤了${blockedCount}条已关闭自动优化的回滚`);
+      if (guard) {
+        guard.recordBlockedOperation({
+          operationType: 'executeUnfinishedRollbacks',
+          entityType: 'keyword',
+          details: `拦截${blockedCount}条已关闭自动优化的回滚事件`,
+        });
+      }
     }
     if (filteredRollbacks.length === 0) return results;
     
@@ -1665,7 +1642,7 @@ async function executeUnfinishedRollbacks(database: unknown, accountId: number):
 
 // ==================== 7. 重试失败的设置变更 ====================
 
-async function retryFailedSettingsChanges(database: unknown, accountId: number): Promise<CorrectionResult[]> {
+async function retryFailedSettingsChanges(database: unknown, accountId: number, guard?: AutoOptimizeGuard | null): Promise<CorrectionResult[]> {
   const results: CorrectionResult[] = [];
   
   try {
@@ -1697,14 +1674,20 @@ async function retryFailedSettingsChanges(database: unknown, accountId: number):
     
     if (failedEvents.length === 0) return results;
     
-    // v679: 过滤已关闭自动优化的campaigns下的事件
-    // @ts-ignore v679: runtime context injection
-    const disabledCids = (database as any).__v679_disabled_campaign_ids as Set<number> | null;
-    const filteredSettingsEvents = disabledCids 
-      ? failedEvents.filter((e: any) => !disabledCids.has(Number(e.campaignId)))
+    // v679.3: 使用AutoOptimizeGuard过滤已关闭自动优化的campaigns下的事件
+    const filteredSettingsEvents = guard 
+      ? failedEvents.filter((e: any) => guard.isCampaignAllowed(Number(e.campaignId)))
       : failedEvents;
     if (filteredSettingsEvents.length < failedEvents.length) {
-      log.info(`[AutoCorrector] v679: 账户${accountId} retryFailedSettingsChanges 过滤了${failedEvents.length - filteredSettingsEvents.length}条已关闭自动优化的事件`);
+      const blockedCount = failedEvents.length - filteredSettingsEvents.length;
+      log.info(`[AutoCorrector] v679.3: 账户${accountId} retryFailedSettingsChanges 过滤了${blockedCount}条已关闭自动优化的事件`);
+      if (guard) {
+        guard.recordBlockedOperation({
+          operationType: 'retryFailedSettingsChanges',
+          entityType: 'campaign',
+          details: `拦截${blockedCount}条已关闭自动优化的设置变更重试事件`,
+        });
+      }
     }
     if (filteredSettingsEvents.length === 0) return results;
     
@@ -1873,7 +1856,7 @@ async function retryFailedSettingsChanges(database: unknown, accountId: number):
 
 // ==================== 8. 重试失败/pending的关键词创建 ====================
 
-async function retryFailedKeywordCreations(database: unknown, accountId: number): Promise<CorrectionResult[]> {
+async function retryFailedKeywordCreations(database: unknown, accountId: number, guard?: AutoOptimizeGuard | null): Promise<CorrectionResult[]> {
   const results: CorrectionResult[] = [];
   
   try {
@@ -1908,14 +1891,20 @@ async function retryFailedKeywordCreations(database: unknown, accountId: number)
     
     if (failedEvents.length === 0) return results;
     
-    // v679: 过滤已关闭自动优化的campaigns下的事件
-    // @ts-ignore v679: runtime context injection
-    const disabledCids = (database as any).__v679_disabled_campaign_ids as Set<number> | null;
-    const filteredKwEvents = disabledCids 
-      ? failedEvents.filter((e: any) => !disabledCids.has(Number(e.campaignId)))
+    // v679.3: 使用AutoOptimizeGuard过滤已关闭自动优化的campaigns下的事件
+    const filteredKwEvents = guard 
+      ? failedEvents.filter((e: any) => guard.isCampaignAllowed(Number(e.campaignId)))
       : failedEvents;
     if (filteredKwEvents.length < failedEvents.length) {
-      log.info(`[AutoCorrector] v679: 账户${accountId} retryFailedKeywordCreations 过滤了${failedEvents.length - filteredKwEvents.length}条已关闭自动优化的事件`);
+      const blockedCount = failedEvents.length - filteredKwEvents.length;
+      log.info(`[AutoCorrector] v679.3: 账户${accountId} retryFailedKeywordCreations 过滤了${blockedCount}条已关闭自动优化的事件`);
+      if (guard) {
+        guard.recordBlockedOperation({
+          operationType: 'retryFailedKeywordCreations',
+          entityType: 'keyword',
+          details: `拦截${blockedCount}条已关闭自动优化的关键词创建重试事件`,
+        });
+      }
     }
     if (filteredKwEvents.length === 0) return results;
     
@@ -2056,7 +2045,7 @@ async function retryFailedKeywordCreations(database: unknown, accountId: number)
 
 // ==================== 9. 重试失败/pending的否定关键词添加 ====================
 
-async function retryFailedNegativeKeywordAdds(database: unknown, accountId: number): Promise<CorrectionResult[]> {
+async function retryFailedNegativeKeywordAdds(database: unknown, accountId: number, guard?: AutoOptimizeGuard | null): Promise<CorrectionResult[]> {
   const results: CorrectionResult[] = [];
   
   try {
@@ -2090,14 +2079,20 @@ async function retryFailedNegativeKeywordAdds(database: unknown, accountId: numb
     
     if (failedEvents.length === 0) return results;
     
-    // v679: 过滤已关闭自动优化的campaigns下的事件
-    // @ts-ignore v679: runtime context injection
-    const disabledCids = (database as any).__v679_disabled_campaign_ids as Set<number> | null;
-    const filteredNegEvents = disabledCids 
-      ? failedEvents.filter((e: any) => !disabledCids.has(Number(e.campaignId)))
+    // v679.3: 使用AutoOptimizeGuard过滤已关闭自动优化的campaigns下的事件
+    const filteredNegEvents = guard 
+      ? failedEvents.filter((e: any) => guard.isCampaignAllowed(Number(e.campaignId)))
       : failedEvents;
     if (filteredNegEvents.length < failedEvents.length) {
-      log.info(`[AutoCorrector] v679: 账户${accountId} retryFailedNegativeKeywordAdds 过滤了${failedEvents.length - filteredNegEvents.length}条已关闭自动优化的事件`);
+      const blockedCount = failedEvents.length - filteredNegEvents.length;
+      log.info(`[AutoCorrector] v679.3: 账户${accountId} retryFailedNegativeKeywordAdds 过滤了${blockedCount}条已关闭自动优化的事件`);
+      if (guard) {
+        guard.recordBlockedOperation({
+          operationType: 'retryFailedNegativeKeywordAdds',
+          entityType: 'negative_keyword',
+          details: `拦截${blockedCount}条已关闭自动优化的否定关键词重试事件`,
+        });
+      }
     }
     if (filteredNegEvents.length === 0) return results;
     
@@ -3055,7 +3050,7 @@ async function cleanupOrphanKeywords(database: unknown, accountId: number): Prom
  * 
  * 每次扫描最多处理 20 个事件，避免 API 限流
  */
-async function retryHistoricalFailedKeywordHarvests(database: unknown, accountId: number): Promise<CorrectionResult[]> {
+async function retryHistoricalFailedKeywordHarvests(database: unknown, accountId: number, guard?: AutoOptimizeGuard | null): Promise<CorrectionResult[]> {
   const results: CorrectionResult[] = [];
   const MAX_PER_RUN = 20; // 每次扫描最多处理的数量
   
@@ -3080,14 +3075,20 @@ async function retryHistoricalFailedKeywordHarvests(database: unknown, accountId
     const events = (failedEvents as unknown as Record<string, unknown>)[0] || failedEvents;
     if (!events || events.length === 0) return results;
     
-    // v679: 过滤已关闭自动优化的campaigns下的事件
-    // @ts-ignore v679: runtime context injection
-    const disabledCids = (database as any).__v679_disabled_campaign_ids as Set<number> | null;
-    const filteredHarvestEvents = disabledCids 
-      ? (events as any[]).filter((e: any) => !disabledCids.has(Number(e.campaign_id || e.campaignId)))
+    // v679.3: 使用AutoOptimizeGuard过滤已关闭自动优化的campaigns下的事件
+    const filteredHarvestEvents = guard 
+      ? (events as any[]).filter((e: any) => guard.isCampaignAllowed(Number(e.campaign_id || e.campaignId)))
       : events;
     if ((filteredHarvestEvents as any[]).length < (events as any[]).length) {
-      log.info(`[AutoCorrector] v679: 账户${accountId} retryHistoricalFailedKeywordHarvests 过滤了${(events as any[]).length - (filteredHarvestEvents as any[]).length}条已关闭自动优化的事件`);
+      const blockedCount = (events as any[]).length - (filteredHarvestEvents as any[]).length;
+      log.info(`[AutoCorrector] v679.3: 账户${accountId} retryHistoricalFailedKeywordHarvests 过滤了${blockedCount}条已关闭自动优化的事件`);
+      if (guard) {
+        guard.recordBlockedOperation({
+          operationType: 'retryHistoricalFailedKeywordHarvests',
+          entityType: 'keyword',
+          details: `拦截${blockedCount}条已关闭自动优化的搜索词收割重试事件`,
+        });
+      }
     }
     if (!filteredHarvestEvents || (filteredHarvestEvents as any[]).length === 0) return results;
     
@@ -4355,7 +4356,7 @@ export async function runDaypartingCleanup(): Promise<{ accountsCleaned: number;
  * 3. 调用 syncKeywordStatusToAmazon 重新同步
  * 4. 更新事件状态
  */
-async function retryFailedTargetStatusChanges(database: unknown, accountId: number): Promise<CorrectionResult[]> {
+async function retryFailedTargetStatusChanges(database: unknown, accountId: number, guard?: AutoOptimizeGuard | null): Promise<CorrectionResult[]> {
   const results: CorrectionResult[] = [];
   
   try {
@@ -4395,14 +4396,20 @@ async function retryFailedTargetStatusChanges(database: unknown, accountId: numb
     
     if (failedEvents.length === 0) return results;
     
-    // v679: 过滤已关闭自动优化的campaigns下的事件
-    // @ts-ignore v679: runtime context injection
-    const disabledCids = (database as any).__v679_disabled_campaign_ids as Set<number> | null;
-    const filteredStatusEvents = disabledCids 
-      ? failedEvents.filter((e: any) => !disabledCids.has(Number(e.campaignId)))
+    // v679.3: 使用AutoOptimizeGuard过滤已关闭自动优化的campaigns下的事件
+    const filteredStatusEvents = guard 
+      ? failedEvents.filter((e: any) => guard.isCampaignAllowed(Number(e.campaignId)))
       : failedEvents;
     if (filteredStatusEvents.length < failedEvents.length) {
-      log.info(`[AutoCorrector] v679: 账户${accountId} retryFailedTargetStatusChanges 过滤了${failedEvents.length - filteredStatusEvents.length}条已关闭自动优化的事件`);
+      const blockedCount = failedEvents.length - filteredStatusEvents.length;
+      log.info(`[AutoCorrector] v679.3: 账户${accountId} retryFailedTargetStatusChanges 过滤了${blockedCount}条已关闭自动优化的事件`);
+      if (guard) {
+        guard.recordBlockedOperation({
+          operationType: 'retryFailedTargetStatusChanges',
+          entityType: 'keyword',
+          details: `拦截${blockedCount}条已关闭自动优化的状态变更重试事件`,
+        });
+      }
     }
     if (filteredStatusEvents.length === 0) return results;
     
