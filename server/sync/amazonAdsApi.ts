@@ -817,7 +817,7 @@ export class AmazonAdsApiClient {
     
     do {
       const body: Record<string, unknown> = { 
-        maxResults: 100,
+        maxResults: 10000, // v679: SP API v3支持最大10000，从100提升减少分页次数（3225 campaigns: 33次→1次）
         // 请求扩展字段，包括startDate和endDate
         includeExtendedDataFields: true
       };
@@ -936,7 +936,7 @@ export class AmazonAdsApiClient {
     let lastError: Error | null = null;
     
     do {
-      const body: Record<string, unknown> = { maxResults: 100 };
+      const body: Record<string, unknown> = { maxResults: 10000 }; // v679: SP API v3支持最大10000
       if (campaignId) {
         body.campaignIdFilter = { include: [String(campaignId)] };
       }
@@ -1005,7 +1005,7 @@ export class AmazonAdsApiClient {
     let lastError: Error | null = null;
     
     do {
-      const body: Record<string, unknown> = { maxResults: 100 };
+      const body: Record<string, unknown> = { maxResults: 10000 }; // v679: SP API v3支持最大10000
       if (adGroupId) {
         // v129: Amazon SP API v3要求adGroupId为字符串类型
         body.adGroupIdFilter = { include: [String(adGroupId)] };
@@ -1648,7 +1648,7 @@ export class AmazonAdsApiClient {
     let lastError: Error | null = null;
     
     do {
-      const body: Record<string, unknown> = { maxResults: 100 };
+      const body: Record<string, unknown> = { maxResults: 10000 }; // v679: SP API v3支持最大10000
       if (adGroupId) {
         body.adGroupIdFilter = { include: [String(adGroupId)] };
       }
@@ -4924,7 +4924,7 @@ export class AmazonAdsApiClient {
     let nextToken: string | undefined;
     
     do {
-      const body: Record<string, unknown> = { maxResults: 100 };
+      const body: Record<string, unknown> = { maxResults: 10000 }; // v679: SP API v3支持最大10000
       if (campaignId) {
         body.campaignIdFilter = { include: [String(campaignId)] };
       }
@@ -5114,7 +5114,7 @@ export class AmazonAdsApiClient {
     let nextToken: string | undefined;
     
     do {
-      const body: Record<string, unknown> = { maxResults: 100 };
+      const body: Record<string, unknown> = { maxResults: 10000 }; // v679: SP API v3支持最大10000
       if (adGroupId) {
         body.adGroupIdFilter = { include: [String(adGroupId)] };
       }
@@ -5249,7 +5249,7 @@ export class AmazonAdsApiClient {
     let nextToken: string | undefined;
     
     do {
-      const body: Record<string, unknown> = { maxResults: 100 };
+      const body: Record<string, unknown> = { maxResults: 10000 }; // v679: SP API v3支持最大10000
       // @ts-expect-error - legacy type assertion
       if (campaignId) {
         body.campaignIdFilter = { include: [String(campaignId)] };
@@ -5312,7 +5312,7 @@ export class AmazonAdsApiClient {
     let nextToken: string | undefined;
     
     do {
-      const body: Record<string, unknown> = { maxResults: 100 };
+      const body: Record<string, unknown> = { maxResults: 10000 }; // v679: SP API v3支持最大10000
       if (adGroupId) {
         body.adGroupIdFilter = { include: [String(adGroupId)] };
       }

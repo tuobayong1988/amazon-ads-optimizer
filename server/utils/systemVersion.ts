@@ -13,5 +13,4 @@
  * 每次发版时，只需修改此文件中的版本号，并在 postDeployOptimizer.ts 的
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
-
-export const SYSTEM_VERSION = 676;  // v676: P5报告同步等待+端点分类修复+预算规则平滑+账户90107修复
+export const SYSTEM_VERSION = 679;  // v679: 数据同步效率优化 — 分层时间窗口+跨批并行报告提交+新账户渐进式初始化+SP分馇10000

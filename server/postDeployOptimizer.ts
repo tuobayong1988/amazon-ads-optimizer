@@ -1297,6 +1297,12 @@ const VERSION_CHANGELOG: VersionChange[] = [
     affectedModules: ['syncPerformance', 'apiRateLimit', 'budgetRules', 'dataRepair'],
     correctionActions: ['repair_organization_id_90107'],
   },
+  {
+    version: 679,
+    description: 'v679: [数据同步效率优化] — 基于v678分析报告: (1)P0-分层时间窗口+跨批并行报告提交: 将所有时间切片的报告一次性提交到Amazon统一轮询,从14批串行(70-100分钟)变为并行(5-10分钟) (2)P1-新账户渐进式初始化: 分三阶段(7天热数据→1-30天温数据→31-95天冷数据),每阶段独立失败/重试,支持断点续传 (3)P2-SP分页优化: maxResults从100提升到10000(SP API v3最大值),减少分页请求次数33倍 (4)P3-步骤超时缩短: performance_95d从120→30分钟,keyword/target/adgroup_performance从90→30分钟',
+    affectedModules: ['sync', 'reporting'],
+    correctionActions: [],
+  },
 ];
 
 // ==================== 配置 ====================

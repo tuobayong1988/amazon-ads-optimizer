@@ -73,100 +73,105 @@ AmazonSyncService.prototype.syncPerformanceData = async function(this: AmazonSyn
   const db = await getDb();
   if (!db) {
     log.warn('[v358] 数据库连接失败 - 这是一个真实错误，不是"0条数据"');
-    // v358: 抛出错误而不是返回0，让调用方知道这是失败而非空数据
     throw new Error('DATABASE_UNAVAILABLE: 数据库连接失败');
   }
 
   try {
-    // v640: 大账户自适应分段同步
-    // 根据广告活动数量动态调整单批天数，减少单次API请求的数据量
-    let campaignCount = 0;
-    try {
-      const countResult = await db.select({ count: sql<number>`count(*)` })
-        .from(campaigns)
-        .where(eq(campaigns.accountId, this.accountId));
-      campaignCount = countResult[0]?.count || 0;
-    } catch (e) {
-      log.warn(`[v640] 获取广告活动数量失败，使用默认分批策略`);
-    }
+    // v679: 分层时间窗口 + 跨批并行报告提交
+    // 核心改进：将所有时间切片的报告一次性提交到Amazon，统一轮询
+    // 之前(v678): 14批 × 串行等待 = 70-100分钟
+    // 现在(v679): 所有报告并行提交+统一轮询 = 5-10分钟
+    const { generateDateSlices, buildAllReportRequests, describeSyncPlan, RETENTION_LIMITS } = await import('./tieredPerformanceSync');
 
-    // v640: 根据账户规模动态调整分批天数
-    // 小账户(<100 campaigns): 31天/批（默认）
-    // 中账户(100-500): 21天/批
-    // 大账户(500-2000): 14天/批
-    // 超大账户(>2000): 7天/批
-    let MAX_DAYS_PER_REQUEST = 31;
-    let accountSizeLabel = 'Small';
-    if (campaignCount > 2000) {
-      MAX_DAYS_PER_REQUEST = 7;
-      accountSizeLabel = 'Super-XL';
-    } else if (campaignCount > 500) {
-      MAX_DAYS_PER_REQUEST = 14;
-      accountSizeLabel = 'XL';
-    } else if (campaignCount > 100) {
-      MAX_DAYS_PER_REQUEST = 21;
-      accountSizeLabel = 'Medium';
-    }
-    log.info(`[v640] 账户 ${this.accountId} 规模: ${accountSizeLabel} (${campaignCount} campaigns), 分批天数: ${MAX_DAYS_PER_REQUEST}天/批`);
-
-    const totalDays = Math.min(days, 90); // 最多90天（SP支持95天，SB只支持60天，取90天作为平衡）
-    
+    const totalDays = Math.min(days, 95);
     let totalSynced = 0;
-    // v358: 追踪失败批次，不再静默吞掉错误
-    const failedBatches: { batch: number; startDate: string; endDate: string; error: string }[] = [];
     
-    // 使用站点时区计算历史日期范围（排除今天，只拉取T-1及之前的数据）
-    // 快慢双轨架构：API只负责历史数据，今日数据由AMS实时推送
-    // v102: Include today in sync range
+    // 使用站点时区计算历史日期范围
     const { startDate: rangeStartDate, endDate: rangeEndDate } = getMarketplaceDateRange(this.marketplace, totalDays);
     log.debug(`站点${this.marketplace}当前日期: ${getMarketplaceCurrentDate(this.marketplace)}`);
-    log.info(`API同步范围: ${rangeStartDate} - ${rangeEndDate} (排除今天，今日数据由AMS提供)`);
+    log.info(`[v679] API同步范围: ${rangeStartDate} - ${rangeEndDate}`);
     
-    // 计算需要分几批请求
-    const batches = Math.ceil(totalDays / MAX_DAYS_PER_REQUEST);
-    log.info(`开始同步绩效数据: 共${totalDays}天，分${batches}批请求 (站点: ${this.marketplace})`);
+    // v679: 确定同步模式
+    let syncMode = 'full';
+    if (days <= 1) syncMode = 'high';
+    else if (days <= 7) syncMode = 'medium';
+    else if (days <= 14) syncMode = 'medium';
+    // days > 14 使用 full 模式
     
-    for (let batch = 0; batch < batches; batch++) {
-      // 计算每批的日期范围（基于站点时区）
-      const endDateObj = new Date(rangeEndDate);
-      endDateObj.setDate(endDateObj.getDate() - (batch * MAX_DAYS_PER_REQUEST));
+    // v679: 生成分层时间切片
+    const slices = generateDateSlices(syncMode, this.marketplace, rangeEndDate, { customDays: totalDays });
+    const planDesc = describeSyncPlan(syncMode, slices);
+    log.info(`[v679] 分层同步计划: ${planDesc}`);
+    
+    if (slices.length === 0) {
+      log.warn(`[v679] 无可用时间切片，跳过绩效同步`);
+      return 0;
+    }
+    
+    // v679: 构建所有报告请求（跨批并行）
+    const allReportRequests = buildAllReportRequests(slices, this.client);
+    log.info(`[v679] 跨批并行: 共${allReportRequests.length}个报告请求（${slices.length}个时间切片 × 多广告类型），一次性提交`);
+    
+    // 转换为submitAndWaitMultipleReports所需的格式
+    const reportRequestList = allReportRequests.map(r => ({
+      name: r.name,
+      requestFn: r.requestFn,
+    }));
+    
+    // v679: P5异步模式检查
+    if (process.env.P5_ASYNC_REPORTS === 'true' && !this._forceSync) {
+      const asyncResult = await this.client.submitReportsToAsyncQueue(reportRequestList, {
+        accountId: this.accountId,
+        profileId: String(this.client.credentials?.profileId || ''),
+        startDate: rangeStartDate,
+        endDate: rangeEndDate,
+        syncType: 'performance_tiered',
+      });
+      log.info(`[v679] P5异步模式: ${asyncResult.queued}个报告已提交到异步队列`);
+      return totalSynced;
+    }
+    
+    // v679: 一次性提交所有报告，统一轮询
+    const reportWaitTimeout = this._reportWaitTimeoutMs || 600000;
+    log.info(`[v679] 开始跨批并行提交: ${reportRequestList.length}个报告, 超时=${Math.round(reportWaitTimeout / 1000)}秒`);
+    
+    const reportResults = await this.client.submitAndWaitMultipleReports(reportRequestList, reportWaitTimeout, 2000);
+    
+    // v679: 处理报告结果 - 按广告类型分组处理
+    const failedReports: string[] = [];
+    let successCount = 0;
+    
+    for (let i = 0; i < reportResults.length; i++) {
+      const result = reportResults[i];
+      const req = allReportRequests[i];
       
-      const startDateObj = new Date(endDateObj);
-      const daysInBatch = Math.min(MAX_DAYS_PER_REQUEST, totalDays - (batch * MAX_DAYS_PER_REQUEST));
-      startDateObj.setDate(startDateObj.getDate() - daysInBatch + 1);
-      
-      const startDateStr = startDateObj.toISOString().split('T')[0];
-      const endDateStr = endDateObj.toISOString().split('T')[0];
-      
-      log.debug(`第${batch + 1}/${batches}批: ${startDateStr} - ${endDateStr} (共${daysInBatch}天)`);
-      
-      try {
-        // @ts-expect-error - legacy type assertion
-        const batchSynced = await this.syncPerformanceDataBatch(startDateStr, endDateStr);
-        totalSynced += batchSynced;
-        log.info(`第${batch + 1}批同步完成: ${batchSynced}条记录`);
-        
-        // 批次之间稍作延迟，避免触发API速率限制
-        if (batch < batches - 1) {
-          await new Promise(resolve => setTimeout(resolve, 2000));
+      if (result.data && result.data.length > 0) {
+        try {
+          // @ts-expect-error - runtime type mismatch
+          const synced = await this.processReportData(db, result.data, req.adType);
+          totalSynced += synced;
+          successCount++;
+          log.info(`[v679] ${result.name}: ${result.data.length}条数据, 入库${synced}条`);
+        } catch (processErr: unknown) {
+          log.warn(`[v679] ${result.name} 数据处理失败: ${(processErr as Error).message}`);
+          failedReports.push(`${result.name}: 处理失败`);
         }
-      } catch (batchError: unknown) {
-        const errMsg = (batchError as Error).message || '';
-        // v474: 日期保留期限制的400错误是预期的（SD/SB只保留~60天），降级为WARN
-        if (errMsg.includes('retention') || errMsg.includes('startDate') || errMsg.includes('configuration date')) {
-          log.warn(`[v474] 第${batch + 1}/${batches}批超出数据保留期，跳过: ${startDateStr}~${endDateStr}`);
+      } else if (result.error) {
+        // 数据保留期错误是预期的，不计入失败
+        if (result.error.includes('retention') || result.error.includes('configuration date')) {
+          log.debug(`[v679] ${result.name}: 超出数据保留期，跳过`);
         } else {
-          log.warn(`[v358] 第${batch + 1}/${batches}批同步失败: ${errMsg}`);
-          failedBatches.push({
-            batch: batch + 1,
-            startDate: startDateStr,
-            endDate: endDateStr,
-            error: errMsg,
-          });
+          failedReports.push(`${result.name}: ${result.error}`);
         }
-        // 继续下一批，不中断整个同步过程
+      } else {
+        log.debug(`[v679] ${result.name}: 数据为空`);
       }
-    // @ts-expect-error - legacy type assertion
+    }
+    
+    log.info(`[v679] 跨批并行完成: ${successCount}/${reportResults.length}成功, 失败${failedReports.length}个, 总入库${totalSynced}条`);
+    
+    if (failedReports.length > 0) {
+      log.warn(`[v679] 失败报告: ${failedReports.slice(0, 5).join('; ')}${failedReports.length > 5 ? `...等${failedReports.length}个` : ''}`);
     }
     
     // 同步完成后，更新campaigns表的绩效汇总数据
@@ -182,16 +187,7 @@ AmazonSyncService.prototype.syncPerformanceData = async function(this: AmazonSyn
       log.warn(`v195: hourly_performance生成失败: ${(hourlyErr as Error).message}`);
     }
     
-    // v640: 改进的部分失败处理 - 不再抛出错误，而是记录并继续
-    // 原因：抛出错误会导致整个同步任务被标记为失败，但实际上大部分数据已成功同步
-    if (failedBatches.length > 0) {
-      const failSummary = failedBatches.map(fb => `批次${fb.batch}(${fb.startDate}~${fb.endDate}): ${fb.error}`).join('; ');
-      log.warn(`[v640] 绩效数据同步部分失败: ${failedBatches.length}/${batches}批失败, 成功同步${totalSynced}条. 失败详情: ${failSummary}`);
-      // v640: 不再抛出错误，而是返回已成功同步的数量，让同步继续执行后续步骤
-      // 失败的批次将在下一个同步周期自动重试
-    }
-    
-    log.info(`绩效数据同步完成: 共${totalSynced}条记录`);
+    log.info(`[v679] 绩效数据同步完成: 共${totalSynced}条记录`);
     return totalSynced;
   } catch (error: unknown) {
     // v358: 如果是我们自己抛出的PARTIAL_SYNC_FAILURE，直接重新抛出

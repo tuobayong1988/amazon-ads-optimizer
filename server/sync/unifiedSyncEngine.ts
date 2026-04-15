@@ -989,9 +989,31 @@ const SYNC_STEPS: SyncStep[] = [
     tier: 'full',
     execute: async (service, ctx) => {
       try {
-        const days = ctx.incrementalMode ? ctx.incrementalReportDays.sp : 95; // v663: 增量模式缩短天数
+        // v679: 新账户渐进式初始化检测
+        const { needsProgressiveInit, createInitProgress, executeProgressiveInit, loadInitProgress, saveInitProgress } = await import('./progressiveInitSync');
+        const needsInit = await needsProgressiveInit(ctx.accountId);
+        
+        if (needsInit) {
+          log.info(`[v679] 账户${ctx.accountId}需要渐进式初始化同步`);
+          // 加载已有进度或创建新进度
+          let progress = await loadInitProgress(ctx.accountId);
+          if (!progress || progress.overallStatus === 'completed') {
+            progress = createInitProgress(ctx.accountId);
+          }
+          
+          progress = await executeProgressiveInit(service, progress);
+          await saveInitProgress(progress);
+          
+          const totalSynced = Object.values(progress.phases)
+            .reduce((sum, p) => sum + (p.recordsSynced || 0), 0);
+          log.info(`[v679] 渐进式初始化完成: 状态=${progress.overallStatus}, 总同步=${totalSynced}条`);
+          return { success: progress.overallStatus !== 'pending', synced: totalSynced, errors: [] };
+        }
+        
+        // v679: 非新账户，使用分层时间窗口+跨批并行模式
+        const days = ctx.incrementalMode ? ctx.incrementalReportDays.sp : 95;
         // @ts-expect-error - v652: prototype mixin method
-        const synced = await service.syncPerformanceData(days); // v376: 绩效数据扩展到95天（SP API最大支持范围）
+        const synced = await service.syncPerformanceData(days);
         return { success: true, synced, errors: [] };
       } catch (e: unknown) {
         return { success: false, synced: 0, errors: [(e as Error).message] };
@@ -1902,11 +1924,13 @@ export async function syncAccount(
           'sp_negative_targets': 50, 'sb_negative_targets': 15, 'sd_negative_targets': 15, // v666: sp_negative_targets从15→50分钟（针对90052等大账户）
           'sp_auto_targeting': 10, 'sd_targeting': 10, 'sb_targeting': 10,
           'sb_ads': 10, 'sp_budget_rules': 10,
-          // 报告步骤: v677: 大幅放宽绩效报告步骤超时 — v676实测90023(3225广告活动)的performance_95d需要20+批报告，每批2-7分钟，总计60-90分钟
-          'performance_today': 30, 'performance_7d': 120, 'performance_95d': 120, // v678: performance_7d从60→120分钟（v677实测90023的60分钟仍不够）
+          // v679: 报告步骤超时大幅缩短 — 跨批并行提交后所有报告统一轮询，不再串行等待
+          // v678: performance_7d=120分钟, performance_95d=120分钟（串行14批）
+          // v679: performance_7d=15分钟, performance_95d=30分钟（跨批并行）
+          'performance_today': 15, 'performance_7d': 15, 'performance_95d': 30, // v679: 跨批并行后大幅缩短）
           'sp_search_terms': 30, 'sb_search_terms': 30,
           'sp_placement_performance': 30, 'sb_placement_performance': 30,
-          'keyword_performance': 90, 'target_performance': 90, 'ad_group_performance': 90, // v677: 从45→90分钟（nightly层级的绩效报告同样需要处理95天数据，大账户需要更长时间）
+          'keyword_performance': 30, 'target_performance': 30, 'ad_group_performance': 30, // v679: 从90→30分钟（跨批并行提交后统一轮询）
           // 素材步骤: 15分钟（从5分钟放宽）
           'sb_asset_urls': 15,
           // 竞价步骤: v665: SP建议竞价提升到60分钟（v664实测90045/90052在30分钟内仍无法完成），其他竞价步骤30分钟
