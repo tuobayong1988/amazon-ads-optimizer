@@ -2850,26 +2850,22 @@ export class AmazonAdsApiClient {
         endDate,
         configuration: {
           adProduct: 'SPONSORED_PRODUCTS',
-          // @ts-expect-error - legacy type assertion
           groupBy: ['adGroup'],
-          // @ts-expect-error - legacy type assertion
           columns: [
-            // v473: 修复reportTypeId - Amazon文档明确说明SP没有独立的adGroup报告类型
-            // 正确做法: 使用spCampaigns + groupBy:['adGroup'] 获取广告组级别数据
-            'campaignId',
-            'campaignName',
+            // v678: 修复列名 — spCampaigns+groupBy:['adGroup']模式下:
+            // - 不支持 campaignId/campaignName (campaign级别列)
+            // - 不支持 salesOtherSku7d/unitsSoldOtherSku7d
+            // - 使用 spend 而非 cost
             'adGroupId',
             'adGroupName',
             'impressions',
             'clicks',
-            'cost',
+            'spend',                             // v678: cost → spend (groupBy:adGroup模式下的正确列名)
             'sales7d',
             'purchases7d',
             'unitsSoldClicks7d',
             'attributedSalesSameSku7d',
-            'unitsSoldSameSku7d',
-            'salesOtherSku7d',
-            'unitsSoldOtherSku7d'
+            'unitsSoldSameSku7d'
           ],
           reportTypeId: 'spCampaigns',
           timeUnit: 'SUMMARY',
@@ -2914,30 +2910,35 @@ export class AmazonAdsApiClient {
     try {
       log.debug(`[Amazon API] 请求SB广告组报告: ${startDate} - ${endDate}`);
       
+      // v678: SB不支持 sbCampaigns + groupBy:['adGroup'] 组合
+      // 改用 sbCampaigns + groupBy:['campaign'] 获取campaign级别数据
+      // 在syncPerformance中通过campaign→adGroup映射更新广告组绩效
       const requestBody = {
-        name: `SB AdGroup Report ${startDate} to ${endDate}`,
-        // @ts-expect-error - legacy type assertion
+        name: `SB Campaign-for-AdGroup Report ${startDate} to ${endDate}`,
         startDate,
-        // @ts-expect-error - legacy type assertion
         endDate,
         configuration: {
           adProduct: 'SPONSORED_BRANDS',
-          groupBy: ['adGroup'],
+          groupBy: ['campaign'],
           columns: [
-            // v473: 修复reportTypeId - SB也应使用sbCampaigns + groupBy:['adGroup']
+            // v678: 使用sbCampaigns+groupBy:['campaign']的正确列名
             'campaignId',
             'campaignName',
-            'adGroupId',
-            'adGroupName',
             'impressions',
             'clicks',
             'cost',
-            'salesClicks14d',
-            'purchasesClicks14d',
-            'unitsSoldClicks14d',
-            'dpv14d',
-            'attributedSalesNewToBrand14d',
-            'attributedOrdersNewToBrand14d'
+            'sales',                             // 14天总销售额
+            'purchases',                         // 14天总订单数
+            'unitsSold',                         // 14天总单位数
+            'detailPageViews',                   // 14天详情页浏览量
+            'newToBrandPurchases',               // 14天新品牌订单数
+            'newToBrandSales'                    // 14天新品牌销售额
+          ],
+          filters: [
+            {
+              field: 'campaignStatus',
+              values: ['ARCHIVED', 'ENABLED', 'PAUSED']
+            }
           ],
           reportTypeId: 'sbCampaigns',
           timeUnit: 'SUMMARY',
@@ -2982,29 +2983,30 @@ export class AmazonAdsApiClient {
     try {
       log.debug(`[Amazon API] 请求SD广告组报告: ${startDate} - ${endDate}`);
       
-      // @ts-expect-error - legacy type assertion
+      // v678: SD不支持 groupBy:['adGroup'] (Allowed: campaign, matchedTarget)
+      // 改用 sdCampaigns + groupBy:['campaign'] 获取campaign级别数据
+      // 在syncPerformance中通过campaign→adGroup映射更新广告组绩效
       const requestBody = {
-        name: `SD AdGroup Report ${startDate} to ${endDate}`,
+        name: `SD Campaign-for-AdGroup Report ${startDate} to ${endDate}`,
         startDate,
         endDate,
         configuration: {
           adProduct: 'SPONSORED_DISPLAY',
-          groupBy: ['adGroup'],
+          groupBy: ['campaign'],
           columns: [
-            // v473: 修复reportTypeId - SD也应使用sdCampaigns + groupBy:['adGroup']
+            // v678: 使用sdCampaigns+groupBy:['campaign']的正确列名
             'campaignId',
             'campaignName',
-            'adGroupId',
-            'adGroupName',
             'impressions',
             'clicks',
             'cost',
-            'sales',
-            'purchases',
-            'unitsSold',
-            'newToBrandPurchases',
-            'newToBrandSales'
+            'sales',                             // 14天总销售额
+            'purchases',                         // 14天总订单数
+            'unitsSold',                         // 14天总单位数
+            'newToBrandPurchases',               // 14天新品牌订单数
+            'newToBrandSales'                    // 14天新品牌销售额
           ],
+          // v230: SD报告不支持filters参数（会导致400错误），已移除
           reportTypeId: 'sdCampaigns',
           timeUnit: 'SUMMARY',
           format: 'GZIP_JSON',

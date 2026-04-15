@@ -1897,13 +1897,13 @@ export async function syncAccount(
           'sp_campaigns': 10, 'sb_campaigns': 10, 'sd_campaigns': 10,
           'sp_ad_groups': 10, 'sb_ad_groups': 10, 'sd_ad_groups': 10,
           'sp_keywords': 50, 'sb_keywords': 10, // v666: sp_keywords从10→50分钟（针对90084/90023等8万+关键词账户）
-          'sp_product_targets': 10, 'sb_product_targets': 10, 'sd_product_targets': 10,
+          'sp_product_targets': 20, 'sb_product_targets': 10, 'sd_product_targets': 10, // v678: sp_product_targets从10→20分钟（v677实测90023的SP商品定位步骤10分钟超时）
           'sp_negative_keywords': 45, 'sb_negative_keywords': 30,
           'sp_negative_targets': 50, 'sb_negative_targets': 15, 'sd_negative_targets': 15, // v666: sp_negative_targets从15→50分钟（针对90052等大账户）
           'sp_auto_targeting': 10, 'sd_targeting': 10, 'sb_targeting': 10,
           'sb_ads': 10, 'sp_budget_rules': 10,
           // 报告步骤: v677: 大幅放宽绩效报告步骤超时 — v676实测90023(3225广告活动)的performance_95d需要20+批报告，每批2-7分钟，总计60-90分钟
-          'performance_today': 30, 'performance_7d': 60, 'performance_95d': 120, // v677: performance_95d从45→120分钟, performance_7d从45→60分钟（v676实测STEP_TIMEOUT导致95天绩效全部丢失）
+          'performance_today': 30, 'performance_7d': 120, 'performance_95d': 120, // v678: performance_7d从60→120分钟（v677实测90023的60分钟仍不够）
           'sp_search_terms': 30, 'sb_search_terms': 30,
           'sp_placement_performance': 30, 'sb_placement_performance': 30,
           'keyword_performance': 90, 'target_performance': 90, 'ad_group_performance': 90, // v677: 从45→90分钟（nightly层级的绩效报告同样需要处理95天数据，大账户需要更长时间）

@@ -1493,11 +1493,12 @@ AmazonSyncService.prototype.syncAdGroupPerformanceData = async function(this: Am
     const sdCampaigns = accountCampaigns.filter(c => c.campaignType === 'sd');
 
     // v399-fix3: 预加载adGroups映射，避免SP/SB/SD循环内的N+1查询问题
+    // v678: 添加campaignId字段，支持SB/SD的campaign→adGroup映射
     const allAdGroups = await db
-      .select({ id: adGroups.id, adGroupId: adGroups.adGroupId })
+      .select({ id: adGroups.id, adGroupId: adGroups.adGroupId, campaignId: adGroups.campaignId })
       .from(adGroups)
       .where(eq(adGroups.accountId, this.accountId));
-    const adGroupMap = new Map<string, { id: number; adGroupId: string }>();
+    const adGroupMap = new Map<string, { id: number; adGroupId: string; campaignId: string }>();
     for (const ag of allAdGroups) {
       adGroupMap.set(String(ag.adGroupId), ag);
     }
@@ -1571,10 +1572,11 @@ AmazonSyncService.prototype.syncAdGroupPerformanceData = async function(this: Am
       // v395: SUMMARY模式分批数据聚合 - 按groupByKey累加数值指标
       if (groupByKey && rBatches > 1 && allData.length > 0) {
         const aggMap = new Map<string, unknown>();
-        const numericFields = ['cost', 'impressions', 'clicks', 'sales7d', 'sales14d', 'purchases7d', 'purchases14d',
+        // v678: 添加spend字段（SP adGroup报告使用spend而非cost）和新客指标
+        const numericFields = ['cost', 'spend', 'impressions', 'clicks', 'sales7d', 'sales14d', 'purchases7d', 'purchases14d',
           'unitsSoldClicks7d', 'unitsSoldSameSku7d', 'unitsSoldOtherSku7d', 'attributedSalesSameSku7d', 'salesOtherSku7d',
           'sales', 'purchases', 'unitsSold', 'dpv', 'dpvClicks', 'viewImpressions', 'viewAttributedConversions14d',
-          'viewAttributedSales14d', 'viewAttributedUnitsOrdered14d'];
+          'viewAttributedSales14d', 'viewAttributedUnitsOrdered14d', 'detailPageViews', 'newToBrandPurchases', 'newToBrandSales'];
         for (const row of allData) {
           // @ts-expect-error - legacy type assertion
           const key = String(row[groupByKey] || '');
@@ -1628,7 +1630,7 @@ AmazonSyncService.prototype.syncAdGroupPerformanceData = async function(this: Am
             if (!adGroup) continue;
 
             // @ts-expect-error - legacy type assertion
-            const cost = row.cost || 0;
+            const cost = row.spend || row.cost || 0; // v678: SP adGroup报告使用spend字段
             // @ts-expect-error - legacy type assertion
             const sales = row.sales7d || 0;
             // @ts-expect-error - legacy type assertion
@@ -1663,61 +1665,83 @@ AmazonSyncService.prototype.syncAdGroupPerformanceData = async function(this: Am
     }
 
     // 2. SB广告组报告（14天归因，v339分批请求）
+    // v678: SB不支持adGroup级别报告，改用campaign级别数据通过campaignId映射到adGroup
     if (sbCampaigns.length > 0) {
       try {
         // @ts-expect-error - legacy type assertion
         const sbData = await fetchBatchedReport(
           (s, e) => this.client.requestSbAdGroupReport(s, e),
-          totalDays, 'SB广告组', 'adGroupId'
+          totalDays, 'SB广告组(广告活动级)', 'campaignId'
         );
         if (sbData && sbData.length > 0) {
           let sbSynced = 0;
+          // v678: 构建campaignId→绩效数据的映射
+          const sbCampaignPerfMap = new Map<string, Record<string, unknown>>();
           for (const row of (sbData as unknown[])) {
             // @ts-expect-error - legacy type assertion
-            const adGroupId = String(row.adGroupId);
-            // v399-fix3: 使用预加载的Map查找，避免N+1查询
-            const adGroup = adGroupMap.get(adGroupId);
-            if (!adGroup) continue;
+            const cid = String(row.campaignId || '');
+            if (cid) sbCampaignPerfMap.set(cid, row as Record<string, unknown>);
+          }
+          // v678: 通过campaignId查找该campaign下的所有adGroup，将campaign级别绩效写入广告组
+          for (const sbCamp of sbCampaigns) {
+            const row = sbCampaignPerfMap.get(String(sbCamp.campaignId));
+            if (!row) continue;
+            // 查找该campaign下的所有adGroup
+            const campAdGroups = allAdGroups.filter(ag => ag.campaignId === String(sbCamp.campaignId));
+            if (campAdGroups.length === 0) continue;
 
             // @ts-expect-error - legacy type assertion
             const cost = row.cost || 0;
             // @ts-expect-error - legacy type assertion
-            const sales = row.salesClicks14d || row.sales14d || 0;
+            const sales = row.sales || 0;
             // @ts-expect-error - legacy type assertion
-            const orders = row.purchasesClicks14d || row.purchases14d || 0;
+            const orders = row.purchases || 0;
             // @ts-expect-error - legacy type assertion
             const impressions = row.impressions || 0;
             // @ts-expect-error - legacy type assertion
             const clicks = row.clicks || 0;
             // @ts-expect-error - legacy type assertion
-            const dpv = row.dpv14d || 0;
+            const dpv = row.detailPageViews || 0;
             // @ts-expect-error - legacy type assertion
-            const ntbOrders = row.attributedOrdersNewToBrand14d || 0;
+            const ntbOrders = row.newToBrandPurchases || 0;
             // @ts-expect-error - legacy type assertion
-            const ntbSales = row.attributedSalesNewToBrand14d || 0;
+            const ntbSales = row.newToBrandSales || 0;
 
-            await db
-              .update(adGroups)
-              .set({
-                impressions,
-                clicks,
-                spend: String(cost),
-                sales: String(sales),
-                orders,
-                ctr: impressions > 0 ? String((clicks / impressions).toFixed(4)) : null,
-                cvr: clicks > 0 ? String((orders / clicks).toFixed(4)) : null,
-                acos: cost > 0 && sales > 0 ? String(((cost / sales) * 100).toFixed(2)) : null,
-                roas: cost > 0 && sales > 0 ? String((sales / cost).toFixed(2)) : null,
-                cpc: clicks > 0 ? String((cost / clicks).toFixed(2)) : null,
-                dpv,
-                ntbOrders,
-                ntbSales: String(ntbSales),
-              })
-              .where(eq(adGroups.id, adGroup.id));
-            sbSynced++;
+            // v678: 如果campaign下只有1个adGroup，直接写入；否则平均分配
+            const agCount = campAdGroups.length;
+            for (const ag of campAdGroups) {
+              const agCost = agCount === 1 ? cost : cost / agCount;
+              const agSales = agCount === 1 ? sales : sales / agCount;
+              const agOrders = agCount === 1 ? orders : Math.round(orders / agCount);
+              const agImpressions = agCount === 1 ? impressions : Math.round(impressions / agCount);
+              const agClicks = agCount === 1 ? clicks : Math.round(clicks / agCount);
+              const agDpv = agCount === 1 ? dpv : Math.round(dpv / agCount);
+              const agNtbOrders = agCount === 1 ? ntbOrders : Math.round(ntbOrders / agCount);
+              const agNtbSales = agCount === 1 ? ntbSales : ntbSales / agCount;
+
+              await db
+                .update(adGroups)
+                .set({
+                  impressions: agImpressions,
+                  clicks: agClicks,
+                  spend: String(agCost),
+                  sales: String(agSales),
+                  orders: agOrders,
+                  ctr: agImpressions > 0 ? String((agClicks / agImpressions).toFixed(4)) : null,
+                  cvr: agClicks > 0 ? String((agOrders / agClicks).toFixed(4)) : null,
+                  acos: agCost > 0 && agSales > 0 ? String(((agCost / agSales) * 100).toFixed(2)) : null,
+                  roas: agCost > 0 && agSales > 0 ? String((agSales / agCost).toFixed(2)) : null,
+                  cpc: agClicks > 0 ? String((agCost / agClicks).toFixed(2)) : null,
+                  dpv: agDpv,
+                  ntbOrders: agNtbOrders,
+                  ntbSales: String(agNtbSales),
+                })
+                .where(eq(adGroups.id, ag.id));
+              sbSynced++;
+            }
           }
           synced += sbSynced;
-          log.info(`SB广告组绩效同步: ${sbSynced} 条记录`);
+          log.info(`SB广告组绩效同步: ${sbSynced} 条记录 (通过campaign级别数据映射)`);
         }
       } catch (error: any) {
         log.warn('SB广告组绩效同步失败:', error);
@@ -1725,68 +1749,79 @@ AmazonSyncService.prototype.syncAdGroupPerformanceData = async function(this: Am
     }
 
     // 3. SD广告组报告（14天归因 + 浏览归因，v339分批请求）
+    // v678: SD不支持adGroup级别报告，改用campaign级别数据通过campaignId映射到adGroup
     if (sdCampaigns.length > 0) {
       try {
         // @ts-expect-error - legacy type assertion
         const sdData = await fetchBatchedReport(
           (s, e) => this.client.requestSdAdGroupReport(s, e),
-          totalDays, 'SD广告组', 'adGroupId'
+          totalDays, 'SD广告组(广告活动级)', 'campaignId'
         );
         // @ts-expect-error - legacy type assertion
         if (sdData && sdData.length > 0) {
           let sdSynced = 0;
+          // v678: 构建campaignId→绩效数据的映射
+          const sdCampaignPerfMap = new Map<string, Record<string, unknown>>();
           for (const row of (sdData as unknown[])) {
             // @ts-expect-error - legacy type assertion
-            const adGroupId = String(row.adGroupId);
-            // v399-fix3: 使用预加载的Map查找，避免N+1查询
-            const adGroup = adGroupMap.get(adGroupId);
-            if (!adGroup) continue;
+            const cid = String(row.campaignId || '');
+            if (cid) sdCampaignPerfMap.set(cid, row as Record<string, unknown>);
+          }
+          // v678: 通过campaignId查找该campaign下的所有adGroup，将campaign级别绩效写入广告组
+          for (const sdCamp of sdCampaigns) {
+            const row = sdCampaignPerfMap.get(String(sdCamp.campaignId));
+            if (!row) continue;
+            const campAdGroups = allAdGroups.filter(ag => ag.campaignId === String(sdCamp.campaignId));
+            if (campAdGroups.length === 0) continue;
 
             // @ts-expect-error - legacy type assertion
             const cost = row.cost || 0;
             // @ts-expect-error - legacy type assertion
-            const sales = row.sales14d || 0;
+            const sales = row.sales || 0;
             // @ts-expect-error - legacy type assertion
-            const orders = row.purchases14d || 0;
+            const orders = row.purchases || 0;
             // @ts-expect-error - legacy type assertion
             const impressions = row.impressions || 0;
             // @ts-expect-error - legacy type assertion
             const clicks = row.clicks || 0;
             // @ts-expect-error - legacy type assertion
-            const dpv = row.dpv14d || 0;
+            const ntbOrders = row.newToBrandPurchases || 0;
             // @ts-expect-error - legacy type assertion
-            const viewSales = row.viewAttributedSales14d || 0;
-            // @ts-expect-error - legacy type assertion
-            const viewOrders = row.viewAttributedUnitsOrdered14d || 0;
-            // @ts-expect-error - legacy type assertion
-            const ntbOrders = row.attributedOrdersNewToBrand14d || 0;
-            // @ts-expect-error - legacy type assertion
-            const ntbSales = row.attributedSalesNewToBrand14d || 0;
+            const ntbSales = row.newToBrandSales || 0;
 
-            await db
-              .update(adGroups)
-              .set({
-                impressions,
-                clicks,
-                spend: String(cost),
-                sales: String(sales),
-                orders,
-                ctr: impressions > 0 ? String((clicks / impressions).toFixed(4)) : null,
-                cvr: clicks > 0 ? String((orders / clicks).toFixed(4)) : null,
-                acos: cost > 0 && sales > 0 ? String(((cost / sales) * 100).toFixed(2)) : null,
-                roas: cost > 0 && sales > 0 ? String((sales / cost).toFixed(2)) : null,
-                cpc: clicks > 0 ? String((cost / clicks).toFixed(2)) : null,
-                dpv,
-                ntbOrders,
-                ntbSales: String(ntbSales),
-                viewAttributedSales: String(viewSales),
-                viewAttributedOrders: viewOrders,
-              })
-              .where(eq(adGroups.id, adGroup.id));
-            sdSynced++;
+            // v678: 如果campaign下只有1个adGroup，直接写入；否则平均分配
+            const agCount = campAdGroups.length;
+            for (const ag of campAdGroups) {
+              const agCost = agCount === 1 ? cost : cost / agCount;
+              const agSales = agCount === 1 ? sales : sales / agCount;
+              const agOrders = agCount === 1 ? orders : Math.round(orders / agCount);
+              const agImpressions = agCount === 1 ? impressions : Math.round(impressions / agCount);
+              const agClicks = agCount === 1 ? clicks : Math.round(clicks / agCount);
+              const agNtbOrders = agCount === 1 ? ntbOrders : Math.round(ntbOrders / agCount);
+              const agNtbSales = agCount === 1 ? ntbSales : ntbSales / agCount;
+
+              await db
+                .update(adGroups)
+                .set({
+                  impressions: agImpressions,
+                  clicks: agClicks,
+                  spend: String(agCost),
+                  sales: String(agSales),
+                  orders: agOrders,
+                  ctr: agImpressions > 0 ? String((agClicks / agImpressions).toFixed(4)) : null,
+                  cvr: agClicks > 0 ? String((agOrders / agClicks).toFixed(4)) : null,
+                  acos: agCost > 0 && agSales > 0 ? String(((agCost / agSales) * 100).toFixed(2)) : null,
+                  roas: agCost > 0 && agSales > 0 ? String((agSales / agCost).toFixed(2)) : null,
+                  cpc: agClicks > 0 ? String((agCost / agClicks).toFixed(2)) : null,
+                  ntbOrders: agNtbOrders,
+                  ntbSales: String(agNtbSales),
+                })
+                .where(eq(adGroups.id, ag.id));
+              sdSynced++;
+            }
           }
           synced += sdSynced;
-          log.info(`SD广告组绩效同步: ${sdSynced} 条记录`);
+          log.info(`SD广告组绩效同步: ${sdSynced} 条记录 (通过campaign级别数据映射)`);
         }
       } catch (error: any) {
         // @ts-expect-error - legacy type assertion
