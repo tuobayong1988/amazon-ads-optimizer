@@ -1924,10 +1924,11 @@ export async function syncAccount(
           'sp_negative_targets': 50, 'sb_negative_targets': 15, 'sd_negative_targets': 15, // v666: sp_negative_targets从15→50分钟（针对90052等大账户）
           'sp_auto_targeting': 10, 'sd_targeting': 10, 'sb_targeting': 10,
           'sb_ads': 10, 'sp_budget_rules': 10,
-          // v679: 报告步骤超时大幅缩短 — 跨批并行提交后所有报告统一轮询，不再串行等待
+          // v679: 报告步骤超时优化 — 跨批并行提交后统一轮询，但大账户报告生成仍需时间
           // v678: performance_7d=120分钟, performance_95d=120分钟（串行14批）
-          // v679: performance_7d=15分钟, performance_95d=30分钟（跨批并行）
-          'performance_today': 15, 'performance_7d': 15, 'performance_95d': 30, // v679: 跨批并行后大幅缩短）
+          // v679.1: performance_today=25分钟（实测90023的3225campaigns需要15-20分钟生成报告）
+          // v679.1: performance_7d=25分钟, performance_95d=45分钟（跨批并行但大账户仍需等待）
+          'performance_today': 25, 'performance_7d': 25, 'performance_95d': 45, // v679.1: 修正超时（v679实测15分钟太激进）
           'sp_search_terms': 30, 'sb_search_terms': 30,
           'sp_placement_performance': 30, 'sb_placement_performance': 30,
           'keyword_performance': 30, 'target_performance': 30, 'ad_group_performance': 30, // v679: 从90→30分钟（跨批并行提交后统一轮询）
