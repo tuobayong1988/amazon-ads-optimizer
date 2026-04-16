@@ -13,4 +13,4 @@
  * 每次发版时，只需修改此文件中的版本号，并在 postDeployOptimizer.ts 的
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
-export const SYSTEM_VERSION = 682;  // v682: 同步性能关键优化 — 报告步骤并行组(7个串行→三组并行)+syncPerformanceOnly内部并行化+前端轮询超时增加到240分钟
+export const SYSTEM_VERSION = 683;  // v683: 同步架构重构 — 死锁保护看门狗+账户级互斥锁+统一手动/自动同步锁路径+账户间延迟优化(2-3h→0.5-1h)+认证超时30s

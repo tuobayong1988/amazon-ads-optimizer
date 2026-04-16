@@ -21,13 +21,16 @@ export async function createContext(
   logSystem('Context', `createContext called: url=${url.substring(0,80)}, hasAuth=${hasAuth}`);
 
   try {
-    // v447: 给整个authenticateRequest加上10秒总超时，防止连接池耗尽时导致tRPC无限hang
+    // v683: 认证超时从10秒延长到30秒（基于v682诊断报告）
+    // 原因：系统高负载时（如全量同步期间），数据库连接池可能繁忙，10秒超时导致前端误报"同步超时"
+    // 30秒足够覆盖数据库连接池恢复时间，同时不会让用户等待过久
+    const AUTH_TIMEOUT_MS = 30000;
     const authTimeout = new Promise<null>((resolve) => 
       setTimeout(() => {
-        logSystem('Context', `authenticateRequest TIMEOUT after 10s for url=${url.substring(0,50)}`);
-        console.error('[Context] authenticateRequest timeout after 10s, falling back to null user');
+        logSystem('Context', `authenticateRequest TIMEOUT after ${AUTH_TIMEOUT_MS / 1000}s for url=${url.substring(0,50)}`);
+        console.error(`[Context] authenticateRequest timeout after ${AUTH_TIMEOUT_MS / 1000}s, falling back to null user`);
         resolve(null);
-      }, 10000)
+      }, AUTH_TIMEOUT_MS)
     );
     user = await Promise.race([
       sdk.authenticateRequest(opts.req),

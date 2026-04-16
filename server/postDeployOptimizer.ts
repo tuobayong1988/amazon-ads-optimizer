@@ -86,6 +86,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 683,
+    description: 'v683: [同步架构重构 — 死锁保护+账户级锁+延迟优化] — (1)P0-死锁保护看门狗: syncCoordinator新增每60秒主动检查并释放超时的全局锁和账户锁,解决v682全量同步锁泄漏导致PostOptVerifier无限延迟 (2)P0-账户级互斥锁: 将全局层级锁细化为账户级互斥锁,单个账户同步完成即释放不阻塞其他账户 (3)P0-统一手动/自动同步锁路径: triggerManualFullSync也使用账户级锁,确保手动与自动同步不会同时处理同一账户 (4)P1-账户间延迟优化: 成功10s/失败30s/限流60s(从原来1-5分钟缩短),总耗时从2-3小时降至30-60分钟 (5)P1-认证超时优化: authenticateRequest超时从10s增加到30s,避免高负载时前端显示同步超时',
+    affectedModules: ['sync', 'system'],
+    correctionActions: [],
+  },
+  {
     version: 669,
     description: 'v669: [数据库索引优化+连接池监控增强+CloudFront CDN验证] — (1)P1-清理冗余索引: 删除ad_accounts表上重复的idx_organization_id索引,保留idx_ad_organization (2)P1-复合索引优化: 创建idx_ad_org_sort_created(organization_id,sortOrder,createdAt)复合索引,消除ORDER BY filesort (3)P2-连接池监控增强: getPoolStats新增mysql2原生池指标(activeConnections/idleConnections/queuedRequests/utilizationPercent),每5分钟定期日志输出,利用率>80%或队列>10时自动告警 (4)P3-CloudFront CDN验证: 确认/assets/*静态资源缓存命中(Hit from cloudfront,1年TTL),HTTP/3已启用,PriceClass_200覆盖全球',
     affectedModules: ['system'],

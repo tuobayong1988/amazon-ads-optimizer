@@ -16,6 +16,7 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { startDataSyncScheduler, startOptimizationScheduler } from "../sync/dataSyncScheduler";
+import { startDeadlockWatchdog } from "../sync/syncCoordinator";
 import { runAutoMigration, getDb } from "../db";
 import { startOptimizationScheduler as startTargetScheduler } from "../optimization/optimizationScheduler";
 import { startSQSConsumer } from "../sync/sqsConsumerService";
@@ -336,6 +337,10 @@ async function startServer() {
     // 启动定时同步调度器（每1小时执行一次）
     startDataSyncScheduler(60 * 60 * 1000);
     log.info('[DataSyncScheduler] 定时同步调度器已启动，间隔: 1小时');
+    
+    // v683: 启动死锁保护看门狗 — 每60秒主动检查并释放超时的同步锁
+    startDeadlockWatchdog();
+    log.info('[SyncCoordinator] v683: 死锁保护看门狗已启动');
     
     // v374: 优化调度器不再在此处直接启动，而是由Leader选举机制控制
     // 原因: 多实例环境下，每个实例都会启动优化调度器，导致重复优化和API调用量翻倍

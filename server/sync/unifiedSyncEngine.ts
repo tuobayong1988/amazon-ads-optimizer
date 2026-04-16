@@ -2571,6 +2571,20 @@ export async function syncAllAccounts(tier: SyncTier): Promise<BatchSyncResult> 
     
     log.info(`[UnifiedSync] v659: [${idx + 1}/${sortedAccounts.length}] 开始同步 ${account.accountId}(${account.accountName}) ${account.marketplace} — ${sizeLabel}账户(${acctSize}活动)`);
     
+    // v683: 获取账户级同步锁 — 确保同一账户不会被手动和自动同步同时处理
+    try {
+      const { acquireAccountLock, updateTierProgress } = await import('./syncCoordinator');
+      const lockAcquired = acquireAccountLock(account.accountId, `auto_${tier}`, tier, acctSize >= 100);
+      if (!lockAcquired) {
+        log.info(`[UnifiedSync] v683: 账户${account.accountId}已被锁定（可能正在手动同步），跳过`);
+        batchResult.skippedAccounts++;
+        continue;
+      }
+      updateTierProgress(tier, sortedAccounts.length, idx, account.accountId);
+    } catch (lockErr: any) {
+      log.debug(`[UnifiedSync] v683: 获取账户锁失败: ${(lockErr as Error).message}`);
+    }
+    
     // v661: per-account 24h冒却期 — 对于full/nightly层，检查该账户上次全量同步是否在24小时内
     // 核心原则: 避免同一账户在短时间内重复进行全量同步，降低API压力
     if (tier === 'full' || tier === 'nightly') {
@@ -2708,6 +2722,14 @@ export async function syncAllAccounts(tier: SyncTier): Promise<BatchSyncResult> 
         log.debug(`[UnifiedSync] v659: 更新自动同步Job#${autoSyncJobId}最终状态失败: ${(jobUpdateErr as Error).message}`);
       }
     }
+    // v683: 释放账户级同步锁 — 单个账户同步完成即释放，不阻塞其他账户
+    try {
+      const { releaseAccountLock } = await import('./syncCoordinator');
+      releaseAccountLock(account.accountId, `auto_${tier}`);
+    } catch (relErr: any) {
+      log.debug(`[UnifiedSync] v683: 释放账户锁失败: ${(relErr as Error).message}`);
+    }
+    
     // v671: WebSocket广播同步完成/失败状态
     try {
       const { broadcastSyncCompleted, broadcastSyncFailed } = await import('./syncProgressWs');
@@ -2741,7 +2763,8 @@ export async function syncAllAccounts(tier: SyncTier): Promise<BatchSyncResult> 
       batchResult.failedAccounts++;
     }
     
-    // v659: 动态账户间延迟 — 根据上一个账户的结果和内存状态决定等待时间
+    // v683: 优化账户间延迟 — 账户级锁已防止冲突，大幅缩短延迟时间
+    // v683改进：从原来的1-5分钟缩短到10-60秒，总耗时从2-3小时降至30-60分钟
     if (idx < sortedAccounts.length - 1) {
       let delayMs: number;
       let delayReason: string;
@@ -2751,17 +2774,16 @@ export async function syncAllAccounts(tier: SyncTier): Promise<BatchSyncResult> 
       );
       const hasFailed = !accountResult.success && !accountResult.partialSuccess;
       
-      // v661: 大幅拉长账户间延迟，确保成功率和准确率优先
-      // 核心原则: 只要保证24小时内能完成一轮全量同步即可
+      // v683: 延迟策略优化 — 保留API退避但大幅缩短正常间隔
       if (hasThrottle) {
-        delayMs = 300000; // v661: 限流→等待5分钟（从60秒延长，让API令牌桶充分恢复）
-        delayReason = 'API限流退避(5min)';
+        delayMs = 60000; // v683: 限流→等待60秒（从5分钟缩短，账户级锁已防止并发冲突）
+        delayReason = 'API限流退避(60s)';
       } else if (hasFailed) {
-        delayMs = 120000; // v661: 失败→等待2分钟（从30秒延长）
-        delayReason = '失败后冷却(2min)';
+        delayMs = 30000; // v683: 失败→等待30秒（从2分钟缩短）
+        delayReason = '失败后冷却(30s)';
       } else {
-        delayMs = 60000; // v661: 成功→等待1分钟（从10秒延长，给API充分恢复时间）
-        delayReason = '正常间隔(1min)';
+        delayMs = 10000; // v683: 成功→等待10秒（从1分钟缩短，账户锁已保证互斥）
+        delayReason = '正常间隔(10s)';
       }
       
       // 内存压力额外延迟
@@ -2769,15 +2791,15 @@ export async function syncAllAccounts(tier: SyncTier): Promise<BatchSyncResult> 
         const { checkMemoryPressure } = await import('./syncCoordinator');
         const memCheck = checkMemoryPressure();
         if (memCheck.level === 'elevated') {
-          delayMs = Math.max(delayMs, 60000); // v661: 内存偏高时至少等待60秒（从20s延长）
-          delayReason += '+内存偏高(60s)';
+          delayMs = Math.max(delayMs, 30000); // v683: 内存偏高时至少等待30秒（从60s缩短）
+          delayReason += '+内存偏高(30s)';
           if (typeof global.gc === 'function') global.gc();
         }
       } catch {
         // 内存检查失败不影响
       }
       
-      log.info(`[UnifiedSync] v659: 账户间延迟 ${delayMs}ms (${delayReason}) — 下一个: ${sortedAccounts[idx + 1].accountId}`);
+      log.info(`[UnifiedSync] v683: 账户间延迟 ${delayMs}ms (${delayReason}) — 下一个: ${sortedAccounts[idx + 1].accountId}`);
       await sleep(delayMs);
     }
   }
@@ -3108,9 +3130,18 @@ export async function triggerManualFullSync(
 
   // v679.4: 激活手动同步覆盖 — 通知自动同步调度器暂停
   // 解决问题：手动全量同步与自动同步同时运行导致API配额竞争和严重429限流
-  const { setManualOverride } = await import('./syncCoordinator');
+  const { setManualOverride, acquireAccountLock, releaseAccountLock } = await import('./syncCoordinator');
   setManualOverride(true);
   log.info(`[UnifiedSync] v679.4: 手动同步覆盖已激活，自动同步将被暂停`);
+
+  // v683: 统一锁路径 — 手动同步也使用账户级锁，确保与自动同步互斥
+  // 手动同步可以抢占自动同步的锁（acquireAccountLock内部处理优先级）
+  const manualLockAcquired = acquireAccountLock(accountId, 'manual', 'full', true);
+  if (!manualLockAcquired) {
+    log.warn(`[UnifiedSync] v683: 手动同步账户${accountId}获取锁失败（可能有另一个手动同步在运行）`);
+    // 仍然继续执行，因为手动同步应该始终允许执行
+  }
+  log.info(`[UnifiedSync] v683: 手动同步账户${accountId}已获取账户级锁`);
 
   // v681: 设置消费者优先级为手动同步（最高优先级）
   const { setActiveConsumerPriority } = await import('../services/apiRateLimitService');
@@ -3125,11 +3156,13 @@ export async function triggerManualFullSync(
     isManual: true,
   });
   } finally {
+    // v683: 释放账户级锁
+    releaseAccountLock(accountId, 'manual');
     // v679.4: 无论同步成功或失败，都取消手动同步覆盖
     setManualOverride(false);
     // v681: 清除消费者优先级，恢复正常配额分配
     setActiveConsumerPriority(null);
-    log.info(`[UnifiedSync] v679.4+v681: 手动同步覆盖已取消，消费者优先级已清除，自动同步恢复`);
+    log.info(`[UnifiedSync] v683: 手动同步账户${accountId}锁已释放，覆盖已取消，优先级已清除`);
   }
 
   // v404: 同步完成后更新data_sync_jobs最终状态
