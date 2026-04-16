@@ -27,7 +27,7 @@ import { keywords, campaigns, negativeKeywords, syncConflicts, sdAudiences } fro
 import { eq, and, inArray, sql, gte, lte } from 'drizzle-orm';
 import { getAmazonSyncService } from '../services/amazonApiHelper';
 import { createModuleLogger } from '../utils/logger';
-import { isSyncRunning, getSyncLockInfo } from '../sync/syncCoordinator';
+import { isSyncRunning, getSyncLockInfo, isAccountSyncing, getAccountLockInfo } from '../sync/syncCoordinator';
 
 const log = createModuleLogger('PostOptVerifier');
 
@@ -342,16 +342,22 @@ async function executeVerificationTask(taskId: string): Promise<void> {
     return;
   }
   
-  // v681: 同步感知 — 全量同步运行时延迟验证任务，避免API配额争抢
-  if (isSyncRunning()) {
-    const lockInfo = getSyncLockInfo();
-    const VERIFIER_DEFER_DELAY_SEC = 120; // 同步运行时延迟120秒后重试
-    log.info(`v681: 验证任务${taskId}延迟执行 — 全量同步正在运行(holder=${lockInfo.holder}, 已运行${lockInfo.holdDurationSec}s)，${VERIFIER_DEFER_DELAY_SEC}s后重试`);
+  // v683: 同步感知 — 改为账户级判断，只延迟正在同步的账户的验证任务
+  // 修复：v681的全局判断导致holder=null时仍然阻塞所有验证任务
+  if (isAccountSyncing(task.accountId)) {
+    const accountLock = getAccountLockInfo(task.accountId);
+    const VERIFIER_DEFER_DELAY_SEC = 60; // v683: 账户级延迟缩短到60秒
+    const holdSec = accountLock ? Math.round((Date.now() - accountLock.acquiredAt) / 1000) : 0;
+    log.info(`v683: 验证任务${taskId}延迟执行 — 账户${task.accountId}正在同步(holder=${accountLock?.holder || 'unknown'}, 已运行${holdSec}s)，${VERIFIER_DEFER_DELAY_SEC}s后重试`);
     const timer = setTimeout(async () => {
       await executeVerificationTask(taskId);
     }, VERIFIER_DEFER_DELAY_SEC * 1000);
     activeTimers.set(taskId, timer);
     return;
+  } else if (isSyncRunning()) {
+    // v683: 全局同步运行中但当前账户未被锁定，允许执行但记录日志
+    const lockInfo = getSyncLockInfo();
+    log.debug(`v683: 验证任务${taskId}允许执行 — 全局同步运行中(holder=${lockInfo.holder})但账户${task.accountId}未被锁定`);
   }
   
   log.info(`v166: 开始执行验证任务 taskId=${taskId}, attempt=${task.attempt}/${task.maxAttempts}, items=${task.items.length}`);

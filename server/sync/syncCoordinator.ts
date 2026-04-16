@@ -401,15 +401,31 @@ export async function cleanupExpiredOverrides(): Promise<void> {
 // ==================== 同步状态查询 ====================
 
 /**
- * v683: 查询当前是否有同步正在运行
- * 改进：不仅检查全局标记，还检查账户级锁
- * 供PostOptVerifier等模块判断是否需要延迟执行
+ * v683: 查询当前是否有同步正在运行（全局级别）
+ * 修复：只检查全局层级标记，不再因账户级锁而全局阻塞
+ * 账户级锁的检查应使用 isAccountSyncing(accountId)
  */
 export function isSyncRunning(): boolean {
-  // 有任何账户级锁存在就表示有同步在运行
-  if (accountLocks.size > 0) return true;
-  // 兼容：全局标记也检查
   return currentLockHolder !== null;
+}
+
+/**
+ * v683: 查询特定账户是否正在同步
+ * 供PostOptVerifier等模块做账户级延迟判断
+ * 只有当该账户被锁定时才返回true，不影响其他账户的验证任务
+ */
+export function isAccountSyncing(accountId: number): boolean {
+  return isAccountLocked(accountId);
+}
+
+/**
+ * v683: 查询是否有任何同步活动（全局标记或账户锁）
+ * 用于需要知道系统是否完全空闲的场景
+ */
+export function isAnySyncActive(): boolean {
+  if (currentLockHolder !== null) return true;
+  if (accountLocks.size > 0) return true;
+  return false;
 }
 
 /**
