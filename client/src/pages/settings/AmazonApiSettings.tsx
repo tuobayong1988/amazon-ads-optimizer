@@ -160,6 +160,18 @@ export default function AmazonApiSettings() {
   const [isSaving, setIsSaving] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   
+  // v687: 统一登录过期检测 — 区分“后端API异常”和“前端登录过期”
+  const [sessionExpired, setSessionExpired] = useState(false);
+  const checkAuthError = useCallback((error: { message?: string; data?: { code?: string } }) => {
+    const msg = error.message || '';
+    const code = error.data?.code || '';
+    if (code === 'UNAUTHORIZED' || msg.includes('UNAUTHORIZED') || msg.includes('401') || msg.includes('未登录') || msg.includes('登录已过期')) {
+      setSessionExpired(true);
+      return true;
+    }
+    return false;
+  }, []);
+  
   // 站点同步状态类型
   interface SiteSyncStatus {
     id: number;
@@ -257,7 +269,7 @@ export default function AmazonApiSettings() {
   });
 
   // v671: WebSocket实时同步进度推送 — 优先使用WebSocket，降级到HTTP轮询
-  const { progress: wsProgress, isWsActive } = useSyncProgressWs({
+  const { progress: wsProgress, isWsActive, isAuthExpired: wsAuthExpired } = useSyncProgressWs({
     accountId: selectedAccountId,
     enabled: isSyncing && !!selectedAccountId,
     onCompleted: (recordsSynced) => {
@@ -297,12 +309,16 @@ export default function AmazonApiSettings() {
         const batchDetail = wsProgress.batchInfo 
           ? ` (批次 ${wsProgress.batchInfo.currentBatch}/${wsProgress.batchInfo.totalBatches})` 
           : '';
+        // v686: 子进度展示 — 为长耗时步骤提供细粒度进度指示
+        const subDetail = wsProgress.subProgress 
+          ? ` • ${wsProgress.subProgress.phase}${wsProgress.subProgress.detail ? `: ${wsProgress.subProgress.detail}` : ''} (${wsProgress.subProgress.current}/${wsProgress.subProgress.total})`
+          : '';
         
         const siteStatuses = (prev.siteStatuses || []).map(s => {
           if (s.id === selectedAccountId && s.status === 'syncing') {
             return {
               ...s,
-              currentStep: stepLabel + batchDetail,
+              currentStep: stepLabel + batchDetail + subDetail,
               stepProgress: progressPercent,
               currentStepIndex: wsProgress.stepIndex,
               totalSteps: wsProgress.totalSteps,
@@ -316,7 +332,7 @@ export default function AmazonApiSettings() {
           ...prev,
           step: 'sp',
           progress: progressPercent,
-          current: `正在同步: ${stepLabel}${batchDetail}`,
+          current: `正在同步: ${stepLabel}${batchDetail}${subDetail}`,
           siteStatuses,
         };
       });
@@ -671,6 +687,7 @@ export default function AmazonApiSettings() {
       // 注意：不重置formData，以保留用户输入的店铺名称
     },
     onError: (error) => {
+      if (checkAuthError(error)) return;
       toast.error(`添加失败: ${error.message}`);
     },
   });
@@ -684,6 +701,7 @@ export default function AmazonApiSettings() {
       setEditingAccount(null);
     },
     onError: (error) => {
+      if (checkAuthError(error)) return;
       toast.error(`更新失败: ${error.message}`);
     },
   });
@@ -699,6 +717,7 @@ export default function AmazonApiSettings() {
       }
     },
     onError: (error) => {
+      if (checkAuthError(error)) return;
       toast.error(`删除失败: ${error.message}`);
     },
   });
@@ -725,6 +744,7 @@ export default function AmazonApiSettings() {
       });
     },
     onError: (error) => {
+      if (checkAuthError(error)) return;
       toast.error(`创建失败: ${error.message}`);
     },
   });
@@ -736,6 +756,7 @@ export default function AmazonApiSettings() {
       utils.adAccount.list.invalidate();
     },
     onError: (error) => {
+      if (checkAuthError(error)) return;
       toast.error(`设置失败: ${error.message}`);
     },
   });
@@ -770,6 +791,7 @@ export default function AmazonApiSettings() {
       });
     },
     onError: (error) => {
+      if (checkAuthError(error)) return;
       toast.error(`保存失败: ${error.message}`);
     },
   });
@@ -783,6 +805,7 @@ export default function AmazonApiSettings() {
       refetchStatus();
     },
     onError: (error) => {
+      if (checkAuthError(error)) return;
       toast.error(`多站点授权失败: ${error.message}`);
     },
   });
@@ -848,6 +871,7 @@ export default function AmazonApiSettings() {
       refetchScheduleConfig();
     },
     onError: (error) => {
+      if (checkAuthError(error)) return;
       toast.error(`保存失败: ${error.message}`);
     },
   });
@@ -858,6 +882,7 @@ export default function AmazonApiSettings() {
       refetchScheduleConfig();
     },
     onError: (error) => {
+      if (checkAuthError(error)) return;
       toast.error(`更新失败: ${error.message}`);
     },
   });
@@ -868,6 +893,7 @@ export default function AmazonApiSettings() {
       refetchScheduleConfig();
     },
     onError: (error) => {
+      if (checkAuthError(error)) return;
       toast.error(`关闭失败: ${error.message}`);
     },
   });
@@ -879,6 +905,7 @@ export default function AmazonApiSettings() {
       refetchConflicts();
     },
     onError: (error) => {
+      if (checkAuthError(error)) return;
       toast.error(`解决失败: ${error.message}`);
     },
   });
@@ -890,6 +917,7 @@ export default function AmazonApiSettings() {
       refetchConflicts();
     },
     onError: (error) => {
+      if (checkAuthError(error)) return;
       toast.error(`解决失败: ${error.message}`);
     },
   });
@@ -901,6 +929,7 @@ export default function AmazonApiSettings() {
       refetchConflicts();
     },
     onError: (error) => {
+      if (checkAuthError(error)) return;
       toast.error(`忽略失败: ${error.message}`);
     },
   });
@@ -912,6 +941,7 @@ export default function AmazonApiSettings() {
       refetchQueue();
     },
     onError: (error) => {
+      if (checkAuthError(error)) return;
       toast.error(`添加失败: ${error.message}`);
     },
   });
@@ -923,6 +953,7 @@ export default function AmazonApiSettings() {
       refetchQueue();
     },
     onError: (error) => {
+      if (checkAuthError(error)) return;
       toast.error(`取消失败: ${error.message}`);
     },
   });
@@ -939,6 +970,7 @@ export default function AmazonApiSettings() {
       }
     },
     onError: (error) => {
+      if (checkAuthError(error)) return;
       toast.error(`启动同步失败: ${error.message}`);
     },
   });
@@ -949,6 +981,7 @@ export default function AmazonApiSettings() {
       toast.success(`优化完成！已优化: ${data.optimized}, 跳过: ${data.skipped}`);
     },
     onError: (error) => {
+      if (checkAuthError(error)) return;
       toast.error(`优化失败: ${error.message}`);
     },
   });
@@ -961,6 +994,7 @@ export default function AmazonApiSettings() {
       }
     },
     onError: (error) => {
+      if (checkAuthError(error)) return;
       toast.error(`换取失败: ${error.message}`);
     },
   });
@@ -980,6 +1014,7 @@ export default function AmazonApiSettings() {
       toast.success("导出成功");
     },
     onError: (error) => {
+      if (checkAuthError(error)) return;
       toast.error(`导出失败: ${error.message}`);
     },
   });
@@ -990,6 +1025,7 @@ export default function AmazonApiSettings() {
       setImportPreview(data);
     },
     onError: (error) => {
+      if (checkAuthError(error)) return;
       toast.error(`预览失败: ${error.message}`);
       setImportPreview(null);
     },
@@ -1006,6 +1042,7 @@ export default function AmazonApiSettings() {
       setImportPreview(null);
     },
     onError: (error) => {
+      if (checkAuthError(error)) return;
       toast.error(`导入失败: ${error.message}`);
     },
   });
@@ -1720,8 +1757,30 @@ export default function AmazonApiSettings() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        {/* API连接状态监控 */}
-        <ApiHealthMonitor showCard={false} />
+        {/* v687: 登录过期友好提示 — 区分“后端API异常”和“前端登录过期” */}
+        {(wsAuthExpired || sessionExpired) && (
+          <Alert className="border-amber-500/50 bg-amber-500/10">
+            <AlertCircle className="h-4 w-4 text-amber-500" />
+            <AlertTitle className="text-amber-500">登录已过期</AlertTitle>
+            <AlertDescription className="text-amber-400">
+              您的登录会话已过期，页面数据可能无法实时更新。这不影响后台数据同步，后端服务仍在正常运行。
+              <Button 
+                variant="link" 
+                className="text-amber-300 hover:text-amber-200 p-0 h-auto ml-2 underline"
+                onClick={() => {
+                  // 清除过期Token并跳转登录页
+                  localStorage.removeItem('authToken');
+                  window.location.href = '/login';
+                }}
+              >
+                重新登录
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* API连接状态监控 — v687: 登录过期时隐藏，避免误导用户认为后端API异常 */}
+        {!wsAuthExpired && !sessionExpired && <ApiHealthMonitor showCard={false} />}
         
         {/* Header - 移动端堆叠布局 */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">

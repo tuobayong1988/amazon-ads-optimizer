@@ -431,6 +431,12 @@ export async function syncAdGroupPerformanceData(service: SyncContext, days: num
     }
     
     log.info(`[v413] 广告组报告批量提交: ${reportRequests.map(r => r.name).join(', ')}`);
+    
+    // v686: 子进度 — 提交报告阶段
+    if (service._subProgressCallback) {
+      service._subProgressCallback({ phase: '提交报告', current: 1, total: 3, detail: `${reportRequests.length}个广告组报告提交中` });
+    }
+    
     // v676: 全量同步时跳过P5异步模式，强制同步等待
     const adGroupReportTimeout = service._reportWaitTimeoutMs || 600000;
     const reportResults = reportRequests.length > 0
@@ -491,6 +497,11 @@ export async function syncAdGroupPerformanceData(service: SyncContext, days: num
       return updates;
     }
 
+    // v686: 子进度 — 报告轮询完成，开始处理数据
+    if (service._subProgressCallback) {
+      service._subProgressCallback({ phase: '处理数据', current: 2, total: 3, detail: `${reportResults.length}个广告组报告结果待处理` });
+    }
+    
     // 处理SP报告结果
     let resultIdx = 0;
     if (spCampaigns.length > 0) {
@@ -538,6 +549,12 @@ export async function syncAdGroupPerformanceData(service: SyncContext, days: num
     }
 
     log.info(`广告组绩效同步完成: 共 ${synced} 条记录`);
+    
+    // v686: 子进度 — 入库完成
+    if (service._subProgressCallback) {
+      service._subProgressCallback({ phase: '入库完成', current: 3, total: 3, detail: `共${synced}条广告组绩效记录` });
+    }
+    
     return synced;
   } catch (error) {
     log.warn('广告组绩效同步失败:', error);

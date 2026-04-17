@@ -193,6 +193,47 @@ const DEFAULT_CONFIG: Record<string, Omit<ConfigParameter, 'updatedAt' | 'update
     defaultValue: 0.02,
     range: { min: 0.005, max: 0.10 },
   },
+  // v686: 算法熔断阈值参数 — 从硬编码迁移到配置中心，支持运行时调整
+  'safety.circuit_breaker_positive_rate_threshold': {
+    key: 'safety.circuit_breaker_positive_rate_threshold',
+    value: 15,
+    category: 'safety',
+    description: '算法熔断正向率阈值(%)——低于此值且操作数达标时触发熔断',
+    defaultValue: 15,
+    range: { min: 5, max: 40 },
+  },
+  'safety.circuit_breaker_min_ops_for_fuse': {
+    key: 'safety.circuit_breaker_min_ops_for_fuse',
+    value: 50,
+    category: 'safety',
+    description: '算法熔断最小操作数——操作数低于此值时不触发熔断(样本不足)',
+    defaultValue: 50,
+    range: { min: 20, max: 200 },
+  },
+  'safety.circuit_breaker_negative_ratio': {
+    key: 'safety.circuit_breaker_negative_ratio',
+    value: 2.5,
+    category: 'safety',
+    description: '算法熔断负向比阈值——负向操作超过正向的N倍时触发熔断(从v504的2.0放宽至2.5)',
+    defaultValue: 2.5,
+    range: { min: 1.5, max: 5.0 },
+  },
+  'safety.circuit_breaker_negative_min_ops': {
+    key: 'safety.circuit_breaker_negative_min_ops',
+    value: 50,
+    category: 'safety',
+    description: '负向比熔断最小操作数——操作数低于此值时不触发负向比熔断(从v504的30提高至50)',
+    defaultValue: 50,
+    range: { min: 20, max: 200 },
+  },
+  'safety.circuit_breaker_lookback_days': {
+    key: 'safety.circuit_breaker_lookback_days',
+    value: 14,
+    category: 'safety',
+    description: '算法熔断回溯天数——检查过去多少天的操作数据',
+    defaultValue: 14,
+    range: { min: 7, max: 30 },
+  },
   
   // ===== 执行参数 =====
   'execution.api_retry_count': {
@@ -226,6 +267,40 @@ const DEFAULT_CONFIG: Record<string, Omit<ConfigParameter, 'updatedAt' | 'update
     description: '并发处理的账户数',
     defaultValue: 3,
     range: { min: 1, max: 10 },
+  },
+  // v687: 内存削峰配置
+  'execution.upsert_batch_size': {
+    key: 'execution.upsert_batch_size',
+    value: 200,
+    category: 'execution',
+    description: '绩效数据批量UPSERT的批次大小（降低可减少内存峰值，提高会增加吐吞量）',
+    defaultValue: 200,
+    range: { min: 50, max: 1000 },
+  },
+  'execution.gc_trigger_threshold': {
+    key: 'execution.gc_trigger_threshold',
+    value: 50000,
+    category: 'execution',
+    description: '流式解析时触发GC的记录数阈值',
+    defaultValue: 50000,
+    range: { min: 10000, max: 200000 },
+  },
+  // v687: 真空账户同步频率降级
+  'execution.empty_account_cooldown_hours': {
+    key: 'execution.empty_account_cooldown_hours',
+    value: 6,
+    category: 'execution',
+    description: 'TRULY_EMPTY真空账户的同步冷却时间（小时），在此时间内跳过中高频同步',
+    defaultValue: 6,
+    range: { min: 1, max: 24 },
+  },
+  'execution.empty_account_min_diag_count': {
+    key: 'execution.empty_account_min_diag_count',
+    value: 3,
+    category: 'execution',
+    description: 'TRULY_EMPTY连续诊断次数达到此值后才触发频率降级',
+    defaultValue: 3,
+    range: { min: 2, max: 10 },
   },
   
   // ===== 业务参数 =====

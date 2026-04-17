@@ -86,6 +86,30 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 687,
+    description: 'v687: [内存削峰+真空账户降级+UI状态恢复 — 3项增强] — (1)P0-极端数据量内存削峰: downloadReport流式解析每5万条触发GC+submitAndWaitMultipleReports报告下载后立即GC+processReportData UPSERT批次500→200+flushDailyPerfBatch消除完整副本克隆+syncPerformanceData报告引用释放 (2)P1-真空账户同步频率降级: 连续3次TRULY_EMPTY诊断后触发6小时冷却期+仅对high/medium层生效+冷却期后自动重置+配置中心可调 (3)P1-UI状态恢复逻辑: useSyncProgressWs检测WebSocket 1008/1006认证失败+暴露isAuthExpired+AmazonApiSettings 21个mutation注入checkAuthError+登录过期友好banner+隐藏ApiHealthMonitor误导',
+    affectedModules: ['sync', 'system', 'client'],
+    correctionActions: [],
+  },
+  {
+    version: 686,
+    description: 'v686: [全量同步与系统防御优化 — 3项增强] — (1)P0-数据库连接池调优: connectTimeout15s→30s+健康检查5s→15s+直连超时30s→60s,解决高负载时偶发查询超时 (2)P1-长耗时步骤子进度: SyncContext新增onSubProgress回调+WebSocket消息新增subProgress字段+syncPerformance/keywordSync/adGroupSync关键阶段发送子进度+前端实时展示 (3)P1-算法熔断阈值外部化: 5个硬编码阈值迁移至systemConfigService配置中心+负向比2.0→2.5+最小操作数30→50+支持运行时热更新',
+    affectedModules: ['db', 'sync', 'system'],
+    correctionActions: [],
+  },
+  {
+    version: 685,
+    description: 'v685: [全量同步后续优化 — 4项增强] — (1)P0-预取报告调度器增强: 31天日期拆分+优先级排序(P1当日/7天→P4 SB广告位)+限流感知退避(800ms→2s→5s→10s→30s) (2)P0-自动同步重试暂停: dataSyncScheduler重试定时器和optimizationSyncEngine.executeBatchSync添加shouldAbortAutoSync检查,全量同步期间完全暂停自动同步和优化任务 (3)P1-SB广告位429智能退避: 遇到429限流时自动退避重试(5s/15s/30s,最多3次)+批次间3秒延迟+超时从10分钟降到5分钟 (4)P1-内存优化: 步骤间GC触发(RSS>800MB或Heap>500MB)+processReportData显式清理大Map/数组+batchApiFetch每5批GC+内存使用日志',
+    affectedModules: ['sync', 'system'],
+    correctionActions: [],
+  },
+  {
+    version: 684,
+    description: 'v684: [全量同步深度优化 — 5项架构优化] — (1)P0-内存状态缓存: 新建syncStatusCache模块,前端轮询getActiveSyncJobs/getAccountActiveSyncJob优先从内存缓存读取,完全绕过数据库连接池,解决authenticateRequest超时4569次的问题 (2)P0-先发后收报告策略: 新建prefetchReportScheduler模块,全量同步时一次性提交所有报告请求,在Amazon生成报告期间执行API直接调用步骤,然后集中轮询下载,将83分钟压缩至15-20分钟 (3)P1-手动同步覆盖超时延长: shouldAbortAutoSync和watchdog超时从60分钟延长到180分钟,避免全量同步未完成时自动同步提前恢复导致API配额竞争 (4)P1-SB广告位报告渐进降级: requestSbCampaignPlacementReport采用三级列降级策略(完整列→中级列→核心列),400错误时自动降级重试 (5)P2-心跳时间计算溢出修复: TIMESTAMPDIFF中的NOW()替换为UTC_TIMESTAMP(),解决JS端toISOString(UTC)与MySQL服务器本地时间差异导致的负数运行时间',
+    affectedModules: ['sync', 'system'],
+    correctionActions: [],
+  },
+  {
     version: 683,
     description: 'v683: [同步架构重构 — 死锁保护+账户级锁+延迟优化] — (1)P0-死锁保护看门狗: syncCoordinator新增每60秒主动检查并释放超时的全局锁和账户锁,解决v682全量同步锁泄漏导致PostOptVerifier无限延迟 (2)P0-账户级互斥锁: 将全局层级锁细化为账户级互斥锁,单个账户同步完成即释放不阻塞其他账户 (3)P0-统一手动/自动同步锁路径: triggerManualFullSync也使用账户级锁,确保手动与自动同步不会同时处理同一账户 (4)P1-账户间延迟优化: 成功10s/失败30s/限流60s(从原来1-5分钟缩短),总耗时从2-3小时降至30-60分钟 (5)P1-认证超时优化: authenticateRequest超时从10s增加到30s,避免高负载时前端显示同步超时',
     affectedModules: ['sync', 'system'],

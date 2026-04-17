@@ -189,7 +189,17 @@ export async function checkAlgorithmHealth(): Promise<DefenseResult> {
   try {
     const { sql } = await import('drizzle-orm');
 
-    // 查询过去14天各算法的正向率（基于实际效果而非意图）
+    // v686: 从配置中心读取熔断阈值，支持运行时调整
+    const { getConfig } = await import('./systemConfigService');
+    const CB_POSITIVE_RATE_THRESHOLD = getConfig<number>('safety.circuit_breaker_positive_rate_threshold');
+    const CB_MIN_OPS_FOR_FUSE = getConfig<number>('safety.circuit_breaker_min_ops_for_fuse');
+    const CB_NEGATIVE_RATIO = getConfig<number>('safety.circuit_breaker_negative_ratio');
+    const CB_NEGATIVE_MIN_OPS = getConfig<number>('safety.circuit_breaker_negative_min_ops');
+    const CB_LOOKBACK_DAYS = getConfig<number>('safety.circuit_breaker_lookback_days');
+    
+    log.info(`[SystemDefense] v686: 熔断阈值配置 - 正向率<${CB_POSITIVE_RATE_THRESHOLD}%且操作数>=${CB_MIN_OPS_FOR_FUSE}触发, 负向比>${CB_NEGATIVE_RATIO}x且操作数>=${CB_NEGATIVE_MIN_OPS}触发, 回溯${CB_LOOKBACK_DAYS}天`);
+    
+    // 查询过去 N 天各算法的正向率（基于实际效果而非意图）
     // v504: 正向率重新定义 — 基于优化后7天的ACoS变化
     // 如果无法获取效果数据，则使用优化方向合理性判断:
     // - ACoS高时降价 = 正向
@@ -225,7 +235,7 @@ export async function checkAlgorithmHealth(): Promise<DefenseResult> {
       WHERE event_category = 'bid_adjustment'
         AND action_type IN ('bid_increase', 'bid_decrease', 'bid_auto_adjust')
         AND api_sync_status != 'not_applicable'
-        AND created_at >= DATE_SUB(NOW(), INTERVAL 14 DAY)
+        AND created_at >= DATE_SUB(NOW(), INTERVAL ${CB_LOOKBACK_DAYS} DAY)
       GROUP BY algorithm
       HAVING total_ops >= 10
     `);
@@ -244,12 +254,13 @@ export async function checkAlgorithmHealth(): Promise<DefenseResult> {
       let shouldDisable = false;
       let reason = '';
 
-      if (positiveRate < 15 && totalOps >= 50) {
+      // v686: 使用配置中心的阈值替代硬编码
+      if (positiveRate < CB_POSITIVE_RATE_THRESHOLD && totalOps >= CB_MIN_OPS_FOR_FUSE) {
         shouldDisable = true;
-        reason = `正向率${positiveRate}%极低(阈值15%)，操作${totalOps}次，已触发熔断`;
-      } else if (negativeOps > positiveOps * 2 && totalOps >= 30) {
+        reason = `正向率${positiveRate}%极低(阈值${CB_POSITIVE_RATE_THRESHOLD}%)，操作${totalOps}次(最低${CB_MIN_OPS_FOR_FUSE})，已触发熔断`;
+      } else if (negativeOps > positiveOps * CB_NEGATIVE_RATIO && totalOps >= CB_NEGATIVE_MIN_OPS) {
         shouldDisable = true;
-        reason = `负向操作(${negativeOps})远超正向(${positiveOps})，已触发熔断`;
+        reason = `负向操作(${negativeOps})超过正向(${positiveOps})的${CB_NEGATIVE_RATIO}倍，操作${totalOps}次(最低${CB_NEGATIVE_MIN_OPS})，已触发熔断`;
       }
 
       algorithms.push({ algorithm, positiveRate, totalOps, shouldDisable, reason });

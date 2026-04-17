@@ -27,6 +27,13 @@ interface SyncProgressMessage {
       totalBatches: number;
       batchProgress: number;
     };
+    // v686: 长耗时步骤子进度信息
+    subProgress?: {
+      phase: string;
+      current: number;
+      total: number;
+      detail?: string;
+    };
   };
   timestamp?: string;
 }
@@ -43,6 +50,13 @@ interface SyncProgressState {
     totalBatches: number;
     batchProgress: number;
   } | null;
+  // v686: 长耗时步骤子进度
+  subProgress: {
+    phase: string;
+    current: number;
+    total: number;
+    detail?: string;
+  } | null;
   lastUpdated: Date | null;
 }
 
@@ -58,6 +72,7 @@ interface UseSyncProgressWsResult {
   progress: SyncProgressState;
   isConnected: boolean;
   isWsActive: boolean;  // WebSocket是否活跃（用于判断是否需要降级到轮询）
+  isAuthExpired: boolean; // v687: 登录Token是否已过期（区分后端异常与前端鉴权失效）
 }
 
 const INITIAL_STATE: SyncProgressState = {
@@ -68,6 +83,7 @@ const INITIAL_STATE: SyncProgressState = {
   status: 'idle',
   recordsSynced: 0,
   batchInfo: null,
+  subProgress: null,
   lastUpdated: null,
 };
 
@@ -82,6 +98,7 @@ export function useSyncProgressWs(options: UseSyncProgressWsOptions): UseSyncPro
   const [progress, setProgress] = useState<SyncProgressState>(INITIAL_STATE);
   const [isConnected, setIsConnected] = useState(false);
   const [isWsActive, setIsWsActive] = useState(false);
+  const [isAuthExpired, setIsAuthExpired] = useState(false); // v687: 登录过期检测
   
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectAttemptRef = useRef(0);
@@ -177,6 +194,7 @@ export function useSyncProgressWs(options: UseSyncProgressWsOptions): UseSyncPro
                 status: 'running',
                 recordsSynced: msg.data?.recordsSynced || 0,
                 batchInfo: msg.data?.batchInfo || null,
+                subProgress: msg.data?.subProgress || null, // v686: 子进度
                 lastUpdated: new Date(),
               };
               setProgress(newState);
@@ -226,6 +244,28 @@ export function useSyncProgressWs(options: UseSyncProgressWsOptions): UseSyncPro
         if (!mountedRef.current) return;
         setIsConnected(false);
         
+        // v687: 检测登录Token过期 — 服务端返回401时会直接销毁socket
+        // 表现为: close code 1006(异常关闭) 且连接存活时间极短(<3秒)，或 close code 1008(Policy Violation)
+        const isAuthFailure = event.code === 1008 || 
+          (event.code === 1006 && event.reason?.includes?.('401')) ||
+          (event.code === 1006 && event.reason?.includes?.('Unauthorized'));
+        
+        if (isAuthFailure) {
+          console.warn('[v687] WebSocket: 登录Token已过期，需要重新登录');
+          setIsAuthExpired(true);
+          setIsWsActive(false);
+          // 不再尝试重连，因为Token过期后重连也会失败
+          return;
+        }
+        
+        // v687: 如果连续多次快速断开（<5秒内），可能是Token问题
+        if (event.code === 1006 && reconnectAttemptRef.current >= 3) {
+          console.warn('[v687] WebSocket: 连续快速断开，可能是登录Token已过期');
+          setIsAuthExpired(true);
+          setIsWsActive(false);
+          return;
+        }
+        
         // 非正常关闭时尝试重连
         if (event.code !== 1000 && enabled) {
           scheduleReconnect();
@@ -262,5 +302,6 @@ export function useSyncProgressWs(options: UseSyncProgressWsOptions): UseSyncPro
     progress,
     isConnected,
     isWsActive,
+    isAuthExpired, // v687: 登录过期状态
   };
 }

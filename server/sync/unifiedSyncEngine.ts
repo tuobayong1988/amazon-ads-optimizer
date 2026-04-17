@@ -449,6 +449,8 @@ export interface SyncContext {
   incrementalMode: boolean;
   /** v663: 增量模式下的报告天数上限（SP/SD默认14天，SB默认7天） */
   incrementalReportDays: { sp: number; sb: number; sd: number };
+  /** v686: 长耗时步骤子进度回调 — 用于报告步骤内部的细粒度进展 */
+  onSubProgress?: (subProgress: { phase: string; current: number; total: number; detail?: string }) => void;
 }
 
 /** 账户同步结果 */
@@ -1003,25 +1005,32 @@ const SYNC_STEPS: SyncStep[] = [
         
         if (needsInit) {
           log.info(`[v679] 账户${ctx.accountId}需要渐进式初始化同步`);
-          // 加载已有进度或创建新进度
+          ctx.onSubProgress?.({ phase: '渐进式初始化', current: 0, total: 1, detail: '加载进度' });
           let progress = await loadInitProgress(ctx.accountId);
           if (!progress || progress.overallStatus === 'completed') {
             progress = createInitProgress(ctx.accountId);
           }
           
+          ctx.onSubProgress?.({ phase: '渐进式初始化', current: 0, total: 1, detail: '执行中...' });
           progress = await executeProgressiveInit(service, progress);
           await saveInitProgress(progress);
           
           const totalSynced = Object.values(progress.phases)
             .reduce((sum, p) => sum + (p.recordsSynced || 0), 0);
+          ctx.onSubProgress?.({ phase: '渐进式初始化', current: 1, total: 1, detail: `完成: ${totalSynced}条` });
           log.info(`[v679] 渐进式初始化完成: 状态=${progress.overallStatus}, 总同步=${totalSynced}条`);
           return { success: progress.overallStatus !== 'pending', synced: totalSynced, errors: [] };
         }
         
-        // v679: 非新账户，使用分层时间窗口+跨批并行模式
+        // v686: 非新账户，使用分层时间窗口+跨批并行模式，注入子进度回调
         const days = ctx.incrementalMode ? ctx.incrementalReportDays.sp : 95;
+        ctx.onSubProgress?.({ phase: '提交报告', current: 0, total: 3, detail: `准备提交${days}天绩效报告` });
+        // v686: 将子进度回调传递给syncPerformanceData
+        service._subProgressCallback = ctx.onSubProgress;
         // @ts-expect-error - v652: prototype mixin method
         const synced = await service.syncPerformanceData(days);
+        service._subProgressCallback = undefined;
+        ctx.onSubProgress?.({ phase: '完成', current: 3, total: 3, detail: `入库${synced}条` });
         return { success: true, synced, errors: [] };
       } catch (e: unknown) {
         return { success: false, synced: 0, errors: [(e as Error).message] };
@@ -1036,8 +1045,12 @@ const SYNC_STEPS: SyncStep[] = [
     execute: async (service, ctx) => {
       try {
         const days = ctx.incrementalMode ? ctx.incrementalReportDays.sp : 95; // v663: 增量模式缩短天数
+        ctx.onSubProgress?.({ phase: '请求报告', current: 0, total: 3, detail: `准备请求${days}天关键词绩效报告` });
+        service._subProgressCallback = ctx.onSubProgress;
         // @ts-expect-error - v652: prototype mixin method
         const synced = await service.syncKeywordPerformanceData(days); // v376: 关键词绩效扩展到95天（SP API最大支持范围）
+        service._subProgressCallback = undefined;
+        ctx.onSubProgress?.({ phase: '完成', current: 3, total: 3, detail: `入库${synced}条` });
         return { success: true, synced, errors: [] };
       } catch (e: unknown) {
         return { success: false, synced: 0, errors: [(e as Error).message] };
@@ -1052,8 +1065,10 @@ const SYNC_STEPS: SyncStep[] = [
     execute: async (service, ctx) => {
       try {
         const days = ctx.incrementalMode ? ctx.incrementalReportDays.sp : 95; // v663: 增量模式缩短天数
+        ctx.onSubProgress?.({ phase: '同步定位绩效', current: 0, total: 1, detail: `${days}天定位绩效数据` });
         // @ts-expect-error - v652: prototype mixin method
         const synced = await service.syncProductTargetPerformanceData(days); // v376: 定位绩效扩展到95天（SP API最大支持范围）
+        ctx.onSubProgress?.({ phase: '完成', current: 1, total: 1, detail: `入库${synced}条` });
         return { success: true, synced, errors: [] };
       } catch (e: unknown) {
         return { success: false, synced: 0, errors: [(e as Error).message] };
@@ -1068,8 +1083,12 @@ const SYNC_STEPS: SyncStep[] = [
     execute: async (service, ctx) => {
       try {
         const days = ctx.incrementalMode ? ctx.incrementalReportDays.sp : 95; // v663: 增量模式缩短天数
+        ctx.onSubProgress?.({ phase: '提交报告', current: 0, total: 3, detail: `准备提交${days}天广告组绩效报告` });
+        service._subProgressCallback = ctx.onSubProgress;
         // @ts-expect-error - v652: prototype mixin method
         const synced = await service.syncAdGroupPerformanceData(days); // v376: 广告组绩效扩展到95天（SP API最大支持范围）
+        service._subProgressCallback = undefined;
+        ctx.onSubProgress?.({ phase: '完成', current: 3, total: 3, detail: `入库${synced}条` });
         return { success: true, synced, errors: [] };
       } catch (e: unknown) {
         return { success: false, synced: 0, errors: [(e as Error).message] };
@@ -1717,6 +1736,39 @@ export async function syncAccount(
     // v665: 注册活跃同步上下文，用于SIGTERM时主动保存checkpoint
     activeSyncContexts.set(lockKey, { accountId: account.accountId, tier, context, startTime });
 
+    // v684: 先发后收报告策略 — 在执行步骤前一次性提交所有报告请求
+    // 效果: 所有报告在Amazon后台并行生成，同时执行API直接调用步骤
+    // 然后集中轮询所有报告状态，哪个好了就立即下载处理
+    let prefetchSession: import('./prefetchReportScheduler').PrefetchSession | null = null;
+    const isFullSync = tier === 'full' || (options?.specificSteps && options.specificSteps.length > 20);
+    if (isFullSync && steps.length > 10) {
+      try {
+        const { submitAllReports, pollAndDownloadAllReports, cleanupPrefetchSession } = await import('./prefetchReportScheduler');
+        log.info(`[v684] 先发后收: 开始阶段A — 一次性提交所有报告请求`);
+        prefetchSession = await submitAllReports(
+          syncService.client,
+          account.accountId,
+          account.marketplace,
+          useIncrementalSync,
+          reportDays,
+          context.adTypeCapabilities
+        );
+        log.info(`[v684] 先发后收: 阶段A完成，${prefetchSession.reports.size}个报告已提交，现在执行API直接调用步骤`);
+      } catch (prefetchErr: unknown) {
+        log.warn(`[v684] 先发后收: 阶段A失败，回退到传统串行模式: ${(prefetchErr as Error).message}`);
+        prefetchSession = null;
+      }
+    }
+
+    // v684: 如果启用了先发后收，重新排序步骤：API直接调用步骤优先执行，报告步骤放到最后
+    if (prefetchSession) {
+      const { isReportStep } = await import('./prefetchReportScheduler');
+      const apiSteps = steps.filter(s => !isReportStep(s.id));
+      const reportSteps = steps.filter(s => isReportStep(s.id));
+      steps = [...apiSteps, ...reportSteps];
+      log.info(`[v684] 步骤重排序: ${apiSteps.length}个API步骤优先 + ${reportSteps.length}个报告步骤后续`);
+    }
+
     // v682: 将步骤分组 — 同一parallelGroup的步骤合并为一个并行执行单元
     // 效果: 7个串行报告步骤(35-210分钟) → 3个并行组(15-70分钟)
     interface StepGroup {
@@ -1753,7 +1805,33 @@ export async function syncAccount(
     
     // 逐组执行同步（组内并行，组间串行）
     let globalStepIndex = 0; // 用于进度计算
+    let prefetchPollingDone = false; // v684: 标记是否已执行阶段C轮询
     for (const group of stepGroups) {
+      // v684: 先发后收阶段C — 当第一个报告步骤即将执行时，集中轮询所有报告
+      if (prefetchSession && !prefetchPollingDone) {
+        const firstStepId = group.steps[0]?.step?.id || '';
+        const { isReportStep: checkReport, pollAndDownloadAllReports } = await import('./prefetchReportScheduler');
+        if (checkReport(firstStepId)) {
+          prefetchPollingDone = true;
+          log.info(`[v684] 先发后收: 开始阶段C — 集中轮询所有报告状态`);
+          try {
+            await pollAndDownloadAllReports(
+              syncService.client,
+              prefetchSession,
+              1200000, // 20分钟超时
+              (completed, total, currentReport) => {
+                if (options?.onProgress) {
+                  try { options.onProgress(`报告下载 ${completed}/${total}: ${currentReport}`, globalStepIndex, steps.length); } catch (_e) {}
+                }
+              }
+            );
+            const completedCount = Array.from(prefetchSession.reports.values()).filter(r => r.status === 'completed').length;
+            log.info(`[v684] 先发后收: 阶段C完成，${completedCount}/${prefetchSession.reports.size}个报告已下载`);
+          } catch (pollErr: unknown) {
+            log.warn(`[v684] 先发后收: 阶段C失败: ${(pollErr as Error).message}`);
+          }
+        }
+      }
       
       // 并行组执行（组内所有步骤同时启动）
       if (group.isParallel && group.steps.length > 1) {
@@ -2062,6 +2140,27 @@ export async function syncAccount(
         const stepTimeoutPromise = new Promise<never>((_, reject) => {
           setTimeout(() => reject(new Error(`STEP_TIMEOUT: 步骤${step.name}超时(${STEP_TIMEOUT_MS / 60000}分钟)`)), STEP_TIMEOUT_MS);
         });
+        // v686: 为长耗时步骤注入子进度回调 — 通过WebSocket实时推送细粒度进展
+        const LONG_RUNNING_STEPS = ['performance_95d', 'keyword_performance', 'target_performance', 'ad_group_performance', 'performance_today', 'performance_7d'];
+        if (LONG_RUNNING_STEPS.includes(step.id)) {
+          context.onSubProgress = (subProgress) => {
+            try {
+              const { broadcastSyncProgress } = require('./syncProgressWs');
+              const stepProgressPercent = Math.round(((i + 1) / steps.length) * 100);
+              broadcastSyncProgress(account.accountId, {
+                step: step.name,
+                stepIndex: i,
+                totalSteps: steps.length,
+                progressPercent: stepProgressPercent,
+                status: 'running',
+                subProgress,
+              });
+            } catch (_subErr) { /* 子进度推送失败不影响同步 */ }
+          };
+        } else {
+          context.onSubProgress = undefined;
+        }
+        
         const stepResult = await Promise.race([
           step.execute(syncService, context),
           stepTimeoutPromise,
@@ -2211,6 +2310,26 @@ export async function syncAccount(
         break; // v643: 不可重试错误，跳出重试循环继续下一个步骤
       }
       } // v643: 结束重试for循环
+      
+      // v685: 步骤间内存优化 — 每个步骤完成后检查内存并触发GC
+      // v684验证发现同步期间RSS达到2076MB，需要在步骤间主动释放内存
+      if (i > 0 && i % 3 === 0) { // 每3个步骤检查一次
+        try {
+          const mem = process.memoryUsage();
+          const rssMB = Math.round(mem.rss / 1024 / 1024);
+          const heapMB = Math.round(mem.heapUsed / 1024 / 1024);
+          log.info(`[v685] 步骤间内存检查 [${i}/${steps.length}]: RSS=${rssMB}MB, Heap=${heapMB}MB`);
+          
+          // RSS > 800MB 或 堆使用 > 500MB 时触发GC
+          if ((rssMB > 800 || heapMB > 500) && typeof global.gc === 'function') {
+            global.gc();
+            const memAfter = process.memoryUsage();
+            const rssAfterMB = Math.round(memAfter.rss / 1024 / 1024);
+            const heapAfterMB = Math.round(memAfter.heapUsed / 1024 / 1024);
+            log.info(`[v685] 步骤间GC完成: RSS ${rssMB}→${rssAfterMB}MB, Heap ${heapMB}→${heapAfterMB}MB, 释放=${rssMB - rssAfterMB}MB`);
+          }
+        } catch { /* 内存检查失败不影响同步 */ }
+      }
     }
 
     // 更新最后同步时间
@@ -2367,6 +2486,11 @@ export async function syncAccount(
     // 清理
     activeSyncs.delete(lockKey);
     activeSyncContexts.delete(lockKey); // v665: 清理活跃同步上下文引用
+    // v684: 清理预取会话，释放报告数据内存
+    try {
+      const { cleanupPrefetchSession } = await import('./prefetchReportScheduler');
+      cleanupPrefetchSession(account.accountId);
+    } catch (_e) { /* 清理失败不影响结果 */ }
     // v221: 只清理当前层级的条目，不影响其他层级的并行同步
     engineStatus.currentlyRunning = engineStatus.currentlyRunning.filter(
       r => !(r.accountId === account.accountId && r.tier === tier)
@@ -2616,6 +2740,49 @@ export async function syncAllAccounts(tier: SyncTier): Promise<BatchSyncResult> 
       } catch (cooldownErr: any) {
         // 冒却期检查失败不阻止同步继续
         log.debug(`[UnifiedSync] v661: 账户${account.accountId}冒却期检查失败: ${(cooldownErr as Error).message}`);
+      }
+    }
+    
+    // v687: 真空账户(TRULY_EMPTY)同步频率降级
+    // 对于中高频同步层，如果账户已被连续多次诊断为TRULY_EMPTY，则在冷却期内跳过
+    // 全量同步(full/nightly)不受影响，确保真空账户仍能定期被完整检查
+    if (tier === 'high' || tier === 'medium') {
+      const emptyDiag = emptyAccountDiagCache.get(account.accountId);
+      if (emptyDiag && emptyDiag.diagnosisType === 'TRULY_EMPTY') {
+        try {
+          const { getConfig } = await import('../services/systemConfigService');
+          const minDiagCount = getConfig('execution.empty_account_min_diag_count') as number;
+          const cooldownHours = getConfig('execution.empty_account_cooldown_hours') as number;
+          
+          if (emptyDiag.count >= minDiagCount) {
+            const hoursSinceFirst = (Date.now() - emptyDiag.firstSeen.getTime()) / (1000 * 60 * 60);
+            const cooldownMs = cooldownHours * 60 * 60 * 1000;
+            const timeSinceLastSync = Date.now() - emptyDiag.firstSeen.getTime();
+            
+            // 在冷却期内跳过：连续N次TRULY_EMPTY且距首次发现不超过cooldownHours
+            if (timeSinceLastSync < cooldownMs) {
+              log.info(`[UnifiedSync] v687: 真空账户频率降级 — 账户${account.accountId}(${account.accountName}) 已连续${emptyDiag.count}次TRULY_EMPTY(${hoursSinceFirst.toFixed(1)}h)，${tier}层跳过(冷却${cooldownHours}h)`);
+              logSync('UnifiedSync', `v687: 真空账户${account.accountId}频率降级跳过`, {
+                accountId: account.accountId, tier, diagCount: emptyDiag.count,
+                hoursSinceFirst: hoursSinceFirst.toFixed(1), cooldownHours,
+              });
+              batchResult.skippedAccounts++;
+              // 释放账户锁
+              try {
+                const { releaseAccountLock } = await import('./syncCoordinator');
+                releaseAccountLock(account.accountId, `auto_${tier}`);
+              } catch { /* ignore */ }
+              continue;
+            } else {
+              // 冷却期已过，重置诊断缓存让账户重新被完整检查
+              log.info(`[UnifiedSync] v687: 真空账户${account.accountId}冷却期(${cooldownHours}h)已过，重新同步检查`);
+              emptyAccountDiagCache.delete(account.accountId);
+            }
+          }
+        } catch (emptyCheckErr: any) {
+          // 配置读取失败不阻止同步
+          log.debug(`[UnifiedSync] v687: 真空账户降级检查失败: ${(emptyCheckErr as Error).message}`);
+        }
       }
     }
     
@@ -3109,11 +3276,23 @@ export async function triggerManualFullSync(
     if (onProgress) {
       onProgress(step, index, total);
     }
-    // 更新data_sync_jobs进度
+    const progressPercent = Math.round(((index + 1) / total) * 100);
+    // v684: 先更新内存缓存（即时生效，前端轮询立即可见）
+    if (options?.jobId) {
+      try {
+        const { cacheUpdateSyncProgress } = await import('./syncStatusCache');
+        cacheUpdateSyncProgress(options.jobId, {
+          currentStep: step,
+          totalSteps: total,
+          currentStepIndex: index,
+          progressPercent,
+        });
+      } catch (_e) { /* 缓存更新失败不影响主流程 */ }
+    }
+    // 更新data_sync_jobs进度（数据库持久化）
     if (options?.jobId) {
       try {
         const { updateSyncJob } = await import('../db/syncJobs');
-        const progressPercent = Math.round(((index + 1) / total) * 100);
         await updateSyncJob(options.jobId, {
           currentStep: step,
           totalSteps: total,
@@ -3167,6 +3346,22 @@ export async function triggerManualFullSync(
 
   // v404: 同步完成后更新data_sync_jobs最终状态
   if (options?.jobId && result) {
+    // v684: 先更新内存缓存的最终状态
+    try {
+      const { cacheUpdateSyncProgress } = await import('./syncStatusCache');
+      cacheUpdateSyncProgress(options.jobId, {
+        status: result.success ? 'completed' : (result.partialSuccess ? 'completed' : 'failed'),
+        recordsSynced: result.totalSynced,
+        durationMs: result.durationMs,
+        currentStep: result.success ? '完成' : '失败',
+        totalSteps: result.totalSteps,
+        currentStepIndex: result.totalSteps,
+        progressPercent: result.success ? 100 : Math.round(
+          (result.completedSteps / Math.max(result.totalSteps, 1)) * 100
+        ),
+        errorMessage: result.errors.length > 0 ? result.errors.slice(0, 3).join('; ') : undefined,
+      });
+    } catch (_e) { /* 缓存更新失败不影响主流程 */ }
     try {
       const { updateSyncJob } = await import('../db/syncJobs');
       const safeNum = (v: unknown) => (typeof v === 'number' && !isNaN(v) ? v : 0);

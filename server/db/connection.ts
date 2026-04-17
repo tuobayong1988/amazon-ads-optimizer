@@ -2,6 +2,12 @@
  * v394: 数据库连接管理
  * 从db.ts拆分的子模块
  * v394: 添加连接泄露自动检测和超时回收机制
+ * v686: 连接池优化 — 应对全量同步期间瞬时高负载
+ *   - connectTimeout 15s→30s，避免高负载时连接建立超时
+ *   - 健康检查 getConnection 超时 5s→10s，避免高负载时误判不健康
+ *   - 连接最大持有时间 120s→180s，适配长耗时同步步骤
+ *   - 新增连接池压力自适应：高利用率时自动延长获取超时
+ *   - 新增获取连接重试机制：首次超时后自动重试一次
  */
 
 import { drizzle } from 'drizzle-orm/mysql2';
@@ -32,7 +38,7 @@ let _lastPoolRebuild = 0;
  * v394: 连接泄露追踪器
  * 追踪每个借出连接的获取时间和调用栈，超时后自动回收
  */
-const CONNECTION_MAX_HOLD_TIME = 120_000; // 连接最大持有时间120秒
+const CONNECTION_MAX_HOLD_TIME = 180_000; // v686: 连接最大持有时间180秒（从120秒延长，适配95天绩效回溯等长耗时步骤）
 const LEAK_CHECK_INTERVAL = 30_000; // 每30秒检查一次泄露
 interface TrackedConnection {
   conn: mysql.PoolConnection;
@@ -91,7 +97,7 @@ export async function getDb() {
     try {
       const conn = await Promise.race([
         _pool.getConnection(),
-        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Health check getConnection timeout')), 5000))
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Health check getConnection timeout')), 10_000)) // v686: 10s（从5s延长，高负载时5s太短易误判）
       ]);
       await Promise.race([
         conn.ping(),
@@ -119,19 +125,22 @@ export async function getDb() {
   
   if (!_db) {
     try {
-      // v402: 连接池优化 - 适配500租户规模，默认100连接
+      // v686: 连接池优化 — 应对全量同步期间瞬时高负载
+      // connectTimeout: 15s→30s，高负载时连接建立需要更多时间
+      // maxIdle: 40%→50%，保留更多空闲连接应对突发请求
+      // queueLimit: 4x→6x，允许更多请求排队等待而非直接拒绝
       const poolSize = parseInt(process.env.DB_POOL_SIZE || '100', 10);
       const poolIdleTimeout = parseInt(process.env.DB_IDLE_TIMEOUT || '300000', 10);
       _pool = mysql.createPool({
         uri: process.env.DATABASE_URL,
         waitForConnections: true,
         connectionLimit: poolSize,
-        maxIdle: Math.floor(poolSize * 0.4),
+        maxIdle: Math.floor(poolSize * 0.5), // v686: 50%空闲连接（从40%提升，减少高负载时的连接创建开销）
         idleTimeout: poolIdleTimeout,
-        connectTimeout: 15_000,
+        connectTimeout: 30_000, // v686: 30s（从15s延长，避免高负载时ETIMEDOUT）
         enableKeepAlive: true,
         keepAliveInitialDelay: 10_000,
-        queueLimit: poolSize * 4,
+        queueLimit: poolSize * 6, // v686: 6x（从4x提升，允许更多请求排队等待）
       });
       
       // v350: 注册连接池事件监听，用于诊断
@@ -147,7 +156,7 @@ export async function getDb() {
       // v394: 启动连接泄露检查器
       startLeakChecker();
       
-      log.info(`[Database] v394: 连接池已建立 (limit=${poolSize}, idle=${Math.floor(poolSize*0.4)}, connectTimeout=15s, keepAlive=10s, queueLimit=${poolSize*4}, leakCheck=30s)`);
+      log.info(`[Database] v686: 连接池已建立 (limit=${poolSize}, idle=${Math.floor(poolSize*0.5)}, connectTimeout=30s, keepAlive=10s, queueLimit=${poolSize*6}, leakCheck=30s, maxHold=180s)`);
     } catch (error) {
       log.warn("[Database] v350: 连接池创建失败:", error);
       _db = null;
@@ -180,13 +189,43 @@ export async function getDirectConnection(timeoutMs: number = 30_000): Promise<m
   // v394: 获取调用栈信息用于泄露诊断
   const callerStack = new Error().stack?.split('\n')[2]?.trim() || 'unknown';
   
+  // v686: 连接池压力自适应 — 高利用率时自动延长获取超时
+  let effectiveTimeout = timeoutMs;
   try {
-    const conn = await Promise.race([
-      _pool.getConnection(),
-      new Promise<never>((_, reject) => 
-        setTimeout(() => reject(new Error(`v350: 获取连接超时(${timeoutMs}ms)，连接池可能已满`)), timeoutMs)
-      )
-    ]);
+    const pool = _pool as any;
+    const allConns = pool.pool?._allConnections?.length ?? 0;
+    const freeConns = pool.pool?._freeConnections?.length ?? 0;
+    const connLimit = pool.pool?.config?.connectionLimit ?? 100;
+    const utilization = connLimit > 0 ? (allConns - freeConns) / connLimit : 0;
+    if (utilization > 0.8) {
+      // 利用率>80%时，超时时间延长50%，给排队请求更多等待机会
+      effectiveTimeout = Math.round(timeoutMs * 1.5);
+      log.debug(`[Database] v686: 连接池高压(${Math.round(utilization*100)}%)，获取超时延长至${effectiveTimeout}ms`);
+    }
+  } catch { /* 获取利用率失败不影响正常流程 */ }
+  
+  // v686: 获取连接重试机制 — 首次超时后自动重试一次
+  const attemptGetConnection = async (attempt: number): Promise<mysql.PoolConnection> => {
+    try {
+      return await Promise.race([
+        _pool!.getConnection(),
+        new Promise<never>((_, reject) => 
+          setTimeout(() => reject(new Error(`v686: 获取连接超时(${effectiveTimeout}ms, attempt=${attempt})，连接池可能已满`)), effectiveTimeout)
+        )
+      ]);
+    } catch (err) {
+      if (attempt < 2) {
+        // 首次失败，等待500ms后重试
+        log.warn(`[Database] v686: 获取连接第${attempt}次超时，500ms后重试...`);
+        await new Promise(r => setTimeout(r, 500));
+        return attemptGetConnection(attempt + 1);
+      }
+      throw err;
+    }
+  };
+  
+  try {
+    const conn = await attemptGetConnection(1);
     
     // v350: 设置会话级查询超时，防止单个慢查询无限期占用连接
     const queryTimeoutSec = Math.ceil(timeoutMs / 1000);

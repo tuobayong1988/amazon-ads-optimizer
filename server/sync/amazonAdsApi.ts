@@ -3489,100 +3489,154 @@ export class AmazonAdsApiClient {
     startDate: string,
     endDate: string
   ): Promise<string> {
-    try {
-      log.debug(`[Amazon API] 请求SB广告位置报告: ${startDate} - ${endDate}`);
-      
-      const requestBody = {
-        name: `SB Campaign Placement Report ${startDate} to ${endDate}`,
-        startDate,
-        endDate,
-        configuration: {
-          adProduct: 'SPONSORED_BRANDS',
-          groupBy: ['campaignPlacement'],  // v400-fix: BUG-A2修复 - Amazon标准groupBy是['campaignPlacement']而不是['campaign', 'placement']
-          columns: [
-            // 基础信息 - 根据Excel文档SB Campaign Placement sheet
-            'date',
-            'campaignId',
-            'campaignName',                      // Excel: campaignName - 广告系列名称
-            'campaignBudgetCurrencyCode',        // Excel: campaignBudgetCurrencyCode - 币种
-            'costType',                          // Excel: costType - 费用类型
-            'placementClassification',           // Excel: placementClassification - 展示位置
-            // 流量指标
-            'impressions',                       // Excel: impressions - 展示次数
-            'viewableImpressions',               // Excel: viewableImpressions - 可见展示次数
-            'clicks',                            // Excel: clicks - 点击次数
-            'viewabilityRate',                   // Excel: viewabilityRate - 观看率 (VTR)
-            'viewClickThroughRate',              // Excel: viewClickThroughRate - 观看点击率 (vCTR)
-            // 花费指标
-            'cost',                              // Excel: cost - 支出
-            // 14天归因销售指标
-            'sales',                             // Excel: sales - 14天总销售额
-            'purchases',                         // Excel: purchases - 14天总订单量
-            'unitsSold',                         // Excel: unitsSold - 14天总单位数
-            // 点击归因指标
-            // @ts-expect-error - legacy type assertion
-            'salesClicks',                       // Excel: salesClicks - 14天总销售额(点击)
-            // @ts-expect-error - legacy type assertion
-            'purchasesClicks',                   // Excel: purchasesClicks - 14天总订单数量(点击)
-            'unitsSoldClicks',                   // Excel: unitsSoldClicks - 14天总单位数量(点击)
-            // 视频指标
-            'videoFirstQuartileViews',           // Excel: videoFirstQuartileViews
-            'videoMidpointViews',                // Excel: videoMidpointViews
-            'videoThirdQuartileViews',           // Excel: videoThirdQuartileViews
-            'videoCompleteViews',                // Excel: videoCompleteViews
-            'videoUnmutes',                      // Excel: videoUnmutes
-            'video5SecondViews',                 // Excel: video5SecondViews
-            'video5SecondViewRate',              // Excel: video5SecondViewRate
-            // 品牌搜索
-            'brandedSearches',                   // Excel: brandedSearches
-            // 详情页浏览
-            'detailPageViews',                   // Excel: detailPageViews
-            // 新客指标
-            'newToBrandPurchases',               // Excel: newToBrandPurchases
-            'newToBrandPurchasesPercentage',     // Excel: newToBrandPurchasesPercentage
-            'newToBrandSales',                   // Excel: newToBrandSales
-            'newToBrandSalesPercentage',         // Excel: newToBrandSalesPercentage
-            'newToBrandUnitsSold',               // Excel: newToBrandUnitsSold
-            'newToBrandUnitsSoldPercentage',     // Excel: newToBrandUnitsSoldPercentage
-            'newToBrandPurchasesRate'            // Excel: newToBrandPurchasesRate
-          ],
-          // 添加filters配置
-          filters: [
-            {
-              field: 'campaignStatus',
-              values: ['ARCHIVED', 'ENABLED', 'PAUSED']
-            }
-          ],
-          reportTypeId: 'sbCampaignPlacement',  // v400-fix: BUG-A2修复 - 正确的reportTypeId是'sbCampaignPlacement'而不是'sbCampaigns'
-          timeUnit: 'DAILY',
-          format: 'GZIP_JSON',
-        },
-      };
-      
-      const response = await this.axiosInstance.post('/reporting/reports', requestBody, {
-        headers: { 
-          'Content-Type': 'application/vnd.createasyncreportrequest.v3+json',
-          'Accept': 'application/vnd.createasyncreportrequest.v3+json'
-        },
-      });
-      
-      log.info(`[Amazon API] SB广告位置报告请求成功, reportId: ${response.data.reportId}`);
-      return response.data.reportId;
-    } catch (error: unknown) {
-      {
+    // v684: 采用渐进降级策略修复400错误
+    // 根因分析：sbCampaignPlacement报告类型不支持部分列（如salesClicks, purchasesClicks等）
+    // 策略：先用完整列尝试，400时自动降级为核心列重试
+    
+    // 完整列列表（包含所有期望的指标）
+    const fullColumns = [
+      'date', 'campaignId', 'campaignName', 'campaignBudgetCurrencyCode',
+      'costType', 'placementClassification',
+      'impressions', 'viewableImpressions', 'clicks',
+      'viewabilityRate', 'viewClickThroughRate',
+      'cost', 'sales', 'purchases', 'unitsSold',
+      'salesClicks', 'purchasesClicks', 'unitsSoldClicks',
+      'videoFirstQuartileViews', 'videoMidpointViews',
+      'videoThirdQuartileViews', 'videoCompleteViews',
+      'videoUnmutes', 'video5SecondViews', 'video5SecondViewRate',
+      'brandedSearches', 'detailPageViews',
+      'newToBrandPurchases', 'newToBrandPurchasesPercentage',
+      'newToBrandSales', 'newToBrandSalesPercentage',
+      'newToBrandUnitsSold', 'newToBrandUnitsSoldPercentage',
+      'newToBrandPurchasesRate'
+    ];
+    
+    // 核心列列表（只保留最基本的广告位绩效指标，确保兼容性）
+    const coreColumns = [
+      'date', 'campaignId', 'campaignName',
+      'costType', 'placementClassification',
+      'impressions', 'clicks', 'cost',
+      'sales', 'purchases', 'unitsSold'
+    ];
+    
+    // 中级列列表（核心 + 点击归因 + 视频指标）
+    const midColumns = [
+      'date', 'campaignId', 'campaignName', 'campaignBudgetCurrencyCode',
+      'costType', 'placementClassification',
+      'impressions', 'clicks', 'cost',
+      'sales', 'purchases', 'unitsSold',
+      'unitsSoldClicks',
+      'videoFirstQuartileViews', 'videoMidpointViews',
+      'videoThirdQuartileViews', 'videoCompleteViews',
+      'video5SecondViews', 'video5SecondViewRate',
+      'brandedSearches', 'detailPageViews',
+      'newToBrandPurchases', 'newToBrandSales', 'newToBrandUnitsSold'
+    ];
+    
+    const columnSets = [
+      { name: '完整列', columns: fullColumns },
+      { name: '中级列', columns: midColumns },
+      { name: '核心列', columns: coreColumns },
+    ];
+    
+    for (let i = 0; i < columnSets.length; i++) {
+      const { name, columns } = columnSets[i];
+      try {
+        log.debug(`[Amazon API] v684: 请求SB广告位置报告(${name}): ${startDate} - ${endDate}, ${columns.length}列`);
+        
+        const requestBody = {
+          name: `SB Campaign Placement Report ${startDate} to ${endDate}`,
+          startDate,
+          endDate,
+          configuration: {
+            adProduct: 'SPONSORED_BRANDS',
+            groupBy: ['campaignPlacement'],
+            columns,
+            // v684.2: sbCampaignPlacement报告类型不支持filters
+            // 错误信息: "configuration no filters available for this report type. Please remove filters."
+            reportTypeId: 'sbCampaignPlacement',
+            timeUnit: 'DAILY',
+            format: 'GZIP_JSON',
+          },
+        };
+        
+        const response = await this.axiosInstance.post('/reporting/reports', requestBody, {
+          headers: { 
+            'Content-Type': 'application/vnd.createasyncreportrequest.v3+json',
+            'Accept': 'application/vnd.createasyncreportrequest.v3+json'
+          },
+        });
+        
+        log.info(`[Amazon API] v684: SB广告位置报告请求成功(${name}), reportId: ${response.data.reportId}`);
+        return response.data.reportId;
+      } catch (error: unknown) {
         // @ts-expect-error - legacy type assertion
         const _errStatus = (error as Record<string, unknown>).response?.status;
         // @ts-expect-error - legacy type assertion
         const _errMsg = (error as Record<string, unknown>).response?.data || (error as Error).message;
+        
+        if (_errStatus === 400 && i < columnSets.length - 1) {
+          // 400错误且还有降级方案，记录警告并继续尝试
+          log.warn(`[Amazon API] v684: SB广告位置报告(${name})返回400，降级到${columnSets[i + 1].name}重试: ${JSON.stringify(_errMsg)?.slice(0, 300)}`);
+          continue;
+        }
+        
+        // v685: 429限流时智能退避重试（最多3次，间隔5s/15s/30s）
+        if (_errStatus === 429) {
+          const retryDelays = [5000, 15000, 30000];
+          let retrySuccess = false;
+          for (let retry = 0; retry < retryDelays.length; retry++) {
+            log.warn(`[Amazon API] v685: SB广告位报告(${name})429限流，第${retry + 1}次退避重试，等待${retryDelays[retry] / 1000}秒...`);
+            await new Promise(resolve => setTimeout(resolve, retryDelays[retry]));
+            try {
+              const retryResponse = await this.axiosInstance.post('/reporting/reports', {
+                name: `SB Campaign Placement Report ${startDate} to ${endDate}`,
+                startDate,
+                endDate,
+                configuration: {
+                  adProduct: 'SPONSORED_BRANDS',
+                  groupBy: ['campaignPlacement'],
+                  columns,
+                  reportTypeId: 'sbCampaignPlacement',
+                  timeUnit: 'DAILY',
+                  format: 'GZIP_JSON',
+                },
+              }, {
+                headers: {
+                  'Content-Type': 'application/vnd.createasyncreportrequest.v3+json',
+                  'Accept': 'application/vnd.createasyncreportrequest.v3+json'
+                },
+              });
+              log.info(`[Amazon API] v685: SB广告位报告(${name})429退避重试成功(#${retry + 1}), reportId: ${retryResponse.data.reportId}`);
+              return retryResponse.data.reportId;
+            } catch (retryErr: unknown) {
+              // @ts-expect-error - legacy type assertion
+              const retryStatus = (retryErr as Record<string, unknown>).response?.status;
+              if (retryStatus !== 429 || retry === retryDelays.length - 1) {
+                log.warn(`[Amazon API] v685: SB广告位报告429退避重试失败(#${retry + 1}): status=${retryStatus}`);
+                if (retryStatus !== 429) throw retryErr;
+              }
+            }
+          }
+          if (!retrySuccess) {
+            log.warn(`[Amazon API] v685: SB广告位报告429限流持续，所有退避重试均失败`);
+            throw error;
+          }
+        }
+        
+        // 最后一级也失败，或非400/429错误，抛出异常
         const _isExpected = _errStatus === 425 || (_errStatus === 400 && JSON.stringify(_errMsg).includes('configuration date'));
         if (_isExpected) {
-          log.warn(`[Amazon API] 请求SB广告位置报告失败 (expected): status=${_errStatus}, ${JSON.stringify(_errMsg)?.slice(0, 200)}`);
+          log.warn(`[Amazon API] v684: 请求SB广告位置报告失败(${name}, expected): status=${_errStatus}, ${JSON.stringify(_errMsg)?.slice(0, 200)}`);
         } else {
-          log.warn(`[Amazon API] 请求SB广告位置报告失败: status=${_errStatus}, ${JSON.stringify(_errMsg)?.slice(0, 500)}`);
+          log.warn(`[Amazon API] v684: 请求SB广告位置报告失败(${name}): status=${_errStatus}, ${JSON.stringify(_errMsg)?.slice(0, 500)}`);
         }
+        throw error;
       }
-      throw error;
     }
+    
+    // 不应该到达这里，但为了类型安全
+    throw new Error('v684: SB广告位置报告所有列级别均失败');
   }
 
   /**
@@ -4065,10 +4119,13 @@ export class AmazonAdsApiClient {
         // v681: 流式JSON解析 — 使用增量式解析器降低内存峰值
         // 核心改进：不再将整个解压后的JSON字符串缓存在内存中再解析，
         // 而是边解压边解析，每次只在内存中保留当前块和已解析的结果对象
+        // v687: 内存感知GC — 每解析5万条对象主动触发GC，防止V8 Heap无限增长
         const data = await new Promise<Record<string, unknown>[]>((resolve, reject) => {
           const results: Record<string, unknown>[] = [];
           let totalSize = 0;
           const MAX_SIZE = 500 * 1024 * 1024; // 500MB限制
+          let parsedSinceLastGC = 0; // v687: GC计数器
+          const GC_TRIGGER_THRESHOLD = 50000; // v687: 每5万条触发一次GC
           let jsonBuffer = ''; // 增量式JSON解析缓冲区
           let depth = 0; // JSON嵌套深度跟踪
           let inString = false; // 是否在字符串内
@@ -4129,6 +4186,15 @@ export class AmazonAdsApiClient {
                   const objStr = fullText.substring(objectStart, jsonBuffer.length + i + 1);
                   try {
                     results.push(JSON.parse(objStr));
+                    // v687: 内存感知GC — 大报告解析时定期释放中间字符串对象
+                    parsedSinceLastGC++;
+                    if (parsedSinceLastGC >= GC_TRIGGER_THRESHOLD) {
+                      parsedSinceLastGC = 0;
+                      if (typeof global.gc === 'function') {
+                        global.gc();
+                        log.debug(`[Amazon API] v687: 流式解析GC触发 (已解析${results.length}条)`);
+                      }
+                    }
                   } catch {
                     // 单个对象解析失败，跳过
                     log.debug(`[Amazon API] v681: 流式解析跳过一个无效对象`);
@@ -6853,6 +6919,8 @@ export class AmazonAdsApiClient {
             report.data = data;
             const elapsed = Math.round((Date.now() - startTime) / 1000);
             log.info(`[Amazon API] v413: 报告完成并下载 [${report.name}]: ${data?.length || 0}条, 耗时${elapsed}秒`);
+            // v687: 内存削峰 — 报告下载完成后主动触发GC，释放下载过程中的中间字符串和临时对象
+            if (typeof global.gc === 'function') global.gc();
           } else if (status.status === 'FAILED') {
             report.completed = true;
             report.error = status.failureReason || 'Report generation failed';

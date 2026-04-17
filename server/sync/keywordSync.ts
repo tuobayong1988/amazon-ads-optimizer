@@ -381,6 +381,11 @@ export async function syncKeywordPerformanceData(service: SyncContext,days: numb
 
     log.info(`v196: 开始同步关键词绩效数据: ${startDateStr} - ${endDateStr} (站点: ${service.marketplace})`);
 
+    // v686: 子进度 — 请求报告阶段
+    if (service._subProgressCallback) {
+      service._subProgressCallback({ phase: '请求报告', current: 1, total: 3, detail: `SP关键词报告 ${startDateStr}~${endDateStr}` });
+    }
+    
     // v242: 报告请求阶段 - 使用重试包装器
     const reportId = await withRetry(
       () => service.client.requestSpKeywordReport(startDateStr, endDateStr),
@@ -396,6 +401,11 @@ export async function syncKeywordPerformanceData(service: SyncContext,days: numb
       1, 10000
     );
     log.info(`v242: 关键词报告下载完成, 数据条数: ${reportData?.length || 0}`);
+    
+    // v686: 子进度 — 报告下载完成
+    if (service._subProgressCallback) {
+      service._subProgressCallback({ phase: '处理数据', current: 2, total: 3, detail: `${reportData?.length || 0}条数据待匹配入库` });
+    }
     
     if (!reportData || reportData.length === 0) {
       log.warn('v196: 关键词报告数据为空');

@@ -38,6 +38,13 @@ interface SyncProgressMessage {
       totalBatches: number;
       batchProgress: number;
     };
+    // v686: 长耗时步骤子进度信息 — 缓解用户等待焦虑
+    subProgress?: {
+      phase: string;       // 子阶段名称（如"提交报告"、"轮询报告"、"处理数据"）
+      current: number;     // 当前进度
+      total: number;       // 总量
+      detail?: string;     // 详细描述（如"SP广告活动 3/14天"）
+    };
   };
   message?: string;
 }

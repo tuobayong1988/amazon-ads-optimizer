@@ -135,7 +135,17 @@ AmazonSyncService.prototype.syncPerformanceData = async function(this: AmazonSyn
     const reportWaitTimeout = this._reportWaitTimeoutMs || 600000;
     log.info(`[v679] 开始跨批并行提交: ${reportRequestList.length}个报告, 超时=${Math.round(reportWaitTimeout / 1000)}秒`);
     
+    // v686: 子进度 — 提交报告阶段
+    if (this._subProgressCallback) {
+      this._subProgressCallback({ phase: '提交报告', current: 1, total: 3, detail: `${reportRequestList.length}个报告请求提交中` });
+    }
+    
     const reportResults = await this.client.submitAndWaitMultipleReports(reportRequestList, reportWaitTimeout, 2000);
+    
+    // v686: 子进度 — 轮询完成，开始处理数据
+    if (this._subProgressCallback) {
+      this._subProgressCallback({ phase: '处理数据', current: 2, total: 3, detail: `${reportResults.length}个报告结果待处理` });
+    }
     
     // v679: 处理报告结果 - 按广告类型分组处理
     const failedReports: string[] = [];
@@ -169,6 +179,11 @@ AmazonSyncService.prototype.syncPerformanceData = async function(this: AmazonSyn
     }
     
     log.info(`[v679] 跨批并行完成: ${successCount}/${reportResults.length}成功, 失败${failedReports.length}个, 总入库${totalSynced}条`);
+    
+    // v686: 子进度 — 数据处理完成
+    if (this._subProgressCallback) {
+      this._subProgressCallback({ phase: '入库完成', current: 3, total: 3, detail: `${successCount}个报告成功, 入库${totalSynced}条` });
+    }
     
     if (failedReports.length > 0) {
       log.warn(`[v679] 失败报告: ${failedReports.slice(0, 5).join('; ')}${failedReports.length > 5 ? `...等${failedReports.length}个` : ''}`);
@@ -395,21 +410,21 @@ async function flushDailyPerfBatch(
   if (batch.length === 0) return;
 
   // v383: 将货币字段直接合并到batch数据中，一次UPSERT完成所有字段更新
-  const enrichedBatch = batch.map((row, i) => {
+  // v687: 内存削峰 — 原地合并货币字段到batch中，避免创建完整的enrichedBatch副本
+  for (let i = 0; i < batch.length; i++) {
     const cur = currencyBatch[i];
-    return {
-      // @ts-expect-error - legacy type assertion
-      ...row,
-      // @ts-expect-error - legacy type assertion
-      currency: cur?.currency || null,
-      exchangeRate: cur?.exchangeRate ? String(cur.exchangeRate) : null,
-      spendUsd: cur?.spendUsd || null,
-      salesUsd: cur?.salesUsd || null,
-    };
-  });
+    // @ts-expect-error - legacy type assertion
+    batch[i].currency = cur?.currency || null;
+    // @ts-expect-error - legacy type assertion
+    batch[i].exchangeRate = cur?.exchangeRate ? String(cur.exchangeRate) : null;
+    // @ts-expect-error - legacy type assertion
+    batch[i].spendUsd = cur?.spendUsd || null;
+    // @ts-expect-error - legacy type assertion
+    batch[i].salesUsd = cur?.salesUsd || null;
+  }
 
   // @ts-expect-error - legacy type assertion
-  await db.insert(dailyPerformance).values(enrichedBatch).onDuplicateKeyUpdate({
+  await db.insert(dailyPerformance).values(batch).onDuplicateKeyUpdate({
     set: {
       impressions: sql`VALUES(${dailyPerformance.impressions})`,
       clicks: sql`VALUES(${dailyPerformance.clicks})`,
@@ -716,19 +731,25 @@ AmazonSyncService.prototype.processReportData = async function(this: AmazonSyncS
       currencyBatch.push({ currency, exchangeRate, spendUsd: spendUsd.toFixed(2), salesUsd: salesUsd.toFixed(2) });
       synced++;
 
-      // v360: 每500条执行一次批量UPSERT
-      if (upsertBatch.length >= 500) {
+      // v360: 批量UPSERT  v687: 内存削峰 — 将批次大小从500降至200，减少enrichedBatch克隆和SQL生成时的内存峰值
+      if (upsertBatch.length >= 200) {
         await flushDailyPerfBatch(db, upsertBatch, currencyBatch);
         upsertBatch = [];
         currencyBatch = [];
       }
     }
 
-    // v360: flush剩余的批量数据
+      // v360: flush剩余的批量数据
     if (upsertBatch.length > 0) {
       await flushDailyPerfBatch(db, upsertBatch, currencyBatch);
       upsertBatch = [];
       currencyBatch = [];
+    }
+
+    // v687: 内存削峰 — 报告数据处理完成后主动触发GC，释放报告数据和中间对象
+    if (typeof global.gc === 'function' && synced > 10000) {
+      global.gc();
+      log.info(`[v687] 报告处理完成GC触发 (${adType}, ${synced}条)`);
     }
 
     // 输出匹配统计
