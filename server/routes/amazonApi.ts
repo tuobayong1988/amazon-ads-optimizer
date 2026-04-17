@@ -1071,11 +1071,27 @@ export const amazonApiRouter = router({
     }),
 
   // 获取账户正在进行的同步任务
+  // v688: 附加内存缓存的subProgress数据，确保HTTP轮询也能获取子进度信息
   getAccountActiveSyncJob: protectedProcedure
     .input(z.object({ accountId: z.number() }))
     // @ts-expect-error Complex function parameter types
     .query(async ({ ctx, input }: unknown) => {
-      return db.getAccountActiveSyncJob(input.accountId);
+      const job = await db.getAccountActiveSyncJob(input.accountId);
+      if (job && job.status === 'running') {
+        try {
+          const { getLatestProgressCache } = await import('../sync/syncProgressWs');
+          const cached = getLatestProgressCache(input.accountId);
+          if (cached?.subProgress) {
+            // v688: 将内存缓存的subProgress附加到轮询结果中
+            (job as any).subProgress = cached.subProgress;
+          }
+          // v688: 并行步骤的多任务子进度汇总
+          if ((cached as any)?.parallelSubProgress) {
+            (job as any).parallelSubProgress = (cached as any).parallelSubProgress;
+          }
+        } catch (_e) { /* 缓存读取失败不影响主流程 */ }
+      }
+      return job;
     }),
 
   // 获取同步任务详情

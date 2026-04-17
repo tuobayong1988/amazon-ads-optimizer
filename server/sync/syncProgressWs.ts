@@ -40,11 +40,20 @@ interface SyncProgressMessage {
     };
     // v686: 长耗时步骤子进度信息 — 缓解用户等待焦虑
     subProgress?: {
-      phase: string;       // 子阶段名称（如"提交报告"、"轮询报告"、"处理数据"）
+      phase: string;       // 子阶段名称（如“提交报告”、“轮询报告”、“处理数据”）
       current: number;     // 当前进度
       total: number;       // 总量
-      detail?: string;     // 详细描述（如"SP广告活动 3/14天"）
+      detail?: string;     // 详细描述（如“SP广告活动 3/14天”）
     };
+    // v688: 并行步骤多任务子进度汇总 — 每个并行任务独立跟踪，避免相互覆盖
+    parallelSubProgress?: Record<string, {
+      stepId: string;      // 步骤ID
+      stepName: string;    // 步骤名称
+      phase: string;       // 当前子阶段
+      current: number;
+      total: number;
+      detail?: string;
+    }>;
   };
   message?: string;
 }
@@ -64,6 +73,10 @@ const clients = new Map<string, ConnectedClient>(); // key: `${userId}:${account
 const HEARTBEAT_INTERVAL_MS = 30000; // 30秒心跳
 const CLIENT_TIMEOUT_MS = 90000; // 90秒无响应断开
 let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+
+// v688: 内存缓存最新的subProgress — 使HTTP轮询也能获取子进度信息
+// key: accountId, value: 最新的进度数据（含subProgress）
+const latestProgressCache = new Map<number, SyncProgressMessage['data']>();
 
 // ==================== 初始化 ====================
 
@@ -206,6 +219,11 @@ function handleConnection(ws: WebSocket, userId: number, accountId: number): voi
  * 在心跳更新和步骤完成时调用此函数
  */
 export function broadcastSyncProgress(accountId: number, data: SyncProgressMessage['data']): void {
+  // v688: 始终更新内存缓存（即使没有WebSocket客户端连接），供HTTP轮询读取
+  if (data) {
+    latestProgressCache.set(accountId, data);
+  }
+  
   if (!wss || clients.size === 0) return;
 
   const message = JSON.stringify({
@@ -235,6 +253,9 @@ export function broadcastSyncProgress(accountId: number, data: SyncProgressMessa
  * 推送同步完成事件
  */
 export function broadcastSyncCompleted(accountId: number, data?: SyncProgressMessage['data']): void {
+  // v688: 同步完成时清除进度缓存
+  clearProgressCache(accountId);
+  
   if (!wss || clients.size === 0) return;
 
   const message = JSON.stringify({
@@ -258,6 +279,9 @@ export function broadcastSyncCompleted(accountId: number, data?: SyncProgressMes
  * 推送同步失败事件
  */
 export function broadcastSyncFailed(accountId: number, errorMessage: string): void {
+  // v688: 同步失败时清除进度缓存
+  clearProgressCache(accountId);
+  
   if (!wss || clients.size === 0) return;
 
   const message = JSON.stringify({
@@ -329,4 +353,19 @@ export function getWsClientsByAccount(accountId: number): number {
     if (client.accountId === accountId) count++;
   }
   return count;
+}
+
+/**
+ * v688: 获取指定账户的最新缓存进度（含subProgress）
+ * 供HTTP轮询接口读取，确保WebSocket断线降级时不丢失子进度信息
+ */
+export function getLatestProgressCache(accountId: number): SyncProgressMessage['data'] | null {
+  return latestProgressCache.get(accountId) || null;
+}
+
+/**
+ * v688: 清除指定账户的进度缓存（同步完成/失败时调用）
+ */
+export function clearProgressCache(accountId: number): void {
+  latestProgressCache.delete(accountId);
 }

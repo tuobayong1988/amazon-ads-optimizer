@@ -561,13 +561,19 @@ const SYNC_STEPS: SyncStep[] = [
     tier: 'high',
     execute: async (service, ctx) => {
       try {
+        // v688: 注入子进度回调，使当日绩效步骤也能推送细粒度进度
+        ctx.onSubProgress?.({ phase: '提交报告', current: 0, total: 3, detail: '准备提交1天绩效报告' });
+        service._subProgressCallback = ctx.onSubProgress;
         // @ts-expect-error - v652: prototype mixin method
         const result = await service.syncPerformanceOnly(1);
+        service._subProgressCallback = undefined;
         // v221: syncPerformanceOnly返回对象{performance, keywordPerf, targetPerf}，需要求和
         const synced = typeof result === 'number' ? result : 
           (result.performance || 0) + (result.keywordPerf || 0) + (result.targetPerf || 0);
+        ctx.onSubProgress?.({ phase: '完成', current: 3, total: 3, detail: `入库${synced}条` });
         return { success: true, synced, errors: [] };
       } catch (e: unknown) {
+        service._subProgressCallback = undefined; // v688: 确保异常时也清理回调
         return { success: false, synced: 0, errors: [(e as Error).message] };
       }
     },
@@ -695,13 +701,19 @@ const SYNC_STEPS: SyncStep[] = [
     tier: 'medium',
     execute: async (service, ctx) => {
       try {
+        // v688: 注入子进度回调，使7天绩效回溯步骤也能推送细粒度进度
+        ctx.onSubProgress?.({ phase: '提交报告', current: 0, total: 3, detail: '准备提交7天绩效报告' });
+        service._subProgressCallback = ctx.onSubProgress;
         // @ts-expect-error - v652: prototype mixin method
         const result = await service.syncPerformanceOnly(7);
+        service._subProgressCallback = undefined;
         // v221: syncPerformanceOnly返回对象，需要求和
         const synced = typeof result === 'number' ? result :
           (result.performance || 0) + (result.keywordPerf || 0) + (result.targetPerf || 0);
+        ctx.onSubProgress?.({ phase: '完成', current: 3, total: 3, detail: `入库${synced}条` });
         return { success: true, synced, errors: [] };
       } catch (e: unknown) {
+        service._subProgressCallback = undefined; // v688: 确保异常时也清理回调
         return { success: false, synced: 0, errors: [(e as Error).message] };
       }
     },
@@ -1848,6 +1860,9 @@ export async function syncAccount(
           try { await options.onProgress(`并行: ${groupStepNames}`, globalStepIndex, steps.length); } catch (_e) {}
         }
         
+        // v688: 初始化并行子进度跟踪器 — 每个并行任务独立跟踪，避免相互覆盖
+        const parallelSubProgressMap: Record<string, { stepId: string; stepName: string; phase: string; current: number; total: number; detail?: string }> = {};
+        
         // 并行执行组内所有步骤
         const parallelPromises = group.steps.map(async ({ step }) => {
           const STEP_TIMEOUT_MAP: Record<string, number> = {
@@ -1859,10 +1874,44 @@ export async function syncAccount(
           };
           const timeoutMinutes = STEP_TIMEOUT_MAP[step.id] || 30;
           const STEP_TIMEOUT_MS = timeoutMinutes * 60 * 1000;
+          
+          // v688: 为每个并行步骤创建独立的子进度回调，带stepId标识
+          const stepContext = { ...context };
+          const LONG_RUNNING_STEPS = ['performance_95d', 'keyword_performance', 'target_performance', 'ad_group_performance', 'performance_today', 'performance_7d'];
+          if (LONG_RUNNING_STEPS.includes(step.id)) {
+            stepContext.onSubProgress = (subProgress: { phase: string; current: number; total: number; detail?: string }) => {
+              try {
+                // 更新并行子进度Map
+                parallelSubProgressMap[step.id] = {
+                  stepId: step.id,
+                  stepName: step.name,
+                  phase: subProgress.phase,
+                  current: subProgress.current,
+                  total: subProgress.total,
+                  detail: subProgress.detail,
+                };
+                // 广播合并后的并行子进度
+                const { broadcastSyncProgress } = require('./syncProgressWs');
+                const stepProgressPercent = Math.round(((globalStepIndex + 1) / steps.length) * 100);
+                broadcastSyncProgress(account.accountId, {
+                  step: `并行: ${groupStepNames}`,
+                  stepIndex: globalStepIndex,
+                  totalSteps: steps.length,
+                  progressPercent: stepProgressPercent,
+                  status: 'running',
+                  subProgress: subProgress, // 单个步骤的最新子进度（向后兼容）
+                  parallelSubProgress: { ...parallelSubProgressMap }, // 所有并行步骤的子进度汇总
+                });
+              } catch (_subErr) { /* 子进度推送失败不影响同步 */ }
+            };
+          } else {
+            stepContext.onSubProgress = undefined;
+          }
+          
           try {
             rateController.recordApiCall();
             const stepResult = await Promise.race([
-              step.execute(syncService, context),
+              step.execute(syncService, stepContext),
               new Promise<never>((_, reject) => setTimeout(() => reject(new Error(`STEP_TIMEOUT: 步骤${step.name}超时(${timeoutMinutes}分钟)`)), STEP_TIMEOUT_MS)),
             ]);
             return { stepId: step.id, stepName: step.name, result: stepResult };

@@ -309,10 +309,16 @@ export default function AmazonApiSettings() {
         const batchDetail = wsProgress.batchInfo 
           ? ` (批次 ${wsProgress.batchInfo.currentBatch}/${wsProgress.batchInfo.totalBatches})` 
           : '';
-        // v686: 子进度展示 — 为长耗时步骤提供细粒度进度指示
-        const subDetail = wsProgress.subProgress 
-          ? ` • ${wsProgress.subProgress.phase}${wsProgress.subProgress.detail ? `: ${wsProgress.subProgress.detail}` : ''} (${wsProgress.subProgress.current}/${wsProgress.subProgress.total})`
-          : '';
+        // v688: 子进度展示 — 支持单步骤和并行多任务子进度合并展示
+        let subDetail = '';
+        if (wsProgress.parallelSubProgress && Object.keys(wsProgress.parallelSubProgress).length > 0) {
+          // 并行步骤: 合并展示每个任务的子进度
+          subDetail = ' \u2022 ' + Object.values(wsProgress.parallelSubProgress).map(sp => 
+            `${sp.stepName}: ${sp.phase}${sp.detail ? `(${sp.detail})` : ''}`
+          ).join(' | ');
+        } else if (wsProgress.subProgress) {
+          subDetail = ` \u2022 ${wsProgress.subProgress.phase}${wsProgress.subProgress.detail ? `: ${wsProgress.subProgress.detail}` : ''} (${wsProgress.subProgress.current}/${wsProgress.subProgress.total})`;
+        }
         
         const siteStatuses = (prev.siteStatuses || []).map(s => {
           if (s.id === selectedAccountId && s.status === 'syncing') {
@@ -352,6 +358,19 @@ export default function AmazonApiSettings() {
         const stepLabel = accountActiveSyncJob.currentStep || '同步中...';
         const progressPercent = accountActiveSyncJob.progressPercent || prev.progress;
         
+        // v688: HTTP轮询也展示subProgress子进度信息（后端已将内存缓存附加到轮询结果中）
+        const subProg = (accountActiveSyncJob as any).subProgress;
+        const parallelSub = (accountActiveSyncJob as any).parallelSubProgress;
+        let subDetail = '';
+        if (parallelSub && Object.keys(parallelSub).length > 0) {
+          // v688: 并行步骤的多任务子进度合并展示
+          subDetail = ' \u2022 ' + Object.values(parallelSub).map((sp: any) => 
+            `${sp.stepName}: ${sp.phase}${sp.detail ? `(${sp.detail})` : ''}`
+          ).join(' | ');
+        } else if (subProg) {
+          subDetail = ` \u2022 ${subProg.phase}${subProg.detail ? `: ${subProg.detail}` : ''} (${subProg.current}/${subProg.total})`;
+        }
+        
         // 如果前端没有站点级管理（如页面刷新后检测到运行中的任务），创建单站点状态
         const hasSiteManagement = prev.siteStatuses && prev.siteStatuses.length > 0;
         let siteStatuses = prev.siteStatuses || [];
@@ -372,7 +391,7 @@ export default function AmazonApiSettings() {
             flag: mp?.flag || '🌐',
             status: 'syncing' as const,
             progress: progressPercent,
-            currentStep: accountActiveSyncJob.currentStep || undefined,
+            currentStep: (accountActiveSyncJob.currentStep || '') + subDetail || undefined,
             stepProgress: progressPercent,
             retryCount: 0,
           }];
@@ -384,7 +403,7 @@ export default function AmazonApiSettings() {
             if (s.id === selectedAccountId && s.status === 'syncing') {
               return {
                 ...s,
-                currentStep: accountActiveSyncJob.currentStep || s.currentStep,
+                currentStep: (accountActiveSyncJob.currentStep || s.currentStep || '') + subDetail,
                 stepProgress: progressPercent,
                 progress: Math.max(s.progress, progressPercent),
               };
@@ -397,7 +416,7 @@ export default function AmazonApiSettings() {
           ...prev,
           step: 'sp',
           progress: progressPercent,
-          current: `正在同步: ${stepLabel}`,
+          current: `正在同步: ${stepLabel}${subDetail}`,
           siteStatuses,
           totalSites,
           completedSites,
