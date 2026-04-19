@@ -196,6 +196,61 @@ export async function getAccountPerformanceSummary(
 
 
 /**
+ * v689: 批量获取多个账户的绩效汇总 — 将N个账户的N次查询合并为1次SQL
+ * 使用 GROUP BY account_id 实现批量聚合，大幅减少数据库往返次数
+ * Dashboard首页性能优化的核心改进
+ */
+export async function getBatchAccountPerformanceSummary(
+  accountIds: number[],
+  startDate: Date,
+  endDate: Date
+): Promise<Map<number, PerformanceSummary>> {
+  const result = new Map<number, PerformanceSummary>();
+  if (accountIds.length === 0) return result;
+  
+  const db = await getDb();
+  if (!db) return result;
+  
+  try {
+    const startDateStr = startDate.toISOString().split('T')[0];
+    const endDateStr = endDate.toISOString().split('T')[0];
+    
+    const rows = await db.select({
+      accountId: dailyPerformance.accountId,
+      totalSpend: sql<number>`COALESCE(SUM(CASE WHEN spend_usd > 0 THEN spend_usd ELSE ${dailyPerformance.spend} END), 0)`,
+      totalSales: sql<number>`COALESCE(SUM(CASE WHEN sales_usd > 0 THEN sales_usd ELSE ${dailyPerformance.sales} END), 0)`,
+      totalOrders: sql<number>`COALESCE(SUM(${dailyPerformance.orders}), 0)`,
+      totalImpressions: sql<number>`COALESCE(SUM(${dailyPerformance.impressions}), 0)`,
+      totalClicks: sql<number>`COALESCE(SUM(${dailyPerformance.clicks}), 0)`,
+    })
+    .from(dailyPerformance)
+    .where(and(
+      sql`${dailyPerformance.accountId} IN (${safeInClause(accountIds)})`,
+      sql`${dailyPerformance.campaignId} IS NOT NULL`,
+      sql`${dailyPerformance.date} >= ${startDateStr}`,
+      sql`${dailyPerformance.date} < DATE_ADD(${endDateStr}, INTERVAL 1 DAY)`
+    ))
+    .groupBy(dailyPerformance.accountId);
+    
+    for (const row of rows) {
+      result.set(Number(row.accountId), {
+        totalSpend: Number(row.totalSpend || 0),
+        totalSales: Number(row.totalSales || 0),
+        totalOrders: Number(row.totalOrders || 0),
+        totalImpressions: Number(row.totalImpressions || 0),
+        totalClicks: Number(row.totalClicks || 0),
+      });
+    }
+    
+    return result;
+  } catch (error: any) {
+    log.warn('[getBatchAccountPerformanceSummary] Error:', error);
+    return result;
+  }
+}
+
+
+/**
  * v426: 获取每日趋势数据 - 移除DATE()函数以利用索引
  * 优化:
  * 1. WHERE条件中移除DATE()包裹

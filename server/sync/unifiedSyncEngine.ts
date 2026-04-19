@@ -428,6 +428,43 @@ export interface StepResult {
   details?: Record<string, unknown>;
 }
 
+// v689: 同步失败精细化分类 — 区分API限流/Token过期/网络超时/权限拒绝/服务端错误/未知错误
+type SyncFailureCategory = 'api_throttle' | 'token_expired' | 'network_timeout' | 'permission_denied' | 'server_error' | 'unknown';
+
+const FAILURE_CATEGORY_LABELS: Record<SyncFailureCategory, string> = {
+  api_throttle: 'Amazon API限流(429)',
+  token_expired: 'Token过期/凭证失效',
+  network_timeout: '网络超时/连接中断',
+  permission_denied: '权限拒绝(403)',
+  server_error: 'Amazon服务端错误(5xx)',
+  unknown: '未知错误',
+};
+
+function classifySyncFailure(errMsg: string): SyncFailureCategory {
+  const msg = errMsg.toLowerCase();
+  // API限流
+  if (msg.includes('429') || msg.includes('toomanyrequests') || msg.includes('throttl') || msg.includes('限流') || msg.includes('rate limit')) {
+    return 'api_throttle';
+  }
+  // Token过期
+  if (msg.includes('refresh token') || msg.includes('invalid_grant') || msg.includes('重新授权') || msg.includes('token刷新失败') || msg.includes('token刷新认证失败') || msg.includes('401') || msg.includes('unauthorized')) {
+    return 'token_expired';
+  }
+  // 网络超时
+  if (msg.includes('etimedout') || msg.includes('econnreset') || msg.includes('econnrefused') || msg.includes('socket hang up') || msg.includes('timeout') || msg.includes('network')) {
+    return 'network_timeout';
+  }
+  // 权限拒绝
+  if (msg.includes('403') || msg.includes('forbidden') || msg.includes('permission') || msg.includes('not authorized')) {
+    return 'permission_denied';
+  }
+  // 服务端错误
+  if (msg.includes('502') || msg.includes('503') || msg.includes('504') || msg.includes('500') || msg.includes('internal server error') || msg.includes('bad gateway') || msg.includes('service unavailable')) {
+    return 'server_error';
+  }
+  return 'unknown';
+}
+
 /** 同步上下文（用于检查点和进度追踪） */
 export interface SyncContext {
   accountId: number;
@@ -2324,8 +2361,30 @@ export async function syncAccount(
         context.failedSteps.push(step.id);
         context.totalErrors++;
         const retryInfo = retryAttempt > 0 ? ` (已重试${retryAttempt}次)` : '';
-        result.errors.push(`${step.name}: ${errMsg}${retryInfo}`);
-        result.stepResults[step.id] = { success: false, synced: 0, errors: [`${errMsg}${retryInfo}`] };
+        
+        // v689: 精细化失败分类 — 区分限流/Token过期/网络超时/权限/服务端/未知
+        const failureCategory = classifySyncFailure(errMsg);
+        const failureCategoryLabel = FAILURE_CATEGORY_LABELS[failureCategory];
+        result.errors.push(`${step.name}: [${failureCategory}] ${errMsg}${retryInfo}`);
+        result.stepResults[step.id] = { 
+          success: false, synced: 0, 
+          errors: [`${errMsg}${retryInfo}`],
+          details: { failureCategory, failureCategoryLabel, retryAttempts: retryAttempt },
+        };
+        
+        // v689: 记录精细化失败日志到OPS日志系统
+        logSyncError('UnifiedSync', `v689: 步骤失败[${failureCategory}]`, {
+          accountId: account.accountId,
+          accountName: account.accountName,
+          marketplace: account.marketplace,
+          stepId: step.id,
+          stepName: step.name,
+          tier,
+          failureCategory,
+          failureCategoryLabel,
+          retryAttempts: retryAttempt,
+          errorMessage: errMsg.slice(0, 500),
+        });
         
         // v220: 限流后额外等待
         if (errMsg.includes('429') || errMsg.includes('TooManyRequests') || errMsg.includes('throttl') || errMsg.includes('限流')) {
@@ -2379,6 +2438,35 @@ export async function syncAccount(
           }
         } catch { /* 内存检查失败不影响同步 */ }
       }
+    }
+
+    // v689: 同步完成后汇总失败分类统计
+    if (result.failedSteps > 0) {
+      const failureCategoryCounts: Record<string, number> = {};
+      const failureCategorySteps: Record<string, string[]> = {};
+      for (const [stepId, stepRes] of Object.entries(result.stepResults)) {
+        if (!stepRes.success && stepRes.details?.failureCategory) {
+          const cat = stepRes.details.failureCategory as string;
+          failureCategoryCounts[cat] = (failureCategoryCounts[cat] || 0) + 1;
+          if (!failureCategorySteps[cat]) failureCategorySteps[cat] = [];
+          failureCategorySteps[cat].push(stepId);
+        }
+      }
+      const categoryBreakdown = Object.entries(failureCategoryCounts)
+        .map(([cat, count]) => `${FAILURE_CATEGORY_LABELS[cat as SyncFailureCategory] || cat}=${count}次(步骤:${failureCategorySteps[cat].join(',')})`);
+      logSyncWarn('UnifiedSync', `v689: 账户${account.accountId}同步失败汇总`, {
+        accountId: account.accountId,
+        accountName: account.accountName,
+        marketplace: account.marketplace,
+        tier,
+        totalFailed: result.failedSteps,
+        totalCompleted: result.completedSteps,
+        totalSkipped: result.skippedSteps,
+        failureCategoryCounts,
+        failureCategorySteps,
+        categoryBreakdown: categoryBreakdown.join(' | '),
+      });
+      log.warn(`[UnifiedSync] v689: 账户${account.accountId}(${account.accountName}) ${tier}层同步失败汇总: ${categoryBreakdown.join(' | ')} | 完成=${result.completedSteps}, 失败=${result.failedSteps}, 跳过=${result.skippedSteps}`);
     }
 
     // 更新最后同步时间

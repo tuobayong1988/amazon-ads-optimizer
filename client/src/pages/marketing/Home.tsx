@@ -956,9 +956,10 @@ function DashboardContent() {
   }, []);
   
   // 获取数据可用日期范围
+  // v689: 数据日期范围很少变化，增加10分钟staleTime
   const { data: dataDateRange } = trpc.adAccount.getDataDateRange.useQuery(
     undefined,
-    { enabled: !!user }
+    { enabled: !!user, staleTime: 10 * 60 * 1000 }
   );
   
   const days = timeRangeValue.days;
@@ -966,18 +967,19 @@ function DashboardContent() {
   const endDate = format(timeRangeValue.dateRange.to, 'yyyy-MM-dd');
   const timeRange = timeRangeValue.preset === 'custom' ? 'custom' : timeRangeValue.preset;
   
+  // v689: 性能优化 — 核心查询增加staleTime，避免页面切换时重复请求
   // 获取账户列表及绩效数据
   const { data: accountsWithPerformance, refetch: refetchAccounts, isLoading: isAccountsLoading } = trpc.adAccount.listWithPerformance.useQuery(
     // @ts-ignore
     { timeRange: timeRange as unknown, days, startDate, endDate },
-    { enabled: !!user }
+    { enabled: !!user, staleTime: 2 * 60 * 1000 }
   );
   
   // 获取图表趋势数据
   const { data: trendData } = trpc.adAccount.getDailyTrend.useQuery(
     // @ts-ignore
     { days, timeRange: timeRange as unknown, startDate, endDate },
-    { enabled: !!user }
+    { enabled: !!user, staleTime: 2 * 60 * 1000 }
   );
   
   // v268 性能优化: 非关键数据请求增加staleTime，减少首屏并发请求数

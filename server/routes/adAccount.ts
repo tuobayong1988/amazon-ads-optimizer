@@ -315,66 +315,94 @@ export const adAccountRouter = router({
       return { startDate, endDate, prevStartDate, prevEndDate, localToday };
     };
     
-    // 为每个账户获取绩效汇总（根据各自站点时区计算日期）
-    const accountsWithPerformance = await Promise.all(
-      actualSites.map(async (account) => {
-        // 根据站点时区计算日期范围
-        const { startDate, endDate, prevStartDate, prevEndDate, localToday } = calculateDatesForMarketplace(account.marketplace || 'US');
+    // v689: 性能优化 — 按站点时区分组，使用批量聚合替代逐账户查询
+    // 原来: N个账户 × 2次查询 = 2N次DB往返
+    // 现在: 按marketplace分组，每组只需2次查询（当前期+上期），总共约 2×站点数 次DB往返
+    
+    // 步骤1: 按marketplace分组（同一marketplace的账户共享相同时区和日期范围）
+    const marketplaceGroups = new Map<string, typeof actualSites>();
+    for (const account of actualSites) {
+      const mp = account.marketplace || 'US';
+      if (!marketplaceGroups.has(mp)) marketplaceGroups.set(mp, []);
+      marketplaceGroups.get(mp)!.push(account);
+    }
+    
+    // 步骤2: 每个marketplace组批量查询
+    const perfMap = new Map<number, { current: { spend: number; sales: number; orders: number }; prev: { spend: number; sales: number } }>();
+    
+    await Promise.all(
+      Array.from(marketplaceGroups.entries()).map(async ([mp, accounts]) => {
+        const { startDate, endDate, prevStartDate, prevEndDate } = calculateDatesForMarketplace(mp);
+        const ids = accounts.map(a => a.id);
         
-        // 从 campaigns 表汇总绩效数据（当前期间）
-        const performance = await db.getAccountPerformanceSummary(account.id, startDate, endDate);
-        // 上一期间数据（用于计算环比）
-        const prevPerformance = await db.getAccountPerformanceSummary(account.id, prevStartDate, prevEndDate);
+        // 批量获取当前期间和上一期间的绩效
+        const [currentBatch, prevBatch] = await Promise.all([
+          db.getBatchAccountPerformanceSummary(ids, startDate, endDate),
+          db.getBatchAccountPerformanceSummary(ids, prevStartDate, prevEndDate),
+        ]);
         
-        const spend = performance?.totalSpend || 0;
-        const sales = performance?.totalSales || 0;
-        const orders = performance?.totalOrders || 0;
-        const acos = spend > 0 && sales > 0 ? (spend / sales) * 100 : 0;
-        const roas = spend > 0 && sales > 0 ? sales / spend : 0;
-        
-        // 计算环比变化
-        const prevSpend = prevPerformance?.totalSpend || 0;
-        const prevSales = prevPerformance?.totalSales || 0;
-        const prevAcos = prevSpend > 0 && prevSales > 0 ? (prevSpend / prevSales) * 100 : 0;
-        
-        const spendChange = prevSpend > 0 ? ((spend - prevSpend) / prevSpend) * 100 : 0;
-        const salesChange = prevSales > 0 ? ((sales - prevSales) / prevSales) * 100 : 0;
-        const acosChange = prevAcos > 0 ? acos - prevAcos : 0;
-        
-        // 确定账户状态
-        let status: 'healthy' | 'warning' | 'critical' = 'healthy';
-        let alerts = 0;
-        if (acos > 35) {
-          status = 'warning';
-          alerts = 1;
+        for (const id of ids) {
+          const current = currentBatch.get(id);
+          const prev = prevBatch.get(id);
+          perfMap.set(id, {
+            current: { spend: current?.totalSpend || 0, sales: current?.totalSales || 0, orders: current?.totalOrders || 0 },
+            prev: { spend: prev?.totalSpend || 0, sales: prev?.totalSales || 0 },
+          });
         }
-        if (acos > 50) {
-          status = 'critical';
-          alerts = 2;
-        }
-        
-        return {
-          id: account.id,
-          name: account.storeName || account.accountName,
-          marketplace: account.marketplace,
-          spend,
-          sales,
-          orders,
-          acos,
-          roas,
-          status,
-          alerts,
-          change: { 
-            spend: parseFloat(spendChange.toFixed(1)), 
-            sales: parseFloat(salesChange.toFixed(1)), 
-            acos: parseFloat(acosChange.toFixed(1)) 
-          },
-        };
       })
     );
     
-    // v268: 缓存结果
-    apiCache.set(cacheKey, accountsWithPerformance, 2 * 60 * 1000);
+    // 步骤3: 组装结果
+    const accountsWithPerformance = actualSites.map((account) => {
+      const perf = perfMap.get(account.id);
+      const spend = perf?.current.spend || 0;
+      const sales = perf?.current.sales || 0;
+      const orders = perf?.current.orders || 0;
+      const acos = spend > 0 && sales > 0 ? (spend / sales) * 100 : 0;
+      const roas = spend > 0 && sales > 0 ? sales / spend : 0;
+      
+      // 计算环比变化
+      const prevSpend = perf?.prev.spend || 0;
+      const prevSales = perf?.prev.sales || 0;
+      const prevAcos = prevSpend > 0 && prevSales > 0 ? (prevSpend / prevSales) * 100 : 0;
+      
+      const spendChange = prevSpend > 0 ? ((spend - prevSpend) / prevSpend) * 100 : 0;
+      const salesChange = prevSales > 0 ? ((sales - prevSales) / prevSales) * 100 : 0;
+      const acosChange = prevAcos > 0 ? acos - prevAcos : 0;
+      
+      // 确定账户状态
+      let status: 'healthy' | 'warning' | 'critical' = 'healthy';
+      let alerts = 0;
+      if (acos > 35) {
+        status = 'warning';
+        alerts = 1;
+      }
+      if (acos > 50) {
+        status = 'critical';
+        alerts = 2;
+      }
+      
+      return {
+        id: account.id,
+        name: account.storeName || account.accountName,
+        marketplace: account.marketplace,
+        spend,
+        sales,
+        orders,
+        acos,
+        roas,
+        status,
+        alerts,
+        change: { 
+          spend: parseFloat(spendChange.toFixed(1)), 
+          sales: parseFloat(salesChange.toFixed(1)), 
+          acos: parseFloat(acosChange.toFixed(1)) 
+        },
+      };
+    });
+    
+    // v689: 缓存TTL从2分钟提升到5分钟（数据概览不需要实时性）
+    apiCache.set(cacheKey, accountsWithPerformance, 5 * 60 * 1000);
     // @ts-expect-error Return type compatibility
     return accountsWithPerformance;
   }),
@@ -476,7 +504,8 @@ export const adAccountRouter = router({
       // @ts-expect-error DB query type inference limitation
       const trendData = await db.getDailyTrendData(accountIds, input.days, 'custom', startDate, endDate);
       // v268: 缓存结果
-      apiCache.set(cacheKey, trendData, 2 * 60 * 1000);
+      // v689: 缓存TTL从2分钟提升到5分钟（趋势图数据不需要实时性）
+      apiCache.set(cacheKey, trendData, 5 * 60 * 1000);
       return trendData;
     }),
   
