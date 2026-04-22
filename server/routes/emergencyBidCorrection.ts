@@ -1,5 +1,5 @@
 /**
- * v717: 紧急出价修复路由
+ * v717-fix5: 紧急出价修复路由
  * 
  * 提供管理后台触发全量出价修复的API入口
  * 使用异步模式：立即返回，后台执行修复
@@ -26,7 +26,7 @@ export const emergencyBidCorrectionRouter = router({
       accountId: z.number().optional(),
     }))
     .mutation(async ({ input }) => {
-      log.info(`[v717] 触发紧急出价修复: dryRun=${input.dryRun}, accountId=${input.accountId || '全部'}`);
+      log.info(`[v717-fix5] 触发紧急出价修复: dryRun=${input.dryRun}, accountId=${input.accountId || '全部'}`);
       
       if (_isRunning) {
         return {
@@ -45,28 +45,23 @@ export const emergencyBidCorrectionRouter = router({
       (async () => {
         try {
           const { runEmergencyBidCorrection } = await import('../scripts/emergencyBidCorrection');
-          const summaries = await runEmergencyBidCorrection({
+          const result = await runEmergencyBidCorrection({
             dryRun: input.dryRun,
-            accountId: input.accountId,
+            targetAccountId: input.accountId || null,
           });
-          
-          const totalEntities = summaries.reduce((sum, s) => sum + s.totalEntities, 0);
-          const totalCorrections = summaries.reduce((sum, s) => sum + s.entitiesNeedCorrection, 0);
-          const totalApplied = summaries.reduce((sum, s) => sum + s.correctionsApplied, 0);
-          const totalFailed = summaries.reduce((sum, s) => sum + s.correctionsFailed, 0);
           
           _lastResult = {
             success: true,
             completedAt: new Date().toISOString(),
             mode: input.dryRun ? 'dry_run' : 'live',
+            duration: result.duration,
             summary: {
-              accountsProcessed: summaries.length,
-              totalEntities,
-              totalCorrections,
-              totalApplied,
-              totalFailed,
+              accountsProcessed: result.processedAccounts,
+              totalCorrections: result.totalCorrections,
+              totalApplied: result.totalApplied,
+              totalFailed: result.totalFailed,
             },
-            details: summaries.map(s => ({
+            details: result.summaries.map(s => ({
               accountId: s.accountId,
               marketplace: s.marketplace,
               entities: s.totalEntities,
@@ -81,9 +76,9 @@ export const emergencyBidCorrectionRouter = router({
             })),
           };
           
-          log.info(`[v717] 紧急出价修复完成: ${totalEntities}实体, ${totalCorrections}需修正, ${totalApplied}已推送`);
+          log.info(`[v717-fix5] 紧急出价修复完成: ${result.totalCorrections}需修正, ${result.totalApplied}已推送, 耗时${result.duration}`);
         } catch (err: unknown) {
-          log.error(`[v717] 紧急出价修复执行失败: ${(err as Error).message}`);
+          log.error(`[v717-fix5] 紧急出价修复执行失败: ${(err as Error).message}`);
           _lastResult = {
             success: false,
             completedAt: new Date().toISOString(),
@@ -122,8 +117,7 @@ export const emergencyBidCorrectionRouter = router({
   getAnchorAnalysis: protectedProcedure
     .input(z.object({
       accountId: z.number(),
-      degradationLevel: z.enum(['none', 'mild', 'severe', 'critical']).optional(),
-      correctionAction: z.enum(['maintain', 'gradual_restore', 'restore_to_anchor', 'update_anchor', 'emergency_restore', 'restore_down', 'restore_up']).optional(),
+      correctionAction: z.enum(['maintain', 'gradual_restore', 'restore_to_anchor', 'update_anchor', 'emergency_restore']).optional(),
       limit: z.number().default(50),
       offset: z.number().default(0),
     }))
@@ -136,9 +130,6 @@ export const emergencyBidCorrectionRouter = router({
       if (!db) return { items: [], total: 0 };
       
       const conditions: unknown[] = [eq(bidAnchorAnalysis.accountId, input.accountId)];
-      if (input.degradationLevel) {
-        conditions.push(eq(bidAnchorAnalysis.degradationLevel, input.degradationLevel));
-      }
       if (input.correctionAction) {
         conditions.push(eq(bidAnchorAnalysis.correctionAction, input.correctionAction));
       }
