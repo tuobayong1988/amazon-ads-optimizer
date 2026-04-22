@@ -660,6 +660,15 @@ export class AmazonSyncService {
     }
     }); // end Layer 5
 
+    // ==================== v717: 每日绩效快照写入 ====================
+    // 在绩效数据同步完成后，将当天的数据快照写入keyword_daily_performance表
+    try {
+      const { syncDailyPerformanceSnapshot } = await import('./syncDailyPerformanceHook');
+      await syncDailyPerformanceSnapshot(this.accountId, this.marketplace);
+    } catch (dailyPerfErr: unknown) {
+      log.warn(`[v717] 每日绩效快照写入异常(不影响主流程): ${(dailyPerfErr as Error).message}`);
+    }
+
     // ==================== Layer 6: 建议竞价同步（3个并行） ====================
     // v420: P0修复 - 将建议竞价同步纳入常规同步流程
     // 建议竞价对冷启动阶段的竞价优化有非常强的参考价值

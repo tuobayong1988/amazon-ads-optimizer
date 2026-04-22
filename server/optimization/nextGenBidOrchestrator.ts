@@ -1237,6 +1237,35 @@ export async function calculateNextGenBid(
     acosRatio = 5.0;
   }
   
+  // ===== v717: 第0层 — 多时间窗口锚点修正 =====
+  // 在所有算法之前，检查该实体是否存在出价偏移需要修正
+  // 如果锚点分析发现当前出价严重偏离最佳窗口CPC，直接修正
+  try {
+    const { getAnchorBidCorrection } = await import('./multiWindowBidAnchor');
+    const anchorCorrection = await getAnchorBidCorrection(accountId, {
+      id: target.id,
+      type: target.type === 'keyword' ? 'keyword' : 'product_target',
+      currentBid: target.currentBid,
+      // @ts-expect-error Dynamic type assertion
+      suggestedBid: (target as Record<string, unknown>).suggestedBid as number | undefined,
+      // @ts-expect-error Dynamic type assertion
+      suggestedBidRangeStart: (target as Record<string, unknown>).suggestedBidRangeStart as number | undefined,
+      // @ts-expect-error Dynamic type assertion
+      suggestedBidRangeEnd: (target as Record<string, unknown>).suggestedBidRangeEnd as number | undefined,
+      // @ts-expect-error Dynamic type assertion
+      campaignId: String((target as Record<string, unknown>).amazonCampaignId || ''),
+    });
+    
+    if (anchorCorrection) {
+      const safeBid = safetyValidate(target.currentBid, anchorCorrection.bid, safetyConfig, maxBidLimit, acosRatio);
+      log.info(`[NextGenOrchestrator] v717锚点修正: target=${target.id}, anchor=$${anchorCorrection.bid.toFixed(2)}, safe=$${safeBid.toFixed(2)}, ${anchorCorrection.reason}`);
+      return buildResult(target, safeBid, 'multi_window_anchor', anchorCorrection.confidence,
+        anchorCorrection.reason, 'rule_engine');
+    }
+  } catch (anchorErr: unknown) {
+    log.warn(`[NextGenOrchestrator] v717锚点分析异常(target=${target.id}): ${(anchorErr as Error).message}`);
+  }
+  
   // ===== 第1层：尝试高级算法 =====
   try {
     const keywordId = target.type === 'keyword' ? target.id : undefined;

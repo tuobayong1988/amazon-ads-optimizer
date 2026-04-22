@@ -4727,3 +4727,92 @@ export const amsProcessedMessages = mysqlTable("ams_processed_messages", {
 ]);
 export type AmsProcessedMessage = InferSelectModel<typeof amsProcessedMessages>;
 export type InsertAmsProcessedMessage = InferInsertModel<typeof amsProcessedMessages>;
+
+
+// ==================== v717: 多时间窗口出价修正 ====================
+
+/**
+ * v717: keyword/target级别每日表现数据表
+ * 用于支持5个时间窗口(90-60天/60-30天/30-14天/14-7天/7-3天)的出价锚点分析
+ * 数据来源: Amazon SP/SB/SD Keyword Performance Report (DAILY模式)
+ */
+export const keywordDailyPerformance = mysqlTable("keyword_daily_performance", {
+  id: int().autoincrement().notNull(),
+  accountId: int("account_id").notNull(),
+  campaignId: varchar("campaign_id", { length: 64 }).notNull(),
+  internalAdGroupId: int("internal_ad_group_id"),
+  keywordId: int("keyword_id"),
+  targetId: int("target_id"),
+  entityType: mysqlEnum("entity_type", ['keyword', 'product_target']).notNull(),
+  date: date({ mode: 'string' }).notNull(),
+  impressions: int().default(0),
+  clicks: int().default(0),
+  spend: decimal({ precision: 12, scale: 4 }).default('0.0000'),
+  sales: decimal({ precision: 12, scale: 2 }).default('0.00'),
+  orders: int().default(0),
+  unitsSold: int("units_sold").default(0),
+  cpc: decimal({ precision: 10, scale: 4 }),
+  acos: decimal({ precision: 8, scale: 4 }),
+  roas: decimal({ precision: 10, scale: 2 }),
+  ctr: decimal({ precision: 8, scale: 6 }),
+  cvr: decimal({ precision: 8, scale: 6 }),
+  dataSource: mysqlEnum("data_source", ['api_report', 'ams_stream', 'calculated']).default('api_report'),
+  createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+  updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+},
+(table) => [
+  unique("uk_kdp_entity_date").on(table.accountId, table.keywordId, table.targetId, table.date),
+  index("idx_kdp_account_date").on(table.accountId, table.date),
+  index("idx_kdp_keyword_date").on(table.keywordId, table.date),
+  index("idx_kdp_target_date").on(table.targetId, table.date),
+  index("idx_kdp_campaign_date").on(table.campaignId, table.date),
+  index("idx_kdp_entity_type").on(table.entityType, table.date),
+]);
+export type KeywordDailyPerformance = InferSelectModel<typeof keywordDailyPerformance>;
+export type InsertKeywordDailyPerformance = InferInsertModel<typeof keywordDailyPerformance>;
+
+/**
+ * v717: 多时间窗口出价锚点分析结果表
+ * 存储每个投放词/ASIN的最佳出价锚点和修正建议
+ */
+export const bidAnchorAnalysis = mysqlTable("bid_anchor_analysis", {
+  id: int().autoincrement().notNull(),
+  accountId: int("account_id").notNull(),
+  campaignId: varchar("campaign_id", { length: 64 }).notNull(),
+  keywordId: int("keyword_id"),
+  targetId: int("target_id"),
+  entityType: mysqlEnum("entity_type", ['keyword', 'product_target']).notNull(),
+  bestWindow: mysqlEnum("best_window", ['W1_90_60', 'W2_60_30', 'W3_30_14', 'W4_14_7', 'W5_7_3']),
+  bestWindowRoas: decimal("best_window_roas", { precision: 10, scale: 2 }),
+  bestWindowAcos: decimal("best_window_acos", { precision: 8, scale: 4 }),
+  bestWindowCpc: decimal("best_window_cpc", { precision: 10, scale: 4 }),
+  bestWindowClicks: int("best_window_clicks").default(0),
+  bestWindowOrders: int("best_window_orders").default(0),
+  anchorBid: decimal("anchor_bid", { precision: 10, scale: 4 }).notNull(),
+  currentBid: decimal("current_bid", { precision: 10, scale: 4 }),
+  bidDriftPercent: decimal("bid_drift_percent", { precision: 8, scale: 4 }),
+  degradationLevel: mysqlEnum("degradation_level", ['none', 'mild', 'severe', 'critical']).default('none'),
+  degradationDetail: json("degradation_detail"),
+  correctionAction: mysqlEnum("correction_action", ['maintain', 'gradual_restore', 'restore_to_anchor', 'update_anchor', 'emergency_restore']).default('maintain'),
+  suggestedBid: decimal("suggested_bid", { precision: 10, scale: 4 }),
+  correctionReason: text("correction_reason"),
+  windowMetrics: json("window_metrics"),
+  dataConfidence: mysqlEnum("data_confidence", ['high', 'medium', 'low', 'insufficient']).default('insufficient'),
+  totalDataPoints: int("total_data_points").default(0),
+  correctionStatus: mysqlEnum("correction_status", ['pending', 'applied', 'skipped', 'failed']).default('pending'),
+  appliedAt: timestamp("applied_at", { mode: 'string' }),
+  apiResponseId: varchar("api_response_id", { length: 128 }),
+  analyzedAt: timestamp("analyzed_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+  createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+  updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+},
+(table) => [
+  unique("uk_baa_entity").on(table.accountId, table.keywordId, table.targetId),
+  index("idx_baa_account").on(table.accountId),
+  index("idx_baa_campaign").on(table.campaignId),
+  index("idx_baa_degradation").on(table.degradationLevel),
+  index("idx_baa_correction").on(table.correctionAction, table.correctionStatus),
+  index("idx_baa_analyzed").on(table.analyzedAt),
+]);
+export type BidAnchorAnalysis = InferSelectModel<typeof bidAnchorAnalysis>;
+export type InsertBidAnchorAnalysis = InferInsertModel<typeof bidAnchorAnalysis>;
