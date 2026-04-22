@@ -2,17 +2,23 @@
  * v717: 紧急出价修复路由
  * 
  * 提供管理后台触发全量出价修复的API入口
+ * 使用异步模式：立即返回，后台执行修复
  */
 import { z } from 'zod';
-import { router, protectedProcedure, adminProcedure } from '../trpc';
+import { router, protectedProcedure, adminProcedure } from '../_core/trpc';
 import { createModuleLogger } from '../utils/logger';
 
 const log = createModuleLogger('EmergencyBidCorrectionRoute');
 
+// 全局状态追踪
+let _isRunning = false;
+let _lastResult: unknown = null;
+let _startedAt: string | null = null;
+
 export const emergencyBidCorrectionRouter = router({
   /**
-   * 触发紧急全量出价修复
-   * 仅管理员可操作
+   * 触发紧急全量出价修复（异步模式）
+   * 立即返回，后台执行
    */
   triggerEmergencyCorrection: adminProcedure
     .input(z.object({
@@ -22,50 +28,92 @@ export const emergencyBidCorrectionRouter = router({
     .mutation(async ({ input }) => {
       log.info(`[v717] 触发紧急出价修复: dryRun=${input.dryRun}, accountId=${input.accountId || '全部'}`);
       
-      try {
-        const { runEmergencyBidCorrection } = await import('../scripts/emergencyBidCorrection');
-        const summaries = await runEmergencyBidCorrection({
-          dryRun: input.dryRun,
-          accountId: input.accountId,
-        });
-        
-        const totalEntities = summaries.reduce((sum, s) => sum + s.totalEntities, 0);
-        const totalCorrections = summaries.reduce((sum, s) => sum + s.entitiesNeedCorrection, 0);
-        const totalApplied = summaries.reduce((sum, s) => sum + s.correctionsApplied, 0);
-        const totalFailed = summaries.reduce((sum, s) => sum + s.correctionsFailed, 0);
-        
-        return {
-          success: true,
-          mode: input.dryRun ? 'dry_run' : 'live',
-          summary: {
-            accountsProcessed: summaries.length,
-            totalEntities,
-            totalCorrections,
-            totalApplied,
-            totalFailed,
-          },
-          details: summaries.map(s => ({
-            accountId: s.accountId,
-            marketplace: s.marketplace,
-            entities: s.totalEntities,
-            analyzed: s.entitiesAnalyzed,
-            corrections: s.entitiesNeedCorrection,
-            applied: s.correctionsApplied,
-            failed: s.correctionsFailed,
-            bidIncreases: s.bidIncreases,
-            bidDecreases: s.bidDecreases,
-            avgChangePercent: s.avgBidChangePercent,
-            errors: s.errors.slice(0, 5),
-          })),
-        };
-      } catch (err: unknown) {
-        log.error(`[v717] 紧急出价修复执行失败: ${(err as Error).message}`);
+      if (_isRunning) {
         return {
           success: false,
-          error: (err as Error).message,
-          mode: input.dryRun ? 'dry_run' : 'live',
+          message: `修复任务正在运行中（启动于 ${_startedAt}），请稍后查询状态`,
+          status: 'already_running',
         };
       }
+      
+      // 立即标记为运行中
+      _isRunning = true;
+      _startedAt = new Date().toISOString();
+      _lastResult = null;
+      
+      // 后台异步执行 - 不await
+      (async () => {
+        try {
+          const { runEmergencyBidCorrection } = await import('../scripts/emergencyBidCorrection');
+          const summaries = await runEmergencyBidCorrection({
+            dryRun: input.dryRun,
+            accountId: input.accountId,
+          });
+          
+          const totalEntities = summaries.reduce((sum, s) => sum + s.totalEntities, 0);
+          const totalCorrections = summaries.reduce((sum, s) => sum + s.entitiesNeedCorrection, 0);
+          const totalApplied = summaries.reduce((sum, s) => sum + s.correctionsApplied, 0);
+          const totalFailed = summaries.reduce((sum, s) => sum + s.correctionsFailed, 0);
+          
+          _lastResult = {
+            success: true,
+            completedAt: new Date().toISOString(),
+            mode: input.dryRun ? 'dry_run' : 'live',
+            summary: {
+              accountsProcessed: summaries.length,
+              totalEntities,
+              totalCorrections,
+              totalApplied,
+              totalFailed,
+            },
+            details: summaries.map(s => ({
+              accountId: s.accountId,
+              marketplace: s.marketplace,
+              entities: s.totalEntities,
+              analyzed: s.entitiesAnalyzed,
+              corrections: s.entitiesNeedCorrection,
+              applied: s.correctionsApplied,
+              failed: s.correctionsFailed,
+              bidIncreases: s.bidIncreases,
+              bidDecreases: s.bidDecreases,
+              avgChangePercent: s.avgBidChangePercent,
+              errors: s.errors.slice(0, 5),
+            })),
+          };
+          
+          log.info(`[v717] 紧急出价修复完成: ${totalEntities}实体, ${totalCorrections}需修正, ${totalApplied}已推送`);
+        } catch (err: unknown) {
+          log.error(`[v717] 紧急出价修复执行失败: ${(err as Error).message}`);
+          _lastResult = {
+            success: false,
+            completedAt: new Date().toISOString(),
+            error: (err as Error).message,
+          };
+        } finally {
+          _isRunning = false;
+        }
+      })();
+      
+      // 立即返回
+      return {
+        success: true,
+        message: '紧急出价修复已启动，请通过 getEmergencyCorrectionStatus 查询进度',
+        status: 'started',
+        startedAt: _startedAt,
+        mode: input.dryRun ? 'dry_run' : 'live',
+      };
+    }),
+
+  /**
+   * 查询紧急修复执行状态
+   */
+  getEmergencyCorrectionStatus: adminProcedure
+    .query(async () => {
+      return {
+        isRunning: _isRunning,
+        startedAt: _startedAt,
+        lastResult: _lastResult,
+      };
     }),
 
   /**
@@ -75,7 +123,7 @@ export const emergencyBidCorrectionRouter = router({
     .input(z.object({
       accountId: z.number(),
       degradationLevel: z.enum(['none', 'mild', 'severe', 'critical']).optional(),
-      correctionAction: z.enum(['maintain', 'gradual_restore', 'restore_to_anchor', 'update_anchor', 'emergency_restore']).optional(),
+      correctionAction: z.enum(['maintain', 'gradual_restore', 'restore_to_anchor', 'update_anchor', 'emergency_restore', 'restore_down', 'restore_up']).optional(),
       limit: z.number().default(50),
       offset: z.number().default(0),
     }))
