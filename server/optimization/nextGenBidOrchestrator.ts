@@ -54,6 +54,8 @@ import { batchGetParetoTiers, applyParetoWeight, type ParetoTierResult } from '.
 import { batchForecastCampaignTrends, applyTrendModifier, type TrendSignal } from './timeSeriesForecastEngine';
 import { getTransferPriorForCampaign, blendTransferWithOwn, type TransferParameters } from './crossProductTransferEngine';
 import { getEffectiveMinBid, AMAZON_PLATFORM_MIN_BIDS } from './optimizationSafetyGuardrails';
+import { applySuggestedBidAnchor } from './bidRegressionEngine';
+import { runProtectionChecks, applyProtectionToBidChange, type ProtectionCheckResult } from './budgetProtectionGuard';
 import * as timeDecayService from '../analytics/timeDecayWeightedDataService';
 import { getConfig } from '../system/systemConfigService';
 import { startAlgorithmTrace, completeAlgorithmTrace } from '../algorithm/algorithmObservabilityService';
@@ -765,6 +767,17 @@ function safetyValidate(
     safeBid = Math.max(maxDecrease, Math.min(maxIncrease, safeBid));
   }
   
+  // 2.5 v719: 建议竞价锚定 — 防止竞价偏离Amazon建议范围太远
+  // 从config中获取建议竞价信息（如果有的话）
+  const suggestedHigh = (config as any).suggestedBidHigh as number | undefined;
+  const suggestedLow = (config as any).suggestedBidLow as number | undefined;
+  if (suggestedHigh && suggestedLow && suggestedHigh > 0 && suggestedLow > 0) {
+    const anchorResult = applySuggestedBidAnchor(safeBid, currentBid, suggestedHigh, suggestedLow);
+    if (anchorResult.wasAnchored) {
+      safeBid = anchorResult.anchoredBid;
+    }
+  }
+
   // 3. 精度控制
   safeBid = Math.round(safeBid * 100) / 100;
   
