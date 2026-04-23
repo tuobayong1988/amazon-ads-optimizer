@@ -12,6 +12,7 @@ import {
   prelaunchVisualBriefs,
   prelaunchVideoScripts,
   prelaunchAdFrameworks,
+  prelaunchAttributeAnalysis,
 } from '../../../drizzle/schema';
 import { eq, desc, and, sql, like, or } from 'drizzle-orm';
 
@@ -187,7 +188,7 @@ export class PrelaunchProjectService {
     if (!db) return { success: false, error: 'Database not available' };
 
     try {
-      // 级联删除各模块数据
+      // 级联删除各模块数据（含 M1B 属性分析数据）
       await Promise.all([
         db.delete(prelaunchKeywords).where(eq(prelaunchKeywords.projectId, projectId)).catch(() => {}),
         db.delete(prelaunchCompetitors).where(eq(prelaunchCompetitors.projectId, projectId)).catch(() => {}),
@@ -196,6 +197,7 @@ export class PrelaunchProjectService {
         db.delete(prelaunchVisualBriefs).where(eq(prelaunchVisualBriefs.projectId, projectId)).catch(() => {}),
         db.delete(prelaunchVideoScripts).where(eq(prelaunchVideoScripts.projectId, projectId)).catch(() => {}),
         db.delete(prelaunchAdFrameworks).where(eq(prelaunchAdFrameworks.projectId, projectId)).catch(() => {}),
+        db.delete(prelaunchAttributeAnalysis).where(eq(prelaunchAttributeAnalysis.projectId, projectId)).catch(() => {}),
       ]);
 
       // 删除项目本身

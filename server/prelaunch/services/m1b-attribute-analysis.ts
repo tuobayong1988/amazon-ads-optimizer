@@ -14,6 +14,12 @@
  * - 如果用户搜索"5 pack outdoor gloves"，说明用户有明确的数量需求
  * - 如果我们卖的是3双，竞品卖的是5双，则该竞品不应成为我们的广告定向对象
  * - 但如果大多数搜索词不携带数量信息，则数量不应作为竞品过滤条件
+ * 
+ * v3.1 优化：
+ * - P0-2: checkCompetitorAttributeMatch 改为使用竞品自身数据（标题+bullet_points+description）
+ * - P1-2: style 维度细化为 form_variant（形态变体）和 functional_feature（功能特征），避免误判
+ * - P2-1: 小样本保护 — 关键词数 < 100 时提高携带率阈值至 35%
+ * - P2-2: 品牌词预过滤 — 属性提取前排除品牌名中的伪属性
  */
 import { getDb, type DbInstanceNonNull } from '../../db';
 import { prelaunchKeywords, prelaunchProjects } from '../../../drizzle/schema';
@@ -73,6 +79,15 @@ export interface AttributeAnalysisResult {
   analysisRationale: string;  // LLM 对整体分析的解释
 }
 
+/** v3.1: 竞品自身数据（用于属性匹配检查） */
+export interface CompetitorOwnData {
+  title: string;
+  bulletPoints?: string;
+  description?: string;
+  productOverview?: { key: string; value: string }[];
+  brand?: string;
+}
+
 // ============================================================
 // 配置常量
 // ============================================================
@@ -87,6 +102,15 @@ export interface AttributeAnalysisResult {
  * 也不宜太低（会过度过滤导致竞品池太小）。
  */
 const CARRYING_RATE_THRESHOLD = 0.25;
+
+/**
+ * v3.1 P2-1: 小样本保护阈值
+ * 
+ * 当高相关关键词数量低于此值时，提高携带率阈值至 SMALL_SAMPLE_THRESHOLD，
+ * 避免在样本不足时做出过于激进的过滤决策。
+ */
+const SMALL_SAMPLE_KEYWORD_COUNT = 100;
+const SMALL_SAMPLE_CARRYING_RATE_THRESHOLD = 0.35;
 
 /**
  * 属性提取的批次大小 — 每次发送给 LLM 的关键词数量
@@ -121,8 +145,12 @@ export class M1BAttributeAnalysisService {
       }
       log.info(`[M1B] Found ${keywords.length} high-relevance keywords to analyze`);
 
-      // Step 2: 批量提取关键词中的属性信息
-      const extractions = await this.extractAttributesFromKeywords(keywords);
+      // v3.1 P2-2: 获取品牌名列表，用于属性提取时的品牌词预过滤
+      const brandNames = await this.collectBrandNames(db, projectId);
+      log.info(`[M1B] Collected ${brandNames.length} brand names for pre-filtering`);
+
+      // Step 2: 批量提取关键词中的属性信息（v3.1: 增加品牌词预过滤）
+      const extractions = await this.extractAttributesFromKeywords(keywords, brandNames);
       log.info(`[M1B] Extracted attributes from ${extractions.length} keywords`);
 
       // Step 3: 统计每个维度的携带率
@@ -131,8 +159,8 @@ export class M1BAttributeAnalysisService {
       // Step 4: 获取项目信息并提取自有产品属性
       const ownAttributes = await this.extractOwnProductAttributes(db, projectId);
 
-      // Step 5: 综合判断哪些维度应该作为竞品过滤条件
-      const activeFilterDimensions = this.determineActiveFilters(dimensionStats, ownAttributes);
+      // Step 5: 综合判断哪些维度应该作为竞品过滤条件（v3.1: 增加小样本保护）
+      const activeFilterDimensions = this.determineActiveFilters(dimensionStats, ownAttributes, keywords.length);
 
       // Step 6: 生成分析解释
       const rationale = await this.generateAnalysisRationale(
@@ -198,6 +226,39 @@ export class M1BAttributeAnalysisService {
     }
   }
 
+  /**
+   * 更新用户确认的自有产品属性（供 P3 前端确认交互使用）
+   * 
+   * 用户在前端确认/修改 M1B 自动提取的产品属性后，
+   * 调用此方法更新分析结果中的 ownProductAttributes。
+   */
+  async updateConfirmedAttributes(
+    projectId: number,
+    confirmedAttributes: { color?: string | null; size?: string | null; style?: string | null; quantity?: string | null }
+  ): Promise<{ success: boolean; error?: string }> {
+    const db = await getDb();
+    if (!db) return { success: false, error: 'Database not available' };
+
+    try {
+      const attrJson = JSON.stringify({
+        ...confirmedAttributes,
+        rawExtraction: { source: 'user_confirmed' },
+      }).replace(/'/g, "\\'");
+
+      await db.execute(sql.raw(`
+        UPDATE prelaunch_attribute_analysis 
+        SET own_product_attributes = '${attrJson}'
+        WHERE project_id = ${projectId}
+        ORDER BY id DESC LIMIT 1
+      `));
+
+      log.info(`[M1B] Updated confirmed attributes for project ${projectId}`);
+      return { success: true };
+    } catch (error: unknown) {
+      return { success: false, error: (error as Error).message };
+    }
+  }
+
   // ============================================================
   // 内部方法
   // ============================================================
@@ -221,15 +282,41 @@ export class M1BAttributeAnalysisService {
   }
 
   /**
+   * v3.1 P2-2: 收集品牌名列表
+   * 
+   * 从竞品数据和项目信息中收集品牌名，用于在属性提取时
+   * 排除品牌名中的伪属性（如品牌名 "Blue Diamond" 中的 "Blue" 不应被识别为颜色）。
+   */
+  private async collectBrandNames(db: DbInstanceNonNull, projectId: number): Promise<string[]> {
+    try {
+      const brands = await db.execute(sql.raw(
+        `SELECT DISTINCT brand FROM prelaunch_competitors WHERE project_id = ${projectId} AND brand IS NOT NULL AND brand != ''`
+      ));
+      const rows = brands as unknown as unknown[][];
+      if (!rows || !rows[0]) return [];
+      return (rows[0] as Record<string, unknown>[]).map(r => String(r.brand || '')).filter(Boolean);
+    } catch {
+      return [];
+    }
+  }
+
+  /**
    * Step 2: 批量提取关键词中的属性信息
    * 
    * 使用 Gemini 对每批关键词进行属性提取。
    * 对于每个关键词，识别其中是否包含颜色、尺码、款式、数量信息。
+   * 
+   * v3.1 P1-2: style 维度细化定义 — 区分"形态变体"和"功能特征"
+   * v3.1 P2-2: 增加品牌词预过滤指令
    */
   private async extractAttributesFromKeywords(
-    keywords: { id: number; keyword: string }[]
+    keywords: { id: number; keyword: string }[],
+    brandNames: string[] = []
   ): Promise<KeywordAttributeExtraction[]> {
     const allExtractions: KeywordAttributeExtraction[] = [];
+    const brandNamesStr = brandNames.length > 0
+      ? `\n\nKNOWN BRAND NAMES (DO NOT extract attributes from these words): ${brandNames.slice(0, 30).join(', ')}`
+      : '';
 
     for (let i = 0; i < keywords.length; i += EXTRACTION_BATCH_SIZE) {
       const batch = keywords.slice(i, i + EXTRACTION_BATCH_SIZE);
@@ -240,25 +327,32 @@ export class M1BAttributeAnalysisService {
 For each keyword, extract these 4 attribute dimensions:
 1. **color**: Any color mentioned (e.g., "red", "black", "navy blue", "multicolor"). Return null if no color is specified.
 2. **size**: Any size/dimension mentioned (e.g., "large", "xl", "king size", "12 inch", "small"). Return null if no size is specified.
-3. **style**: Any style/type/variant mentioned that differentiates product form (e.g., "fingerless", "waterproof", "wireless", "foldable", "v-neck"). Return null if no style is specified.
+3. **style**: Product FORM VARIANT or STRUCTURAL DESIGN that fundamentally changes the product shape/construction (e.g., "fingerless", "foldable", "v-neck", "clip-on", "pull-on", "over-ear", "in-ear"). 
+   - DO extract: structural/form variants that change the product's physical form
+   - DO NOT extract: functional features (waterproof, breathable, insulated) — these are features, not style variants
+   - DO NOT extract: use-case/scenario descriptors (hiking, running, camping) — these are usage contexts
+   - DO NOT extract: material descriptors (leather, cotton, nylon) — these are materials
+   Return null if no form variant is specified.
 4. **quantity**: Any quantity/pack count mentioned (e.g., "5 pack", "3 pairs", "set of 6", "dozen", "bulk"). Return null if no quantity is specified.
 
 IMPORTANT RULES:
 - Only extract attributes that are EXPLICITLY stated in the search term
 - Do NOT infer attributes that are not directly mentioned
-- "hiking gloves" → style: null (hiking is a use-case/scenario, not a product style variant)
-- "fingerless hiking gloves" → style: "fingerless" (fingerless IS a product form variant)
-- "waterproof hiking gloves" → style: "waterproof" (waterproof IS a product feature variant)
-- "men's gloves" → size: null, style: null (men's is a demographic, not size or style)
+- "hiking gloves" → style: null (hiking is a use-case, not a form variant)
+- "fingerless hiking gloves" → style: "fingerless" (fingerless IS a form variant)
+- "waterproof hiking gloves" → style: null (waterproof is a functional feature, not a form variant)
+- "over-ear headphones" → style: "over-ear" (over-ear IS a form variant)
+- "bluetooth headphones" → style: null (bluetooth is a technology feature)
+- "men's gloves" → size: null, style: null (men's is a demographic)
 - "5 pack socks" → quantity: "5 pack"
 - "large dog bed" → size: "large"
-- "red running shoes" → color: "red"
+- "red running shoes" → color: "red"${brandNamesStr}
 
 Keywords to analyze:
 ${kwList}
 
 Return JSON array with one entry per keyword:
-[{"keyword":"...","color":null,"size":null,"style":"waterproof","quantity":null}]`;
+[{"keyword":"...","color":null,"size":null,"style":"fingerless","quantity":null}]`;
 
       try {
         const extracted = await geminiStructuredOutput<
@@ -268,11 +362,24 @@ Return JSON array with one entry per keyword:
         for (const ext of extracted) {
           const matchedKw = batch.find(k => k.keyword.toLowerCase() === ext.keyword?.toLowerCase());
           if (matchedKw) {
+            // v3.1 P2-2: 后置品牌词过滤 — 如果提取的颜色值恰好是品牌名的一部分，则置为 null
+            let extractedColor = ext.color || null;
+            if (extractedColor && brandNames.length > 0) {
+              const colorLower = extractedColor.toLowerCase();
+              for (const brand of brandNames) {
+                if (brand.toLowerCase().includes(colorLower) || colorLower.includes(brand.toLowerCase())) {
+                  log.info(`[M1B] Filtered brand-color collision: "${extractedColor}" in brand "${brand}" for keyword "${matchedKw.keyword}"`);
+                  extractedColor = null;
+                  break;
+                }
+              }
+            }
+
             allExtractions.push({
               keyword: matchedKw.keyword,
               keywordId: matchedKw.id,
               attributes: {
-                color: ext.color || null,
+                color: extractedColor,
                 size: ext.size || null,
                 style: ext.style || null,
                 quantity: ext.quantity || null,
@@ -304,10 +411,21 @@ Return JSON array with one entry per keyword:
    * - 携带率是多少
    * - 最常见的属性值有哪些
    * - 是否达到显著性阈值
+   * 
+   * v3.1 P2-1: 小样本保护 — 关键词数 < 100 时使用更高的阈值
    */
   private calculateDimensionStats(extractions: KeywordAttributeExtraction[]): AttributeDimensionStats[] {
     const dimensions: AttributeDimension[] = ['color', 'size', 'style', 'quantity'];
     const totalKeywords = extractions.length;
+
+    // v3.1 P2-1: 根据样本量动态调整阈值
+    const effectiveThreshold = totalKeywords < SMALL_SAMPLE_KEYWORD_COUNT
+      ? SMALL_SAMPLE_CARRYING_RATE_THRESHOLD
+      : CARRYING_RATE_THRESHOLD;
+
+    if (totalKeywords < SMALL_SAMPLE_KEYWORD_COUNT) {
+      log.info(`[M1B] Small sample detected (${totalKeywords} < ${SMALL_SAMPLE_KEYWORD_COUNT}), using higher threshold: ${effectiveThreshold * 100}%`);
+    }
 
     return dimensions.map(dim => {
       // 统计携带该属性的关键词
@@ -334,7 +452,7 @@ Return JSON array with one entry per keyword:
           share: carryingCount > 0 ? Math.round((count / carryingCount) * 10000) / 10000 : 0,
         }));
 
-      const isSignificant = carryingRate >= CARRYING_RATE_THRESHOLD;
+      const isSignificant = carryingRate >= effectiveThreshold;
 
       return {
         dimension: dim,
@@ -373,6 +491,24 @@ Return JSON array with one entry per keyword:
     const seedKeywords = projectInfo.seedKeywords || projectInfo.seed_keywords;
     const seedKwStr = Array.isArray(seedKeywords) ? seedKeywords.join(', ') : String(seedKeywords || '');
 
+    // v3.1: 检查是否有用户确认的属性（P3 前端确认后存储）
+    const confirmedAttrs = projectInfo.confirmedAttributes || projectInfo.confirmed_attributes;
+    if (confirmedAttrs) {
+      try {
+        const parsed = typeof confirmedAttrs === 'string' ? JSON.parse(confirmedAttrs) : confirmedAttrs;
+        if (parsed && (parsed.color || parsed.size || parsed.style || parsed.quantity)) {
+          log.info(`[M1B] Using user-confirmed attributes for project ${projectId}`);
+          return {
+            color: parsed.color || null,
+            size: parsed.size || null,
+            style: parsed.style || null,
+            quantity: parsed.quantity || null,
+            rawExtraction: { source: 'user_confirmed', ...parsed },
+          };
+        }
+      } catch { /* ignore parse error, fall through to LLM extraction */ }
+    }
+
     const prompt = `You are an Amazon product analyst. Based on the following product information, extract the product's specific attributes.
 
 Product Name/Title: ${projectName}
@@ -383,7 +519,7 @@ Seed Keywords: ${seedKwStr}
 Extract these 4 attribute dimensions for THIS SPECIFIC product:
 1. **color**: What specific color(s) is this product? (e.g., "black", "red and blue"). Return null if unclear.
 2. **size**: What specific size is this product? (e.g., "large", "12 inch", "queen size"). Return null if unclear.
-3. **style**: What specific style/variant is this product? (e.g., "fingerless", "wireless", "foldable"). Return null if unclear.
+3. **style**: What specific FORM VARIANT is this product? (e.g., "fingerless", "over-ear", "foldable", "clip-on"). Only structural/form variants, NOT functional features. Return null if unclear.
 4. **quantity**: What quantity/pack count is this product sold in? (e.g., "5 pack", "3 pairs", "single"). Return null if unclear.
 
 Return JSON object:
@@ -409,19 +545,27 @@ Return JSON object:
    * 一个维度要成为有效的过滤条件，必须同时满足两个条件：
    * 1. 该维度的携带率达到显著性阈值（用户有清晰的属性需求意识）
    * 2. 我们自己的产品在该维度上有明确的属性值（否则无法比对）
+   * 
+   * v3.1 P2-1: 小样本保护 — 关键词数 < 100 时使用更高的阈值
    */
   private determineActiveFilters(
     dimensionStats: AttributeDimensionStats[],
-    ownAttributes: OwnProductAttributes
+    ownAttributes: OwnProductAttributes,
+    totalKeywords: number
   ): AttributeDimension[] {
     const activeFilters: AttributeDimension[] = [];
+
+    // v3.1 P2-1: 根据样本量动态调整阈值
+    const effectiveThreshold = totalKeywords < SMALL_SAMPLE_KEYWORD_COUNT
+      ? SMALL_SAMPLE_CARRYING_RATE_THRESHOLD
+      : CARRYING_RATE_THRESHOLD;
 
     for (const stat of dimensionStats) {
       const dim = stat.dimension;
       const ownValue = ownAttributes[dim];
 
-      // 条件1: 携带率达到阈值
-      const hasSignificantCarrying = stat.isSignificant;
+      // 条件1: 携带率达到阈值（使用动态阈值）
+      const hasSignificantCarrying = stat.carryingRate >= effectiveThreshold;
 
       // 条件2: 自有产品有明确的属性值
       const hasOwnValue = ownValue !== null && ownValue !== '' && ownValue !== undefined;
@@ -429,13 +573,13 @@ Return JSON object:
       if (hasSignificantCarrying && hasOwnValue) {
         stat.shouldFilter = true;
         activeFilters.push(dim);
-        log.info(`[M1B] Dimension "${dim}" activated as filter: carryingRate=${stat.carryingRate}, ownValue="${ownValue}"`);
+        log.info(`[M1B] Dimension "${dim}" activated as filter: carryingRate=${stat.carryingRate}, threshold=${effectiveThreshold}, ownValue="${ownValue}"`);
       } else {
         stat.shouldFilter = false;
         if (hasSignificantCarrying && !hasOwnValue) {
           log.info(`[M1B] Dimension "${dim}" has significant carrying rate (${stat.carryingRate}) but own product has no clear value — NOT filtering`);
         } else if (!hasSignificantCarrying) {
-          log.info(`[M1B] Dimension "${dim}" carrying rate too low (${stat.carryingRate}) — NOT filtering`);
+          log.info(`[M1B] Dimension "${dim}" carrying rate too low (${stat.carryingRate} < ${effectiveThreshold}) — NOT filtering`);
         }
       }
     }
@@ -458,9 +602,14 @@ Return JSON object:
 
     const ownStr = `color="${ownAttributes.color || 'N/A'}", size="${ownAttributes.size || 'N/A'}", style="${ownAttributes.style || 'N/A'}", quantity="${ownAttributes.quantity || 'N/A'}"`;
 
+    const effectiveThreshold = totalKeywords < SMALL_SAMPLE_KEYWORD_COUNT
+      ? SMALL_SAMPLE_CARRYING_RATE_THRESHOLD
+      : CARRYING_RATE_THRESHOLD;
+
     const prompt = `Summarize this search behavior attribute analysis for an Amazon product launch team (2-3 sentences in English):
 
 Total high-relevance keywords analyzed: ${totalKeywords}
+Effective threshold: ${(effectiveThreshold * 100).toFixed(0)}% ${totalKeywords < SMALL_SAMPLE_KEYWORD_COUNT ? '(elevated due to small sample)' : '(standard)'}
 
 Dimension Statistics:
 ${statsStr}
@@ -474,7 +623,7 @@ Explain WHY each dimension was activated or not activated as a competitor filter
     try {
       return await (await import('../gemini')).geminiChat(prompt, '', { temperature: 0.2 });
     } catch {
-      return `Analyzed ${totalKeywords} keywords. Active filters: [${activeFilters.join(', ')}]. Threshold: ${CARRYING_RATE_THRESHOLD * 100}%.`;
+      return `Analyzed ${totalKeywords} keywords. Active filters: [${activeFilters.join(', ')}]. Threshold: ${effectiveThreshold * 100}%.`;
     }
   }
 
@@ -529,16 +678,42 @@ Explain WHY each dimension was activated or not activated as a competitor filter
   }
 
   /**
-   * 公开方法：检查竞品是否通过属性过滤
+   * v3.1 P0-2: 从竞品的 rawData 中提取竞品自身信息
    * 
-   * 供 M2 调用。对于每个竞品，检查其核心流量词中的属性值
-   * 是否与我们的产品属性匹配。
+   * 竞品在 M2 发现阶段通过 Oxylabs 获取的 rawProductData 中
+   * 包含了 title, bullet_points, description, product_overview 等信息。
+   * 这些数据比使用项目关键词更能准确反映竞品自身的属性。
+   */
+  extractCompetitorOwnData(rawData: unknown): CompetitorOwnData {
+    try {
+      const data = typeof rawData === 'string' ? JSON.parse(rawData) : (rawData || {});
+      return {
+        title: data.title || '',
+        bulletPoints: data.bullet_points || data.bulletPoints || '',
+        description: data.description || '',
+        productOverview: Array.isArray(data.product_overview) ? data.product_overview : [],
+        brand: data.brand || data.manufacturer || '',
+      };
+    } catch {
+      return { title: '', bulletPoints: '', description: '', productOverview: [], brand: '' };
+    }
+  }
+
+  /**
+   * v3.1 P0-2 重构: 检查竞品是否通过属性过滤
    * 
+   * 供 M2 调用。使用竞品自身数据（标题 + bullet points + description + product overview）
+   * 替代原来的项目关键词，更准确地判断竞品的属性值。
+   * 
+   * @param competitorTitle - 竞品标题
+   * @param competitorOwnData - 竞品自身数据（从 rawData 提取）
+   * @param ownAttributes - 我们自有产品的属性锚点
+   * @param activeFilterDimensions - 当前激活的过滤维度
    * @returns filterResult 包含是否通过、各维度匹配详情、建议的评分调整
    */
   async checkCompetitorAttributeMatch(
     competitorTitle: string,
-    competitorKeywords: string[],
+    competitorOwnData: CompetitorOwnData | string[],
     ownAttributes: OwnProductAttributes,
     activeFilterDimensions: AttributeDimension[]
   ): Promise<{
@@ -561,26 +736,65 @@ Explain WHY each dimension was activated or not activated as a competitor filter
       };
     }
 
-    // 使用 LLM 提取竞品的属性
-    const kwSample = competitorKeywords.slice(0, 20).join('\n');
-    const prompt = `You are an Amazon product attribute analyst. Analyze this competitor product and its traffic keywords to determine its key attributes.
+    // v3.1 P0-2: 构建竞品信息上下文
+    // 如果传入的是 CompetitorOwnData 对象（新版），使用竞品自身数据
+    // 如果传入的是 string[] （旧版兼容），使用关键词列表
+    let competitorContext: string;
+
+    if (Array.isArray(competitorOwnData)) {
+      // 旧版兼容：使用关键词列表
+      const kwSample = competitorOwnData.slice(0, 20).join('\n');
+      competitorContext = `Competitor's Top Traffic Keywords:\n${kwSample}`;
+    } else {
+      // v3.1 新版：使用竞品自身数据
+      const parts: string[] = [];
+      if (competitorOwnData.bulletPoints) {
+        parts.push(`Bullet Points: ${competitorOwnData.bulletPoints}`);
+      }
+      if (competitorOwnData.description) {
+        parts.push(`Description: ${String(competitorOwnData.description).slice(0, 500)}`);
+      }
+      if (competitorOwnData.productOverview && competitorOwnData.productOverview.length > 0) {
+        const overviewStr = competitorOwnData.productOverview
+          .map(o => `${o.key}: ${o.value}`)
+          .join(', ');
+        parts.push(`Product Overview: ${overviewStr}`);
+      }
+      if (competitorOwnData.brand) {
+        parts.push(`Brand: ${competitorOwnData.brand}`);
+      }
+      competitorContext = parts.length > 0
+        ? `Competitor Product Details:\n${parts.join('\n')}`
+        : `(No additional product details available)`;
+    }
+
+    const prompt = `You are an Amazon product attribute analyst. Analyze this competitor product to determine its key attributes and compare with our product.
 
 Competitor Title: ${competitorTitle}
-Competitor's Top Traffic Keywords:
-${kwSample}
+${competitorContext}
 
 Our Product Attributes:
 - color: ${ownAttributes.color || 'N/A'}
 - size: ${ownAttributes.size || 'N/A'}
-- style: ${ownAttributes.style || 'N/A'}
+- style: ${ownAttributes.style || 'N/A'} (form variant only, not functional features)
 - quantity: ${ownAttributes.quantity || 'N/A'}
 
 Active Filter Dimensions (dimensions where users have clear attribute preferences): [${activeFilterDimensions.join(', ')}]
 
 For EACH active filter dimension, determine:
-1. What is the competitor's value for this dimension? (based on title + traffic keywords)
+1. What is the competitor's value for this dimension? (based on title + product details)
 2. Does it match our product's value?
-3. If not matched, how severe is the mismatch? ("minor" = close enough, "major" = fundamentally different)
+3. If not matched, how severe is the mismatch? ("minor" = close enough or compatible, "major" = fundamentally different target audience)
+
+MATCHING GUIDELINES:
+- For quantity: "3 pack" vs "5 pack" = MAJOR mismatch (different quantity expectations)
+- For quantity: "3 pack" vs "3 pairs" = match (same quantity, different wording)
+- For color: "black" vs "dark gray" = MINOR mismatch (close enough)
+- For color: "red" vs "blue" = MAJOR mismatch (completely different)
+- For size: "large" vs "xl" = MINOR mismatch (adjacent sizes)
+- For size: "small" vs "king size" = MAJOR mismatch (fundamentally different)
+- For style: "fingerless" vs "full finger" = MAJOR mismatch (different product form)
+- For style: "over-ear" vs "in-ear" = MAJOR mismatch (different product form)
 
 Return JSON:
 {

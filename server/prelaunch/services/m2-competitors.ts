@@ -9,6 +9,11 @@
  * 基于搜索行为属性分析结果对竞品进行动态过滤/降级。
  * 只有当用户搜索行为中某属性维度的携带率达到阈值时，
  * 该维度才会成为竞品过滤条件。
+ * 
+ * v3.1 优化：
+ * - P0-2: 使用竞品自身数据（title + bullet_points + description）进行属性匹配，
+ *         替代原来使用项目关键词的方式，大幅提高匹配准确率
+ * - P1-1: 增加最小竞品保留数安全阀，防止属性过滤后竞品池过小导致广告覆盖面不足
  */
 import { getDb, type DbInstanceNonNull } from '../../db';
 import {
@@ -23,10 +28,19 @@ import {
   checkServiceHealth,
   type DiscoveredCompetitor,
 } from '../oxylabs';
-import { M1BAttributeAnalysisService, type AttributeAnalysisResult, type AttributeDimension } from './m1b-attribute-analysis';
+import { M1BAttributeAnalysisService, type AttributeAnalysisResult, type AttributeDimension, type CompetitorOwnData } from './m1b-attribute-analysis';
 import { createModuleLogger } from '../../utils/logger';
 
 const log = createModuleLogger('M2-Competitors');
+
+/**
+ * v3.1 P1-1: 最小竞品保留数安全阀
+ * 
+ * 属性过滤后，至少保留此数量的竞品。
+ * 如果过滤后剩余竞品数低于此值，将按 mismatch 严重程度从轻到重
+ * 逐步恢复被过滤的竞品（标记为 demoted 而非 removed）。
+ */
+const MIN_COMPETITORS_AFTER_FILTER = 8;
 
 export class M2CompetitorService {
 
@@ -277,7 +291,7 @@ Return JSON array.`, { temperature: 0.3 });
         }
       }
 
-      // ─── Step 1.5: 属性维度过滤（v3.0 新增）──────────────────────
+      // ─── Step 1.5: 属性维度过滤（v3.0 新增，v3.1 优化）──────────
       let competitors = await db.select()
         .from(prelaunchCompetitors)
         .where(eq(prelaunchCompetitors.projectId, projectId));
@@ -287,6 +301,7 @@ Return JSON array.`, { temperature: 0.3 });
         filtered: 0,
         demoted: 0,
         passed: 0,
+        restored: 0,
         activeFilters: [] as string[],
       };
 
@@ -301,7 +316,7 @@ Return JSON array.`, { temperature: 0.3 });
           .from(prelaunchCompetitors)
           .where(eq(prelaunchCompetitors.projectId, projectId));
 
-        log.info(`[M2] Attribute filter result: ${attributeFilterSummary.filtered} removed, ${attributeFilterSummary.demoted} demoted, ${attributeFilterSummary.passed} passed`);
+        log.info(`[M2] Attribute filter result: ${attributeFilterSummary.filtered} removed, ${attributeFilterSummary.demoted} demoted, ${attributeFilterSummary.passed} passed, ${attributeFilterSummary.restored} restored by safety valve`);
       }
 
       // Step 2: TRS评分（白盒化）
@@ -349,14 +364,19 @@ Return JSON array.`, { temperature: 0.3 });
   }
 
   /**
-   * v3.0 新增：应用属性维度过滤
+   * v3.0 新增，v3.1 重构：应用属性维度过滤
    * 
-   * 对每个竞品，获取其标题和核心流量词中的属性信息，
-   * 与自有产品属性进行比对。
+   * v3.1 P0-2: 使用竞品自身数据（rawData 中的 title, bullet_points, description, product_overview）
+   *            替代原来使用项目关键词的方式
+   * v3.1 P1-1: 增加最小竞品保留数安全阀
    * 
+   * 对每个竞品：
    * - major mismatch → 从竞品列表中移除（删除记录）
    * - minor mismatch → 降级 TRS 评分（通过 raw_data 标记）
    * - 匹配 → 正常保留
+   * 
+   * 安全阀：如果过滤后剩余竞品数 < MIN_COMPETITORS_AFTER_FILTER，
+   * 将按 mismatch 严重程度从轻到重逐步恢复被过滤的竞品。
    */
   private async applyAttributeFilter(
     db: DbInstanceNonNull,
@@ -369,49 +389,97 @@ Return JSON array.`, { temperature: 0.3 });
       filtered: number;
       demoted: number;
       passed: number;
+      restored: number;
       activeFilters: string[];
     };
   }> {
     const m1bService = new M1BAttributeAnalysisService();
     const { ownProductAttributes, activeFilterDimensions } = analysis;
 
-    let filtered = 0;
-    let demoted = 0;
-    let passed = 0;
+    // v3.1 P1-1: 收集所有过滤结果，延迟执行删除，以便安全阀判断
+    interface FilterDecision {
+      compId: number;
+      compAsin: string;
+      compTitle: string;
+      action: 'remove' | 'demote' | 'pass';
+      matchResult: {
+        passed: boolean;
+        matchDetails: Record<string, unknown>;
+        scoreAdjustment: number;
+        overallReason: string;
+      };
+    }
+
+    const decisions: FilterDecision[] = [];
 
     for (const comp of competitors) {
       const c = comp as Record<string, unknown>;
       const compTitle = String(c.title || '');
+      const compAsin = String(c.asin || '');
       const compId = c.id as number;
 
-      // 获取该竞品关联的核心流量词（如果有的话）
-      // 在当前简化版中，我们使用竞品标题 + 项目的核心关键词作为参考
-      const coreKeywords = await db.select({ keyword: prelaunchKeywords.keyword })
-        .from(prelaunchKeywords)
-        .where(and(
-          eq(prelaunchKeywords.projectId, projectId),
-          eq(prelaunchKeywords.relevanceLayer, 'core'),
-        ))
-        .limit(20);
+      // v3.1 P0-2: 从竞品的 rawData 中提取竞品自身信息
+      const competitorOwnData = m1bService.extractCompetitorOwnData(c.rawData);
 
-      const kwList = coreKeywords.map(k => k.keyword as string);
-
-      // 调用 M1B 的属性匹配检查
+      // v3.1 P0-2: 使用竞品自身数据进行属性匹配检查
       const matchResult = await m1bService.checkCompetitorAttributeMatch(
         compTitle,
-        kwList,
+        competitorOwnData,
         ownProductAttributes,
         activeFilterDimensions
       );
 
       if (!matchResult.passed) {
+        decisions.push({ compId, compAsin, compTitle, action: 'remove', matchResult });
+      } else if (matchResult.scoreAdjustment < 0) {
+        decisions.push({ compId, compAsin, compTitle, action: 'demote', matchResult });
+      } else {
+        decisions.push({ compId, compAsin, compTitle, action: 'pass', matchResult });
+      }
+    }
+
+    // v3.1 P1-1: 安全阀检查
+    const passCount = decisions.filter(d => d.action === 'pass').length;
+    const demoteCount = decisions.filter(d => d.action === 'demote').length;
+    const removeDecisions = decisions.filter(d => d.action === 'remove');
+    const survivorCount = passCount + demoteCount;
+    let restored = 0;
+
+    if (survivorCount < MIN_COMPETITORS_AFTER_FILTER && removeDecisions.length > 0) {
+      // 需要恢复一些被标记为 remove 的竞品
+      const deficit = MIN_COMPETITORS_AFTER_FILTER - survivorCount;
+      log.warn(`[M2] Safety valve triggered: only ${survivorCount} competitors survive, need to restore ${deficit} from ${removeDecisions.length} removed`);
+
+      // 按 scoreAdjustment 从高到低排序（即 mismatch 最轻的优先恢复）
+      removeDecisions.sort((a, b) => b.matchResult.scoreAdjustment - a.matchResult.scoreAdjustment);
+
+      for (let i = 0; i < Math.min(deficit, removeDecisions.length); i++) {
+        removeDecisions[i].action = 'demote';
+        // 给恢复的竞品一个更大的降级惩罚
+        removeDecisions[i].matchResult.scoreAdjustment = Math.max(-0.8, removeDecisions[i].matchResult.scoreAdjustment - 0.2);
+        removeDecisions[i].matchResult.overallReason += ' [RESTORED by safety valve — demoted instead of removed]';
+        restored++;
+        log.info(`[M2] Safety valve: restored ${removeDecisions[i].compAsin} as demoted (adj=${removeDecisions[i].matchResult.scoreAdjustment})`);
+      }
+    }
+
+    // 执行过滤决策
+    let filtered = 0;
+    let demoted = 0;
+    let passed = 0;
+
+    for (const decision of decisions) {
+      const { compId, compAsin, action, matchResult } = decision;
+
+      if (action === 'remove') {
         // major mismatch → 移除竞品
         await db.delete(prelaunchCompetitors)
           .where(eq(prelaunchCompetitors.id, compId));
         filtered++;
-        log.info(`[M2] Competitor ${c.asin} REMOVED: ${matchResult.overallReason}`);
-      } else if (matchResult.scoreAdjustment < 0) {
-        // minor mismatch → 标记降级（在 raw_data 中记录，TRS 计算时应用）
+        log.info(`[M2] Competitor ${compAsin} REMOVED: ${matchResult.overallReason}`);
+
+      } else if (action === 'demote') {
+        // minor mismatch 或安全阀恢复 → 标记降级
         try {
           await db.execute(sql.raw(`
             UPDATE prelaunch_competitors 
@@ -429,8 +497,9 @@ Return JSON array.`, { temperature: 0.3 });
           `));
         } catch {
           // 如果 JSON_SET 失败，使用简单更新
-          const existingRaw = typeof c.rawData === 'string' ? JSON.parse(c.rawData || '{}') : (c.rawData || {});
-          existingRaw.attributeFilter = {
+          const existingComp = competitors.find((c: unknown) => (c as Record<string, unknown>).id === compId) as Record<string, unknown> | undefined;
+          const existingRaw = typeof existingComp?.rawData === 'string' ? JSON.parse(existingComp.rawData || '{}') : (existingComp?.rawData || {});
+          (existingRaw as Record<string, unknown>).attributeFilter = {
             passed: true,
             demoted: true,
             scoreAdjustment: matchResult.scoreAdjustment,
@@ -442,7 +511,8 @@ Return JSON array.`, { temperature: 0.3 });
             .where(eq(prelaunchCompetitors.id, compId));
         }
         demoted++;
-        log.info(`[M2] Competitor ${c.asin} DEMOTED (${matchResult.scoreAdjustment}): ${matchResult.overallReason}`);
+        log.info(`[M2] Competitor ${compAsin} DEMOTED (${matchResult.scoreAdjustment}): ${matchResult.overallReason}`);
+
       } else {
         // 完全匹配 → 正常保留
         try {
@@ -472,6 +542,7 @@ Return JSON array.`, { temperature: 0.3 });
         filtered,
         demoted,
         passed,
+        restored,
         activeFilters: activeFilterDimensions,
       },
     };

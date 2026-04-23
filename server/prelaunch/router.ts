@@ -176,6 +176,30 @@ export const prelaunchRouter = router({
       return { success: !!result, data: result };
     }),
 
+  /**
+   * v3.1 P3: 确认/修正产品属性
+   * 
+   * 允许用户在 M1B 分析完成后，确认或修正 AI 提取的自有产品属性。
+   * 修正后的属性将更新到 prelaunch_attribute_analysis 表，
+   * 并在后续的 M2 竞品过滤中使用修正后的值。
+   */
+  confirmProductAttributes: adminProcedure
+    .input(z.object({
+      projectId: z.number(),
+      confirmedAttributes: z.object({
+        color: z.string().optional(),
+        size: z.string().optional(),
+        style: z.string().optional(),
+        quantity: z.string().optional(),
+      }),
+    }))
+    // @ts-expect-error Complex function parameter types
+    .mutation(async ({ input }: unknown) => {
+      const { M1BAttributeAnalysisService } = await import('./services/m1b-attribute-analysis');
+      const svc = new M1BAttributeAnalysisService();
+      return svc.updateConfirmedAttributes(input.projectId, input.confirmedAttributes);
+    }),
+
   // ==================== M2: 竞品库引擎 ====================
 
   /** 获取项目竞品列表 */

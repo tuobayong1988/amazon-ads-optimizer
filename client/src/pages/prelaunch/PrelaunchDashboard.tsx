@@ -616,6 +616,9 @@ function ProjectDetailDialog({ project, open, onClose, onSaved }: {
               )}
             </div>
 
+            {/* v3.1 P3: 产品属性确认区域 */}
+            <ProductAttributeConfirmSection projectId={(project as any).id} />
+
             {/* 模块数据统计 */}
             <div className="bg-muted/20 rounded-lg p-4">
               <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
@@ -860,6 +863,185 @@ function CreateProjectWizard({ onClose, onCreated }: {
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+// ==================== v3.1 P3: 产品属性确认组件 ====================
+function ProductAttributeConfirmSection({ projectId }: { projectId: number }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editColor, setEditColor] = useState('');
+  const [editSize, setEditSize] = useState('');
+  const [editStyle, setEditStyle] = useState('');
+  const [editQuantity, setEditQuantity] = useState('');
+
+  const attrQuery = trpc.prelaunch.getAttributeAnalysis.useQuery(
+    // @ts-ignore
+    { projectId },
+    { enabled: !!projectId }
+  );
+
+  const confirmMutation = trpc.prelaunch.confirmProductAttributes.useMutation({
+    onSuccess: () => {
+      toast.success("产品属性已更新");
+      setIsEditing(false);
+      attrQuery.refetch();
+    },
+    onError: (err: any) => toast.error("更新失败: " + err.message),
+  });
+
+  // @ts-ignore
+  const data = (attrQuery.data as any)?.data || null;
+  if (!data) {
+    return (
+      <div className="bg-muted/20 rounded-lg p-4">
+        <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
+          <Filter className="w-4 h-4 text-muted-foreground" />
+          产品属性分析
+        </h4>
+        <p className="text-sm text-muted-foreground italic">运行 M1B 属性分析后可查看和确认产品属性</p>
+      </div>
+    );
+  }
+
+  const ownAttrs = (() => {
+    try {
+      return typeof data.ownProductAttributes === 'string'
+        ? JSON.parse(data.ownProductAttributes)
+        : (data.ownProductAttributes || {});
+    } catch { return {}; }
+  })();
+
+  const activeDims = (() => {
+    try {
+      return typeof data.activeFilterDimensions === 'string'
+        ? JSON.parse(data.activeFilterDimensions)
+        : (data.activeFilterDimensions || []);
+    } catch { return []; }
+  })();
+
+  const dimStats = (() => {
+    try {
+      return typeof data.dimensionStats === 'string'
+        ? JSON.parse(data.dimensionStats)
+        : (data.dimensionStats || []);
+    } catch { return []; }
+  })();
+
+  const dimLabels: Record<string, string> = { color: '颜色', size: '尺码', style: '款式', quantity: '数量' };
+
+  const startEditing = () => {
+    setEditColor(ownAttrs.color || '');
+    setEditSize(ownAttrs.size || '');
+    setEditStyle(ownAttrs.style || '');
+    setEditQuantity(ownAttrs.quantity || '');
+    setIsEditing(true);
+  };
+
+  const handleConfirm = () => {
+    confirmMutation.mutate({
+      projectId,
+      confirmedAttributes: {
+        color: editColor.trim() || undefined,
+        size: editSize.trim() || undefined,
+        style: editStyle.trim() || undefined,
+        quantity: editQuantity.trim() || undefined,
+      },
+    });
+  };
+
+  return (
+    <div className="bg-muted/20 rounded-lg p-4">
+      <div className="flex items-center justify-between mb-3">
+        <h4 className="text-sm font-medium flex items-center gap-2">
+          <Filter className="w-4 h-4 text-muted-foreground" />
+          产品属性分析
+          {activeDims.length > 0 && (
+            <Badge variant="secondary" className="text-xs">{activeDims.length} 维度激活</Badge>
+          )}
+        </h4>
+        {!isEditing && (
+          <Button variant="outline" size="sm" className="h-7 text-xs" onClick={startEditing}>
+            <Edit3 className="w-3 h-3 mr-1" />修正属性
+          </Button>
+        )}
+      </div>
+
+      {isEditing ? (
+        <div className="space-y-3">
+          <p className="text-xs text-muted-foreground">确认或修正 AI 提取的产品属性，修正后将在下次运行 M2 时生效</p>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs">颜色 (Color)</Label>
+              <Input className="h-8 text-xs" value={editColor} onChange={(e) => setEditColor(e.target.value)}
+                placeholder="如: black, red" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">尺码 (Size)</Label>
+              <Input className="h-8 text-xs" value={editSize} onChange={(e) => setEditSize(e.target.value)}
+                placeholder="如: large, xl" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">款式 (Style)</Label>
+              <Input className="h-8 text-xs" value={editStyle} onChange={(e) => setEditStyle(e.target.value)}
+                placeholder="如: fingerless, waterproof" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">数量 (Quantity)</Label>
+              <Input className="h-8 text-xs" value={editQuantity} onChange={(e) => setEditQuantity(e.target.value)}
+                placeholder="如: 3 pack, 5 pairs" />
+            </div>
+          </div>
+          <div className="flex items-center gap-2 pt-1">
+            <Button size="sm" className="h-7 text-xs" onClick={handleConfirm} disabled={confirmMutation.isPending}>
+              {confirmMutation.isPending && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}
+              确认属性
+            </Button>
+            <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setIsEditing(false)}>取消</Button>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {/* 当前属性值 */}
+          <div className="grid grid-cols-2 gap-2">
+            {(['color', 'size', 'style', 'quantity'] as const).map((dim) => {
+              const isActive = activeDims.includes(dim);
+              const value = ownAttrs[dim];
+              const stat = dimStats.find((s: any) => s.dimension === dim);
+              const rate = stat ? (stat.carryingRate * 100).toFixed(0) : '?';
+              return (
+                <div key={dim} className={`p-2 rounded border text-xs ${
+                  isActive ? 'border-green-500/30 bg-green-500/5' : 'border-border/30'
+                }`}>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">{dimLabels[dim]}</span>
+                    <Badge variant="outline" className={`text-[10px] px-1.5 ${
+                      isActive ? 'border-green-500/50 text-green-400' : 'border-gray-500/50 text-gray-400'
+                    }`}>
+                      {isActive ? `激活 (${rate}%)` : `未激活 (${rate}%)`}
+                    </Badge>
+                  </div>
+                  <p className="font-medium mt-1">
+                    {value || <span className="text-muted-foreground italic">未检测到</span>}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* 分析说明 */}
+          {data.analysisRationale && (
+            <p className="text-xs text-muted-foreground leading-relaxed">{data.analysisRationale}</p>
+          )}
+
+          {/* 来源标记 */}
+          {ownAttrs.rawExtraction?.source === 'user_confirmed' && (
+            <Badge variant="outline" className="text-[10px] border-blue-500/50 text-blue-400">
+              用户已确认
+            </Badge>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 

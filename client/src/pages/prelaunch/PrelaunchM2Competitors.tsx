@@ -1,6 +1,10 @@
 /**
  * M2 竞品库引擎 — 详情页
  * 竞品列表、TRS评分排行、场景矩阵
+ * 
+ * v3.1 修复:
+ * - tier 枚举修正为 T1_head / T2_waist / T3_niche（与后端一致）
+ * - 新增属性过滤状态展示卡片
  */
 import { useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
@@ -12,7 +16,8 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import {
   Users, ArrowLeft, RefreshCw, Loader2, Play, BarChart3,
-  Star, TrendingUp, ChevronLeft, ChevronRight, ExternalLink, Grid3X3
+  Star, TrendingUp, ChevronLeft, ChevronRight, ExternalLink, Grid3X3,
+  Filter, ShieldCheck
 } from "lucide-react";
 import { useLocation } from "wouter";
 
@@ -43,9 +48,16 @@ export default function PrelaunchM2Competitors() {
     { enabled: !!projectId && activeTab === 'matrix' }
   );
 
+  // v3.1: 获取 M1B 属性分析结果
+  const attributeQuery = trpc.prelaunch.getAttributeAnalysis.useQuery(
+    // @ts-ignore
+    { projectId: projectId! },
+    { enabled: !!projectId }
+  );
+
   const runM2 = trpc.prelaunch.runM2Pipeline.useMutation({
     onSuccess: () => { toast.success("M2竞品库引擎已启动"); competitorsQuery.refetch(); },
-    onError: (err) => toast.error("启动失败: " + err.message),
+    onError: (err: any) => toast.error("启动失败: " + err.message),
   });
 
   // @ts-ignore
@@ -54,13 +66,36 @@ export default function PrelaunchM2Competitors() {
   const totalCompetitors = (competitorsQuery.data as unknown)?.total || 0;
   // @ts-ignore
   const matrixData = (scenarioMatrixQuery.data as unknown)?.data || [];
+  // @ts-ignore
+  const attributeData = (attributeQuery.data as unknown)?.data || null;
 
+  // v3.1: 修正 tier 枚举，与后端 T1_head / T2_waist / T3_niche 一致
   const tiers = [
     { key: '', label: '全部' },
-    { key: 'tier1', label: 'Tier 1 (直接竞品)' },
-    { key: 'tier2', label: 'Tier 2 (间接竞品)' },
-    { key: 'tier3', label: 'Tier 3 (潜在竞品)' },
+    { key: 'T1_head', label: 'T1 头部竞品' },
+    { key: 'T2_waist', label: 'T2 腰部竞品' },
+    { key: 'T3_niche', label: 'T3 利基竞品' },
   ];
+
+  /** v3.1: tier badge 样式映射 */
+  const getTierStyle = (tier: string) => {
+    switch (tier) {
+      case 'T1_head': return 'border-red-500/50 text-red-400';
+      case 'T2_waist': return 'border-amber-500/50 text-amber-400';
+      case 'T3_niche': return 'border-gray-500/50 text-gray-400';
+      default: return 'border-gray-500/50 text-gray-400';
+    }
+  };
+
+  /** v3.1: tier 显示名称映射 */
+  const getTierLabel = (tier: string) => {
+    switch (tier) {
+      case 'T1_head': return 'T1 头部';
+      case 'T2_waist': return 'T2 腰部';
+      case 'T3_niche': return 'T3 利基';
+      default: return tier?.toUpperCase() || '-';
+    }
+  };
 
   return (
     <DashboardLayout>
@@ -76,7 +111,7 @@ export default function PrelaunchM2Competitors() {
               </div>
               <div>
                 <h1 className="text-xl font-bold">M2 竞品库引擎</h1>
-                <p className="text-muted-foreground text-xs">竞品识别 → TRS评分 → 评论分析 → 场景矩阵</p>
+                <p className="text-muted-foreground text-xs">竞品识别 → 属性过滤 → TRS评分 → 评论分析 → 场景矩阵</p>
               </div>
             {/* @ts-ignore */}
             </div>
@@ -98,7 +133,8 @@ export default function PrelaunchM2Competitors() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+        {/* 统计卡片 */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Card>
             <CardContent className="pt-4 pb-3">
               <p className="text-xs text-muted-foreground">总竞品数</p>
@@ -122,6 +158,46 @@ export default function PrelaunchM2Competitors() {
               <p className="text-2xl font-bold">{matrixData.length || 0}</p>
             </CardContent>
           </Card>
+
+          {/* v3.1: 属性过滤状态卡片 */}
+          <Card className={attributeData ? 'border-green-500/30' : ''}>
+            <CardContent className="pt-4 pb-3">
+              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                <Filter className="w-3 h-3" />属性过滤
+              </p>
+              {attributeData ? (
+                <div>
+                  <p className="text-lg font-bold text-green-400 flex items-center gap-1">
+                    <ShieldCheck className="w-4 h-4" />
+                    {(() => {
+                      try {
+                        const dims = typeof attributeData.activeFilterDimensions === 'string'
+                          ? JSON.parse(attributeData.activeFilterDimensions)
+                          : attributeData.activeFilterDimensions;
+                        return Array.isArray(dims) ? `${dims.length} 维度激活` : '已分析';
+                      } catch { return '已分析'; }
+                    })()}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {(() => {
+                      try {
+                        const dims = typeof attributeData.activeFilterDimensions === 'string'
+                          ? JSON.parse(attributeData.activeFilterDimensions)
+                          : attributeData.activeFilterDimensions;
+                        if (Array.isArray(dims) && dims.length > 0) {
+                          const dimLabels: Record<string, string> = { color: '颜色', size: '尺码', style: '款式', quantity: '数量' };
+                          return dims.map((d: string) => dimLabels[d] || d).join('、');
+                        }
+                        return '无激活维度';
+                      } catch { return ''; }
+                    })()}
+                  </p>
+                </div>
+              ) : (
+                <p className="text-lg font-bold text-muted-foreground">未分析</p>
+              )}
+            </CardContent>
+          </Card>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -135,11 +211,9 @@ export default function PrelaunchM2Competitors() {
 
           <TabsContent value="competitors" className="space-y-4">
             <div className="flex items-center gap-2">
-              {tiers.map((t: unknown) => (
-                <Button key={(t as any).key} variant={tierFilter === (t as any).key ? "default" : "outline"} size="sm" className="h-7 text-xs"
-                  // @ts-ignore
+              {tiers.map((t) => (
+                <Button key={t.key} variant={tierFilter === t.key ? "default" : "outline"} size="sm" className="h-7 text-xs"
                   onClick={() => { setTierFilter(t.key); setPage(1); }}>
-                  {/* @ts-ignore */}
                   {t.label}
                 </Button>
               ))}
@@ -172,51 +246,57 @@ export default function PrelaunchM2Competitors() {
                           <th className="text-right px-3 py-3 font-medium text-xs">评分</th>
                           <th className="text-right px-3 py-3 font-medium text-xs">评论数</th>
                           <th className="text-right px-3 py-3 font-medium text-xs">价格</th>
+                          <th className="text-center px-3 py-3 font-medium text-xs">属性匹配</th>
                         {/* @ts-ignore */}
                         </tr>
                       </thead>
                       <tbody>
-                        {competitorsData.map((comp: unknown) => (
-                          <tr key={(comp as any).id} className="border-b border-border/30 hover:bg-muted/20 transition-colors">
-                            <td className="px-4 py-2.5">
-                              {/* @ts-ignore */}
-                              {/* @ts-ignore */}
-                              <a href={`https://www.amazon.com/dp/${comp.asin}`} target="_blank" rel="noopener noreferrer"
-                                className="text-blue-400 hover:underline flex items-center gap-1">
-                                {/* @ts-ignore */}
-                                {/* @ts-ignore */}
-                                {comp.asin}<ExternalLink className="w-3 h-3" />
-                              </a>
-                            {/* @ts-ignore */}
-                            </td>
-                            {/* @ts-ignore */}
-                            <td className="px-3 py-2.5 max-w-[300px] truncate">{comp.title || '-'}</td>
-                            {/* @ts-ignore */}
-                            <td className="px-3 py-2.5 text-center">
-                              {/* @ts-ignore */}
-                              <Badge variant="outline" className={`text-xs ${
-                                (comp as any).tier === 'tier1' ? 'border-red-500/50 text-red-400' :
-                                (comp as any).tier === 'tier2' ? 'border-amber-500/50 text-amber-400' :
-                                'border-gray-500/50 text-gray-400'
-                              }`}>
-                                {/* @ts-ignore */}
-                                {comp.tier?.toUpperCase() || '-'}
-                              </Badge>
-                            </td>
-                            {/* @ts-ignore */}
-                            <td className="px-3 py-2.5 text-right tabular-nums font-medium">{Number(comp.trsScore || 0).toFixed(1)}</td>
-                            <td className="px-3 py-2.5 text-right">
-                              <span className="flex items-center justify-end gap-1">
-                                {/* @ts-ignore */}
-                                <Star className="w-3 h-3 text-amber-400" />{Number(comp.rating || 0).toFixed(1)}
-                              </span>
-                            </td>
-                            {/* @ts-ignore */}
-                            <td className="px-3 py-2.5 text-right tabular-nums">{(comp.reviewCount || 0).toLocaleString()}</td>
-                            {/* @ts-ignore */}
-                            <td className="px-3 py-2.5 text-right tabular-nums">${Number(comp.price || 0).toFixed(2)}</td>
-                          </tr>
-                        ))}
+                        {competitorsData.map((comp: unknown) => {
+                          const c = comp as any;
+                          // v3.1: 从 rawData 中提取属性过滤结果
+                          const attrFilter = (() => {
+                            try {
+                              const raw = typeof c.rawData === 'string' ? JSON.parse(c.rawData) : c.rawData;
+                              return raw?.attributeFilter || null;
+                            } catch { return null; }
+                          })();
+
+                          return (
+                            <tr key={c.id} className="border-b border-border/30 hover:bg-muted/20 transition-colors">
+                              <td className="px-4 py-2.5">
+                                <a href={`https://www.amazon.com/dp/${c.asin}`} target="_blank" rel="noopener noreferrer"
+                                  className="text-blue-400 hover:underline flex items-center gap-1">
+                                  {c.asin}<ExternalLink className="w-3 h-3" />
+                                </a>
+                              </td>
+                              <td className="px-3 py-2.5 max-w-[300px] truncate">{c.title || '-'}</td>
+                              <td className="px-3 py-2.5 text-center">
+                                <Badge variant="outline" className={`text-xs ${getTierStyle(c.tier)}`}>
+                                  {getTierLabel(c.tier)}
+                                </Badge>
+                              </td>
+                              <td className="px-3 py-2.5 text-right tabular-nums font-medium">{Number(c.trsScore || 0).toFixed(1)}</td>
+                              <td className="px-3 py-2.5 text-right">
+                                <span className="flex items-center justify-end gap-1">
+                                  <Star className="w-3 h-3 text-amber-400" />{Number(c.rating || 0).toFixed(1)}
+                                </span>
+                              </td>
+                              <td className="px-3 py-2.5 text-right tabular-nums">{(c.reviewCount || 0).toLocaleString()}</td>
+                              <td className="px-3 py-2.5 text-right tabular-nums">${Number(c.price || 0).toFixed(2)}</td>
+                              <td className="px-3 py-2.5 text-center">
+                                {attrFilter ? (
+                                  <Badge variant="outline" className={`text-xs ${
+                                    attrFilter.passed ? 'border-green-500/50 text-green-400' : 'border-orange-500/50 text-orange-400'
+                                  }`}>
+                                    {attrFilter.passed ? '通过' : '降级'}
+                                  </Badge>
+                                ) : (
+                                  <span className="text-xs text-muted-foreground">-</span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
