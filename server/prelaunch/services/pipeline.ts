@@ -1,6 +1,10 @@
 /**
  * 预发布引擎流水线编排器
- * M1→M2→M3→M4X→M5→M6→M7 全流程自动化
+ * M1→M1B→M2→M3→M4X→M5→M6→M7 全流程自动化
+ * 
+ * v2.0 更新：在 M1 和 M2 之间新增 M1B 属性分析步骤。
+ * M1B 分析搜索行为中的属性维度（颜色、尺码、款式、数量），
+ * 判断用户是否有清晰的属性需求意识，为 M2 竞品过滤提供依据。
  */
 import { getDb } from '../../db';
 import { prelaunchProjects } from '../../../drizzle/schema';
@@ -36,6 +40,7 @@ export class PrelaunchPipelineOrchestrator {
       progress: 0,
       modules: {
         M1: { status: 'pending' },
+        M1B: { status: 'pending' },
         M2: { status: 'pending' },
         M3: { status: 'pending' },
         M4X: { status: 'pending' },
@@ -77,6 +82,13 @@ export class PrelaunchPipelineOrchestrator {
         run: async () => {
           const { M1KeywordService } = await import('./m1-keywords');
           return new M1KeywordService().runPipeline(projectId, seedKeywords, marketplace);
+        },
+      },
+      {
+        name: 'M1B',
+        run: async () => {
+          const { M1BAttributeAnalysisService } = await import('./m1b-attribute-analysis');
+          return new M1BAttributeAnalysisService().runPipeline(projectId);
         },
       },
       {

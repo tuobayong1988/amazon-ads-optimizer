@@ -4,7 +4,7 @@
  * 在系统启动时自动检查并创建预发布引擎所需的所有数据库表。
  * 使用 CREATE TABLE IF NOT EXISTS 确保幂等性，不会影响已有数据。
  * 
- * 包含的表（共17张）：
+ * 包含的表（共18张）：
  * - prelaunch_projects: 项目主表
  * - prelaunch_keywords: M1搜索词库
  * - prelaunch_keyword_clusters: M1关键词聚类
@@ -22,6 +22,7 @@
  * - prelaunch_banner_creatives: M6 Banner创意
  * - prelaunch_ad_frameworks: M7广告框架
  * - prelaunch_ad_deploy_logs: M7部署日志
+ * - prelaunch_attribute_analysis: M1B属性分析结果
  */
 
 import { getDb } from './db';
@@ -372,6 +373,22 @@ const PRELAUNCH_TABLES: { name: string; ddl: string }[] = [
       PRIMARY KEY (id),
       INDEX idx_pladl_framework (framework_id),
       INDEX idx_pladl_status (log_status)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+  },
+  {
+    name: 'prelaunch_attribute_analysis',
+    ddl: `CREATE TABLE IF NOT EXISTS prelaunch_attribute_analysis (
+      id INT NOT NULL AUTO_INCREMENT,
+      project_id INT NOT NULL,
+      total_keywords_analyzed INT NOT NULL DEFAULT 0,
+      dimension_stats JSON,
+      own_product_attributes JSON,
+      active_filter_dimensions JSON,
+      analysis_rationale TEXT,
+      analyzed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      INDEX idx_plaa_project (project_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
   },
 ];

@@ -4497,6 +4497,23 @@ export const prelaunchAdFrameworks = mysqlTable("prelaunch_ad_frameworks", {
 export type PrelaunchAdFramework = InferSelectModel<typeof prelaunchAdFrameworks>;
 export type InsertPrelaunchAdFramework = InferInsertModel<typeof prelaunchAdFrameworks>;
 
+/** M1B属性分析结果表 */
+export const prelaunchAttributeAnalysis = mysqlTable("prelaunch_attribute_analysis", {
+  id: int().autoincrement().notNull(),
+  projectId: int("project_id").notNull(),
+  totalKeywordsAnalyzed: int("total_keywords_analyzed").notNull().default(0),
+  dimensionStats: json("dimension_stats"),
+  ownProductAttributes: json("own_product_attributes"),
+  activeFilterDimensions: json("active_filter_dimensions"),
+  analysisRationale: text("analysis_rationale"),
+  analyzedAt: timestamp("analyzed_at", { mode: 'string' }).default('CURRENT_TIMESTAMP'),
+  createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP'),
+}, (table) => [
+  index("idx_plaa_project").on(table.projectId),
+]);
+export type PrelaunchAttributeAnalysis = InferSelectModel<typeof prelaunchAttributeAnalysis>;
+export type InsertPrelaunchAttributeAnalysis = InferInsertModel<typeof prelaunchAttributeAnalysis>;
+
 /** 广告框架部署日志 */
 export const prelaunchAdDeployLogs = mysqlTable("prelaunch_ad_deploy_logs", {
   id: int().autoincrement().notNull(),

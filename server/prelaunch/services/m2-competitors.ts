@@ -1,11 +1,16 @@
 /**
  * M2 竞品库引擎服务
- * 竞品发现 → TRS评分(白盒化) → 评论分析 → 场景矩阵 → 用户语言库
+ * 竞品发现 → 属性过滤 → TRS评分(白盒化) → 评论分析 → 场景矩阵 → 用户语言库
  * 
  * v2.0 更新：集成 Oxylabs Amazon Scraper API 作为真实数据源，
  * 替代原有的 Gemini AI 模拟数据。当 Oxylabs 不可用时，自动回退到 Gemini。
+ * 
+ * v3.0 更新：集成 M1B 属性维度过滤。在竞品发现后、TRS评分前，
+ * 基于搜索行为属性分析结果对竞品进行动态过滤/降级。
+ * 只有当用户搜索行为中某属性维度的携带率达到阈值时，
+ * 该维度才会成为竞品过滤条件。
  */
-import { DbInstance, getDb } from '../../db';
+import { getDb, type DbInstanceNonNull } from '../../db';
 import {
   prelaunchCompetitors, prelaunchCompetitorUserLanguage,
   prelaunchCompetitorScenarioMatrix, prelaunchKeywords,
@@ -18,6 +23,10 @@ import {
   checkServiceHealth,
   type DiscoveredCompetitor,
 } from '../oxylabs';
+import { M1BAttributeAnalysisService, type AttributeAnalysisResult, type AttributeDimension } from './m1b-attribute-analysis';
+import { createModuleLogger } from '../../utils/logger';
+
+const log = createModuleLogger('M2-Competitors');
 
 export class M2CompetitorService {
 
@@ -113,11 +122,23 @@ export class M2CompetitorService {
 
   /** 运行M2完整流水线 */
   async runPipeline(projectId: number, competitorAsins?: string[], autoDiscover = true) {
-    const db = await getDb();
-    if (!db) return { success: false, error: 'Database not available' };
+    const dbRaw = await getDb();
+    if (!dbRaw) return { success: false, error: 'Database not available' };
+    const db = dbRaw!;
 
     try {
       let asins = competitorAsins || [];
+
+      // ─── Step 0: 加载 M1B 属性分析结果 ──────────────────────────
+      const m1bService = new M1BAttributeAnalysisService();
+      const attributeAnalysis = await m1bService.getAnalysisResult(projectId);
+      const hasAttributeFilter = attributeAnalysis && attributeAnalysis.activeFilterDimensions.length > 0;
+
+      if (hasAttributeFilter) {
+        log.info(`[M2] Attribute filter active. Dimensions: [${attributeAnalysis!.activeFilterDimensions.join(', ')}]`);
+      } else {
+        log.info(`[M2] No attribute filter active — all competitors will be accepted by default`);
+      }
 
       // Step 1: 自动发现竞品（如果启用）
       if (autoDiscover && asins.length === 0) {
@@ -223,7 +244,6 @@ Return JSON array.`, { temperature: 0.3 });
         }
       } else if (competitorAsins && competitorAsins.length > 0) {
         // ─── 用户手动指定 ASIN 的路径 ──────────────────────────────
-        // 使用 Oxylabs 获取这些 ASIN 的真实产品详情
         const oxylabsHealth = await checkServiceHealth();
 
         if (oxylabsHealth.available) {
@@ -247,7 +267,6 @@ Return JSON array.`, { temperature: 0.3 });
             });
           }
         } else {
-          // 无 Oxylabs 时，仅写入 ASIN，不填充数据
           for (const asin of competitorAsins) {
             await db.insert(prelaunchCompetitors).values({
               projectId,
@@ -258,11 +277,34 @@ Return JSON array.`, { temperature: 0.3 });
         }
       }
 
-      // Step 2: TRS评分（白盒化）
-      const competitors = await db.select()
+      // ─── Step 1.5: 属性维度过滤（v3.0 新增）──────────────────────
+      let competitors = await db.select()
         .from(prelaunchCompetitors)
         .where(eq(prelaunchCompetitors.projectId, projectId));
 
+      let attributeFilterSummary = {
+        totalBefore: competitors.length,
+        filtered: 0,
+        demoted: 0,
+        passed: 0,
+        activeFilters: [] as string[],
+      };
+
+      if (hasAttributeFilter && competitors.length > 0) {
+        const filterResult = await this.applyAttributeFilter(
+          db, projectId, competitors, attributeAnalysis!
+        );
+        attributeFilterSummary = filterResult.summary;
+
+        // 重新加载竞品列表（过滤后的）
+        competitors = await db.select()
+          .from(prelaunchCompetitors)
+          .where(eq(prelaunchCompetitors.projectId, projectId));
+
+        log.info(`[M2] Attribute filter result: ${attributeFilterSummary.filtered} removed, ${attributeFilterSummary.demoted} demoted, ${attributeFilterSummary.passed} passed`);
+      }
+
+      // Step 2: TRS评分（白盒化）
       for (const comp of (competitors as unknown[])) {
         // @ts-expect-error Type inference limitation
         const trs = this.calculateTRS(comp);
@@ -289,12 +331,15 @@ Return JSON array.`, { temperature: 0.3 });
         success: true,
         summary: {
           totalCompetitors: competitors.length,
+          // @ts-expect-error Dynamic property access
           t1Count: competitors.filter((c: Record<string, unknown>) => c.tier === 'T1_head').length,
           t2Count: competitors.filter((c: Record<string, unknown>) => c.tier === 'T2_waist').length,
           // @ts-expect-error Dynamic property access
           t3Count: competitors.filter((c: Record<string, unknown>) => c.tier === 'T3_niche').length,
           // @ts-expect-error Dynamic type assertion
           dataSource: (competitors[0] as unknown)?.dataSource || 'unknown',
+          // v3.0: 属性过滤摘要
+          attributeFilter: attributeFilterSummary,
         // @ts-expect-error Legacy code type compatibility
         },
       };
@@ -303,7 +348,136 @@ Return JSON array.`, { temperature: 0.3 });
     }
   }
 
-  /** TRS评分计算（白盒化） */
+  /**
+   * v3.0 新增：应用属性维度过滤
+   * 
+   * 对每个竞品，获取其标题和核心流量词中的属性信息，
+   * 与自有产品属性进行比对。
+   * 
+   * - major mismatch → 从竞品列表中移除（删除记录）
+   * - minor mismatch → 降级 TRS 评分（通过 raw_data 标记）
+   * - 匹配 → 正常保留
+   */
+  private async applyAttributeFilter(
+    db: DbInstanceNonNull,
+    projectId: number,
+    competitors: unknown[],
+    analysis: AttributeAnalysisResult
+  ): Promise<{
+    summary: {
+      totalBefore: number;
+      filtered: number;
+      demoted: number;
+      passed: number;
+      activeFilters: string[];
+    };
+  }> {
+    const m1bService = new M1BAttributeAnalysisService();
+    const { ownProductAttributes, activeFilterDimensions } = analysis;
+
+    let filtered = 0;
+    let demoted = 0;
+    let passed = 0;
+
+    for (const comp of competitors) {
+      const c = comp as Record<string, unknown>;
+      const compTitle = String(c.title || '');
+      const compId = c.id as number;
+
+      // 获取该竞品关联的核心流量词（如果有的话）
+      // 在当前简化版中，我们使用竞品标题 + 项目的核心关键词作为参考
+      const coreKeywords = await db.select({ keyword: prelaunchKeywords.keyword })
+        .from(prelaunchKeywords)
+        .where(and(
+          eq(prelaunchKeywords.projectId, projectId),
+          eq(prelaunchKeywords.relevanceLayer, 'core'),
+        ))
+        .limit(20);
+
+      const kwList = coreKeywords.map(k => k.keyword as string);
+
+      // 调用 M1B 的属性匹配检查
+      const matchResult = await m1bService.checkCompetitorAttributeMatch(
+        compTitle,
+        kwList,
+        ownProductAttributes,
+        activeFilterDimensions
+      );
+
+      if (!matchResult.passed) {
+        // major mismatch → 移除竞品
+        await db.delete(prelaunchCompetitors)
+          .where(eq(prelaunchCompetitors.id, compId));
+        filtered++;
+        log.info(`[M2] Competitor ${c.asin} REMOVED: ${matchResult.overallReason}`);
+      } else if (matchResult.scoreAdjustment < 0) {
+        // minor mismatch → 标记降级（在 raw_data 中记录，TRS 计算时应用）
+        try {
+          await db.execute(sql.raw(`
+            UPDATE prelaunch_competitors 
+            SET raw_data = JSON_SET(
+              COALESCE(raw_data, '{}'),
+              '$.attributeFilter', CAST('${JSON.stringify({
+                passed: true,
+                demoted: true,
+                scoreAdjustment: matchResult.scoreAdjustment,
+                matchDetails: matchResult.matchDetails,
+                reason: matchResult.overallReason,
+              }).replace(/'/g, "\\'")}' AS JSON)
+            )
+            WHERE id = ${compId}
+          `));
+        } catch {
+          // 如果 JSON_SET 失败，使用简单更新
+          const existingRaw = typeof c.rawData === 'string' ? JSON.parse(c.rawData || '{}') : (c.rawData || {});
+          existingRaw.attributeFilter = {
+            passed: true,
+            demoted: true,
+            scoreAdjustment: matchResult.scoreAdjustment,
+            matchDetails: matchResult.matchDetails,
+            reason: matchResult.overallReason,
+          };
+          await db.update(prelaunchCompetitors)
+            .set({ rawData: JSON.stringify(existingRaw) })
+            .where(eq(prelaunchCompetitors.id, compId));
+        }
+        demoted++;
+        log.info(`[M2] Competitor ${c.asin} DEMOTED (${matchResult.scoreAdjustment}): ${matchResult.overallReason}`);
+      } else {
+        // 完全匹配 → 正常保留
+        try {
+          await db.execute(sql.raw(`
+            UPDATE prelaunch_competitors 
+            SET raw_data = JSON_SET(
+              COALESCE(raw_data, '{}'),
+              '$.attributeFilter', CAST('${JSON.stringify({
+                passed: true,
+                demoted: false,
+                scoreAdjustment: 0,
+                reason: matchResult.overallReason,
+              }).replace(/'/g, "\\'")}' AS JSON)
+            )
+            WHERE id = ${compId}
+          `));
+        } catch {
+          // 静默忽略标记失败
+        }
+        passed++;
+      }
+    }
+
+    return {
+      summary: {
+        totalBefore: competitors.length,
+        filtered,
+        demoted,
+        passed,
+        activeFilters: activeFilterDimensions,
+      },
+    };
+  }
+
+  /** TRS评分计算（白盒化）— v3.0 增加属性过滤降级因子 */
   private calculateTRS(comp: unknown) {
     // @ts-expect-error Type inference limitation
     const rating = parseFloat(comp.rating) || 0;
@@ -323,8 +497,21 @@ Return JSON array.`, { temperature: 0.3 });
     // 市场份额（基于BSR）
     const marketShare = Math.max(0, 1 - Math.log10(Math.max(1, bsr)) / 7);
 
-    // 总分
-    const total = relevance * 0.35 + brandPower * 0.35 + marketShare * 0.30;
+    // 基础总分
+    let total = relevance * 0.35 + brandPower * 0.35 + marketShare * 0.30;
+
+    // v3.0: 应用属性过滤降级因子
+    let attributeAdjustment = 0;
+    try {
+      // @ts-expect-error Type inference limitation
+      const rawData = typeof comp.rawData === 'string' ? JSON.parse(comp.rawData || '{}') : (comp.rawData || {});
+      if (rawData.attributeFilter?.demoted && rawData.attributeFilter?.scoreAdjustment) {
+        attributeAdjustment = rawData.attributeFilter.scoreAdjustment;
+        total = Math.max(0, total + attributeAdjustment);
+      }
+    } catch {
+      // 忽略 JSON 解析错误
+    }
 
     // @ts-expect-error Return type compatibility
     return {
@@ -335,13 +522,14 @@ Return JSON array.`, { temperature: 0.3 });
       // @ts-expect-error Legacy code type compatibility
       brandPower: Math.round(brandPower * 10000) / 10000,
       marketShare: Math.round(marketShare * 10000) / 10000,
-      formula: 'TRS = Relevance(0.35) × BrandPower(0.35) × MarketShare(0.30)',
-      inputs: { rating, reviewCount, bsr, price },
+      attributeAdjustment,
+      formula: 'TRS = Relevance(0.35) × BrandPower(0.35) × MarketShare(0.30) + AttributeAdj',
+      inputs: { rating, reviewCount, bsr, price, attributeAdjustment },
     };
   }
 
   /** 竞品评论分析 */
-  private async analyzeCompetitorReviews(db: DbInstance, projectId: number, competitors: unknown[]) {
+  private async analyzeCompetitorReviews(db: DbInstanceNonNull, projectId: number, competitors: unknown[]) {
     const topCompetitors = competitors.slice(0, 10);
 
     for (const comp of (topCompetitors as unknown[])) {
@@ -384,7 +572,7 @@ Generate 10-20 diverse phrases. Return JSON array:
   }
 
   /** 竞品场景矩阵 */
-  private async buildScenarioMatrix(db: DbInstance, projectId: number, competitors: unknown[]) {
+  private async buildScenarioMatrix(db: DbInstanceNonNull, projectId: number, competitors: unknown[]) {
     // @ts-expect-error Type inference limitation
     const scenarios = [
       'S01', 'S02', 'S03', 'S04', 'S05', 'S06',

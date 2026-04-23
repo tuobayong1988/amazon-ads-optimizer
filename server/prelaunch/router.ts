@@ -153,6 +153,29 @@ export const prelaunchRouter = router({
       return svc.getCosmoTriples(input.projectId);
     }),
 
+  // ==================== M1B: 搜索行为属性分析 ====================
+
+  /** 运行M1B属性分析流水线 */
+  runM1BPipeline: adminProcedure
+    .input(z.object({ projectId: z.number() }))
+    // @ts-expect-error Complex function parameter types
+    .mutation(async ({ input }: unknown) => {
+      const { M1BAttributeAnalysisService } = await import('./services/m1b-attribute-analysis');
+      const svc = new M1BAttributeAnalysisService();
+      return svc.runPipeline(input.projectId);
+    }),
+
+  /** 获取M1B属性分析结果 */
+  getAttributeAnalysis: adminProcedure
+    .input(z.object({ projectId: z.number() }))
+    // @ts-expect-error Complex function parameter types
+    .query(async ({ input }: unknown) => {
+      const { M1BAttributeAnalysisService } = await import('./services/m1b-attribute-analysis');
+      const svc = new M1BAttributeAnalysisService();
+      const result = await svc.getAnalysisResult(input.projectId);
+      return { success: !!result, data: result };
+    }),
+
   // ==================== M2: 竞品库引擎 ====================
 
   /** 获取项目竞品列表 */
