@@ -120,7 +120,7 @@ export class GuardrailConfigService {
    * 获取指定上下文的有效护栏配置
    * 按优先级合并: 账户级 > 广告类型级 > 全局默认
    */
-  getEffectiveConfig(accountId?: number, adType?: AdType): GuardrailConfig {
+  getEffectiveConfig(accountId?: number, adType?: AdType, lifecycleStage?: string): GuardrailConfig {
     // 从默认值开始
     const config = this.deepClone(SAFETY_LIMITS) as GuardrailConfig;
     
@@ -146,7 +146,55 @@ export class GuardrailConfigService {
       }
     }
     
+    // v719: 层级4 — 生命周期阶段覆盖（最高优先级，确保不同阶段使用对应的安全参数）
+    if (lifecycleStage) {
+      this.applyLifecycleOverride(config, lifecycleStage);
+    }
+    
     return config;
+  }
+  
+  /**
+   * v719: 根据生命周期阶段覆盖护栏参数
+   * 确保不同阶段的产品使用对应的安全参数
+   */
+  private applyLifecycleOverride(config: GuardrailConfig, stage: string): void {
+    switch (stage) {
+      case 'launch':
+        // 启动期：极度保守，小步快跑
+        config.bid.maxSingleChangePercent = Math.min(config.bid.maxSingleChangePercent, 0.05);
+        config.bid.maxDailyChangePercent = Math.min(config.bid.maxDailyChangePercent, 0.10);
+        config.budget.maxSingleChangePercent = Math.min(config.budget.maxSingleChangePercent, 0.15);
+        config.emergency.salesDropThreshold = 0.30; // 启动期更敏感
+        break;
+      case 'growth':
+        // 成长期：标准参数
+        config.bid.maxSingleChangePercent = Math.min(config.bid.maxSingleChangePercent, 0.08);
+        config.bid.maxDailyChangePercent = Math.min(config.bid.maxDailyChangePercent, 0.15);
+        config.budget.maxSingleChangePercent = Math.min(config.budget.maxSingleChangePercent, 0.20);
+        break;
+      case 'scaling':
+        // 冲刺期：允许最大幅度，但严控降价
+        config.bid.maxSingleChangePercent = Math.min(config.bid.maxSingleChangePercent, 0.10);
+        config.bid.maxDailyChangePercent = Math.min(config.bid.maxDailyChangePercent, 0.15);
+        config.budget.maxSingleChangePercent = Math.min(config.budget.maxSingleChangePercent, 0.25);
+        config.emergency.salesDropThreshold = 0.30; // 冲刺期更敏感
+        break;
+      case 'stable':
+      case 'mature':
+        // 平稳期：精细化微调
+        config.bid.maxSingleChangePercent = Math.min(config.bid.maxSingleChangePercent, 0.06);
+        config.bid.maxDailyChangePercent = Math.min(config.bid.maxDailyChangePercent, 0.10);
+        config.budget.maxSingleChangePercent = Math.min(config.budget.maxSingleChangePercent, 0.20);
+        break;
+      case 'declining':
+        // 衰退期：严控提价，允许较大降价
+        config.bid.maxSingleChangePercent = Math.min(config.bid.maxSingleChangePercent, 0.08);
+        config.bid.maxDailyChangePercent = Math.min(config.bid.maxDailyChangePercent, 0.12);
+        config.budget.maxSingleChangePercent = Math.min(config.budget.maxSingleChangePercent, 0.25);
+        config.emergency.salesDropThreshold = 0.25; // 衰退期最敏感
+        break;
+    }
   }
   
   /**

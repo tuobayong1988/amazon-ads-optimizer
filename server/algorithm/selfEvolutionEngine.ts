@@ -517,26 +517,26 @@ export async function updateLearningFromAssessments(
     // 根据成功率动态调整最大调整幅度
     // 成功率高 → 允许更大调整幅度
     // 成功率低 → 收紧调整幅度
-    const baseMaxIncrease = 0.20; // 基础最大提升20%
-    const baseMaxDecrease = 0.15; // 基础最大降低15%
+    const baseMaxIncrease = 0.08; // v719: 基础最大提升8%（与渐进式优化原则对齐，实际受safetyValidate的10%硬限制约束）
+    const baseMaxDecrease = 0.08; // v719: 基础最大降低8%（对称设计，避免单向偏移）
     
     let adaptiveMaxBidIncrease: number;
     let adaptiveMaxBidDecrease: number;
     
     if (successRate >= 0.7) {
-      // 高成功率：可以适度放宽
-      adaptiveMaxBidIncrease = baseMaxIncrease * 1.2;
-      adaptiveMaxBidDecrease = baseMaxDecrease * 1.2;
+      // v719: 高成功率：适度放宽至10%（不超过safetyValidate硬限制）
+      adaptiveMaxBidIncrease = Math.min(baseMaxIncrease * 1.25, 0.10);
+      adaptiveMaxBidDecrease = Math.min(baseMaxDecrease * 1.25, 0.10);
     } else if (successRate >= 0.5) {
-      // 中等成功率：保持基础
+      // 中等成功率：保持基础8%
       adaptiveMaxBidIncrease = baseMaxIncrease;
       adaptiveMaxBidDecrease = baseMaxDecrease;
     } else if (successRate >= 0.3) {
-      // 低成功率：收紧
-      adaptiveMaxBidIncrease = baseMaxIncrease * 0.7;
-      adaptiveMaxBidDecrease = baseMaxDecrease * 0.7;
+      // v719: 低成功率：收紧至6%
+      adaptiveMaxBidIncrease = baseMaxIncrease * 0.75;
+      adaptiveMaxBidDecrease = baseMaxDecrease * 0.75;
     } else {
-      // 极低成功率：大幅收紧
+      // v719: 极低成功率：收紧至4%
       adaptiveMaxBidIncrease = baseMaxIncrease * 0.5;
       adaptiveMaxBidDecrease = baseMaxDecrease * 0.5;
     }
@@ -545,7 +545,7 @@ export async function updateLearningFromAssessments(
       strategyTemplateId,
       adaptiveMaxBidIncrease: Math.round(adaptiveMaxBidIncrease * 1000) / 1000,
       adaptiveMaxBidDecrease: Math.round(adaptiveMaxBidDecrease * 1000) / 1000,
-      adaptiveMaxBudgetChange: successRate >= 0.5 ? 0.25 : 0.15,
+      adaptiveMaxBudgetChange: successRate >= 0.5 ? 0.20 : 0.12, // v719: 预算调整幅度也收紧
       lastUpdated: new Date().toISOString(),
     };
   }

@@ -112,21 +112,26 @@ interface RiskResponseStrategy {
 }
 
 /**
- * v268 P0-1: 分层级紧急降价策略
- * 根据ACoS严重程度动态决定降价幅度，打破死亡螺旋：
- * - ACoS > 100%: 极端亏损，降价40%（快速止血）
- * - ACoS > 80%:  严重超标，降价30%
- * - ACoS > 60%:  明显超标，降价25%（原v267 critical默认值）
- * - ACoS > 45%:  偏高预警，降价15%
+ * v719: 分层级紧急降价策略（与渐进式优化原则对齐）
+ * 
+ * 核心变更：即使是紧急情况，也不应该单次降价超过10%。
+ * 紧急模式通过“提高执行频率”而非“加大单次幅度”来快速响应。
+ * 例如：每2小时降10%，24小时内可累计降价约60%，比单次降40%更安全且可控。
+ * 
+ * 根据ACoS严重程度动态决定降价幅度：
+ * - ACoS > 100%: 极端亏损，降价10%（最大允许值，配合高频执行）
+ * - ACoS > 80%:  严重超标，降价10%
+ * - ACoS > 60%:  明显超标，降价8%
+ * - ACoS > 45%:  偏高预警，降价6%
  */
 function getAdaptiveBidReduction(acos: number, riskLevel: 'critical' | 'warning' | 'healthy'): number {
   if (riskLevel === 'critical') {
-    if (acos > 100) return 0.40;  // v268: 极端亏损，激进降价40%
-    if (acos > 80) return 0.30;   // v268: 严重超标，降价30%
-    return 0.25;                   // v267: 默认critical降价25%
+    if (acos > 100) return 0.10;  // v719: 极端亏损，降价10%（配合高频执行快速收敛）
+    if (acos > 80) return 0.10;   // v719: 严重超标，降价10%
+    return 0.08;                   // v719: critical默认降价8%
   }
   if (riskLevel === 'warning') {
-    return 0.15;
+    return 0.06;                   // v719: warning降价6%
   }
   return 0;
 }
@@ -140,18 +145,18 @@ function getRiskResponseStrategy(riskLevel: 'critical' | 'warning' | 'healthy', 
       // 降价幅度动态化（25%-40%），基于ACoS严重程度
       // 预算调降20-30%，限制低效时段投放
       return {
-        bidReductionPercent: adaptiveReduction ?? 0.30,
-        budgetReductionPercent: currentAcos && currentAcos > 80 ? 0.30 : 0.20, // v270: 预算调降20-30%
+        bidReductionPercent: adaptiveReduction ?? 0.10, // v719: 默认降价10%，配合高频执行
+        budgetReductionPercent: currentAcos && currentAcos > 80 ? 0.15 : 0.10, // v719: 预算调降10-15%（从20-30%收紧）
         pauseThresholdAcos: 120,
         pauseThresholdSpend: 2,
         scanInterval: 'immediate',
-        daypartingEnabled: true,  // v270: critical级别启用分时限制
+        daypartingEnabled: true,
       };
     case 'warning':
       // v270: warning级别也增加预算调降（10%）和分时限制
       return {
-        bidReductionPercent: adaptiveReduction ?? 0.15,
-        budgetReductionPercent: 0.10, // v270: 预算调降10%
+        bidReductionPercent: adaptiveReduction ?? 0.06, // v719: warning降价6%
+        budgetReductionPercent: 0.08, // v719: 预算调降8%（从10%收紧）
         pauseThresholdAcos: 200,
         pauseThresholdSpend: 5,
         scanInterval: '4h',
