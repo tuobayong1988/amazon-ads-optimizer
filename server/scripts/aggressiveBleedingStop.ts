@@ -486,7 +486,7 @@ async function batchUpdateBids(db: any, tableName: 'product_targets' | 'keywords
     const ids = batch.map(u => u.internalId).join(',');
     
     await db.execute(sql.raw(
-      `UPDATE ${tableName} SET bid = CASE id ${caseWhen} END, updated_at = NOW() WHERE id IN (${ids})`
+      `UPDATE ${tableName} SET bid = CASE id ${caseWhen} END WHERE id IN (${ids})`
     ));
   }
 }
