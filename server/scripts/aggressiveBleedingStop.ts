@@ -1,18 +1,21 @@
 /**
- * aggressiveBleedingStop.ts — v725
+ * aggressiveBleedingStop.ts — v726
  * 
  * 两阶段纠正策略 - 第一阶段：激进止血
  * 
- * v725 关键修复（基于v722执行失败的根因分析）：
+ * v726 核心改动（基于用户要求：基于bid_anchor_analysis进行止血）：
  * 
- * Bug1: API返回值判断 — apiResult没有success字段，正确方式是 batch.length - (apiResult.errors?.length || 0)
- * Bug2: 本地DB逐条update太慢(20万条) — 改为SQL批量CASE WHEN更新，每批500条一次SQL
- * Bug3: bid字段类型 — DB中是decimal(10,2)，set时用数字而非字符串
- * Bug4: API调用无重试 — 直接调用client方法无限流保护，改为手动重试+延迟
- * Bug5: 位置倾斜API调用无重试 — 同样加重试
+ * 1. 竞价纠正数据源从 keywords/product_targets 的 suggestedBid 范围
+ *    改为 bid_anchor_analysis 表的 pending 记录
+ * 2. 目标竞价使用 bid_anchor_analysis.suggested_bid（如果>0），
+ *    否则使用 anchor_bid
+ * 3. JOIN keywords/product_targets 获取 Amazon keywordId/targetId
+ * 4. 执行后将 correction_status 从 pending 更新为 applied
+ * 5. 保留v725.1的DB批量更新修复（去掉updated_at = NOW()）
+ * 6. 保留v725的API返回值判断修复（errors数组而非success字段）
  * 
  * 覆盖四个维度：
- * 1. 投放词/ASIN竞价 → 回归到建议竞价范围（通过Amazon API推送）
+ * 1. 投放词/ASIN竞价 → 基于bid_anchor_analysis的suggested_bid（通过Amazon API推送）
  * 2. 分时竞价乘数 → 回归到 0.80~1.20（系统内部调度表，数据库修改即可）
  * 3. 分时预算乘数 → 回归到 0.70~1.30（系统内部调度表，数据库修改即可）
  * 4. 位置倾斜 → 回归到 0%~50%（通过Amazon API推送）
@@ -37,15 +40,6 @@ const log = createModuleLogger('AggressiveBleedingStop');
 // 健康基线配置
 // ============================================================
 const HEALTH = {
-  bid: {
-    criticalOverBuffer: 1.20,
-    severeOverBuffer: 1.30,
-    moderateOverFirstStep: 1.50,
-    criticalUnderBuffer: 0.80,
-    moderateUnderBuffer: 0.85,
-    absoluteMin: 0.02,
-    absoluteMax: 10.00,
-  },
   hourparting: {
     healthyMin: 0.80,
     healthyMax: 1.20,
@@ -60,6 +54,10 @@ const HEALTH = {
   },
   placement: {
     maxHealthy: 50,
+  },
+  bid: {
+    absoluteMin: 0.02,
+    absoluteMax: 10.00,
   },
 };
 
@@ -98,13 +96,17 @@ interface CorrectionDetail {
   reason: string;
 }
 
-interface BidUpdate {
-  internalId: number;
-  amazonId: string;
+interface AnchorBidUpdate {
+  analysisId: number;        // bid_anchor_analysis.id
+  internalId: number;        // keywords.id 或 product_targets.id
+  amazonId: string;          // Amazon keywordId 或 targetId
   accountId: number;
   entityType: 'product_target' | 'keyword';
-  oldBid: number;
-  newBid: number;
+  currentBid: number;        // 当前实际bid
+  targetBid: number;         // 目标bid（suggested_bid或anchor_bid）
+  anchorBid: number;
+  driftPercent: number;
+  correctionAction: string;
   reason: string;
 }
 
@@ -120,13 +122,13 @@ export async function executeAggressiveBleedingStop(options: {
   const dryRun = options.dryRun ?? true;
   const dims = options.dimensions ?? ["bid", "hourparting", "dayparting", "placement"];
 
-  log.info(`[v725] 激进止血 ${dryRun ? "[DRY RUN]" : "[LIVE]"}  维度: ${dims.join(",")}`);
+  log.info(`[v726] 激进止血 ${dryRun ? "[DRY RUN]" : "[LIVE]"}  维度: ${dims.join(",")}`);
 
   const db = await getDb();
   if (!db) throw new Error("数据库连接失败");
 
   const bidResult = dims.includes("bid")
-    ? await fixBids(db, dryRun, options.accountIds)
+    ? await fixBidsFromAnchorAnalysis(db, dryRun, options.accountIds)
     : emptyResult("bid");
   const hpResult = dims.includes("hourparting")
     ? await fixHourpartingMultipliers(db, dryRun)
@@ -152,7 +154,7 @@ export async function executeAggressiveBleedingStop(options: {
     isDryRun: dryRun,
   };
 
-  log.info(`[v725] 止血完成 ${ms}ms  纠正=${summary.totalCorrected}  API推送=${summary.totalApiPushed}  API失败=${summary.totalApiFailed}  失败=${summary.totalFailed}`);
+  log.info(`[v726] 止血完成 ${ms}ms  纠正=${summary.totalCorrected}  API推送=${summary.totalApiPushed}  API失败=${summary.totalApiFailed}  失败=${summary.totalFailed}`);
 
   return {
     bidResult,
@@ -191,112 +193,171 @@ async function callApiWithRetry<T>(
 }
 
 // ============================================================
-// 维度 1 — 竞价纠正（含Amazon API推送）
+// 维度 1 — 基于bid_anchor_analysis的竞价纠正（含Amazon API推送）
 // ============================================================
-async function fixBids(db: any, dryRun: boolean, accountIds?: number[]): Promise<PhaseResult> {
-  log.info("[v725] --- 维度1: 竞价纠正（含Amazon API推送） ---");
+async function fixBidsFromAnchorAnalysis(db: any, dryRun: boolean, accountIds?: number[]): Promise<PhaseResult> {
+  log.info("[v726] --- 维度1: 基于bid_anchor_analysis的竞价纠正 ---");
   const res = emptyResult("bid");
 
-  // ---- A. 从 product_targets 获取有建议竞价的活跃实体 ----
-  const ptRows = await db
+  // ---- A. 从 bid_anchor_analysis 获取所有 pending 记录 ----
+  let pendingQuery = db
     .select({
-      id: productTargets.id,
-      targetId: productTargets.targetId,
-      accountId: productTargets.accountId,
-      bid: productTargets.bid,
-      suggestedBid: productTargets.suggestedBid,
-      suggestedBidHigh: productTargets.suggestedBidHigh,
-      suggestedBidLow: productTargets.suggestedBidLow,
+      id: bidAnchorAnalysis.id,
+      accountId: bidAnchorAnalysis.accountId,
+      entityType: bidAnchorAnalysis.entityType,
+      keywordId: bidAnchorAnalysis.keywordId,
+      targetId: bidAnchorAnalysis.targetId,
+      anchorBid: bidAnchorAnalysis.anchorBid,
+      currentBid: bidAnchorAnalysis.currentBid,
+      suggestedBid: bidAnchorAnalysis.suggestedBid,
+      bidDriftPercent: bidAnchorAnalysis.bidDriftPercent,
+      correctionAction: bidAnchorAnalysis.correctionAction,
     })
-    .from(productTargets)
+    .from(bidAnchorAnalysis)
     .where(
-      and(
-        eq(productTargets.targetStatus, "enabled"),
-        isNotNull(productTargets.suggestedBid),
-        isNotNull(productTargets.suggestedBidHigh),
-        gt(productTargets.bid, sql`0`)
-      )
+      eq(bidAnchorAnalysis.correctionStatus, "pending")
     );
 
-  log.info(`  活跃产品目标(有建议竞价): ${ptRows.length}`);
+  const pendingRows = await pendingQuery;
+  log.info(`  bid_anchor_analysis pending记录总数: ${pendingRows.length}`);
 
-  // ---- B. 从 keywords 获取有建议竞价的活跃实体 ----
-  const kwRows = await db
-    .select({
-      id: keywords.id,
-      keywordId: keywords.keywordId,
-      accountId: keywords.accountId,
-      bid: keywords.bid,
-      suggestedBid: keywords.suggestedBid,
-      suggestedBidHigh: keywords.suggestedBidHigh,
-      suggestedBidLow: keywords.suggestedBidLow,
-    })
-    .from(keywords)
-    .where(
-      and(
-        eq(keywords.keywordStatus, "enabled"),
-        isNotNull(keywords.suggestedBid),
-        isNotNull(keywords.suggestedBidHigh),
-        gt(keywords.bid, sql`0`)
-      )
-    );
+  // ---- B. 过滤可操作的记录（有suggested_bid>0 或 anchor_bid>0） ----
+  const actionableRows = pendingRows.filter((r: any) => {
+    const suggested = Number(r.suggestedBid) || 0;
+    const anchor = Number(r.anchorBid) || 0;
+    return suggested > 0 || anchor > 0;
+  });
 
-  log.info(`  活跃关键词(有建议竞价): ${kwRows.length}`);
+  log.info(`  可操作记录: ${actionableRows.length} (不可操作: ${pendingRows.length - actionableRows.length})`);
 
-  // ---- C. 收集所有需要修正的竞价 ----
-  const bidUpdates: BidUpdate[] = [];
+  // ---- C. 按entity_type分组，JOIN获取Amazon ID ----
+  const kwPending = actionableRows.filter((r: any) => r.entityType === 'keyword');
+  const ptPending = actionableRows.filter((r: any) => r.entityType === 'product_target');
 
-  for (const row of ptRows) {
+  log.info(`  Keyword pending: ${kwPending.length}, ProductTarget pending: ${ptPending.length}`);
+
+  // 获取keyword的Amazon keywordId
+  const kwInternalIds = kwPending.map((r: any) => r.keywordId).filter((id: any) => id != null);
+  let kwIdMap: Record<number, { amazonId: string; actualBid: number }> = {};
+  if (kwInternalIds.length > 0) {
+    for (const idBatch of chunk(kwInternalIds, 1000)) {
+      const kwRows = await db
+        .select({
+          id: keywords.id,
+          keywordId: keywords.keywordId,
+          bid: keywords.bid,
+        })
+        .from(keywords)
+        .where(inArray(keywords.id, idBatch));
+      for (const kw of kwRows) {
+        if (kw.keywordId) {
+          kwIdMap[kw.id] = { amazonId: kw.keywordId, actualBid: Number(kw.bid) || 0 };
+        }
+      }
+    }
+  }
+  log.info(`  Keywords Amazon ID映射: ${Object.keys(kwIdMap).length}/${kwInternalIds.length}`);
+
+  // 获取product_target的Amazon targetId
+  const ptInternalIds = ptPending.map((r: any) => r.targetId).filter((id: any) => id != null);
+  let ptIdMap: Record<number, { amazonId: string; actualBid: number }> = {};
+  if (ptInternalIds.length > 0) {
+    for (const idBatch of chunk(ptInternalIds, 1000)) {
+      const ptRows = await db
+        .select({
+          id: productTargets.id,
+          targetId: productTargets.targetId,
+          bid: productTargets.bid,
+        })
+        .from(productTargets)
+        .where(inArray(productTargets.id, idBatch));
+      for (const pt of ptRows) {
+        if (pt.targetId) {
+          ptIdMap[pt.id] = { amazonId: pt.targetId, actualBid: Number(pt.bid) || 0 };
+        }
+      }
+    }
+  }
+  log.info(`  ProductTargets Amazon ID映射: ${Object.keys(ptIdMap).length}/${ptInternalIds.length}`);
+
+  // ---- D. 构建更新列表 ----
+  const bidUpdates: AnchorBidUpdate[] = [];
+
+  for (const row of kwPending) {
     if (accountIds && accountIds.length > 0 && !accountIds.includes(row.accountId)) continue;
-    if (!row.targetId) { res.skipped++; continue; }
+    const kwInfo = kwIdMap[row.keywordId];
+    if (!kwInfo || !kwInfo.amazonId) {
+      res.skipped++;
+      continue;
+    }
 
-    const cur = Number(row.bid) || 0;
-    const sugHigh = Number(row.suggestedBidHigh) || 0;
-    const sugLow = Number(row.suggestedBidLow) || 0;
-    const sugMid = Number(row.suggestedBid) || 0;
-    const baseline = sugMid > 0 ? sugMid : (sugHigh + sugLow) / 2;
-    if (baseline <= 0 || cur <= 0) { res.skipped++; continue; }
+    const suggested = Number(row.suggestedBid) || 0;
+    const anchor = Number(row.anchorBid) || 0;
+    const targetBid = suggested > 0 ? suggested : anchor;
+    const actualBid = kwInfo.actualBid;
+    const drift = Number(row.bidDriftPercent) || 0;
 
-    const drift = ((cur - baseline) / baseline) * 100;
-    const correction = calcBidCorrection(cur, baseline, drift);
-    if (!correction) { res.skipped++; continue; }
+    // 只处理实际bid与目标bid不同的记录
+    if (Math.abs(actualBid - targetBid) < 0.01) {
+      res.skipped++;
+      continue;
+    }
+
+    // 确保目标bid在合理范围内
+    const clampedTarget = Math.max(HEALTH.bid.absoluteMin, Math.min(HEALTH.bid.absoluteMax, targetBid));
+    const finalTarget = Math.round(clampedTarget * 100) / 100;
 
     res.analyzed++;
     bidUpdates.push({
-      internalId: row.id,
-      amazonId: row.targetId,
+      analysisId: row.id,
+      internalId: row.keywordId,
+      amazonId: kwInfo.amazonId,
       accountId: row.accountId,
-      entityType: 'product_target',
-      oldBid: cur,
-      newBid: correction.target,
-      reason: correction.reason,
+      entityType: 'keyword',
+      currentBid: actualBid,
+      targetBid: finalTarget,
+      anchorBid: anchor,
+      driftPercent: drift,
+      correctionAction: row.correctionAction || 'gradual_restore',
+      reason: `anchor=${anchor.toFixed(4)} drift=${drift.toFixed(1)}% → target=${finalTarget.toFixed(2)}`,
     });
   }
 
-  for (const row of kwRows) {
+  for (const row of ptPending) {
     if (accountIds && accountIds.length > 0 && !accountIds.includes(row.accountId)) continue;
-    if (!row.keywordId) { res.skipped++; continue; }
+    const ptInfo = ptIdMap[row.targetId];
+    if (!ptInfo || !ptInfo.amazonId) {
+      res.skipped++;
+      continue;
+    }
 
-    const cur = Number(row.bid) || 0;
-    const sugHigh = Number(row.suggestedBidHigh) || 0;
-    const sugLow = Number(row.suggestedBidLow) || 0;
-    const sugMid = Number(row.suggestedBid) || 0;
-    const baseline = sugMid > 0 ? sugMid : (sugHigh + sugLow) / 2;
-    if (baseline <= 0 || cur <= 0) { res.skipped++; continue; }
+    const suggested = Number(row.suggestedBid) || 0;
+    const anchor = Number(row.anchorBid) || 0;
+    const targetBid = suggested > 0 ? suggested : anchor;
+    const actualBid = ptInfo.actualBid;
+    const drift = Number(row.bidDriftPercent) || 0;
 
-    const drift = ((cur - baseline) / baseline) * 100;
-    const correction = calcBidCorrection(cur, baseline, drift);
-    if (!correction) { res.skipped++; continue; }
+    if (Math.abs(actualBid - targetBid) < 0.01) {
+      res.skipped++;
+      continue;
+    }
+
+    const clampedTarget = Math.max(HEALTH.bid.absoluteMin, Math.min(HEALTH.bid.absoluteMax, targetBid));
+    const finalTarget = Math.round(clampedTarget * 100) / 100;
 
     res.analyzed++;
     bidUpdates.push({
-      internalId: row.id,
-      amazonId: row.keywordId,
+      analysisId: row.id,
+      internalId: row.targetId,
+      amazonId: ptInfo.amazonId,
       accountId: row.accountId,
-      entityType: 'keyword',
-      oldBid: cur,
-      newBid: correction.target,
-      reason: correction.reason,
+      entityType: 'product_target',
+      currentBid: actualBid,
+      targetBid: finalTarget,
+      anchorBid: anchor,
+      driftPercent: drift,
+      correctionAction: row.correctionAction || 'gradual_restore',
+      reason: `anchor=${anchor.toFixed(4)} drift=${drift.toFixed(1)}% → target=${finalTarget.toFixed(2)}`,
     });
   }
 
@@ -306,11 +367,11 @@ async function fixBids(db: any, dryRun: boolean, accountIds?: number[]): Promise
 
   if (dryRun) {
     res.corrected = bidUpdates.length;
-    logResult("竞价纠正 [DRY RUN]", res);
+    logResult("竞价纠正(anchor) [DRY RUN]", res);
     return res;
   }
 
-  // ---- D. LIVE模式：按accountId分组，推送Amazon API + 批量更新本地数据库 ----
+  // ---- E. LIVE模式：按accountId分组，推送Amazon API + 批量更新本地数据库 ----
   const byAccount = groupBy(bidUpdates, u => u.accountId);
   log.info(`  涉及账号数: ${Object.keys(byAccount).length}`);
 
@@ -345,13 +406,12 @@ async function fixBids(db: any, dryRun: boolean, accountIds?: number[]): Promise
           try {
             const apiPayload = batch.map(u => ({
               targetId: u.amazonId,
-              bid: u.newBid,
+              bid: u.targetBid,
             }));
             const result: any = await callApiWithRetry(
               () => syncService.client.updateProductTargetBids(apiPayload),
-              `账号${accountId} PT竞价 ${batch.length}条`
+              `账号${accountId} PT竞价(anchor) ${batch.length}条`
             );
-            // v725修复: API返回值没有success字段，正确判断方式
             const errorCount = result?.errors?.length || 0;
             const batchSuccess = batch.length - errorCount;
             res.apiPushed += batchSuccess;
@@ -371,7 +431,7 @@ async function fixBids(db: any, dryRun: boolean, accountIds?: number[]): Promise
         }
       }
 
-      // v725修复: 批量SQL更新本地数据库（替代逐条update）
+      // 批量SQL更新本地数据库
       try {
         await batchUpdateBids(db, 'product_targets', ptUpdates);
         res.corrected += ptUpdates.length;
@@ -389,13 +449,12 @@ async function fixBids(db: any, dryRun: boolean, accountIds?: number[]): Promise
           try {
             const apiPayload = batch.map(u => ({
               keywordId: u.amazonId,
-              bid: u.newBid,
+              bid: u.targetBid,
             }));
             const result: any = await callApiWithRetry(
               () => syncService.client.updateKeywordBids(apiPayload),
-              `账号${accountId} KW竞价 ${batch.length}条`
+              `账号${accountId} KW竞价(anchor) ${batch.length}条`
             );
-            // v725修复: API返回值没有success字段，正确判断方式
             const errorCount = result?.errors?.length || 0;
             const batchSuccess = batch.length - errorCount;
             res.apiPushed += batchSuccess;
@@ -415,7 +474,7 @@ async function fixBids(db: any, dryRun: boolean, accountIds?: number[]): Promise
         }
       }
 
-      // v725修复: 批量SQL更新本地数据库（替代逐条update）
+      // 批量SQL更新本地数据库
       try {
         await batchUpdateBids(db, 'keywords', kwUpdates);
         res.corrected += kwUpdates.length;
@@ -426,63 +485,63 @@ async function fixBids(db: any, dryRun: boolean, accountIds?: number[]): Promise
       }
     }
 
-    // Step 4: 更新 bid_anchor_analysis 中对应实体的状态
+    // Step 4: 更新 bid_anchor_analysis 中对应记录的状态为 applied
     try {
-      const ptInternalIds = ptUpdates.map(u => u.internalId);
-      const kwInternalIds = kwUpdates.map(u => u.internalId);
-
-      if (ptInternalIds.length > 0) {
-        for (const idBatch of chunk(ptInternalIds, 500)) {
-          await db
-            .update(bidAnchorAnalysis)
-            .set({
-              correctionStatus: "applied" as const,
-              appliedAt: sql`NOW()`,
-            })
-            .where(
-              and(
-                eq(bidAnchorAnalysis.entityType, "product_target"),
-                inArray(bidAnchorAnalysis.targetId, idBatch),
-                eq(bidAnchorAnalysis.correctionStatus, "pending")
-              )
-            );
-        }
+      const allAnalysisIds = updates.map(u => u.analysisId);
+      for (const idBatch of chunk(allAnalysisIds, 500)) {
+        await db
+          .update(bidAnchorAnalysis)
+          .set({
+            correctionStatus: "applied" as const,
+            appliedAt: sql`NOW()`,
+          })
+          .where(
+            inArray(bidAnchorAnalysis.id, idBatch)
+          );
       }
-
-      if (kwInternalIds.length > 0) {
-        for (const idBatch of chunk(kwInternalIds, 500)) {
-          await db
-            .update(bidAnchorAnalysis)
-            .set({
-              correctionStatus: "applied" as const,
-              appliedAt: sql`NOW()`,
-            })
-            .where(
-              and(
-                eq(bidAnchorAnalysis.entityType, "keyword"),
-                inArray(bidAnchorAnalysis.keywordId, idBatch),
-                eq(bidAnchorAnalysis.correctionStatus, "pending")
-              )
-            );
-        }
-      }
+      log.info(`    [DB] bid_anchor_analysis状态更新: ${allAnalysisIds.length}条 → applied`);
     } catch (e: any) {
       log.warn(`  [账号${accountId}] 更新bid_anchor_analysis状态失败: ${e.message}`);
     }
   }
 
-  logResult("竞价纠正 [LIVE]", res);
+  // Step 5: 将不可操作的pending记录标记为skipped
+  const notActionableRows = pendingRows.filter((r: any) => {
+    const suggested = Number(r.suggestedBid) || 0;
+    const anchor = Number(r.anchorBid) || 0;
+    return suggested <= 0 && anchor <= 0;
+  });
+  if (notActionableRows.length > 0) {
+    try {
+      const notActionableIds = notActionableRows.map((r: any) => r.id);
+      for (const idBatch of chunk(notActionableIds, 500)) {
+        await db
+          .update(bidAnchorAnalysis)
+          .set({
+            correctionStatus: "skipped" as const,
+            correctionReason: "anchor_bid和suggested_bid均为0，无法纠正",
+          })
+          .where(
+            inArray(bidAnchorAnalysis.id, idBatch)
+          );
+      }
+      log.info(`    [DB] 不可操作记录标记为skipped: ${notActionableIds.length}条`);
+    } catch (e: any) {
+      log.warn(`  标记不可操作记录失败: ${e.message}`);
+    }
+  }
+
+  logResult("竞价纠正(anchor) [LIVE]", res);
   return res;
 }
 
 /**
- * v725: 批量SQL更新bid — 使用原生SQL CASE WHEN批量更新
- * 替代逐条update，将20万条更新从20万次SQL减少到400次SQL
+ * v725.1修复: 批量SQL更新bid — 使用原生SQL CASE WHEN批量更新
+ * 去掉updated_at = NOW()，因为DB列名是updatedAt且有ON UPDATE CURRENT_TIMESTAMP
  */
-async function batchUpdateBids(db: any, tableName: 'product_targets' | 'keywords', updates: BidUpdate[]) {
+async function batchUpdateBids(db: any, tableName: 'product_targets' | 'keywords', updates: AnchorBidUpdate[]) {
   for (const batch of chunk(updates, API_CONFIG.dbBatchSize)) {
-    // 构建 CASE WHEN id = X THEN Y ... END 的SQL
-    const caseWhen = batch.map(u => `WHEN ${u.internalId} THEN ${u.newBid.toFixed(2)}`).join(' ');
+    const caseWhen = batch.map(u => `WHEN ${u.internalId} THEN ${u.targetBid.toFixed(2)}`).join(' ');
     const ids = batch.map(u => u.internalId).join(',');
     
     await db.execute(sql.raw(
@@ -491,48 +550,11 @@ async function batchUpdateBids(db: any, tableName: 'product_targets' | 'keywords
   }
 }
 
-function calcBidCorrection(
-  current: number,
-  baseline: number,
-  driftPct: number
-): { target: number; changePct: number; reason: string } | null {
-  let target: number;
-  let reason: string;
-
-  if (driftPct > 200) {
-    target = baseline * HEALTH.bid.criticalOverBuffer;
-    reason = `极端过高(+${driftPct.toFixed(0)}%), 回归→基线×1.20`;
-  } else if (driftPct > 100) {
-    target = baseline * HEALTH.bid.severeOverBuffer;
-    reason = `严重过高(+${driftPct.toFixed(0)}%), 回归→基线×1.30`;
-  } else if (driftPct > 50) {
-    target = baseline * HEALTH.bid.moderateOverFirstStep;
-    reason = `中度过高(+${driftPct.toFixed(0)}%), 第一步→基线×1.50`;
-  } else if (driftPct < -50) {
-    target = baseline * HEALTH.bid.criticalUnderBuffer;
-    reason = `严重过低(${driftPct.toFixed(0)}%), 回归→基线×0.80`;
-  } else if (driftPct < -30) {
-    target = baseline * HEALTH.bid.moderateUnderBuffer;
-    reason = `中度过低(${driftPct.toFixed(0)}%), 回归→基线×0.85`;
-  } else {
-    return null;
-  }
-
-  target = Math.max(HEALTH.bid.absoluteMin, Math.min(HEALTH.bid.absoluteMax, target));
-  target = Math.round(target * 100) / 100;
-
-  return {
-    target,
-    changePct: ((target - current) / current) * 100,
-    reason,
-  };
-}
-
 // ============================================================
 // 维度 2 — 分时竞价乘数纠正（系统内部调度表，数据库修改即可）
 // ============================================================
 async function fixHourpartingMultipliers(db: any, dryRun: boolean): Promise<PhaseResult> {
-  log.info("[v725] --- 维度2: 分时竞价乘数纠正 ---");
+  log.info("[v726] --- 维度2: 分时竞价乘数纠正 ---");
   const res = emptyResult("hourparting");
   const { extremeHighTarget, extremeLowTarget } = HEALTH.hourparting;
 
@@ -605,7 +627,7 @@ async function fixHourpartingMultipliers(db: any, dryRun: boolean): Promise<Phas
 // 维度 3 — 分时预算乘数纠正（系统内部调度表，数据库修改即可）
 // ============================================================
 async function fixDaypartingMultipliers(db: any, dryRun: boolean): Promise<PhaseResult> {
-  log.info("[v725] --- 维度3: 分时预算乘数纠正 ---");
+  log.info("[v726] --- 维度3: 分时预算乘数纠正 ---");
   const res = emptyResult("dayparting");
   const { extremeHighTarget, extremeLowTarget } = HEALTH.dayparting;
 
@@ -678,7 +700,7 @@ async function fixDaypartingMultipliers(db: any, dryRun: boolean): Promise<Phase
 // 维度 4 — 位置倾斜纠正（含Amazon API推送）
 // ============================================================
 async function fixPlacements(db: any, dryRun: boolean): Promise<PhaseResult> {
-  log.info("[v725] --- 维度4: 位置倾斜纠正（含Amazon API推送） ---");
+  log.info("[v726] --- 维度4: 位置倾斜纠正（含Amazon API推送） ---");
   const res = emptyResult("placement");
   const cap = HEALTH.placement.maxHealthy;
 
@@ -769,7 +791,6 @@ async function fixPlacements(db: any, dryRun: boolean): Promise<PhaseResult> {
             placementBidding.push({ placement: 'PLACEMENT_PRODUCT_PAGE', percentage: Math.round(newPp) });
           }
 
-          // v725修复: 加重试保护
           await callApiWithRetry(
             () => syncService.client.updateSpCampaign(String(row.campaignId), {
               dynamicBidding: {
