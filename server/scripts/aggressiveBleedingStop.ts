@@ -1,17 +1,15 @@
 /**
- * aggressiveBleedingStop.ts — v722
+ * aggressiveBleedingStop.ts — v725
  * 
  * 两阶段纠正策略 - 第一阶段：激进止血
  * 
- * 将所有严重偏离健康基线的实体一次性拉回安全范围，
- * 然后由v720的渐进式优化模式接管后续微调。
+ * v725 关键修复（基于v722执行失败的根因分析）：
  * 
- * v722 关键修复：
- * - fixBids(): 集成 Amazon API 调用 (updateProductTargetBids / updateKeywordBids)
- * - fixPlacements(): 集成 Amazon API 调用 (updateSpCampaign)
- * - 按 accountId 分组处理，每个账号单独获取 syncService
- * - 批量推送（每批最多1000条），批间延迟300ms防止限流
- * - 同时更新本地数据库保持状态同步
+ * Bug1: API返回值判断 — apiResult没有success字段，正确方式是 batch.length - (apiResult.errors?.length || 0)
+ * Bug2: 本地DB逐条update太慢(20万条) — 改为SQL批量CASE WHEN更新，每批500条一次SQL
+ * Bug3: bid字段类型 — DB中是decimal(10,2)，set时用数字而非字符串
+ * Bug4: API调用无重试 — 直接调用client方法无限流保护，改为手动重试+延迟
+ * Bug5: 位置倾斜API调用无重试 — 同样加重试
  * 
  * 覆盖四个维度：
  * 1. 投放词/ASIN竞价 → 回归到建议竞价范围（通过Amazon API推送）
@@ -66,8 +64,11 @@ const HEALTH = {
 };
 
 const API_CONFIG = {
-  batchSize: 1000,
-  batchDelayMs: 300,
+  batchSize: 1000,       // Amazon API每批最多1000条
+  batchDelayMs: 500,     // 批间延迟500ms防止限流
+  dbBatchSize: 500,      // DB批量更新每批500条
+  apiRetries: 3,         // API调用重试次数
+  apiRetryDelayMs: 3000, // API重试间隔
 };
 
 // ============================================================
@@ -119,7 +120,7 @@ export async function executeAggressiveBleedingStop(options: {
   const dryRun = options.dryRun ?? true;
   const dims = options.dimensions ?? ["bid", "hourparting", "dayparting", "placement"];
 
-  log.info(`[v722] 激进止血 ${dryRun ? "[DRY RUN]" : "[LIVE]"}  维度: ${dims.join(",")}`);
+  log.info(`[v725] 激进止血 ${dryRun ? "[DRY RUN]" : "[LIVE]"}  维度: ${dims.join(",")}`);
 
   const db = await getDb();
   if (!db) throw new Error("数据库连接失败");
@@ -151,7 +152,7 @@ export async function executeAggressiveBleedingStop(options: {
     isDryRun: dryRun,
   };
 
-  log.info(`[v722] 止血完成 ${ms}ms  纠正=${summary.totalCorrected}  API推送=${summary.totalApiPushed}  API失败=${summary.totalApiFailed}  失败=${summary.totalFailed}`);
+  log.info(`[v725] 止血完成 ${ms}ms  纠正=${summary.totalCorrected}  API推送=${summary.totalApiPushed}  API失败=${summary.totalApiFailed}  失败=${summary.totalFailed}`);
 
   return {
     bidResult,
@@ -163,10 +164,37 @@ export async function executeAggressiveBleedingStop(options: {
 }
 
 // ============================================================
+// 带重试的API调用包装器
+// ============================================================
+async function callApiWithRetry<T>(
+  fn: () => Promise<T>,
+  label: string,
+): Promise<T> {
+  let lastError: Error | null = null;
+  for (let attempt = 0; attempt <= API_CONFIG.apiRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (err: any) {
+      lastError = err;
+      const isThrottle = err?.response?.status === 429 || err?.message?.includes('Too Many Requests');
+      const isServerError = err?.response?.status >= 500;
+      if (attempt < API_CONFIG.apiRetries && (isThrottle || isServerError)) {
+        const delay = API_CONFIG.apiRetryDelayMs * (attempt + 1);
+        log.warn(`    [API] ${label} 第${attempt + 1}次重试（${isThrottle ? '限流' : '服务器错误'}），等待${delay}ms`);
+        await sleep(delay);
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastError || new Error(`${label}: 所有重试均失败`);
+}
+
+// ============================================================
 // 维度 1 — 竞价纠正（含Amazon API推送）
 // ============================================================
 async function fixBids(db: any, dryRun: boolean, accountIds?: number[]): Promise<PhaseResult> {
-  log.info("[v722] --- 维度1: 竞价纠正（含Amazon API推送） ---");
+  log.info("[v725] --- 维度1: 竞价纠正（含Amazon API推送） ---");
   const res = emptyResult("bid");
 
   // ---- A. 从 product_targets 获取有建议竞价的活跃实体 ----
@@ -234,18 +262,6 @@ async function fixBids(db: any, dryRun: boolean, accountIds?: number[]): Promise
     if (!correction) { res.skipped++; continue; }
 
     res.analyzed++;
-    res.details.push({
-      entityType: "product_target",
-      entityId: row.targetId,
-      accountId: row.accountId,
-      amazonId: row.targetId,
-      dimension: "bid",
-      oldValue: cur,
-      newValue: correction.target,
-      changePct: correction.changePct,
-      reason: correction.reason,
-    });
-
     bidUpdates.push({
       internalId: row.id,
       amazonId: row.targetId,
@@ -273,18 +289,6 @@ async function fixBids(db: any, dryRun: boolean, accountIds?: number[]): Promise
     if (!correction) { res.skipped++; continue; }
 
     res.analyzed++;
-    res.details.push({
-      entityType: "keyword",
-      entityId: row.keywordId,
-      accountId: row.accountId,
-      amazonId: row.keywordId,
-      dimension: "bid",
-      oldValue: cur,
-      newValue: correction.target,
-      changePct: correction.changePct,
-      reason: correction.reason,
-    });
-
     bidUpdates.push({
       internalId: row.id,
       amazonId: row.keywordId,
@@ -296,7 +300,9 @@ async function fixBids(db: any, dryRun: boolean, accountIds?: number[]): Promise
     });
   }
 
-  log.info(`  需修正竞价总数: ${bidUpdates.length} (PT: ${bidUpdates.filter(u => u.entityType === 'product_target').length}, KW: ${bidUpdates.filter(u => u.entityType === 'keyword').length})`);
+  const ptCount = bidUpdates.filter(u => u.entityType === 'product_target').length;
+  const kwCount = bidUpdates.filter(u => u.entityType === 'keyword').length;
+  log.info(`  需修正竞价总数: ${bidUpdates.length} (PT: ${ptCount}, KW: ${kwCount})`);
 
   if (dryRun) {
     res.corrected = bidUpdates.length;
@@ -304,7 +310,7 @@ async function fixBids(db: any, dryRun: boolean, accountIds?: number[]): Promise
     return res;
   }
 
-  // ---- D. LIVE模式：按accountId分组，推送Amazon API + 更新本地数据库 ----
+  // ---- D. LIVE模式：按accountId分组，推送Amazon API + 批量更新本地数据库 ----
   const byAccount = groupBy(bidUpdates, u => u.accountId);
   log.info(`  涉及账号数: ${Object.keys(byAccount).length}`);
 
@@ -341,10 +347,20 @@ async function fixBids(db: any, dryRun: boolean, accountIds?: number[]): Promise
               targetId: u.amazonId,
               bid: u.newBid,
             }));
-            const result = await syncService.client.updateProductTargetBids(apiPayload);
-            const batchSuccess = result?.success !== false ? batch.length : 0;
+            const result: any = await callApiWithRetry(
+              () => syncService.client.updateProductTargetBids(apiPayload),
+              `账号${accountId} PT竞价 ${batch.length}条`
+            );
+            // v725修复: API返回值没有success字段，正确判断方式
+            const errorCount = result?.errors?.length || 0;
+            const batchSuccess = batch.length - errorCount;
             res.apiPushed += batchSuccess;
-            log.info(`    [API] PT竞价批次推送成功: ${batchSuccess}/${batch.length}`);
+            if (errorCount > 0) {
+              res.apiFailed += errorCount;
+              log.warn(`    [API] PT竞价批次: 成功=${batchSuccess}, 失败=${errorCount}`);
+            } else {
+              log.info(`    [API] PT竞价批次推送成功: ${batchSuccess}/${batch.length}`);
+            }
           } catch (apiErr: any) {
             res.apiFailed += batch.length;
             const errMsg = `账号${accountId} PT API失败: ${apiErr.message}`;
@@ -353,19 +369,16 @@ async function fixBids(db: any, dryRun: boolean, accountIds?: number[]): Promise
           }
           await sleep(API_CONFIG.batchDelayMs);
         }
+      }
 
-        try {
-          for (const u of batch) {
-            await db
-              .update(productTargets)
-              .set({ bid: u.newBid.toFixed(2) })
-              .where(eq(productTargets.id, u.internalId));
-          }
-          res.corrected += batch.length;
-        } catch (dbErr: any) {
-          log.error(`    [DB] PT本地更新失败: ${dbErr.message}`);
-          res.failed += batch.length;
-        }
+      // v725修复: 批量SQL更新本地数据库（替代逐条update）
+      try {
+        await batchUpdateBids(db, 'product_targets', ptUpdates);
+        res.corrected += ptUpdates.length;
+        log.info(`    [DB] PT本地批量更新成功: ${ptUpdates.length}条`);
+      } catch (dbErr: any) {
+        log.error(`    [DB] PT本地批量更新失败: ${dbErr.message}`);
+        res.failed += ptUpdates.length;
       }
     }
 
@@ -378,10 +391,20 @@ async function fixBids(db: any, dryRun: boolean, accountIds?: number[]): Promise
               keywordId: u.amazonId,
               bid: u.newBid,
             }));
-            const result = await syncService.client.updateKeywordBids(apiPayload);
-            const batchSuccess = result?.success !== false ? batch.length : 0;
+            const result: any = await callApiWithRetry(
+              () => syncService.client.updateKeywordBids(apiPayload),
+              `账号${accountId} KW竞价 ${batch.length}条`
+            );
+            // v725修复: API返回值没有success字段，正确判断方式
+            const errorCount = result?.errors?.length || 0;
+            const batchSuccess = batch.length - errorCount;
             res.apiPushed += batchSuccess;
-            log.info(`    [API] KW竞价批次推送成功: ${batchSuccess}/${batch.length}`);
+            if (errorCount > 0) {
+              res.apiFailed += errorCount;
+              log.warn(`    [API] KW竞价批次: 成功=${batchSuccess}, 失败=${errorCount}`);
+            } else {
+              log.info(`    [API] KW竞价批次推送成功: ${batchSuccess}/${batch.length}`);
+            }
           } catch (apiErr: any) {
             res.apiFailed += batch.length;
             const errMsg = `账号${accountId} KW API失败: ${apiErr.message}`;
@@ -390,19 +413,16 @@ async function fixBids(db: any, dryRun: boolean, accountIds?: number[]): Promise
           }
           await sleep(API_CONFIG.batchDelayMs);
         }
+      }
 
-        try {
-          for (const u of batch) {
-            await db
-              .update(keywords)
-              .set({ bid: u.newBid.toFixed(2) })
-              .where(eq(keywords.id, u.internalId));
-          }
-          res.corrected += batch.length;
-        } catch (dbErr: any) {
-          log.error(`    [DB] KW本地更新失败: ${dbErr.message}`);
-          res.failed += batch.length;
-        }
+      // v725修复: 批量SQL更新本地数据库（替代逐条update）
+      try {
+        await batchUpdateBids(db, 'keywords', kwUpdates);
+        res.corrected += kwUpdates.length;
+        log.info(`    [DB] KW本地批量更新成功: ${kwUpdates.length}条`);
+      } catch (dbErr: any) {
+        log.error(`    [DB] KW本地批量更新失败: ${dbErr.message}`);
+        res.failed += kwUpdates.length;
       }
     }
 
@@ -455,6 +475,22 @@ async function fixBids(db: any, dryRun: boolean, accountIds?: number[]): Promise
   return res;
 }
 
+/**
+ * v725: 批量SQL更新bid — 使用原生SQL CASE WHEN批量更新
+ * 替代逐条update，将20万条更新从20万次SQL减少到400次SQL
+ */
+async function batchUpdateBids(db: any, tableName: 'product_targets' | 'keywords', updates: BidUpdate[]) {
+  for (const batch of chunk(updates, API_CONFIG.dbBatchSize)) {
+    // 构建 CASE WHEN id = X THEN Y ... END 的SQL
+    const caseWhen = batch.map(u => `WHEN ${u.internalId} THEN ${u.newBid.toFixed(2)}`).join(' ');
+    const ids = batch.map(u => u.internalId).join(',');
+    
+    await db.execute(sql.raw(
+      `UPDATE ${tableName} SET bid = CASE id ${caseWhen} END, updated_at = NOW() WHERE id IN (${ids})`
+    ));
+  }
+}
+
 function calcBidCorrection(
   current: number,
   baseline: number,
@@ -496,7 +532,7 @@ function calcBidCorrection(
 // 维度 2 — 分时竞价乘数纠正（系统内部调度表，数据库修改即可）
 // ============================================================
 async function fixHourpartingMultipliers(db: any, dryRun: boolean): Promise<PhaseResult> {
-  log.info("[v722] --- 维度2: 分时竞价乘数纠正 ---");
+  log.info("[v725] --- 维度2: 分时竞价乘数纠正 ---");
   const res = emptyResult("hourparting");
   const { extremeHighTarget, extremeLowTarget } = HEALTH.hourparting;
 
@@ -569,7 +605,7 @@ async function fixHourpartingMultipliers(db: any, dryRun: boolean): Promise<Phas
 // 维度 3 — 分时预算乘数纠正（系统内部调度表，数据库修改即可）
 // ============================================================
 async function fixDaypartingMultipliers(db: any, dryRun: boolean): Promise<PhaseResult> {
-  log.info("[v722] --- 维度3: 分时预算乘数纠正 ---");
+  log.info("[v725] --- 维度3: 分时预算乘数纠正 ---");
   const res = emptyResult("dayparting");
   const { extremeHighTarget, extremeLowTarget } = HEALTH.dayparting;
 
@@ -642,7 +678,7 @@ async function fixDaypartingMultipliers(db: any, dryRun: boolean): Promise<Phase
 // 维度 4 — 位置倾斜纠正（含Amazon API推送）
 // ============================================================
 async function fixPlacements(db: any, dryRun: boolean): Promise<PhaseResult> {
-  log.info("[v722] --- 维度4: 位置倾斜纠正（含Amazon API推送） ---");
+  log.info("[v725] --- 维度4: 位置倾斜纠正（含Amazon API推送） ---");
   const res = emptyResult("placement");
   const cap = HEALTH.placement.maxHealthy;
 
@@ -695,6 +731,8 @@ async function fixPlacements(db: any, dryRun: boolean): Promise<PhaseResult> {
         log.warn(`  [账号${accountId}] API客户端不可用，仅更新本地数据库`);
         res.apiErrors.push(`账号${accountId}: 位置倾斜API客户端不可用`);
         syncService = null;
+      } else {
+        log.info(`  [账号${accountId}] 位置倾斜API客户端初始化成功`);
       }
     } catch (err: any) {
       log.warn(`  [账号${accountId}] 获取API客户端失败: ${err.message}`);
@@ -731,13 +769,17 @@ async function fixPlacements(db: any, dryRun: boolean): Promise<PhaseResult> {
             placementBidding.push({ placement: 'PLACEMENT_PRODUCT_PAGE', percentage: Math.round(newPp) });
           }
 
-          await syncService.client.updateSpCampaign(String(row.campaignId), {
-            dynamicBidding: {
-              placementBidding,
-            },
-          });
+          // v725修复: 加重试保护
+          await callApiWithRetry(
+            () => syncService.client.updateSpCampaign(String(row.campaignId), {
+              dynamicBidding: {
+                placementBidding,
+              },
+            }),
+            `Campaign ${row.campaignId} 位置倾斜`
+          );
           res.apiPushed++;
-          log.info(`    [API] Campaign ${row.campaignId} 位置倾斜推送成功: Top=${newTop}%, PP=${newPp}%`);
+          log.info(`    [API] Campaign ${row.campaignId} (${row.campaignName}) 位置倾斜推送成功: Top=${top}%→${newTop}%, PP=${pp}%→${newPp}%`);
         } catch (apiErr: any) {
           res.apiFailed++;
           const errMsg = `Campaign ${row.campaignId} 位置倾斜API失败: ${apiErr.message}`;
@@ -745,6 +787,8 @@ async function fixPlacements(db: any, dryRun: boolean): Promise<PhaseResult> {
           res.apiErrors.push(errMsg);
         }
         await sleep(API_CONFIG.batchDelayMs);
+      } else if (!syncService) {
+        log.warn(`    [API] Campaign ${row.campaignId} 跳过API推送（无客户端），仅更新本地DB`);
       }
 
       // 更新本地数据库
@@ -754,6 +798,7 @@ async function fixPlacements(db: any, dryRun: boolean): Promise<PhaseResult> {
           .set(dbUpdates as any)
           .where(eq(campaigns.id, row.id));
         res.corrected++;
+        log.info(`    [DB] Campaign ${row.campaignId} 本地更新成功`);
       } catch (e: any) {
         log.error(`    [DB] Campaign ${row.campaignId} 本地更新失败: ${e.message}`);
         res.failed++;
