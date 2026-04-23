@@ -1,21 +1,29 @@
 /**
- * aggressiveBleedingStop.ts — v721
+ * aggressiveBleedingStop.ts — v722
  * 
  * 两阶段纠正策略 - 第一阶段：激进止血
  * 
  * 将所有严重偏离健康基线的实体一次性拉回安全范围，
  * 然后由v720的渐进式优化模式接管后续微调。
  * 
+ * v722 关键修复：
+ * - fixBids(): 集成 Amazon API 调用 (updateProductTargetBids / updateKeywordBids)
+ * - fixPlacements(): 集成 Amazon API 调用 (updateSpCampaign)
+ * - 按 accountId 分组处理，每个账号单独获取 syncService
+ * - 批量推送（每批最多1000条），批间延迟300ms防止限流
+ * - 同时更新本地数据库保持状态同步
+ * 
  * 覆盖四个维度：
- * 1. 投放词/ASIN竞价 → 回归到建议竞价/锚点竞价范围
- * 2. 分时竞价乘数 → 回归到 0.80~1.20
- * 3. 分时预算乘数 → 回归到 0.70~1.30
- * 4. 位置倾斜 → 回归到 0%~50%
+ * 1. 投放词/ASIN竞价 → 回归到建议竞价范围（通过Amazon API推送）
+ * 2. 分时竞价乘数 → 回归到 0.80~1.20（系统内部调度表，数据库修改即可）
+ * 3. 分时预算乘数 → 回归到 0.70~1.30（系统内部调度表，数据库修改即可）
+ * 4. 位置倾斜 → 回归到 0%~50%（通过Amazon API推送）
  */
 
 import { getDb } from '../db';
 import {
   productTargets,
+  keywords,
   campaigns,
   bidAnchorAnalysis,
   daypartingBudgetRules,
@@ -23,6 +31,7 @@ import {
 } from '../../drizzle/schema';
 import { eq, and, gt, lt, or, isNotNull, inArray, sql } from 'drizzle-orm';
 import { createModuleLogger } from '../utils/logger';
+import { getAmazonSyncService } from '../services/amazonApiHelper';
 
 const log = createModuleLogger('AggressiveBleedingStop');
 
@@ -31,17 +40,11 @@ const log = createModuleLogger('AggressiveBleedingStop');
 // ============================================================
 const HEALTH = {
   bid: {
-    // 偏离 >200% → 一次性降到基线 × 1.20
     criticalOverBuffer: 1.20,
-    // 偏离 100-200% → 一次性降到基线 × 1.30
     severeOverBuffer: 1.30,
-    // 偏离 50-100% → 第一步降到基线 × 1.50（第二步由v720接管）
     moderateOverFirstStep: 1.50,
-    // 竞价过低 <-50% → 一次性提到基线 × 0.80
     criticalUnderBuffer: 0.80,
-    // 竞价过低 -50%~-30% → 一次性提到基线 × 0.85
     moderateUnderBuffer: 0.85,
-    // 绝对边界
     absoluteMin: 0.02,
     absoluteMax: 10.00,
   },
@@ -62,6 +65,11 @@ const HEALTH = {
   },
 };
 
+const API_CONFIG = {
+  batchSize: 1000,
+  batchDelayMs: 300,
+};
+
 // ============================================================
 // 类型
 // ============================================================
@@ -71,16 +79,31 @@ interface PhaseResult {
   corrected: number;
   skipped: number;
   failed: number;
+  apiPushed: number;
+  apiFailed: number;
   details: CorrectionDetail[];
+  apiErrors: string[];
 }
 
 interface CorrectionDetail {
   entityType: string;
   entityId: string | number;
+  accountId?: number;
+  amazonId?: string;
   dimension: string;
   oldValue: number;
   newValue: number;
   changePct: number;
+  reason: string;
+}
+
+interface BidUpdate {
+  internalId: number;
+  amazonId: string;
+  accountId: number;
+  entityType: 'product_target' | 'keyword';
+  oldBid: number;
+  newBid: number;
   reason: string;
 }
 
@@ -96,7 +119,7 @@ export async function executeAggressiveBleedingStop(options: {
   const dryRun = options.dryRun ?? true;
   const dims = options.dimensions ?? ["bid", "hourparting", "dayparting", "placement"];
 
-  log.info(`激进止血 ${dryRun ? "[DRY RUN]" : "[LIVE]"}  维度: ${dims.join(",")}`);
+  log.info(`[v722] 激进止血 ${dryRun ? "[DRY RUN]" : "[LIVE]"}  维度: ${dims.join(",")}`);
 
   const db = await getDb();
   if (!db) throw new Error("数据库连接失败");
@@ -120,11 +143,15 @@ export async function executeAggressiveBleedingStop(options: {
       bidResult.corrected + hpResult.corrected + dpResult.corrected + plResult.corrected,
     totalFailed:
       bidResult.failed + hpResult.failed + dpResult.failed + plResult.failed,
+    totalApiPushed:
+      bidResult.apiPushed + plResult.apiPushed,
+    totalApiFailed:
+      bidResult.apiFailed + plResult.apiFailed,
     executionTimeMs: ms,
     isDryRun: dryRun,
   };
 
-  log.info(`止血完成 ${ms}ms  纠正=${summary.totalCorrected}  失败=${summary.totalFailed}`);
+  log.info(`[v722] 止血完成 ${ms}ms  纠正=${summary.totalCorrected}  API推送=${summary.totalApiPushed}  API失败=${summary.totalApiFailed}  失败=${summary.totalFailed}`);
 
   return {
     bidResult,
@@ -136,32 +163,13 @@ export async function executeAggressiveBleedingStop(options: {
 }
 
 // ============================================================
-// 维度 1 — 竞价纠正
+// 维度 1 — 竞价纠正（含Amazon API推送）
 // ============================================================
 async function fixBids(db: any, dryRun: boolean, accountIds?: number[]): Promise<PhaseResult> {
-  log.info("--- 维度1: 竞价纠正 ---");
+  log.info("[v722] --- 维度1: 竞价纠正（含Amazon API推送） ---");
   const res = emptyResult("bid");
 
-  // ---- A. 从 bid_anchor_analysis 获取有锚点的 pending 实体 ----
-  const anchorRows = await db
-    .select({
-      id: bidAnchorAnalysis.id,
-      entityType: bidAnchorAnalysis.entityType,
-      targetId: bidAnchorAnalysis.targetId,
-      keywordId: bidAnchorAnalysis.keywordId,
-      accountId: bidAnchorAnalysis.accountId,
-      currentBid: bidAnchorAnalysis.currentBid,
-      anchorBid: bidAnchorAnalysis.anchorBid,
-      suggestedBid: bidAnchorAnalysis.suggestedBid,
-      correctionAction: bidAnchorAnalysis.correctionAction,
-      dataConfidence: bidAnchorAnalysis.dataConfidence,
-    })
-    .from(bidAnchorAnalysis)
-    .where(eq(bidAnchorAnalysis.correctionStatus, "pending"));
-
-  log.info(`  锚点 pending: ${anchorRows.length}`);
-
-  // ---- B. 从 product_targets 获取有建议竞价的活跃实体 ----
+  // ---- A. 从 product_targets 获取有建议竞价的活跃实体 ----
   const ptRows = await db
     .select({
       id: productTargets.id,
@@ -177,95 +185,60 @@ async function fixBids(db: any, dryRun: boolean, accountIds?: number[]): Promise
       and(
         eq(productTargets.targetStatus, "enabled"),
         isNotNull(productTargets.suggestedBid),
+        isNotNull(productTargets.suggestedBidHigh),
         gt(productTargets.bid, sql`0`)
       )
     );
 
   log.info(`  活跃产品目标(有建议竞价): ${ptRows.length}`);
 
-  // ---- 合并：锚点优先 ----
-  const anchorEntitySet = new Set(
-    anchorRows.map((r: any) => `${r.entityType}_${r.targetId ?? r.keywordId}`)
-  );
+  // ---- B. 从 keywords 获取有建议竞价的活跃实体 ----
+  const kwRows = await db
+    .select({
+      id: keywords.id,
+      keywordId: keywords.keywordId,
+      accountId: keywords.accountId,
+      bid: keywords.bid,
+      suggestedBid: keywords.suggestedBid,
+      suggestedBidHigh: keywords.suggestedBidHigh,
+      suggestedBidLow: keywords.suggestedBidLow,
+    })
+    .from(keywords)
+    .where(
+      and(
+        eq(keywords.keywordStatus, "enabled"),
+        isNotNull(keywords.suggestedBid),
+        isNotNull(keywords.suggestedBidHigh),
+        gt(keywords.bid, sql`0`)
+      )
+    );
 
-  // 处理锚点实体
-  for (const row of anchorRows) {
-    const cur = Number(row.currentBid) || 0;
-    const anchor = Number(row.anchorBid) || 0;
-    const suggested = Number(row.suggestedBid) || 0;
-    const baseline = anchor > 0 ? anchor : suggested;
-    if (baseline <= 0 || cur <= 0) {
-      res.skipped++;
-      continue;
-    }
-    const drift = ((cur - baseline) / baseline) * 100;
-    const correction = calcBidCorrection(cur, baseline, drift);
-    if (!correction) {
-      res.skipped++;
-      continue;
-    }
-    res.analyzed++;
-    res.details.push({
-      entityType: row.entityType ?? "unknown",
-      entityId: row.targetId ?? row.keywordId ?? row.id,
-      dimension: "bid",
-      oldValue: cur,
-      newValue: correction.target,
-      changePct: correction.changePct,
-      reason: correction.reason,
-    });
+  log.info(`  活跃关键词(有建议竞价): ${kwRows.length}`);
 
-    if (!dryRun) {
-      try {
-        await db
-          .update(bidAnchorAnalysis)
-          .set({
-            correctionStatus: "applied",
-            appliedAt: sql`NOW()`,
-          })
-          .where(eq(bidAnchorAnalysis.id, row.id));
+  // ---- C. 收集所有需要修正的竞价 ----
+  const bidUpdates: BidUpdate[] = [];
 
-        if (row.entityType === "product_target" && row.targetId) {
-          await db
-            .update(productTargets)
-            .set({ bid: correction.target.toFixed(2) })
-            .where(eq(productTargets.targetId, String(row.targetId)));
-        }
-        res.corrected++;
-      } catch (e: any) {
-        log.error(`竞价纠正失败: ${e.message}`);
-        res.failed++;
-      }
-    } else {
-      res.corrected++;
-    }
-  }
-
-  // 处理没有锚点数据的产品目标
   for (const row of ptRows) {
-    const key = `product_target_${row.targetId}`;
-    if (anchorEntitySet.has(key)) continue;
+    if (accountIds && accountIds.length > 0 && !accountIds.includes(row.accountId)) continue;
+    if (!row.targetId) { res.skipped++; continue; }
 
     const cur = Number(row.bid) || 0;
     const sugHigh = Number(row.suggestedBidHigh) || 0;
     const sugLow = Number(row.suggestedBidLow) || 0;
     const sugMid = Number(row.suggestedBid) || 0;
-    // 使用建议竞价中位数作为基线
     const baseline = sugMid > 0 ? sugMid : (sugHigh + sugLow) / 2;
-    if (baseline <= 0 || cur <= 0) {
-      res.skipped++;
-      continue;
-    }
+    if (baseline <= 0 || cur <= 0) { res.skipped++; continue; }
+
     const drift = ((cur - baseline) / baseline) * 100;
     const correction = calcBidCorrection(cur, baseline, drift);
-    if (!correction) {
-      res.skipped++;
-      continue;
-    }
+    if (!correction) { res.skipped++; continue; }
+
     res.analyzed++;
     res.details.push({
       entityType: "product_target",
-      entityId: row.targetId ?? row.id,
+      entityId: row.targetId,
+      accountId: row.accountId,
+      amazonId: row.targetId,
       dimension: "bid",
       oldValue: cur,
       newValue: correction.target,
@@ -273,23 +246,212 @@ async function fixBids(db: any, dryRun: boolean, accountIds?: number[]): Promise
       reason: correction.reason,
     });
 
-    if (!dryRun) {
-      try {
-        await db
-          .update(productTargets)
-          .set({ bid: correction.target.toFixed(2) })
-          .where(eq(productTargets.id, row.id));
-        res.corrected++;
-      } catch (e: any) {
-        log.error(`产品目标竞价纠正失败: ${e.message}`);
-        res.failed++;
+    bidUpdates.push({
+      internalId: row.id,
+      amazonId: row.targetId,
+      accountId: row.accountId,
+      entityType: 'product_target',
+      oldBid: cur,
+      newBid: correction.target,
+      reason: correction.reason,
+    });
+  }
+
+  for (const row of kwRows) {
+    if (accountIds && accountIds.length > 0 && !accountIds.includes(row.accountId)) continue;
+    if (!row.keywordId) { res.skipped++; continue; }
+
+    const cur = Number(row.bid) || 0;
+    const sugHigh = Number(row.suggestedBidHigh) || 0;
+    const sugLow = Number(row.suggestedBidLow) || 0;
+    const sugMid = Number(row.suggestedBid) || 0;
+    const baseline = sugMid > 0 ? sugMid : (sugHigh + sugLow) / 2;
+    if (baseline <= 0 || cur <= 0) { res.skipped++; continue; }
+
+    const drift = ((cur - baseline) / baseline) * 100;
+    const correction = calcBidCorrection(cur, baseline, drift);
+    if (!correction) { res.skipped++; continue; }
+
+    res.analyzed++;
+    res.details.push({
+      entityType: "keyword",
+      entityId: row.keywordId,
+      accountId: row.accountId,
+      amazonId: row.keywordId,
+      dimension: "bid",
+      oldValue: cur,
+      newValue: correction.target,
+      changePct: correction.changePct,
+      reason: correction.reason,
+    });
+
+    bidUpdates.push({
+      internalId: row.id,
+      amazonId: row.keywordId,
+      accountId: row.accountId,
+      entityType: 'keyword',
+      oldBid: cur,
+      newBid: correction.target,
+      reason: correction.reason,
+    });
+  }
+
+  log.info(`  需修正竞价总数: ${bidUpdates.length} (PT: ${bidUpdates.filter(u => u.entityType === 'product_target').length}, KW: ${bidUpdates.filter(u => u.entityType === 'keyword').length})`);
+
+  if (dryRun) {
+    res.corrected = bidUpdates.length;
+    logResult("竞价纠正 [DRY RUN]", res);
+    return res;
+  }
+
+  // ---- D. LIVE模式：按accountId分组，推送Amazon API + 更新本地数据库 ----
+  const byAccount = groupBy(bidUpdates, u => u.accountId);
+  log.info(`  涉及账号数: ${Object.keys(byAccount).length}`);
+
+  for (const [accountIdStr, updates] of Object.entries(byAccount)) {
+    const accountId = Number(accountIdStr);
+    const ptUpdates = updates.filter(u => u.entityType === 'product_target');
+    const kwUpdates = updates.filter(u => u.entityType === 'keyword');
+
+    log.info(`  [账号${accountId}] PT=${ptUpdates.length}, KW=${kwUpdates.length}`);
+
+    // Step 1: 获取Amazon API客户端
+    let syncService: any = null;
+    try {
+      syncService = await getAmazonSyncService(accountId);
+      if (!syncService || !syncService.client) {
+        log.warn(`  [账号${accountId}] API客户端不可用，仅更新本地数据库`);
+        res.apiErrors.push(`账号${accountId}: API客户端不可用`);
+        syncService = null;
+      } else {
+        log.info(`  [账号${accountId}] API客户端初始化成功`);
       }
-    } else {
-      res.corrected++;
+    } catch (err: any) {
+      log.warn(`  [账号${accountId}] 获取API客户端失败: ${err.message}`);
+      res.apiErrors.push(`账号${accountId}: ${err.message}`);
+      syncService = null;
+    }
+
+    // Step 2: 推送 Product Target 竞价到 Amazon API
+    if (ptUpdates.length > 0) {
+      for (const batch of chunk(ptUpdates, API_CONFIG.batchSize)) {
+        if (syncService) {
+          try {
+            const apiPayload = batch.map(u => ({
+              targetId: u.amazonId,
+              bid: u.newBid,
+            }));
+            const result = await syncService.client.updateProductTargetBids(apiPayload);
+            const batchSuccess = result?.success !== false ? batch.length : 0;
+            res.apiPushed += batchSuccess;
+            log.info(`    [API] PT竞价批次推送成功: ${batchSuccess}/${batch.length}`);
+          } catch (apiErr: any) {
+            res.apiFailed += batch.length;
+            const errMsg = `账号${accountId} PT API失败: ${apiErr.message}`;
+            log.warn(`    [API] ${errMsg}`);
+            res.apiErrors.push(errMsg);
+          }
+          await sleep(API_CONFIG.batchDelayMs);
+        }
+
+        try {
+          for (const u of batch) {
+            await db
+              .update(productTargets)
+              .set({ bid: u.newBid.toFixed(2) })
+              .where(eq(productTargets.id, u.internalId));
+          }
+          res.corrected += batch.length;
+        } catch (dbErr: any) {
+          log.error(`    [DB] PT本地更新失败: ${dbErr.message}`);
+          res.failed += batch.length;
+        }
+      }
+    }
+
+    // Step 3: 推送 Keyword 竞价到 Amazon API
+    if (kwUpdates.length > 0) {
+      for (const batch of chunk(kwUpdates, API_CONFIG.batchSize)) {
+        if (syncService) {
+          try {
+            const apiPayload = batch.map(u => ({
+              keywordId: u.amazonId,
+              bid: u.newBid,
+            }));
+            const result = await syncService.client.updateKeywordBids(apiPayload);
+            const batchSuccess = result?.success !== false ? batch.length : 0;
+            res.apiPushed += batchSuccess;
+            log.info(`    [API] KW竞价批次推送成功: ${batchSuccess}/${batch.length}`);
+          } catch (apiErr: any) {
+            res.apiFailed += batch.length;
+            const errMsg = `账号${accountId} KW API失败: ${apiErr.message}`;
+            log.warn(`    [API] ${errMsg}`);
+            res.apiErrors.push(errMsg);
+          }
+          await sleep(API_CONFIG.batchDelayMs);
+        }
+
+        try {
+          for (const u of batch) {
+            await db
+              .update(keywords)
+              .set({ bid: u.newBid.toFixed(2) })
+              .where(eq(keywords.id, u.internalId));
+          }
+          res.corrected += batch.length;
+        } catch (dbErr: any) {
+          log.error(`    [DB] KW本地更新失败: ${dbErr.message}`);
+          res.failed += batch.length;
+        }
+      }
+    }
+
+    // Step 4: 更新 bid_anchor_analysis 中对应实体的状态
+    try {
+      const ptInternalIds = ptUpdates.map(u => u.internalId);
+      const kwInternalIds = kwUpdates.map(u => u.internalId);
+
+      if (ptInternalIds.length > 0) {
+        for (const idBatch of chunk(ptInternalIds, 500)) {
+          await db
+            .update(bidAnchorAnalysis)
+            .set({
+              correctionStatus: "applied" as const,
+              appliedAt: sql`NOW()`,
+            })
+            .where(
+              and(
+                eq(bidAnchorAnalysis.entityType, "product_target"),
+                inArray(bidAnchorAnalysis.targetId, idBatch),
+                eq(bidAnchorAnalysis.correctionStatus, "pending")
+              )
+            );
+        }
+      }
+
+      if (kwInternalIds.length > 0) {
+        for (const idBatch of chunk(kwInternalIds, 500)) {
+          await db
+            .update(bidAnchorAnalysis)
+            .set({
+              correctionStatus: "applied" as const,
+              appliedAt: sql`NOW()`,
+            })
+            .where(
+              and(
+                eq(bidAnchorAnalysis.entityType, "keyword"),
+                inArray(bidAnchorAnalysis.keywordId, idBatch),
+                eq(bidAnchorAnalysis.correctionStatus, "pending")
+              )
+            );
+        }
+      }
+    } catch (e: any) {
+      log.warn(`  [账号${accountId}] 更新bid_anchor_analysis状态失败: ${e.message}`);
     }
   }
 
-  logResult("竞价纠正", res);
+  logResult("竞价纠正 [LIVE]", res);
   return res;
 }
 
@@ -317,7 +479,7 @@ function calcBidCorrection(
     target = baseline * HEALTH.bid.moderateUnderBuffer;
     reason = `中度过低(${driftPct.toFixed(0)}%), 回归→基线×0.85`;
   } else {
-    return null; // ±30%以内，留给v720渐进优化
+    return null;
   }
 
   target = Math.max(HEALTH.bid.absoluteMin, Math.min(HEALTH.bid.absoluteMax, target));
@@ -331,10 +493,10 @@ function calcBidCorrection(
 }
 
 // ============================================================
-// 维度 2 — 分时竞价乘数纠正
+// 维度 2 — 分时竞价乘数纠正（系统内部调度表，数据库修改即可）
 // ============================================================
 async function fixHourpartingMultipliers(db: any, dryRun: boolean): Promise<PhaseResult> {
-  log.info("--- 维度2: 分时竞价乘数纠正 ---");
+  log.info("[v722] --- 维度2: 分时竞价乘数纠正 ---");
   const res = emptyResult("hourparting");
   const { extremeHighTarget, extremeLowTarget } = HEALTH.hourparting;
 
@@ -352,8 +514,8 @@ async function fixHourpartingMultipliers(db: any, dryRun: boolean): Promise<Phas
   log.info(`  极端高(>1.50): ${highRows.length}  极端低(<0.50): ${lowRows.length}`);
 
   if (highRows.length > 0) {
-    const ids = highRows.map((r: any) => r.id);
     if (!dryRun) {
+      const ids = highRows.map((r: any) => r.id);
       for (const batch of chunk(ids, 500)) {
         await db
           .update(hourpartingBidRules)
@@ -376,8 +538,8 @@ async function fixHourpartingMultipliers(db: any, dryRun: boolean): Promise<Phas
   }
 
   if (lowRows.length > 0) {
-    const ids = lowRows.map((r: any) => r.id);
     if (!dryRun) {
+      const ids = lowRows.map((r: any) => r.id);
       for (const batch of chunk(ids, 500)) {
         await db
           .update(hourpartingBidRules)
@@ -404,10 +566,10 @@ async function fixHourpartingMultipliers(db: any, dryRun: boolean): Promise<Phas
 }
 
 // ============================================================
-// 维度 3 — 分时预算乘数纠正
+// 维度 3 — 分时预算乘数纠正（系统内部调度表，数据库修改即可）
 // ============================================================
 async function fixDaypartingMultipliers(db: any, dryRun: boolean): Promise<PhaseResult> {
-  log.info("--- 维度3: 分时预算乘数纠正 ---");
+  log.info("[v722] --- 维度3: 分时预算乘数纠正 ---");
   const res = emptyResult("dayparting");
   const { extremeHighTarget, extremeLowTarget } = HEALTH.dayparting;
 
@@ -425,8 +587,8 @@ async function fixDaypartingMultipliers(db: any, dryRun: boolean): Promise<Phase
   log.info(`  极端高(>1.50): ${highRows.length}  极端低(<0.50): ${lowRows.length}`);
 
   if (highRows.length > 0) {
-    const ids = highRows.map((r: any) => r.id);
     if (!dryRun) {
+      const ids = highRows.map((r: any) => r.id);
       for (const batch of chunk(ids, 500)) {
         await db
           .update(daypartingBudgetRules)
@@ -449,8 +611,8 @@ async function fixDaypartingMultipliers(db: any, dryRun: boolean): Promise<Phase
   }
 
   if (lowRows.length > 0) {
-    const ids = lowRows.map((r: any) => r.id);
     if (!dryRun) {
+      const ids = lowRows.map((r: any) => r.id);
       for (const batch of chunk(ids, 500)) {
         await db
           .update(daypartingBudgetRules)
@@ -477,10 +639,10 @@ async function fixDaypartingMultipliers(db: any, dryRun: boolean): Promise<Phase
 }
 
 // ============================================================
-// 维度 4 — 位置倾斜纠正
+// 维度 4 — 位置倾斜纠正（含Amazon API推送）
 // ============================================================
 async function fixPlacements(db: any, dryRun: boolean): Promise<PhaseResult> {
-  log.info("--- 维度4: 位置倾斜纠正 ---");
+  log.info("[v722] --- 维度4: 位置倾斜纠正（含Amazon API推送） ---");
   const res = emptyResult("placement");
   const cap = HEALTH.placement.maxHealthy;
 
@@ -489,6 +651,8 @@ async function fixPlacements(db: any, dryRun: boolean): Promise<PhaseResult> {
       id: campaigns.id,
       campaignId: campaigns.campaignId,
       campaignName: campaigns.campaignName,
+      campaignType: campaigns.campaignType,
+      accountId: campaigns.accountId,
       topAdj: campaigns.placementTopSearchBidAdjustment,
       ppAdj: campaigns.placementProductPageBidAdjustment,
       restAdj: campaigns.placementRestBidAdjustment,
@@ -508,86 +672,159 @@ async function fixPlacements(db: any, dryRun: boolean): Promise<PhaseResult> {
   res.analyzed = rows.length;
   log.info(`  位置倾斜>50%的活动: ${rows.length}`);
 
-  for (const row of rows) {
-    const top = Number(row.topAdj) || 0;
-    const pp = Number(row.ppAdj) || 0;
-    const rest = Number(row.restAdj) || 0;
-    const updates: Record<string, number> = {};
+  if (dryRun) {
+    for (const row of rows) {
+      collectPlacementDetails(res, row, cap);
+      res.corrected++;
+    }
+    logResult("位置倾斜纠正 [DRY RUN]", res);
+    return res;
+  }
 
-    if (top > cap) {
-      updates.placementTopSearchBidAdjustment = cap;
-      res.details.push({
-        entityType: "campaign",
-        entityId: row.campaignId,
-        dimension: "top_of_search",
-        oldValue: top,
-        newValue: cap,
-        changePct: ((cap - top) / Math.max(top, 1)) * 100,
-        reason: `搜索顶部${top}%→${cap}%`,
-      });
-    }
-    if (pp > cap) {
-      updates.placementProductPageBidAdjustment = cap;
-      res.details.push({
-        entityType: "campaign",
-        entityId: row.campaignId,
-        dimension: "product_page",
-        oldValue: pp,
-        newValue: cap,
-        changePct: ((cap - pp) / Math.max(pp, 1)) * 100,
-        reason: `商品页面${pp}%→${cap}%`,
-      });
-    }
-    if (rest > cap) {
-      updates.placementRestBidAdjustment = cap;
-      res.details.push({
-        entityType: "campaign",
-        entityId: row.campaignId,
-        dimension: "rest_of_search",
-        oldValue: rest,
-        newValue: cap,
-        changePct: ((cap - rest) / Math.max(rest, 1)) * 100,
-        reason: `其他搜索${rest}%→${cap}%`,
-      });
+  // LIVE模式：按accountId分组
+  const byAccount = groupBy(rows, (r: any) => r.accountId);
+
+  for (const [accountIdStr, accountRows] of Object.entries(byAccount)) {
+    const accountId = Number(accountIdStr);
+    log.info(`  [账号${accountId}] ${(accountRows as any[]).length}个campaign需修正位置倾斜`);
+
+    let syncService: any = null;
+    try {
+      syncService = await getAmazonSyncService(accountId);
+      if (!syncService || !syncService.client) {
+        log.warn(`  [账号${accountId}] API客户端不可用，仅更新本地数据库`);
+        res.apiErrors.push(`账号${accountId}: 位置倾斜API客户端不可用`);
+        syncService = null;
+      }
+    } catch (err: any) {
+      log.warn(`  [账号${accountId}] 获取API客户端失败: ${err.message}`);
+      res.apiErrors.push(`账号${accountId}: ${err.message}`);
+      syncService = null;
     }
 
-    if (Object.keys(updates).length > 0) {
-      if (!dryRun) {
+    for (const row of accountRows as any[]) {
+      const top = Number(row.topAdj) || 0;
+      const pp = Number(row.ppAdj) || 0;
+      const rest = Number(row.restAdj) || 0;
+      const dbUpdates: Record<string, number> = {};
+      const newTop = top > cap ? cap : top;
+      const newPp = pp > cap ? cap : pp;
+      const newRest = rest > cap ? cap : rest;
+      let needsUpdate = false;
+
+      if (top > cap) { dbUpdates.placementTopSearchBidAdjustment = cap; needsUpdate = true; }
+      if (pp > cap) { dbUpdates.placementProductPageBidAdjustment = cap; needsUpdate = true; }
+      if (rest > cap) { dbUpdates.placementRestBidAdjustment = cap; needsUpdate = true; }
+
+      if (!needsUpdate) continue;
+
+      collectPlacementDetails(res, row, cap);
+
+      // 推送到 Amazon API（仅SP广告支持位置倾斜）
+      if (syncService && (row.campaignType === 'sp_auto' || row.campaignType === 'sp_manual')) {
         try {
-          await db
-            .update(campaigns)
-            .set(updates as any)
-            .where(eq(campaigns.id, row.id));
-          res.corrected++;
-        } catch (e: any) {
-          log.error(`位置倾斜纠正失败: ${e.message}`);
-          res.failed++;
+          const placementBidding: Array<{ placement: string; percentage: number }> = [];
+          if (newTop > 0) {
+            placementBidding.push({ placement: 'PLACEMENT_TOP', percentage: Math.round(newTop) });
+          }
+          if (newPp > 0) {
+            placementBidding.push({ placement: 'PLACEMENT_PRODUCT_PAGE', percentage: Math.round(newPp) });
+          }
+
+          await syncService.client.updateSpCampaign(String(row.campaignId), {
+            dynamicBidding: {
+              placementBidding,
+            },
+          });
+          res.apiPushed++;
+          log.info(`    [API] Campaign ${row.campaignId} 位置倾斜推送成功: Top=${newTop}%, PP=${newPp}%`);
+        } catch (apiErr: any) {
+          res.apiFailed++;
+          const errMsg = `Campaign ${row.campaignId} 位置倾斜API失败: ${apiErr.message}`;
+          log.warn(`    [API] ${errMsg}`);
+          res.apiErrors.push(errMsg);
         }
-      } else {
+        await sleep(API_CONFIG.batchDelayMs);
+      }
+
+      // 更新本地数据库
+      try {
+        await db
+          .update(campaigns)
+          .set(dbUpdates as any)
+          .where(eq(campaigns.id, row.id));
         res.corrected++;
+      } catch (e: any) {
+        log.error(`    [DB] Campaign ${row.campaignId} 本地更新失败: ${e.message}`);
+        res.failed++;
       }
     }
   }
 
-  logResult("位置倾斜纠正", res);
+  logResult("位置倾斜纠正 [LIVE]", res);
   return res;
 }
 
+function collectPlacementDetails(res: PhaseResult, row: any, cap: number) {
+  const top = Number(row.topAdj) || 0;
+  const pp = Number(row.ppAdj) || 0;
+  const rest = Number(row.restAdj) || 0;
+
+  if (top > cap) {
+    res.details.push({
+      entityType: "campaign", entityId: row.campaignId, accountId: row.accountId,
+      dimension: "top_of_search", oldValue: top, newValue: cap,
+      changePct: ((cap - top) / Math.max(top, 1)) * 100,
+      reason: `搜索顶部${top}%→${cap}%`,
+    });
+  }
+  if (pp > cap) {
+    res.details.push({
+      entityType: "campaign", entityId: row.campaignId, accountId: row.accountId,
+      dimension: "product_page", oldValue: pp, newValue: cap,
+      changePct: ((cap - pp) / Math.max(pp, 1)) * 100,
+      reason: `商品页面${pp}%→${cap}%`,
+    });
+  }
+  if (rest > cap) {
+    res.details.push({
+      entityType: "campaign", entityId: row.campaignId, accountId: row.accountId,
+      dimension: "rest_of_search", oldValue: rest, newValue: cap,
+      changePct: ((cap - rest) / Math.max(rest, 1)) * 100,
+      reason: `其他搜索${rest}%→${cap}%`,
+    });
+  }
+}
+
 // ============================================================
-// 工具
+// 工具函数
 // ============================================================
 function emptyResult(phase: string): PhaseResult {
-  return { phase, analyzed: 0, corrected: 0, skipped: 0, failed: 0, details: [] };
+  return { phase, analyzed: 0, corrected: 0, skipped: 0, failed: 0, apiPushed: 0, apiFailed: 0, details: [], apiErrors: [] };
 }
 
 function logResult(name: string, r: PhaseResult) {
-  log.info(`  ${name}: 分析=${r.analyzed} 纠正=${r.corrected} 跳过=${r.skipped} 失败=${r.failed}`);
+  log.info(`  ${name}: 分析=${r.analyzed} 纠正=${r.corrected} 跳过=${r.skipped} 失败=${r.failed} API推送=${r.apiPushed} API失败=${r.apiFailed}`);
 }
 
 function chunk<T>(arr: T[], size: number): T[][] {
   const out: T[][] = [];
   for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
   return out;
+}
+
+function groupBy<T>(arr: T[], keyFn: (item: T) => string | number): Record<string, T[]> {
+  const map: Record<string, T[]> = {};
+  for (const item of arr) {
+    const key = String(keyFn(item));
+    if (!map[key]) map[key] = [];
+    map[key].push(item);
+  }
+  return map;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 export default executeAggressiveBleedingStop;
