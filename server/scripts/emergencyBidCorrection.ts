@@ -619,17 +619,17 @@ async function processAccount(
         }
       }
 
-      // product_target出价修正 - 使用keyword API（因为SP targeting报告返回的是keywordId）
+      // product_target出价修正 - 使用正确的updateProductTargetBids API (PUT /sp/targets)
       const ptCorrections = corrections.filter(c => c.entityType === 'product_target');
       if (ptCorrections.length > 0) {
         for (let i = 0; i < ptCorrections.length; i += CONFIG.bidUpdateBatchSize) {
           const batch = ptCorrections.slice(i, i + CONFIG.bidUpdateBatchSize);
           try {
             const updates = batch.map(c => ({
-              keywordId: c.amazonId,
+              targetId: c.amazonId,
               bid: c.suggestedBid,
             }));
-            const result = await syncService.client.updateKeywordBids(updates);
+            const result = await syncService.client.updateProductTargetBids(updates);
             const batchSuccess = result?.success ? batch.length : 0;
             summary.correctionsApplied += batchSuccess;
             log.info(`[processAccount] 账户${accountId}: target出价批次 ${Math.floor(i / CONFIG.bidUpdateBatchSize) + 1} 推送完成: ${batchSuccess}/${batch.length}`);
