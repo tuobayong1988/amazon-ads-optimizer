@@ -43,8 +43,8 @@ export function getEffectiveMinBid(adType?: string): number {
 
 export const SAFETY_LIMITS = {
   bid: {
-    maxSingleChangePercent: 0.15,     // v510: 单次最大调整幅度从20%收紧至15%
-    maxDailyChangePercent: 0.25,      // v510: 每日累计最大调整幅度从30%收紧至25%
+    maxSingleChangePercent: 0.10,     // v718-fix10: 单次最大调整幅度收紧至10%（用户要求：不超过7天平均CPC的±10%）
+    maxDailyChangePercent: 0.15,      // v718-fix10: 每日累计最大调整幅度收紧至15%（渐进式优化原则）
     minBid: 0.10,                     // v641: 最低出价从$0.02提高到$0.10，防止无效的极低出价
     maxBid: 100,                      // 最高出价 $100（绝对上限）
     consecutiveSameDirectionSlowdown: 3, // 连续同方向调整N次后降速

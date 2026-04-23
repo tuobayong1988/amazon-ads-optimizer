@@ -34,6 +34,8 @@ import { optimizeBudgetPortfolio } from "../budget/budgetPortfolioOptimizer";
 import * as bidCoordinator from "../services/bidCoordinator";
 import * as nextGenOrchestrator from "../optimization/nextGenBidOrchestrator";
 import * as amazonApiHelper from "../services/amazonApiHelper";
+import { analyzeBudgetRules } from "../services/budgetRulesCoordinator";
+import { calculateCompositeImpact, applyCompositeImpactBudgetLimit } from '../optimization/compositeImpactCoordinator';
 import { acquireAccountOptimizationLock, releaseAccountOptimizationLock, getModuleLockGroup } from "../utils/lockManager";
 import * as amazonIdResolver from "../services/amazonIdResolver";
 import { getLocalHour, getLocalDayOfWeek, isNewKeyword, getExplorationStrategy, isProtectedKeyword } from "../algorithm/algorithmUtils";
@@ -155,6 +157,84 @@ export async function executeBudgetAllocation(
       }
       
       if (!dryRun && Math.abs(finalBudget - suggestion.currentBudget) > 0.50) { // v165: 降低API调用阈值从$1到$0.50
+        // ===== v718 P1-1: Amazon预算规则冲突检测 =====
+        // 检查Amazon端是否有活跃的Budget Rules（日程规则/绩效规则），避免与Amazon自动预算管理冲突
+        try {
+          const amazonCampaignIdForRules = suggestion.amazonCampaignId || getCampaignAmazonId(campaign);
+          const budgetRulesResult = await analyzeBudgetRules(
+            config.accountId,
+            String(amazonCampaignIdForRules),
+            syncService?.client || null
+          );
+          if (budgetRulesResult.shouldSkipBudgetAdjustment) {
+            log.info(`[BudgetAllocation] v718 P1-1: 跳过预算调整 campaign=${suggestion.campaignId} ` +
+              `原因: ${budgetRulesResult.skipReason}`);
+            adjustment.apiSyncStatus = 'skipped_budget_rules';
+            adjustment.apiSyncDetail = JSON.stringify({ reason: `Amazon Budget Rules冲突: ${budgetRulesResult.skipReason}` });
+            continue;
+          }
+          if (budgetRulesResult.hasRules && budgetRulesResult.budgetAdjustmentCap < 1) {
+            // 有绩效规则活跃，限制调整上限
+            const cappedBudget = suggestion.currentBudget * budgetRulesResult.budgetAdjustmentCap;
+            if (finalBudget > cappedBudget) {
+              log.info(`[BudgetAllocation] v718 P1-1: 预算上调被Budget Rules限制 campaign=${suggestion.campaignId} ` +
+                `$${finalBudget.toFixed(2)}→$${cappedBudget.toFixed(2)} cap=${(budgetRulesResult.budgetAdjustmentCap * 100).toFixed(0)}%`);
+              finalBudget = cappedBudget;
+              adjustment.suggestedBudget = finalBudget;
+              adjustment.changeAmount = finalBudget - suggestion.currentBudget;
+              adjustment.changePercent = ((finalBudget - suggestion.currentBudget) / suggestion.currentBudget * 100).toFixed(2);
+              adjustment.reason = `${adjustment.reason} | v718 P1-1: Budget Rules cap ${(budgetRulesResult.budgetAdjustmentCap * 100).toFixed(0)}%`;
+            }
+          }
+        } catch (rulesErr: any) {
+          log.debug(`[BudgetAllocation] v718 P1-1: Budget Rules检查失败(非致命) campaign=${suggestion.campaignId}: ${rulesErr.message}`);
+        }
+        
+        // ===== v718 P0-2: 在推送Amazon API前应用applyBudgetGuardrail安全护栏 =====
+        // 确保预算调整幅度不超过±25%，并在绝对范围内
+        const budgetGuardrailResult = applyBudgetGuardrail(
+          suggestion.currentBudget,
+          finalBudget,
+          config.dailyBudget || null,
+          { accountId: config.accountId }
+        );
+        if (budgetGuardrailResult.wasLimited) {
+          log.info(`[BudgetAllocation] v718 P0-2 applyBudgetGuardrail: campaign=${suggestion.campaignId} ` +
+            `$${suggestion.currentBudget.toFixed(2)}→$${finalBudget.toFixed(2)} 被限制为→$${budgetGuardrailResult.safeBudget.toFixed(2)} ` +
+            `原因: ${budgetGuardrailResult.limitReason}`);
+          finalBudget = budgetGuardrailResult.safeBudget;
+          adjustment.suggestedBudget = finalBudget;
+          adjustment.changeAmount = finalBudget - suggestion.currentBudget;
+          adjustment.changePercent = ((finalBudget - suggestion.currentBudget) / suggestion.currentBudget * 100).toFixed(2);
+          adjustment.reason = `${adjustment.reason} | v718护栏: ${budgetGuardrailResult.limitReason}`;
+        }
+        
+        // 护栏后重新检查是否仍超过阈值
+        if (Math.abs(finalBudget - suggestion.currentBudget) <= 0.50) {
+          adjustment.apiSyncStatus = 'not_applicable';
+          adjustment.apiSyncDetail = JSON.stringify({ reason: `v718护栏后调整金额$${Math.abs(finalBudget - suggestion.currentBudget).toFixed(2)}低于$0.50阈值` });
+          continue;
+        }
+        
+        // ===== v718 跨维度叠加效应协调 — 整体预算维度 =====
+        try {
+          const compositeResult = await calculateCompositeImpact(
+            config.accountId, suggestion.campaignId, 'campaign', 'overall_budget', 24
+          );
+          const impactResult = applyCompositeImpactBudgetLimit(finalBudget, suggestion.currentBudget, compositeResult, 'overall_budget');
+          if (impactResult.wasLimited) {
+            finalBudget = impactResult.adjustedBudget;
+            adjustment.suggestedBudget = finalBudget;
+            adjustment.reason = `${adjustment.reason} | ${impactResult.reason}`;
+            if (Math.abs(finalBudget - suggestion.currentBudget) <= 0.50) {
+              adjustment.apiSyncStatus = 'composite_blocked';
+              continue;
+            }
+          }
+        } catch (compErr: unknown) {
+          // 协调器异常不阻止推送
+        }
+        
         // v148: 先调Amazon API确认成功，再更新本地数据库（先API后DB原则）
         try {
           // v354: 使用suggestion中的amazonCampaignId，确保Amazon API调用使用正确的ID

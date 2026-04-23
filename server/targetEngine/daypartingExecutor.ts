@@ -28,6 +28,7 @@ import * as bidOptimizer from "../optimization/bidOptimizer";
 import * as daypartingService from "../budget/daypartingService";
 import * as placementOptimizationService from "../optimization/placementOptimizationService";
 import { preOptimizationSafetyCheck, applyBidGuardrail, applyBudgetGuardrail, applyPlacementGuardrail, SAFETY_LIMITS } from '../optimization/optimizationSafetyGuardrails';
+import { calculateCompositeImpact, applyCompositeImpactLimit, applyCompositeImpactBudgetLimit } from '../optimization/compositeImpactCoordinator';
 import * as adAutomation from "../automation/adAutomation";
 import * as intelligentBudgetAllocationService from "../budget/intelligentBudgetAllocationService";
 import { optimizeBudgetPortfolio } from "../budget/budgetPortfolioOptimizer";
@@ -516,11 +517,28 @@ export async function executeDaypartingOptimization(
         
         if (!dryRun) {
           try {
+            // v718: 跨维度叠加效应协调 — 分时竞价维度
+            let finalAdjustedBid = adjustedBid;
+            try {
+              const compositeResult = await calculateCompositeImpact(
+                config.accountId, keyword.id, 'keyword', 'dayparting_bid', 24
+              );
+              const impactResult = applyCompositeImpactLimit(adjustedBid, baseBid, compositeResult, 'dayparting_bid');
+              if (impactResult.wasLimited) {
+                finalAdjustedBid = impactResult.adjustedBid;
+                adjustment.newBid = finalAdjustedBid;
+                adjustment.reason = `${adjustment.reason} | ${impactResult.reason}`;
+                if (Math.abs(finalAdjustedBid - baseBid) < 0.005) continue; // 跨维度超限，跳过推送
+              }
+            } catch (compErr: unknown) {
+              // 协调器异常不阻止推送
+            }
+            
             const syncResult: unknown = await amazonApiHelper.syncBidAdjustmentsToAmazon(
               config.accountId,
               [{
                 keywordId: keyword.id,
-                newBid: adjustedBid,
+                newBid: finalAdjustedBid,
                 localCampaignId: campaignLocalId,
                 amazonCampaignId: campaignAmazonId,
                 reason: `v183分时竞价: ${reasonParts.join(' × ')}`,
@@ -686,6 +704,27 @@ export async function executeDaypartingBudgetOptimization(
       
       // 实际执行预算调整
       if (!dryRun && Math.abs(adjustedBudget - currentBudget) > 0.50) {
+        // v718: 跨维度叠加效应协调 — 分时预算维度
+        let finalAdjustedBudget = adjustedBudget;
+        try {
+          const compositeResult = await calculateCompositeImpact(
+            config.accountId, campaignLocalId, 'campaign', 'dayparting_budget', 24
+          );
+          const impactResult = applyCompositeImpactBudgetLimit(adjustedBudget, currentBudget, compositeResult, 'dayparting_budget');
+          if (impactResult.wasLimited) {
+            finalAdjustedBudget = impactResult.adjustedBudget;
+            adjustment.adjustedBudget = finalAdjustedBudget;
+            adjustment.newBid = finalAdjustedBudget;
+            adjustment.reason = `${adjustment.reason} | ${impactResult.reason}`;
+            if (Math.abs(finalAdjustedBudget - currentBudget) < 0.50) {
+              adjustment.apiSyncStatus = 'composite_blocked';
+              continue; // 跨维度超限，跳过推送
+            }
+          }
+        } catch (compErr: unknown) {
+          // 协调器异常不阻止推送
+        }
+        
         // @ts-expect-error Legacy code type compatibility
         try {
           const amazonCampaignId = campaignAmazonId;
@@ -693,13 +732,13 @@ export async function executeDaypartingBudgetOptimization(
             config.accountId,
             amazonCampaignId,
             // @ts-expect-error Legacy code type compatibility
-            adjustedBudget,
+            finalAdjustedBudget,
             `v179分时预算: 星期${currentDayOfWeek} 倍数${budgetMultiplier}x`
           );
           
           if (budgetSyncResult) {
             await db.updateCampaign(campaignLocalId, {
-              dailyBudget: adjustedBudget.toFixed(2),
+              dailyBudget: finalAdjustedBudget.toFixed(2),
               // @ts-expect-error Legacy code type compatibility
               lastOptimizedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
             } as Record<string, unknown>);

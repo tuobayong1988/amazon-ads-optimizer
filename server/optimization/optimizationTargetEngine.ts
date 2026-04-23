@@ -260,6 +260,9 @@ export interface OptimizationTargetConfig {
   
   // v329: 关联的业绩组ID
   performanceGroupId?: number;
+  
+  // v718 P0-5: 风险评估出价乘数，从安全护栏传递到出价计算
+  riskBidMultiplier?: number;
 }
 
 /**
@@ -434,6 +437,8 @@ export async function executeOptimizationTarget(
     if (riskBidMultiplier < 1.0) {
       log.info(`[OptimizationTarget] v275: 风险自动响应生效 - 出价乘数=${riskBidMultiplier}, 冷却延长=${riskCooldownExtension}x`);
     }
+    // v718 P0-5: 将风险评估出价乘数传递到config，供后续出价计算使用
+    config.riskBidMultiplier = riskBidMultiplier;
   } catch (safetyErr: unknown) {
     log.warn(`[OptimizationTarget] v162 安全检查异常，继续执行: ${(safetyErr as Error).message}`);
   }

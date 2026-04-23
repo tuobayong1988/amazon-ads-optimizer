@@ -20,6 +20,8 @@ import {
 import { eq, and, lte, gte, desc, isNull, or } from 'drizzle-orm';
 import { generateBudgetAllocationSuggestions } from './intelligentBudgetAllocationService';
 import { notifyOwner } from '../_core/notification';
+import { applyBudgetGuardrail } from '../optimization/optimizationSafetyGuardrails';
+import { analyzeBudgetRules } from '../services/budgetRulesCoordinator';
 
 // 自动执行配置接口
 export interface AutoExecutionConfigInput {
@@ -289,6 +291,42 @@ export async function executeBudgetAllocation(configId: number): Promise<{
 
       // 确保不低于最小预算
       budgetAfter = Math.max(budgetAfter, minBudget);
+      
+      // ===== v718 P1-1: Amazon预算规则冲突检测 =====
+      try {
+        const budgetRulesResult = await analyzeBudgetRules(
+          config.accountId,
+          String(suggestion.campaignId),
+          null // 无API client，使用本地DB查询
+        );
+        if (budgetRulesResult.shouldSkipBudgetAdjustment) {
+          skippedCampaigns++;
+          details.push({
+            campaignId: suggestion.campaignId,
+            campaignName: suggestion.campaignName,
+            budgetBefore,
+            budgetAfter: budgetBefore,
+            adjustmentPercent: 0,
+            status: 'skipped',
+            reason: `Amazon Budget Rules冲突: ${budgetRulesResult.skipReason}`,
+          });
+          totalBudgetAfter += budgetBefore;
+          continue;
+        }
+      } catch (rulesErr: any) {
+        // Budget Rules检查失败不阻断执行
+      }
+      
+      // ===== v718 P0-2: 应用applyBudgetGuardrail安全护栏 =====
+      const budgetGuardrailResult = applyBudgetGuardrail(
+        budgetBefore,
+        budgetAfter,
+        null, // 无全局预算限制
+        { accountId: suggestion.campaignId } // 用于日志记录
+      );
+      if (budgetGuardrailResult.wasLimited) {
+        budgetAfter = budgetGuardrailResult.safeBudget;
+      }
 
       // 检查是否需要跳过（调整幅度太小）
       if (Math.abs(budgetAfter - budgetBefore) < 0.01) {

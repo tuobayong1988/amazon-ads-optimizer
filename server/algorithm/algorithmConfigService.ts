@@ -73,12 +73,12 @@ const STRATEGY_ALGORITHM_CONFIGS: Record<string, StrategyAlgorithmConfig> = {
       consensusBonus: { highThreshold: 0.10, highBonus: 0.10, mediumThreshold: 0.20, mediumBonus: 0.05 },
     },
     exploration: {
-      baseRateRange: { min: 0.40, max: 0.65 },  // 高探索率
+      baseRateRange: { min: 0.08, max: 0.15 }, // v718-fix10: from 0.15-0.25
       dataFreshnessFactor: { withData: 1.20, withoutData: 0.85 },
       maturityThreshold: 40,
       rotationCycleMinutes: 20,  // 更频繁轮转
-      maxExplorationRate: 0.70,
-      minExplorationRate: 0.35,
+      maxExplorationRate: 0.15, // v718-fix10: from 0.30
+      minExplorationRate: 0.10,
     },
   },
   
@@ -91,12 +91,12 @@ const STRATEGY_ALGORITHM_CONFIGS: Record<string, StrategyAlgorithmConfig> = {
       consensusBonus: { highThreshold: 0.10, highBonus: 0.10, mediumThreshold: 0.20, mediumBonus: 0.05 },
     },
     exploration: {
-      baseRateRange: { min: 0.35, max: 0.55 },
+      baseRateRange: { min: 0.06, max: 0.12 }, // v718-fix10: from 0.12-0.22
       dataFreshnessFactor: { withData: 1.15, withoutData: 0.85 },
       maturityThreshold: 30,
       rotationCycleMinutes: 30,
-      maxExplorationRate: 0.60,
-      minExplorationRate: 0.30,
+      maxExplorationRate: 0.15, // v718-fix10: from 0.28
+      minExplorationRate: 0.08,
     },
   },
   
@@ -109,12 +109,12 @@ const STRATEGY_ALGORITHM_CONFIGS: Record<string, StrategyAlgorithmConfig> = {
       consensusBonus: { highThreshold: 0.08, highBonus: 0.12, mediumThreshold: 0.15, mediumBonus: 0.06 },
     },
     exploration: {
-      baseRateRange: { min: 0.25, max: 0.45 },  // 低探索率，优先利用已知最优
+      baseRateRange: { min: 0.05, max: 0.10 }, // v718-fix10: from 0.10-0.18
       dataFreshnessFactor: { withData: 1.10, withoutData: 0.90 },
       maturityThreshold: 20,
       rotationCycleMinutes: 45,  // 更长轮转周期
-      maxExplorationRate: 0.50,
-      minExplorationRate: 0.20,
+      maxExplorationRate: 0.12, // v718-fix10: from 0.22
+      minExplorationRate: 0.06,
     },
   },
   
@@ -127,12 +127,12 @@ const STRATEGY_ALGORITHM_CONFIGS: Record<string, StrategyAlgorithmConfig> = {
       consensusBonus: { highThreshold: 0.12, highBonus: 0.08, mediumThreshold: 0.25, mediumBonus: 0.04 },
     },
     exploration: {
-      baseRateRange: { min: 0.40, max: 0.60 },
+      baseRateRange: { min: 0.08, max: 0.15 }, // v718-fix10: from 0.15-0.25
       dataFreshnessFactor: { withData: 1.20, withoutData: 0.80 },
       maturityThreshold: 25,
       rotationCycleMinutes: 20,
-      maxExplorationRate: 0.65,
-      minExplorationRate: 0.35,
+      maxExplorationRate: 0.15, // v718-fix10: from 0.30
+      minExplorationRate: 0.10,
     },
   },
   
@@ -145,12 +145,12 @@ const STRATEGY_ALGORITHM_CONFIGS: Record<string, StrategyAlgorithmConfig> = {
       consensusBonus: { highThreshold: 0.08, highBonus: 0.12, mediumThreshold: 0.15, mediumBonus: 0.06 },
     },
     exploration: {
-      baseRateRange: { min: 0.25, max: 0.45 },
+      baseRateRange: { min: 0.05, max: 0.10 }, // v718-fix10: from 0.10-0.18
       dataFreshnessFactor: { withData: 1.10, withoutData: 0.90 },
       maturityThreshold: 25,
       rotationCycleMinutes: 40,
-      maxExplorationRate: 0.50,
-      minExplorationRate: 0.20,
+      maxExplorationRate: 0.12, // v718-fix10: from 0.22
+      minExplorationRate: 0.06,
     },
   },
   
@@ -163,12 +163,12 @@ const STRATEGY_ALGORITHM_CONFIGS: Record<string, StrategyAlgorithmConfig> = {
       consensusBonus: { highThreshold: 0.15, highBonus: 0.08, mediumThreshold: 0.30, mediumBonus: 0.04 },
     },
     exploration: {
-      baseRateRange: { min: 0.45, max: 0.70 },
+      baseRateRange: { min: 0.08, max: 0.15 }, // v718-fix10: from 0.18-0.28
       dataFreshnessFactor: { withData: 1.25, withoutData: 0.80 },
       maturityThreshold: 15,
       rotationCycleMinutes: 15,
-      maxExplorationRate: 0.75,
-      minExplorationRate: 0.40,
+      maxExplorationRate: 0.15, // v718-fix10: from 0.35
+      minExplorationRate: 0.12,
     },
   },
   
@@ -181,12 +181,12 @@ const STRATEGY_ALGORITHM_CONFIGS: Record<string, StrategyAlgorithmConfig> = {
       consensusBonus: { highThreshold: 0.10, highBonus: 0.10, mediumThreshold: 0.20, mediumBonus: 0.05 },
     },
     exploration: {
-      baseRateRange: { min: 0.40, max: 0.65 },
+      baseRateRange: { min: 0.08, max: 0.15 }, // v718-fix10: from 0.15-0.25
       dataFreshnessFactor: { withData: 1.20, withoutData: 0.85 },
       maturityThreshold: 30,
       rotationCycleMinutes: 20,
-      maxExplorationRate: 0.70,
-      minExplorationRate: 0.35,
+      maxExplorationRate: 0.15, // v718-fix10: from 0.30
+      minExplorationRate: 0.10,
     },
   },
   
@@ -199,12 +199,12 @@ const STRATEGY_ALGORITHM_CONFIGS: Record<string, StrategyAlgorithmConfig> = {
       consensusBonus: { highThreshold: 0.05, highBonus: 0.15, mediumThreshold: 0.10, mediumBonus: 0.08 },
     },
     exploration: {
-      baseRateRange: { min: 0.20, max: 0.35 },
+      baseRateRange: { min: 0.08, max: 0.15 },
       dataFreshnessFactor: { withData: 1.05, withoutData: 0.95 },
       maturityThreshold: 15,
       rotationCycleMinutes: 60,
-      maxExplorationRate: 0.40,
-      minExplorationRate: 0.15,
+      maxExplorationRate: 0.12, // v718-fix10: from 0.20
+      minExplorationRate: 0.05,
     },
   },
   
@@ -217,12 +217,12 @@ const STRATEGY_ALGORITHM_CONFIGS: Record<string, StrategyAlgorithmConfig> = {
       consensusBonus: { highThreshold: 0.05, highBonus: 0.15, mediumThreshold: 0.10, mediumBonus: 0.08 },
     },
     exploration: {
-      baseRateRange: { min: 0.15, max: 0.25 },
+      baseRateRange: { min: 0.05, max: 0.10 },
       dataFreshnessFactor: { withData: 1.05, withoutData: 0.95 },
       maturityThreshold: 10,
       rotationCycleMinutes: 120,
-      maxExplorationRate: 0.30,
-      minExplorationRate: 0.10,
+      maxExplorationRate: 0.15,
+      minExplorationRate: 0.03,
     },
   },
 };
@@ -237,12 +237,12 @@ const DEFAULT_ALGORITHM_CONFIG: StrategyAlgorithmConfig = {
     consensusBonus: { highThreshold: 0.10, highBonus: 0.10, mediumThreshold: 0.20, mediumBonus: 0.05 },
   },
   exploration: {
-    baseRateRange: { min: 0.35, max: 0.60 },
+    baseRateRange: { min: 0.06, max: 0.12 }, // v718-fix10: from 0.12-0.22
     dataFreshnessFactor: { withData: 1.15, withoutData: 0.85 },
     maturityThreshold: 30,
     rotationCycleMinutes: 30,
-    maxExplorationRate: 0.65,
-    minExplorationRate: 0.30,
+    maxExplorationRate: 0.15, // v718-fix10: from 0.28
+    minExplorationRate: 0.08,
   },
 };
 

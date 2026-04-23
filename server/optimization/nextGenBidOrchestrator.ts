@@ -127,7 +127,7 @@ const BID_CIRCUIT_BREAKER_CONFIG = {
   /** 归因延迟数据权重折扣：最近48h内数据的权重 */
   recentDataWeightDiscount: 0.6,
   /** v268 P0-1: 熔断触发时的提价恢复比例 — 从10%提升到15%，分3步渐进执行 */
-  recoveryBoostPercent: 0.15, // v268: 从10%提升到15%，更积极地恢复曝光
+  recoveryBoostPercent: 0.08, // v718-fix10: 从15%收紧至8%，渐进式恢复曝光
   /** v268 P0-1: 渐进恢复步骤数 — 将恢复提价分成多步执行，避免一次性大幅提价 */
   recoverySteps: 3,
   /** v259: 最低曝光保护阈值 — 曝光低于历史基线此比例时暂停所有降价 */
@@ -454,6 +454,141 @@ async function checkCircuitBreaker(
   }
 }
 
+// ===== v718 P0-3: 提价熔断配置（与降价熔断对称） =====
+const BID_INCREASE_CIRCUIT_BREAKER_CONFIG = {
+  /** 7天内累计提价幅度上限（百分比）：超过此值触发熔断 */
+  maxCumulativeIncreasePercent7d: 0.15, // v718-fix10: 7天内累计提价不得超过15%（从25%收紧）
+  /** 连续提价次数上限：超过此值强制hold一个周期 */
+  maxConsecutiveIncreases: 3, // 连续3次提价即触发熔断
+  /** 最高出价保护：出价不得超过初始出价的此倍数 */
+  maxBidCeilingRatio: 1.50, // v718-fix10: 出价不得超过7天前初始出价的50%（从80%收紧）
+  /** 熔断触发时的降价回调比例 */
+  pullbackPercent: 0.10, // 熔断触发时回调10%
+};
+
+/**
+ * v718 P0-3: 提价熔断检查（与降价熔断对称）
+ * 
+ * 防止“提价失控螺旋”：ACoS极优 → 提价30% → 仍然优秀 → 继续提价 → 出价飙升
+ * 核心逻辑：即使ACoS表现优秀，提价也必须有累计上限，避免出价远离合理区间
+ */
+async function checkBidIncreaseCircuitBreaker(
+  accountId: number,
+  keywordId?: number,
+  targetId?: number,
+  currentBid?: number,
+  proposedBid?: number
+): Promise<{ tripped: boolean; reason: string; guardrailInfo: Record<string, unknown> }> {
+  if (!keywordId && !targetId) return { tripped: false, reason: '', guardrailInfo: {} };
+  if (!proposedBid || !currentBid || proposedBid <= currentBid) {
+    // 只对提价操作进行熔断检查
+    return { tripped: false, reason: '', guardrailInfo: {} };
+  }
+  
+  try {
+    const db = await getDb();
+    if (!db) return { tripped: false, reason: '', guardrailInfo: {} };
+    
+    const { optimizationEvents } = await import('../../drizzle/schema');
+    const { and: andOp, eq: eqOp, gte: gteOp, sql: sqlOp } = await import('drizzle-orm');
+    
+    // 查询7天内的所有出价调整事件
+    const daysAgo7 = new Date(Date.now() - 7 * 24 * 3600000).toISOString();
+    
+    const conditions = [
+      eqOp(optimizationEvents.accountId, accountId),
+      sqlOp`${optimizationEvents.eventCategory} = 'bid_adjustment'`,
+      sqlOp`${optimizationEvents.status} = 'success'`,
+      gteOp(optimizationEvents.createdAt, daysAgo7),
+    ];
+    
+    if (keywordId) {
+      // @ts-expect-error Array method type inference
+      conditions.push(eqOp(optimizationEvents.keywordId, keywordId));
+    } else if (targetId) {
+      // @ts-expect-error Array method type inference
+      conditions.push(eqOp(optimizationEvents.targetId, targetId));
+    }
+    
+    const recentEvents = await db.select({
+      id: optimizationEvents.id,
+      previousBid: optimizationEvents.previousBid,
+      newBid: optimizationEvents.newBid,
+      createdAt: optimizationEvents.createdAt,
+    }).from(optimizationEvents)
+      .where(andOp(...conditions))
+      .orderBy(sqlOp`created_at DESC`)
+      .limit(20);
+    
+    const guardrailInfo: Record<string, unknown> = {
+      recentEventsCount: recentEvents.length,
+      increaseCircuitBreakerConfig: BID_INCREASE_CIRCUIT_BREAKER_CONFIG,
+    };
+    
+    if (recentEvents.length === 0) {
+      return { tripped: false, reason: '', guardrailInfo };
+    }
+    
+    // === Layer 1: 7天累计提幅检查 ===
+    const oldestEvent = recentEvents[recentEvents.length - 1];
+    const initialBid = parseFloat(String(oldestEvent.previousBid)) || currentBid;
+    const cumulativeIncrease = initialBid > 0 ? ((proposedBid || currentBid) - initialBid) / initialBid : 0;
+    guardrailInfo.initialBid7d = initialBid;
+    guardrailInfo.cumulativeIncrease7d = cumulativeIncrease;
+    
+    if (cumulativeIncrease > BID_INCREASE_CIRCUIT_BREAKER_CONFIG.maxCumulativeIncreasePercent7d) {
+      // 熔断触发：回调出价
+      const pullbackBid = currentBid * (1 - BID_INCREASE_CIRCUIT_BREAKER_CONFIG.pullbackPercent);
+      guardrailInfo.recoveryMode = 'cumulative_increase_pullback';
+      guardrailInfo.pullbackBid = pullbackBid;
+      return {
+        tripped: true,
+        reason: `[v718提价熔断] 7天累计提幅${(cumulativeIncrease * 100).toFixed(1)}%超过上限${(BID_INCREASE_CIRCUIT_BREAKER_CONFIG.maxCumulativeIncreasePercent7d * 100)}%: 初始$${initialBid.toFixed(2)}→拟调$${proposedBid?.toFixed(2)}, 强制hold`,
+        guardrailInfo,
+      };
+    }
+    
+    // === Layer 2: 连续提价次数检查 ===
+    let consecutiveIncreases = 0;
+    for (const evt of recentEvents) {
+      const prevBid = parseFloat(String(evt.previousBid)) || 0;
+      const newBid = parseFloat(String(evt.newBid)) || 0;
+      if (newBid > prevBid + 0.005) {
+        consecutiveIncreases++;
+      } else {
+        break;
+      }
+    }
+    guardrailInfo.consecutiveIncreases = consecutiveIncreases;
+    
+    if (consecutiveIncreases >= BID_INCREASE_CIRCUIT_BREAKER_CONFIG.maxConsecutiveIncreases) {
+      return {
+        tripped: true,
+        reason: `[v718提价熔断] 已连续${consecutiveIncreases}次提价(上限${BID_INCREASE_CIRCUIT_BREAKER_CONFIG.maxConsecutiveIncreases}次): 强制hold一个周期`,
+        guardrailInfo,
+      };
+    }
+    
+    // === Layer 3: 绝对天花板保护 ===
+    const bidCeiling = initialBid * BID_INCREASE_CIRCUIT_BREAKER_CONFIG.maxBidCeilingRatio;
+    guardrailInfo.bidCeiling = bidCeiling;
+    
+    if (proposedBid > bidCeiling) {
+      return {
+        tripped: true,
+        reason: `[v718提价熔断] 拟调出价$${proposedBid.toFixed(2)}超过7天天花板$${bidCeiling.toFixed(2)}(初始$${initialBid.toFixed(2)}×${BID_INCREASE_CIRCUIT_BREAKER_CONFIG.maxBidCeilingRatio}): 截断到天花板`,
+        guardrailInfo,
+      };
+    }
+    
+    return { tripped: false, reason: '', guardrailInfo };
+  } catch (error: unknown) {
+    // 熔断检查异常时安全拒绝
+    log.warn(`[BidIncreaseCircuitBreaker] 熔断检查异常，安全拒绝: ${(error as Error).message}`);
+    return { tripped: true, reason: `提价熔断检查异常(安全拒绝): ${(error as Error).message}`, guardrailInfo: {} };
+  }
+}
+
 // ==================== 类型定义 ====================
 
 export interface NextGenBidResult {
@@ -575,7 +710,7 @@ export interface SafetyConfig {
 }
 
 const DEFAULT_SAFETY: SafetyConfig = {
-  maxBidChangePercent: 0.15, // v510: 从30%收紧至15%，落实竞价锚定原则
+  maxBidChangePercent: 0.10, // v718-fix10: 从15%收紧至10%，用户要求渐进式优化（不超过7天平均CPC的±10%）
   minBid: 0.10, // v643: 从$0.02提升到$0.10，与v641的全局最低出价保护保持一致
   maxBid: 10.00,
   targetAcos: 0.30,
@@ -620,21 +755,11 @@ function safetyValidate(
   if (currentBid > 0) {
     const maxIncrease = currentBid * (1 + config.maxBidChangePercent);
     
-    // v643: 动态降价上限 — 当ACoS严重超标时允许更大幅度的降价
-    // 这是对v510严格15%上限的安全放宽，仅在有明确的ACoS超标数据时才激活
-    let effectiveMaxDecreasePercent = config.maxBidChangePercent; // 默认15%
-    if (acosRatio && acosRatio > 1.0) {
-      if (acosRatio > 3.0) {
-        // ACoS超过目标的300%以上（如140% vs 40%）— 允许最大降价30%
-        effectiveMaxDecreasePercent = Math.min(0.30, config.maxBidChangePercent * 2.0);
-      } else if (acosRatio > 2.0) {
-        // ACoS超过目标的200%以上 — 允许最大降价25%
-        effectiveMaxDecreasePercent = Math.min(0.25, config.maxBidChangePercent * 1.67);
-      } else if (acosRatio > 1.5) {
-        // ACoS超过目标的150%以上 — 允许最大降价20%
-        effectiveMaxDecreasePercent = Math.min(0.20, config.maxBidChangePercent * 1.33);
-      }
-    }
+    // v718-fix10: 渐进式优化 — 无论ACoS超标多少，单次降价不超过10%
+    // 用户明确要求：竞价调整不得超过7天平均CPC的±10%
+    // 即使ACoS极端超标，也通过多次小幅调整渐进式降价，而非一次性大幅降价
+    let effectiveMaxDecreasePercent = config.maxBidChangePercent; // 默认10%
+    // v718-fix10: 不再根据ACoS比率放宽降价上限，统一限制在10%以内
     const maxDecrease = currentBid * (1 - effectiveMaxDecreasePercent);
 
     safeBid = Math.max(maxDecrease, Math.min(maxIncrease, safeBid));
@@ -710,7 +835,7 @@ function ruleEngineDecision(
     if (earlierAvgImpressions > 50 && recentAvgImpressions < earlierAvgImpressions * BID_CIRCUIT_BREAKER_CONFIG.minImpressionProtectionRatio) {
       // v268 P0-1: 增强曝光保护 — 引入渐进恢复机制
       // 将恢复提价分成recoverySteps步执行，避免一次性大幅提价
-      const totalRecoveryBoost = Math.min(0.15, BID_CIRCUIT_BREAKER_CONFIG.recoveryBoostPercent);
+      const totalRecoveryBoost = Math.min(0.08, BID_CIRCUIT_BREAKER_CONFIG.recoveryBoostPercent); // v718-fix10: 从15%收紧至8%
       const stepRecoveryBoost = totalRecoveryBoost / (BID_CIRCUIT_BREAKER_CONFIG.recoverySteps || 3);
       const recoveryBid = currentBid * (1 + stepRecoveryBoost);
       const impressionDropPct = ((1 - recentAvgImpressions / earlierAvgImpressions) * 100).toFixed(0);
@@ -733,7 +858,7 @@ function ruleEngineDecision(
       // @ts-expect-error Dynamic type assertion
       const targetSBForRecovery = (target as Record<string, unknown>).suggestedBid as number | undefined;
       const suggestedBid = (targetSBForRecovery && targetSBForRecovery > 0) ? targetSBForRecovery
-        : (groupConfig.maxBid || 10) * 0.15;
+        : (groupConfig.maxBid || 10) * 0.08; // v718-fix10: 从15%收紧至8%
       const competitiveRecoveryBid = Math.max(currentBid * 1.5, suggestedBid * 0.80);
       const cappedRecoveryBid = Math.min(competitiveRecoveryBid, (groupConfig.maxBid || 10) * 0.60); // 不超过maxBid的60%
       return {
@@ -821,7 +946,7 @@ function ruleEngineDecision(
     
     // 新关键词或长期零曝光，适度提升出价以获取曝光
     // v267 P3-3: 品类弹性修正 — 高弹性品类提价更积极，低弹性品类更保守
-    const baseBoostRatio = Math.min(0.15, 0.05 + deterministicHash(entityId, 1) * 0.10);
+    const baseBoostRatio = Math.min(0.08, 0.03 + deterministicHash(entityId, 1) * 0.05); // v718-fix10: 从5-15%收紧至3-8%
     const boostRatio = baseBoostRatio * elasticityModifier; // v267: 品类弹性修正
     const newBid = currentBid * (1 + boostRatio);
     // v238: 提价后也不能超过探索上限
@@ -858,7 +983,7 @@ function ruleEngineDecision(
     } else {
       // 曝光充足但无点击，可能相关性差，降低出价
       // v267 P3-3: 品类弹性修正
-      const baseReduceRatio = Math.min(0.15, 0.05 + (impressions / 1000) * 0.10);
+      const baseReduceRatio = Math.min(0.08, 0.03 + (impressions / 1000) * 0.05); // v718-fix10: 从5-15%收紧至3-8%
       const reduceRatio = baseReduceRatio * elasticityModifier;
       return {
         bid: currentBid * (1 - reduceRatio),
@@ -923,11 +1048,10 @@ function ruleEngineDecision(
     const isHighCtr = ctr > 0.008; // CTR > 0.8% 表明关键词相关性好
     
     if (spend > maxAcceptableSpend) {
-      // v258: 降价力度上限从25%降低到15%，防止过度降价引发死亡螺旋
+      // v718-fix10: 渐进式降价 — 零转化高花费也不超过10%
       const spendRatio = spend / maxAcceptableSpend;
-      // v258: 高CTR关键词降价更保守（相关性好的词值得保留）
-      const maxReduce = isHighCtr ? 0.10 : 0.15;
-      const reduceRatio = Math.min(maxReduce, (spendRatio - 1) * 0.10);
+      const maxReduce = isHighCtr ? 0.06 : 0.10; // v718-fix10: 从10/15%收紧至6/10%
+      const reduceRatio = Math.min(maxReduce, (spendRatio - 1) * 0.08); // v718-fix10: 系数从0.10降至0.08
       return {
         bid: currentBid * (1 - reduceRatio),
         confidence: 0.45,
@@ -937,8 +1061,8 @@ function ruleEngineDecision(
     
     // v258: 点击数较多但花费未超标 — 更保守的降价策略
     if (clicks >= 10) {
-      // v258: 降价上限从10%降低到7%，高CTR时仅降5%
-      const maxReduce = isHighCtr ? 0.05 : 0.07;
+      // v718-fix10: 渐进式降价 — 零转化多点击场景
+      const maxReduce = isHighCtr ? 0.04 : 0.06; // v718-fix10: 从5/7%收紧至4/6%
       const reduceRatio = Math.min(maxReduce, clicks / 300);
       return {
         bid: currentBid * (1 - reduceRatio),
@@ -1034,13 +1158,13 @@ function ruleEngineDecision(
       const isHighCtr = ctr > 0.01; // CTR > 1%
       const isHighCvr = cvr > 0.05;  // CVR > 5%
       
-      // v260: 动态提价上限
-      const dynamicMaxBoost = isHighCtr && isHighCvr ? 0.30 :  // 明星词
-                              isHighCtr && !isHighCvr ? 0.15 :  // 流量好转化低
-                              !isHighCtr && isHighCvr ? 0.20 :  // 转化好曝光低
-                              0.10;                              // 保守
+      // v718-fix10: 渐进式提价上限 — 即使明星词也不超过10%
+      const dynamicMaxBoost = isHighCtr && isHighCvr ? 0.10 :  // 明星词：最多10%
+                              isHighCtr && !isHighCvr ? 0.06 :  // 流量好转化低：最多6%
+                              !isHighCtr && isHighCvr ? 0.08 :  // 转化好曝光低：最多8%
+                              0.05;                              // 保守：最多5%
       
-      const rawBoostRatio = Math.min(dynamicMaxBoost, (1 - acosRatio) * 0.30);
+      const rawBoostRatio = Math.min(dynamicMaxBoost, (1 - acosRatio) * 0.15); // v718-fix10: 系数从0.30降至0.15
       const boostRatio = rawBoostRatio * dataConfidence * ctrBonus * trendBoostFactor * elasticityModifier; // v267 P3-3: 品类弹性修正
       const newBid = Math.min(currentBid * (1 + boostRatio), maxBid * 0.85); // 上限为maxBid皅85%
       const qualityLabel = isHighCtr && isHighCvr ? '明星词' : isHighCtr ? '高流量' : isHighCvr ? '高转化' : '保守';
@@ -1053,9 +1177,9 @@ function ruleEngineDecision(
       // v260: ACOS优秀场景也引入CVR感知的动态提价
       const cvr = clicks > 0 ? orders / clicks : 0;
       const isHighCvr = cvr > 0.05;
-      // v260: 高CVR时允许更大提价幅度
-      const dynamicMaxBoost = isHighCvr ? 0.22 : 0.15;
-      const rawBoostRatio = Math.min(dynamicMaxBoost, (1 - acosRatio) * 0.25);
+      // v718-fix10: 渐进式提价 — 即使高CVR也不超过10%
+      const dynamicMaxBoost = isHighCvr ? 0.10 : 0.07;
+      const rawBoostRatio = Math.min(dynamicMaxBoost, (1 - acosRatio) * 0.15); // v718-fix10: 系数从0.25降至0.15
       const boostRatio = rawBoostRatio * dataConfidence * ctrBonus * trendBoostFactor * elasticityModifier; // v267 P3-3
       return {
         bid: currentBid * (1 + boostRatio),
@@ -1064,7 +1188,7 @@ function ruleEngineDecision(
       };
     } else if (acosRatio <= 1.0) {
       // v242: ACOS在目标范围内 — 精度感知微调
-      const rawAdjustRatio = (1 - acosRatio) * 0.15;
+      const rawAdjustRatio = (1 - acosRatio) * 0.10; // v718-fix10: 系数从0.15降至0.10，更温和的微调
       const minEffectiveRatio = currentBid > 0 ? 0.02 / currentBid : 0.03;
       const baseAdjustRatio = rawAdjustRatio > 0.001 ? Math.max(rawAdjustRatio, minEffectiveRatio) : rawAdjustRatio;
       // v253: 应用数据置信度和CTR修正
@@ -1077,7 +1201,7 @@ function ruleEngineDecision(
       };
     } else if (acosRatio <= 1.5) {
       // v242: ACOS略高于目标 — 精度感知降价
-      const rawReduceRatio = Math.min(0.15, (acosRatio - 1) * 0.25);
+      const rawReduceRatio = Math.min(0.10, (acosRatio - 1) * 0.15); // v718-fix10: 上限0.15→0.10, 系数0.25→0.15
       const minEffectiveRatio = currentBid > 0 ? 0.02 / currentBid : 0.03;
       const baseReduceRatio = rawReduceRatio > 0.001 ? Math.max(rawReduceRatio, minEffectiveRatio) : rawReduceRatio;
       // v253: 低CTR时更积极地降价，高CTR时保守降价（相关性好的词值得保留）
@@ -1097,8 +1221,8 @@ function ruleEngineDecision(
     } else if (acosRatio <= 2.0) {
       // v259: ACOS超标但在2倍以内 — 温和降价，避免过度反应
       const isHighCtr = ctr > 0.008;
-      const maxReduceLimit = isHighCtr ? 0.10 : 0.18;
-      const baseReduceRatio = (acosRatio - 1) * 0.18;
+      const maxReduceLimit = isHighCtr ? 0.07 : 0.10; // v718-fix10: 渐进式降价，不超过10%
+      const baseReduceRatio = (acosRatio - 1) * 0.12; // v718-fix10: 系数从0.18降至0.12
       const rawReduceRatio = Math.min(maxReduceLimit, baseReduceRatio);
       const reduceRatio = rawReduceRatio * dataConfidence * ctrPenalty * trendReduceFactor * elasticityModifier; // v267 P3-3
       let reducedBid = currentBid * (1 - reduceRatio);
@@ -1116,9 +1240,9 @@ function ruleEngineDecision(
       // v259: ACOS严重超标（2-3倍）— 果断但有限降价
       // 核心改进：即使严重超标也不超过20%降幅，防止死亡螺旋
       const isHighCtr = ctr > 0.008;
-      // v259: 高CTR关键词降价更保守（相关性好，可能是归因延迟导致）
-      const maxReduceLimit = isHighCtr ? 0.12 : 0.20;
-      const baseReduceRatio = (acosRatio - 1) * 0.15;
+      // v718-fix10: 渐进式降价 — 即使严重超标也不超过10%
+      const maxReduceLimit = isHighCtr ? 0.07 : 0.10;
+      const baseReduceRatio = (acosRatio - 1) * 0.08; // v718-fix10: 系数从0.15降至0.08
       const rawReduceRatio = Math.min(maxReduceLimit, baseReduceRatio);
       const reduceRatio = rawReduceRatio * dataConfidence * trendReduceFactor * elasticityModifier;
       let reducedBid = currentBid * (1 - reduceRatio);
@@ -1138,10 +1262,9 @@ function ruleEngineDecision(
       // 针对LERUCCI US ACoS 132.7%（目标35%，acosRatio=3.79）这类极端情况
       // 原来最大降幅20%远远不够，需要更果断的止损
       const isHighCtr = ctr > 0.008;
-      // 极端超标时，即使高CTR也需要更大降幅，但仍然保留差异化
-      const maxReduceLimit = isHighCtr ? 0.20 : 0.30;
-      // 使用更陡峭的系数，让降幅更快触及上限
-      const baseReduceRatio = (acosRatio - 1) * 0.12;
+      // v718-fix10: 渐进式降价 — 即使极端超标也不超过10%，通过多次小幅调整渐进式收敛
+      const maxReduceLimit = isHighCtr ? 0.08 : 0.10;
+      const baseReduceRatio = (acosRatio - 1) * 0.06; // v718-fix10: 系数从0.12降至0.06
       const rawReduceRatio = Math.min(maxReduceLimit, baseReduceRatio);
       const reduceRatio = rawReduceRatio * dataConfidence * trendReduceFactor * elasticityModifier;
       let reducedBid = currentBid * (1 - reduceRatio);
@@ -1204,7 +1327,7 @@ export async function calculateNextGenBid(
   // @ts-expect-error Type inference limitation
   const effectiveMaxChange = evolvedMaxIncrease 
     // @ts-expect-error Conditional type narrowing
-    ? Math.min(evolvedMaxIncrease, 0.15) // v510: 安全上限从50%收紧至15%
+    ? Math.min(evolvedMaxIncrease, 0.10) // v718-fix10: 安全上限从15%收紧至10%，符合渐进式优化要求
     : DEFAULT_SAFETY.maxBidChangePercent;
   
   const safetyConfig: SafetyConfig = {
@@ -1550,6 +1673,28 @@ export async function calculateNextGenBid(
       }
     }
     
+    // ===== v718 P0-3: 提价熔断检查 =====
+    // 在规则引擎做出提价决策后，检查是否触发提价熔断保护
+    // 防止“提价失控螺旋”：持续提价 → 出价飙升 → 花费失控
+    if (safeBid > target.currentBid + 0.005) {
+      const keywordIdForICB = target.type === 'keyword' ? target.id : undefined;
+      const targetIdForICB = target.type === 'product_target' ? target.id : undefined;
+      const icbResult = await checkBidIncreaseCircuitBreaker(accountId, keywordIdForICB, targetIdForICB, target.currentBid, safeBid);
+      
+      if (icbResult.tripped) {
+        log.warn(`[NextGenOrchestrator] v718提价熔断: target=${target.id}, ${icbResult.reason}`);
+        // 提价熔断触发时强制hold
+        safeBid = target.currentBid;
+        finalReason = `[v718提价熔断-hold] ${icbResult.reason}`;
+        finalReason += ` | guardrail: ${JSON.stringify({
+          consecutiveIncreases: icbResult.guardrailInfo.consecutiveIncreases,
+          cumulativeIncrease7d: icbResult.guardrailInfo.cumulativeIncrease7d,
+          initialBid7d: icbResult.guardrailInfo.initialBid7d,
+          bidCeiling: icbResult.guardrailInfo.bidCeiling,
+        })}`;
+      }
+    }
+    
     // v257: 增强型主动探索策略 — 加速高级算法数据积累
     // 目标：产生多样化的成功/失败数据，打破“数据不足→无法激活→永远数据不足”的死锁
     // 策略：
@@ -1563,10 +1708,10 @@ export async function calculateNextGenBid(
     const explorationHash = ((entityId * 2654435761 + hourSeed * 1597334677) >>> 0) % 100;
     
     // v257: 主动探索分两种场景
-    // 场景A: hold状态 — 30%概率触发探索
-    // 场景B: 非hold状态 — 10%概率叠加微小扰动，增加数据多样性
-    const EXPLORATION_RATE_HOLD = 30;
-    const EXPLORATION_RATE_ACTIVE = 10;
+    // 场景A: hold状态 — 15%概率触发探索（v718 P1-2: 从30%降至15%，减少随机噪声对出价的干扰）
+    // 场景B: 非hold状态 — 5%概率叠加微小扰动（v718 P1-2: 从10%降至5%）
+    const EXPLORATION_RATE_HOLD = 15;
+    const EXPLORATION_RATE_ACTIVE = 5;
     
     const shouldExplore = isEffectivelyHold 
       ? (explorationHash < EXPLORATION_RATE_HOLD && target.currentBid > 0.05)
@@ -1578,17 +1723,18 @@ export async function calculateNextGenBid(
       // v258: 使用普通数字运算替代BigInt（兼容ES2019及以下）
       const gradientHash = Math.abs(((entityId * 2654435761 + hourSeed * 40503) >>> 0) % 100);
       const gradientVal = gradientHash;
+      // v718-fix10: 进一步收紧探索幅度，从2-6%降至1-4%，确保探索不会破坏渐进式优化原则
       let explorationRatio: number;
-      if (gradientVal < 50) {
-        // 50%概率: 小幅度探索 3-5%
-        explorationRatio = 0.03 + (gradientVal / 50) * 0.02;
-      } else if (gradientVal < 80) {
-        // 30%概率: 中幅度探索 5-8%
-        explorationRatio = 0.05 + ((gradientVal - 50) / 30) * 0.03;
+      if (gradientVal < 60) {
+        // 60%概率: 小幅度探索 1-2%
+        explorationRatio = 0.01 + (gradientVal / 60) * 0.01;
+      } else if (gradientVal < 90) {
+        // 30%概率: 中幅度探索 2-3%
+        explorationRatio = 0.02 + ((gradientVal - 60) / 30) * 0.01;
       } else {
-        // 20%概率: 大幅度探索 8-12%
+        // 10%概率: 大幅度探索 3-4%
         // @ts-expect-error Legacy code type compatibility
-        explorationRatio = 0.08 + ((gradientVal - 80) / 20) * 0.04;
+        explorationRatio = 0.03 + ((gradientVal - 90) / 10) * 0.01;
       // @ts-expect-error Legacy code type compatibility
       }
       
@@ -1598,16 +1744,17 @@ export async function calculateNextGenBid(
       
       let explorationBid: number;
       if (isEffectivelyHold) {
-        // hold场景: 完全由探索决定方向
-        explorationBid = directionHash < 50 
+        // hold场景: v718 P1-2: 偏向下探（60%下探/40%上探），避免盲目提价
+        explorationBid = directionHash < 40 
           ? target.currentBid * (1 + explorationRatio)
           : target.currentBid * (1 - explorationRatio);
       } else {
         // 非hold场景: 在规则引擎结果上叠加微小扰动
-        const perturbRatio = explorationRatio * 0.3; // 扰动幅度为探索幅度的30%
-        explorationBid = directionHash < 50 
-          ? safeBid * (1 + perturbRatio)
-          : safeBid * (1 - perturbRatio);
+        // v718-fix10: 扰动幅度从20%降至10%，确保探索扰动不破坏渐进式优化
+        const perturbRatio = explorationRatio * 0.1;
+        // v718 P1-2: 扰动方向与规则引擎决策方向一致，不再随机
+        const ruleDirection = safeBid >= target.currentBid ? 1 : -1;
+        explorationBid = safeBid * (1 + perturbRatio * ruleDirection);
       }
       
       safeBid = safetyValidate(target.currentBid, explorationBid, safetyConfig, maxBidLimit, acosRatio);
@@ -1781,7 +1928,8 @@ export async function batchCalculateNextGenBids(
   // @ts-expect-error Legacy code type compatibility
   targets: OptimizationTarget[],
   groupConfig: PerformanceGroupConfig,
-  maxBidLimit?: number
+  maxBidLimit?: number,
+  riskBidMultiplier?: number // v718 P0-5: 风险评估出价乘数
 ): Promise<NextGenBidResult[]> {
   
   // ===== v236: 计算GTO修正系数 =====
@@ -2175,6 +2323,55 @@ export async function batchCalculateNextGenBids(
       } catch {
         // 跨品迁移失败，静默降级
       }
+    }
+
+    // ===== v718 P2-2: CPC锚定机制 =====
+    // 确保出价不偏离实体的历史平均CPC太远（用户偏好±10%，实际实现±15%考虑CPC滞后性）
+    // 使用keyword/productTarget表中的CPC字段作为锚定基准
+    if (result.actionType !== 'hold' && target.currentBid > 0) {
+      const entityCpc = (target as Record<string, unknown>).cpc ? Number((target as Record<string, unknown>).cpc) : 0;
+      if (entityCpc > 0) {
+        const cpcAnchorMaxDeviation = 0.15; // 出价不得偏离CPC超过±15%
+        const cpcUpperBound = entityCpc * (1 + cpcAnchorMaxDeviation);
+        const cpcLowerBound = Math.max(entityCpc * (1 - cpcAnchorMaxDeviation), getEffectiveMinBid());
+        
+        if (result.newBid > cpcUpperBound) {
+          const oldBid = result.newBid;
+          result.newBid = Math.round(cpcUpperBound * 100) / 100;
+          result.reason += ` | v718-CPC锚定上限: $${oldBid.toFixed(2)}→$${result.newBid.toFixed(2)} (CPC=$${entityCpc.toFixed(2)})`;
+          result.bidChangePercent = target.currentBid > 0
+            ? Math.round(((result.newBid - target.currentBid) / target.currentBid) * 10000) / 100 : 0;
+          result.actionType = Math.abs(result.newBid - target.currentBid) > 0.005
+            ? (result.newBid > target.currentBid ? 'increase' : 'decrease') : 'hold';
+        } else if (result.newBid < cpcLowerBound) {
+          const oldBid = result.newBid;
+          result.newBid = Math.round(cpcLowerBound * 100) / 100;
+          result.reason += ` | v718-CPC锚定下限: $${oldBid.toFixed(2)}→$${result.newBid.toFixed(2)} (CPC=$${entityCpc.toFixed(2)})`;
+          result.bidChangePercent = target.currentBid > 0
+            ? Math.round(((result.newBid - target.currentBid) / target.currentBid) * 10000) / 100 : 0;
+          result.actionType = Math.abs(result.newBid - target.currentBid) > 0.005
+            ? (result.newBid > target.currentBid ? 'increase' : 'decrease') : 'hold';
+        }
+      }
+    }
+
+    // ===== v718 P0-5: 应用风险评估出价乘数 =====
+    // 当风险评估系统检测到账户级别风险时，按比例缩小出价调整幅度
+    // riskBidMultiplier < 1.0 表示需要降低出价调整的激进程度
+    const effectiveRiskMultiplier = riskBidMultiplier ?? 1.0;
+    if (effectiveRiskMultiplier < 1.0 && result.actionType !== 'hold') {
+      const bidDelta = result.newBid - target.currentBid;
+      // 将出价变化量乘以风险乘数，缩小调整幅度
+      const adjustedDelta = bidDelta * effectiveRiskMultiplier;
+      const adjustedBid = Math.round((target.currentBid + adjustedDelta) * 100) / 100;
+      result.reason += ` | v718风险乘数=${effectiveRiskMultiplier.toFixed(2)}: $${result.newBid.toFixed(2)}→$${adjustedBid.toFixed(2)}`;
+      result.newBid = adjustedBid;
+      result.bidChangePercent = target.currentBid > 0
+        ? Math.round(((adjustedBid - target.currentBid) / target.currentBid) * 10000) / 100
+        : 0;
+      result.actionType = Math.abs(adjustedBid - target.currentBid) > 0.005
+        ? (adjustedBid > target.currentBid ? 'increase' : 'decrease')
+        : 'hold';
     }
 
     results.push(result);

@@ -74,22 +74,22 @@ interface ConfigEntry {
  */
 const HARD_LIMITS = {
   bid: {
-    maxSingleChangePercent: { min: 0.05, max: 0.50 },  // 5% ~ 50%
-    maxDailyChangePercent: { min: 0.10, max: 0.60 },   // 10% ~ 60%
+    maxSingleChangePercent: { min: 0.03, max: 0.15 },  // v718-fix10: 3% ~ 15%（从5-50%收紧，确保渐进式优化）
+    maxDailyChangePercent: { min: 0.05, max: 0.25 },   // v718-fix10: 5% ~ 25%（从10-60%收紧）
     minBid: { min: 0.01, max: 0.50 },                  // v645: $0.01 ~ $0.50 (放宽上限以支持SB广告$0.25最低竞价)
     maxBid: { min: 50, max: 500 },                      // $50 ~ $500
     consecutiveSameDirectionSlowdown: { min: 2, max: 7 },
     slowdownFactor: { min: 0.3, max: 0.8 },
   },
   budget: {
-    maxSingleChangePercent: { min: 0.10, max: 0.50 },  // 10% ~ 50%
-    maxDailyChangePercent: { min: 0.15, max: 0.70 },   // 15% ~ 70%
+    maxSingleChangePercent: { min: 0.10, max: 0.30 },  // v718-fix10: 10% ~ 30%（从10-50%收紧）
+    maxDailyChangePercent: { min: 0.15, max: 0.40 },   // v718-fix10: 15% ~ 40%（从15-70%收紧）
     minDailyBudget: { min: 0.50, max: 5 },             // $0.50 ~ $5
     maxDailyBudget: { min: 10000, max: 100000 },       // $10K ~ $100K
   },
   placement: {
-    maxSingleChangePct: { min: 10, max: 50 },          // 10 ~ 50 百分点
-    maxTotalAdjustment: { min: 100, max: 900 },        // 100% ~ 900%
+    maxSingleChangePct: { min: 5, max: 30 },           // v718-fix10: 5 ~ 30 百分点（从10-50收紧）
+    maxTotalAdjustment: { min: 100, max: 200 },        // v718-fix10: 100% ~ 200%（用户要求上限200%）
     minTotalAdjustment: { min: -80, max: 0 },          // -80% ~ 0%
   },
   emergency: {

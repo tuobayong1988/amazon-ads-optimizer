@@ -28,6 +28,7 @@ import * as bidOptimizer from "../optimization/bidOptimizer";
 import * as daypartingService from "../budget/daypartingService";
 import * as placementOptimizationService from "../optimization/placementOptimizationService";
 import { preOptimizationSafetyCheck, applyBidGuardrail, applyBudgetGuardrail, applyPlacementGuardrail, SAFETY_LIMITS } from '../optimization/optimizationSafetyGuardrails';
+import { batchCalculateCompositeImpact, applyCompositeImpactLimit } from '../optimization/compositeImpactCoordinator';
 import * as adAutomation from "../automation/adAutomation";
 import * as intelligentBudgetAllocationService from "../budget/intelligentBudgetAllocationService";
 import { optimizeBudgetPortfolio } from "../budget/budgetPortfolioOptimizer";
@@ -573,7 +574,7 @@ export async function executeBidOptimization(
     // v198: NextGen统一出价引擎 — 100%使用NextGen算法，内部自动降级，无需回退到旧算法
     if (keywordTargets.length > 0) {
       const nextGenResults = await nextGenOrchestrator.batchCalculateNextGenBids(
-        config.accountId, keywordTargets, bidConfig, maxBidLimit
+        config.accountId, keywordTargets, bidConfig, maxBidLimit, config.riskBidMultiplier
       );
       
       for (const nextGenResult of nextGenResults) {
@@ -1031,10 +1032,107 @@ export async function executeBidOptimization(
         }
       }
       
+      // ===== v718 P0-1: 在推送Amazon API前应用applyBidGuardrail安全护栏 =====
+      // 这是出价推送前的最后一道防线，确保所有出价调整都在用户定义的安全范围内
+      // applyBidGuardrail基于当前出价的±15%限制（含连续同方向降速），
+      // 并强制执行绝对最低/最高出价限制
+      let guardrailAppliedCount = 0;
+      let guardrailBlockedCount = 0;
+      for (const d of syncableDetails) {
+        const currentBid = Number(d.currentBid) || 0;
+        const proposedBid = Number(d.newBid) || 0;
+        if (currentBid <= 0 || proposedBid <= 0) continue;
+        
+        // 确定广告类型用于获取正确的平台最低竞价
+        const adType = d.campaignType ? String(d.campaignType).toLowerCase().replace('_manual', '').replace('_auto', '') : undefined;
+        
+        const guardrailResult = applyBidGuardrail(
+          currentBid,
+          proposedBid,
+          config.maxBid || null,
+          undefined, // consecutiveSameDirection — 已在nextGenBidOrchestrator中处理
+          { accountId: config.accountId, adType: adType as any }
+        );
+        
+        if (guardrailResult.wasLimited) {
+          guardrailAppliedCount++;
+          log.info(`[BidOptimization] v718 P0-1 applyBidGuardrail: entity=${d.keywordId} ` +
+            `$${currentBid.toFixed(2)}→$${proposedBid.toFixed(2)} 被限制为→$${guardrailResult.safeBid.toFixed(2)} ` +
+            `原因: ${guardrailResult.limitReason}`);
+          // @ts-expect-error Dynamic property access
+          d.newBid = guardrailResult.safeBid;
+          // @ts-expect-error Dynamic property access
+          d.changePercent = ((guardrailResult.safeBid - currentBid) / currentBid * 100).toFixed(2);
+          // @ts-expect-error Dynamic property access
+          d.reason = `${d.reason} | v718护栏: ${guardrailResult.limitReason}`;
+        }
+        
+        // 如果护栏后出价与当前出价差异过小（<$0.01），标记为不需要推送
+        if (Math.abs(Number(d.newBid) - currentBid) < 0.005) {
+          guardrailBlockedCount++;
+          // @ts-expect-error Dynamic property access
+          d._guardrailSkip = true;
+        }
+      }
+      
+      // ===== v718 跨维度叠加效应协调 =====
+      // 在applyBidGuardrail之后，进一步检查综合影响度
+      // 确保基础竞价+位置倾斜+分时竞价的叠加效果不超过±10% CPC
+      try {
+        const entityIds = syncableDetails
+          .filter(d => !(d as any)._guardrailSkip)
+          .map(d => Number(d.keywordId))
+          .filter(id => id > 0);
+        
+        if (entityIds.length > 0) {
+          const compositeMap = await batchCalculateCompositeImpact(
+            accountId, entityIds, 'keyword', 'base_bid', 24
+          );
+          
+          let compositeBlockedCount = 0;
+          for (const d of syncableDetails) {
+            if ((d as any)._guardrailSkip) continue;
+            const entityId = Number(d.keywordId);
+            const compositeResult = compositeMap.get(entityId);
+            if (!compositeResult) continue;
+            
+            const currentBid = Number(d.currentBid) || 0;
+            const proposedBid = Number(d.newBid) || 0;
+            if (currentBid <= 0) continue;
+            
+            const impactResult = applyCompositeImpactLimit(proposedBid, currentBid, compositeResult, 'base_bid');
+            if (impactResult.wasLimited) {
+              // @ts-expect-error Dynamic property access
+              d.newBid = impactResult.adjustedBid;
+              // @ts-expect-error Dynamic property access
+              d.reason = `${d.reason} | ${impactResult.reason}`;
+              if (Math.abs(impactResult.adjustedBid - currentBid) < 0.005) {
+                // @ts-expect-error Dynamic property access
+                d._guardrailSkip = true;
+                compositeBlockedCount++;
+              }
+            }
+          }
+          if (compositeBlockedCount > 0) {
+            log.warn(`[BidOptimization] v718 CompositeImpact: ${compositeBlockedCount}条出价调整因跨维度叠加超限被阻止`);
+          }
+        }
+      } catch (compositeErr: unknown) {
+        log.warn(`[BidOptimization] v718 CompositeImpact计算异常: ${(compositeErr as Error).message}`);
+      }
+      
+      // 过滤掉被护栏完全阻止的调整（变化量<$0.01）
+      const guardrailFilteredDetails = syncableDetails.filter(d => !(d as any)._guardrailSkip);
+      if (guardrailAppliedCount > 0 || guardrailBlockedCount > 0) {
+        log.warn(`[BidOptimization] v718 P0-1 applyBidGuardrail汇总: ` +
+          `总计${syncableDetails.length}条, 护栏限制${guardrailAppliedCount}条, ` +
+          `护栏阻止${guardrailBlockedCount}条, 最终推送${guardrailFilteredDetails.length}条`);
+      }
+      
       apiSyncResult = await amazonApiHelper.syncBidAdjustmentsToAmazon(
         accountId,
         // @ts-expect-error Complex function parameter types
-        syncableDetails.map(d => ({
+        guardrailFilteredDetails.map(d => ({
           // @ts-expect-error Legacy code type compatibility
           keywordId: d.keywordId,
           newBid: d.newBid,

@@ -41,7 +41,7 @@ function isScheduleRuleActive(rule) {
 function isPerformanceRulePotentiallyActive(rule) {
   return rule.ruleStatus === "ACTIVE";
 }
-async function analyzeBudgetRules(accountId, campaignId, apiClient) {
+export async function analyzeBudgetRules(accountId: any, campaignId: any, apiClient: any) {
   const defaultResult = {
     hasRules: false,
     activeRuleCount: 0,
@@ -174,4 +174,4 @@ function analyzeRulesFromAPI(apiRules, campaignId) {
   }));
   return analyzeRulesFromDB(normalizedRules, "api_realtime");
 }
-var log39;
+var log39 = console;

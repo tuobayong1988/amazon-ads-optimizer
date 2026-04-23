@@ -28,6 +28,7 @@ import * as bidOptimizer from "../optimization/bidOptimizer";
 import * as daypartingService from "../budget/daypartingService";
 import * as placementOptimizationService from "../optimization/placementOptimizationService";
 import { preOptimizationSafetyCheck, applyBidGuardrail, applyBudgetGuardrail, applyPlacementGuardrail, SAFETY_LIMITS } from '../optimization/optimizationSafetyGuardrails';
+import { calculateCompositeImpact, applyCompositeImpactLimit } from '../optimization/compositeImpactCoordinator';
 import * as adAutomation from "../automation/adAutomation";
 import * as intelligentBudgetAllocationService from "../budget/intelligentBudgetAllocationService";
 import { optimizeBudgetPortfolio } from "../budget/budgetPortfolioOptimizer";
@@ -222,14 +223,63 @@ export async function executePlacementOptimization(
           const productSuggestion = suggestions.find((s: Record<string, unknown>) => s.placement === 'product_page');
           
           if (topSuggestion || productSuggestion) {
+            // v718 P2-1: 在推送Amazon API前应用位置倾向安全护栏
+            let safeTopMultiplier = topSuggestion?.suggestedMultiplier || campaign.placementTopSearchBidAdjustment || 0;
+            let safeProductMultiplier = productSuggestion?.suggestedMultiplier || campaign.placementProductPageBidAdjustment || 0;
+            
+            if (topSuggestion) {
+              const topGuardrail = applyPlacementGuardrail(
+                campaign.placementTopSearchBidAdjustment || 0,
+                // @ts-expect-error Amazon API response type flexibility
+                topSuggestion.suggestedMultiplier,
+                { accountId: config.accountId }
+              );
+              safeTopMultiplier = topGuardrail.safeAdjustment;
+              if (topGuardrail.wasLimited) {
+                log.info(`[PlacementGuardrail] Top搜索位置倾斜被限制: ${topSuggestion.suggestedMultiplier}% -> ${topGuardrail.safeAdjustment}% (${topGuardrail.limitReason})`);
+              }
+            }
+            
+            if (productSuggestion) {
+              const productGuardrail = applyPlacementGuardrail(
+                campaign.placementProductPageBidAdjustment || 0,
+                // @ts-expect-error Amazon API response type flexibility
+                productSuggestion.suggestedMultiplier,
+                { accountId: config.accountId }
+              );
+              safeProductMultiplier = productGuardrail.safeAdjustment;
+              if (productGuardrail.wasLimited) {
+                log.info(`[PlacementGuardrail] 商品页位置倾斜被限制: ${productSuggestion.suggestedMultiplier}% -> ${productGuardrail.safeAdjustment}% (${productGuardrail.limitReason})`);
+              }
+            }
+            
+            // v718: 跨维度叠加效应协调 — 位置倾斜维度
+            // 位置倾斜是Amazon端乘法叠加，会放大基础竞价的调整效果
+            try {
+              const compositeResult = await calculateCompositeImpact(
+                config.accountId, campaignLocalId, 'campaign', 'placement', 24
+              );
+              // 如果竞价维度已经接近上限，缩减位置倾斜调整
+              if (!compositeResult.bidWithinSafeRange) {
+                const reductionFactor = Math.max(0.3, 1 - Math.abs(compositeResult.bidCompositeChangePercent) / 20);
+                const currentTop = campaign.placementTopSearchBidAdjustment || 0;
+                const currentProduct = campaign.placementProductPageBidAdjustment || 0;
+                const topDelta = safeTopMultiplier - currentTop;
+                const productDelta = safeProductMultiplier - currentProduct;
+                safeTopMultiplier = currentTop + topDelta * reductionFactor;
+                safeProductMultiplier = currentProduct + productDelta * reductionFactor;
+                log.info(`[PlacementComposite] 跨维度缩减位置倾斜: 竞价维度已变化${compositeResult.bidCompositeChangePercent.toFixed(1)}%, 位置倾斜缩减因子${reductionFactor.toFixed(2)}`);
+              }
+            } catch (compErr: unknown) {
+              // 协调器异常不阻止推送
+            }
+            
             const syncResult: unknown = await amazonApiHelper.syncPlacementAdjustmentToAmazon(
               config.accountId,
               amazonCampaignId,
-              // @ts-expect-error Amazon API response type flexibility
-              topSuggestion?.suggestedMultiplier || campaign.placementTopSearchBidAdjustment || 0,
-              // @ts-expect-error Amazon API response type flexibility
-              productSuggestion?.suggestedMultiplier || campaign.placementProductPageBidAdjustment || 0,
-              `位置优化: Top=${topSuggestion?.suggestedMultiplier || 0}%, Product=${productSuggestion?.suggestedMultiplier || 0}%`
+              safeTopMultiplier,
+              safeProductMultiplier,
+              `位置优化: Top=${safeTopMultiplier.toFixed(0)}%, Product=${safeProductMultiplier.toFixed(0)}%`
             );
             // @ts-expect-error Legacy code type compatibility
             placementSyncSuccess = syncResult;
