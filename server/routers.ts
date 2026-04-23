@@ -82,6 +82,7 @@ import { guardrailConfigRouter } from './routes/guardrailConfig'; // v359 P3-3
 import { stopLossRouter } from './routes/stopLoss'; // v503 自动止血服务
 import { systemDefenseRouter } from './routes/systemDefense'; // v504 系统防线服务
 import { emergencyBidCorrectionRouter } from './routes/emergencyBidCorrection'; // v717 紧急出价修复
+import { aggressiveBleedingStopRouter } from './routes/aggressiveBleedingStop'; // v721 激进止血
 
 // 预发布引擎路由 v328 (仅admin可见)
 import { prelaunchRouter } from './prelaunch/router';
@@ -257,6 +258,7 @@ export const appRouter = router({
   stopLoss: stopLossRouter,
   systemDefense: systemDefenseRouter, // v504
   emergencyBidCorrection: emergencyBidCorrectionRouter, // v717
+  aggressiveBleedingStop: aggressiveBleedingStopRouter, // v721 激进止血
 
   // v328: 亚马逊智能预发布引擎 v4.0 (仅admin可访问)
   prelaunch: prelaunchRouter,
