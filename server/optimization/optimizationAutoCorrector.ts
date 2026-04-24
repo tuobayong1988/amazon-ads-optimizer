@@ -333,8 +333,10 @@ export async function runAutoCorrection(accountId?: number): Promise<CorrectionS
           log.info(`[AutoCorrector] v679.3: 账户${accId} 部分优化目标已关闭自动优化(${disabledPgNames})，涉及${disabledCount}个campaigns将被排除`);
         }
       } catch (guardError: unknown) {
-        log.warn(`[AutoCorrector] v679.3: 账户${accId} AutoOptimizeGuard初始化失败: ${(guardError as Error).message}，继续执行纠错（无Guard保护）`);
-        guard = null;
+        // v732: Guard初始化失败时必须跳过该账户，而不是无保护继续执行
+        // 旧逻辑设置guard=null后继续，导致所有campaign都不经过授权检查
+        log.error(`[AutoCorrector] v732: 账户${accId} AutoOptimizeGuard初始化失败: ${(guardError as Error).message}，跳过该账户（安全优先）`);
+        continue;
       }
       // ===== v679.3 END =====
       
@@ -858,10 +860,10 @@ async function correctBidMismatches(database: unknown, accountId: number, guard?
  JOIN keywords k ON oe.keyword_id = k.id
  JOIN ad_groups ag ON k.internal_ad_group_id = ag.id
  JOIN campaigns c ON ag.campaignId = c.campaignId
- LEFT JOIN performance_groups pg ON c.performanceGroupId = pg.id
+ INNER JOIN performance_groups pg ON c.performanceGroupId = pg.id
  WHERE oe.account_id = ${accountId}
- AND (pg.auto_optimize = 1 OR pg.auto_optimize IS NULL)
- AND (pg.status = 'active' OR pg.status IS NULL)
+ AND pg.auto_optimize = 1
+ AND pg.status = 'active'
  AND oe.event_category = 'bid_adjustment'
  AND oe.status = 'success'
  AND oe.api_sync_status = 'synced'
@@ -975,9 +977,35 @@ async function correctBidMismatches(database: unknown, accountId: number, guard?
     
     if (arbitratedRows.length === 0) return results;
     
+    // v732: 使用Guard过滤未授权的campaign
+    let guardFilteredRows = arbitratedRows;
+    if (guard) {
+      guardFilteredRows = arbitratedRows.filter((row: any) => {
+        const campaignInternalId = Number(row.campaign_id);
+        if (!guard.isCampaignAllowed(campaignInternalId)) {
+          guard.recordBlockedOperation({
+            operationType: 'bid_mismatch_correction',
+            campaignId: campaignInternalId,
+            entityType: 'keyword',
+            entityId: row.keyword_id,
+            entityName: row.keyword_text,
+            details: `拦截未授权的出价纠错: keyword=${row.keyword_id}, campaign=${row.campaign_name}`,
+          });
+          return false;
+        }
+        return true;
+      });
+      const blocked = arbitratedRows.length - guardFilteredRows.length;
+      if (blocked > 0) {
+        log.info(`[AutoCorrector] v732: 账户${accountId} Guard拦截${blocked}个未授权的出价纠正`);
+      }
+    }
+    
+    if (guardFilteredRows.length === 0) return results;
+    
     // v172: 批量重新发送到Amazon - 但确保纠正值不超过max_bid红线
     // @ts-expect-error v653: drizzle/mysql2 untyped query result
-    const correctionItems = arbitratedRows.map((row: Record<string, unknown>) => {
+    const correctionItems = guardFilteredRows.map((row: Record<string, unknown>) => {
       let targetBid = parseFloat(String(row.expected_bid));
       const maxBid = row.max_bid ? parseFloat(String(row.max_bid)) : 0;
       
@@ -1262,7 +1290,7 @@ async function correctBudgetMismatches(database: unknown, accountId: number): Pr
  oe.created_at as optimized_at
  FROM optimization_events oe
  JOIN campaigns c ON oe.campaign_id = c.id
- LEFT JOIN performance_groups pg ON c.performanceGroupId = pg.id
+ INNER JOIN performance_groups pg ON c.performanceGroupId = pg.id
  WHERE oe.account_id = ${accountId}
  AND oe.event_category = 'budget_adjustment'
  AND oe.status = 'success'
@@ -1270,8 +1298,8 @@ async function correctBudgetMismatches(database: unknown, accountId: number): Pr
  AND oe.created_at > DATE_SUB(NOW(), INTERVAL 3 DAY)
  AND (oe.change_reason IS NULL OR oe.change_reason NOT LIKE '%AutoCorrector%')
  AND (pg.daypartingEnabled IS NULL OR pg.daypartingEnabled = 0)
- AND (pg.auto_optimize = 1 OR pg.auto_optimize IS NULL)
- AND (pg.status = 'active' OR pg.status IS NULL)
+ AND pg.auto_optimize = 1
+ AND pg.status = 'active'
  AND ABS(CAST(c.dailyBudget AS DECIMAL(10,2)) - CAST(REPLACE(REPLACE(oe.new_value, '$', ''), ',', '') AS DECIMAL(10,2))) > ${budgetTolerance}
  AND oe.id = (
  SELECT MAX(oe2.id) FROM optimization_events oe2 
@@ -1406,10 +1434,10 @@ async function correctPlacementMismatches(database: unknown, accountId: number):
  oe.created_at as optimized_at
  FROM optimization_events oe
  JOIN campaigns c ON oe.campaign_id = c.id
- LEFT JOIN performance_groups pg ON c.performanceGroupId = pg.id
+ INNER JOIN performance_groups pg ON c.performanceGroupId = pg.id
  WHERE oe.account_id = ${accountId}
- AND (pg.auto_optimize = 1 OR pg.auto_optimize IS NULL)
- AND (pg.status = 'active' OR pg.status IS NULL)
+ AND pg.auto_optimize = 1
+ AND pg.status = 'active'
  AND oe.event_category = 'placement_adjustment'
  AND oe.status = 'success'
  AND oe.api_sync_status IN ('synced', 'pending')
@@ -2363,11 +2391,13 @@ async function retryFailedNegativeKeywordAdds(database: unknown, accountId: numb
 
 async function getActiveAccountIds(database: unknown): Promise<number[]> {
   try {
-    // v657: typedExecute eliminates @ts-expect-error for raw SQL
+    // v732: 修复越权操作漏洞 - 只返回有活跃优化目标(auto_optimize=1且status=active)的账户
+    // 旧逻辑从optimization_events获取account_id，导致无PG或PG已暂停的账户也被纠错
     const result = await database.execute(sql`
-      SELECT DISTINCT account_id FROM optimization_events 
-      WHERE created_at > DATE_SUB(NOW(), INTERVAL 7 DAY) 
-        AND account_id IS NOT NULL
+      SELECT DISTINCT pg.accountId as account_id 
+      FROM performance_groups pg
+      WHERE pg.status = 'active' 
+        AND pg.auto_optimize = 1
     `);
     const rows = (result as Record<string, unknown>[][])[0] || result;
     // @ts-expect-error v653: drizzle/mysql2 untyped query result
@@ -2968,8 +2998,10 @@ async function cleanupOrphanKeywords(database: unknown, accountId: number): Prom
  FROM keywords k
  JOIN ad_groups ag ON k.internal_ad_group_id = ag.id
  JOIN campaigns c ON ag.campaignId = c.campaignId
- LEFT JOIN performance_groups pg ON c.performanceGroupId = pg.id
+ INNER JOIN performance_groups pg ON c.performanceGroupId = pg.id
  WHERE c.accountId = ${accountId}
+ AND pg.auto_optimize = 1
+ AND pg.status = 'active'
  AND k.keywordStatus = 'enabled'
  AND k.keywordId IS NULL
  AND k.createdAt < DATE_SUB(NOW(), INTERVAL 24 HOUR)
@@ -4681,14 +4713,14 @@ async function retryFailedProductTargetCreations(database: unknown, accountId: n
  FROM product_targets pt
  INNER JOIN ad_groups ag ON pt.internal_ad_group_id = ag.id
  INNER JOIN campaigns c ON ag.campaignId = c.campaignId
- LEFT JOIN performance_groups pg ON c.performanceGroupId = pg.id
+ INNER JOIN performance_groups pg ON c.performanceGroupId = pg.id
  WHERE pt.accountId = ${accountId}
  AND (pt.targetId IS NULL OR pt.targetId = '' OR pt.targetId = '0')
  AND pt.targetStatus != 'archived'
  AND ag.adGroupId IS NOT NULL
  AND ag.campaignId IS NOT NULL
- AND (pg.auto_optimize = 1 OR pg.auto_optimize IS NULL)
- AND (pg.status = 'active' OR pg.status IS NULL)
+ AND pg.auto_optimize = 1
+ AND pg.status = 'active'
  LIMIT 200
  `);
     
@@ -4846,15 +4878,15 @@ async function revalidateStalePendingCommands(database: unknown, accountId: numb
       FROM optimization_events oe
       LEFT JOIN keywords k ON oe.keyword_id IS NOT NULL AND oe.keyword_id = k.id
       LEFT JOIN product_targets pt ON oe.target_id IS NOT NULL AND oe.target_id = pt.id
-      LEFT JOIN campaigns c ON oe.campaign_id = c.id
-      LEFT JOIN performance_groups pg ON c.performanceGroupId = pg.id
+      INNER JOIN campaigns c ON oe.campaign_id = c.id
+      INNER JOIN performance_groups pg ON c.performanceGroupId = pg.id
       WHERE oe.api_sync_status = 'pending'
         AND oe.action_type IN ('bid_increase', 'bid_decrease', 'target_pause', 'target_enable', 'dayparting_bid')
         AND oe.created_at < DATE_SUB(NOW(), INTERVAL 24 HOUR)
         AND oe.created_at > DATE_SUB(NOW(), INTERVAL 14 DAY)
         AND oe.account_id = ${accountId}
-        AND (pg.auto_optimize = 1 OR pg.auto_optimize IS NULL)
-        AND (pg.status = 'active' OR pg.status IS NULL)
+        AND pg.auto_optimize = 1
+        AND pg.status = 'active'
       ORDER BY oe.created_at ASC
       LIMIT 500
     `);
