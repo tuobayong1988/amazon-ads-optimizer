@@ -139,6 +139,7 @@ const systemMonitorMenuGroup = {
     { icon: Activity, label: "系统健康", path: "/system-health" },
     { icon: Activity, label: "数据健康", path: "/data-health" },
     { icon: Activity, label: "同步日志", path: "/sync-logs" },
+    { icon: Activity, label: "Bridge同步", path: "/bridge-sync-health" },
   ]
 };
 
@@ -194,6 +195,7 @@ const routeTitleMap: Record<string, string> = {
   '/api-security': 'API安全',
   '/special-scenario': '特殊场景分析',
   '/sync-logs': '同步日志',
+  '/bridge-sync-health': 'Bridge同步健康度',
   '/data-validation': '数据验证',
   '/auto-optimization-dashboard': '自动优化面板',
   '/batch-authorization': '批量授权',
@@ -235,6 +237,7 @@ const breadcrumbConfig: Record<string, { label: string; parent?: string }> = {
   '/placement-optimization': { label: '位置优化', parent: '/strategy-center' },
   '/advanced-placement': { label: '高级位置优化', parent: '/strategy-center' },
   '/sync-logs': { label: '同步日志', parent: '/amazon-api' },
+  '/bridge-sync-health': { label: 'Bridge同步健康度', parent: '/system-health' },
   '/data-validation': { label: '数据验证', parent: '/amazon-api' },
   '/auto-optimization-dashboard': { label: '自动优化面板', parent: '/strategy-center' },
 };

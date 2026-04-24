@@ -40115,6 +40115,7 @@ var bridgeAutoSync = (function() {
   let autoSyncConfigs = [];
   let lastSyncResults = {};
   let syncHistory = [];
+  let lastSyncTimestamps = {}; // Track last sync time per account for incremental sync
   const MAX_HISTORY = 100;
   const DEFAULT_INTERVAL_MS = 2 * 3600 * 1000; // 2 hours
 
@@ -40133,17 +40134,30 @@ var bridgeAutoSync = (function() {
     return data.apiKey;
   }
 
-  async function pullPerformance(config, dateRange) {
+  async function pullPerformance(config, dateRange, options) {
     const apiKey = await getApiKey(config.storeName, config.marketplace);
     const body = { storeName: config.storeName, marketplace: config.marketplace };
     if (dateRange) body.dateRange = dateRange;
+    // Incremental sync: pass lastModified if available
+    const opts = options || {};
+    const configKey = config.storeName + ':' + config.marketplace;
+    if (!opts.forceFullSync && lastSyncTimestamps[configKey]) {
+      body.lastModified = lastSyncTimestamps[configKey];
+      console.log('[BridgeAutoSync] Incremental sync: lastModified=' + body.lastModified);
+    }
+    if (opts.changesOnly) body.changesOnly = true;
     const resp = await fetch(BRIDGE_BASE_URL + '/pull-performance', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
       body: JSON.stringify(body),
     });
     if (!resp.ok) throw new Error('pull-performance failed: ' + resp.status);
-    return await resp.json();
+    const data = await resp.json();
+    // Save serverTimestamp for next incremental sync
+    if (data.serverTimestamp) {
+      lastSyncTimestamps[configKey] = data.serverTimestamp;
+    }
+    return data;
   }
 
   async function writeToDb(config, perfData) {
@@ -40181,7 +40195,9 @@ var bridgeAutoSync = (function() {
   async function executeBridgeSync(config, dateRange) {
     const startTime = Date.now();
     try {
-      console.log('[BridgeAutoSync] Starting sync for ' + config.storeName + '/' + config.marketplace);
+      const configKey = config.storeName + ':' + config.marketplace;
+      const isIncremental = !!lastSyncTimestamps[configKey] && !dateRange;
+      console.log('[BridgeAutoSync] Starting ' + (isIncremental ? 'INCREMENTAL' : 'FULL') + ' sync for ' + config.storeName + '/' + config.marketplace);
       const perfData = await pullPerformance(config, dateRange);
       if (!perfData.success) {
         const result = { success: false, error: perfData.error || 'Unknown', duration: Date.now() - startTime };
@@ -40200,7 +40216,9 @@ var bridgeAutoSync = (function() {
       };
       lastSyncResults[config.storeName + ':' + config.marketplace] = { ...result, timestamp: new Date().toISOString() };
       recordHistory(config, result);
-      console.log('[BridgeAutoSync] Sync complete: ' + result.campaignsWritten + ' campaigns written, ' + result.duration + 'ms');
+      result.syncMode = isIncremental ? 'incremental' : 'full';
+      result.incrementalInfo = perfData.incremental || null;
+      console.log('[BridgeAutoSync] Sync complete (' + result.syncMode + '): ' + result.campaignsWritten + ' campaigns written, ' + result.duration + 'ms');
       return result;
     } catch (err) {
       const result = { success: false, error: err.message, duration: Date.now() - startTime };
@@ -40249,7 +40267,13 @@ var bridgeAutoSync = (function() {
       configCount: autoSyncConfigs.length,
       configs: autoSyncConfigs.map(c => ({ storeName: c.storeName, marketplace: c.marketplace })),
       lastSyncResults, recentHistory: syncHistory.slice(0, 20),
+      incrementalState: Object.keys(lastSyncTimestamps).map(k => ({ account: k, lastSyncTimestamp: lastSyncTimestamps[k] })),
     };
+  }
+
+  function resetIncrementalState(configKey) {
+    if (configKey) { delete lastSyncTimestamps[configKey]; }
+    else { lastSyncTimestamps = {}; }
   }
 
   async function checkBridgeHealth() {
@@ -40263,7 +40287,7 @@ var bridgeAutoSync = (function() {
     }
   }
 
-  return { executeBridgeSync, pullPerformance, startAutoSync, stopAutoSync, getStatus, checkBridgeHealth };
+  return { executeBridgeSync, pullPerformance, startAutoSync, stopAutoSync, getStatus, checkBridgeHealth, resetIncrementalState };
 })();
 // ==================== End Bridge Auto-Sync Module ====================
 
@@ -40565,6 +40589,14 @@ async function startServer() {
   app.post("/api/bridge-sync/auto-stop", (req, res) => {
     try { bridgeAutoSync.stopAutoSync(); res.json({ success: true, message: "Auto-sync stopped" }); }
     catch (err) { res.status(500).json({ success: false, error: err.message }); }
+  });
+
+  app.post("/api/bridge-sync/reset-incremental", (req, res) => {
+    try {
+      const { configKey } = req.body || {};
+      bridgeAutoSync.resetIncrementalState(configKey || null);
+      res.json({ success: true, message: configKey ? 'Reset incremental state for ' + configKey : 'Reset all incremental states' });
+    } catch (err) { res.status(500).json({ success: false, error: err.message }); }
   });
   // ==================== End Bridge Auto-Sync Management API ====================
 

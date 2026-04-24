@@ -57,6 +57,7 @@ const SpecialScenarioAnalysis = lazy(() => import("./pages/optimization/SpecialS
 const AutomationControl = lazy(() => import("./pages/automation/AutomationControl"));
 const AutoOperation = lazy(() => import("./pages/automation/AutoOperation"));
 const MonitoringCenter = lazy(() => import("./pages/monitoring/MonitoringCenter"));
+const BridgeSyncHealth = lazy(() => import("./pages/monitoring/BridgeSyncHealth"));
 const OptimizationEngine = lazy(() => import("./pages/optimization/OptimizationEngine"));
 const SyncLogs = lazy(() => import("./pages/data/SyncLogs"));
 const DataValidation = lazy(() => import("./pages/data/DataValidation"));
@@ -144,6 +145,7 @@ function Router() {
       <Route path="/automation">{() => <LazyRoute component={AdAutomation} />}</Route>
       <Route path="/system-health">{() => <LazyRoute component={HealthMonitor} />}</Route>
       <Route path="/data-health">{() => <LazyRoute component={DataHealthDashboard} />}</Route>
+      <Route path="/bridge-sync-health">{() => <LazyRoute component={BridgeSyncHealth} />}</Route>
       <Route path="/notifications">{() => <LazyRoute component={NotificationSettings} />}</Route>
       {/* /scheduler已重定向到/dashboard */}
       <Route path="/batch-operations">{() => <LazyRoute component={BatchOperations} />}</Route>
