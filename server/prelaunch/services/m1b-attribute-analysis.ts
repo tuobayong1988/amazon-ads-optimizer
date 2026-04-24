@@ -33,8 +33,8 @@ const log = createModuleLogger('M1B-AttributeAnalysis');
 // 类型定义
 // ============================================================
 
-/** 四个属性维度 */
-export type AttributeDimension = 'color' | 'size' | 'style' | 'quantity';
+/** 五个属性维度（v26.5: 新增 productForm 套装/单品形态） */
+export type AttributeDimension = 'color' | 'size' | 'style' | 'quantity' | 'productForm';
 
 /** 单个关键词的属性提取结果 */
 export interface KeywordAttributeExtraction {
@@ -45,6 +45,7 @@ export interface KeywordAttributeExtraction {
     size: string | null;     // 提取到的尺码值，如 "large", "xl", "king size"
     style: string | null;    // 提取到的款式值，如 "fingerless", "waterproof"
     quantity: string | null;  // 提取到的数量值，如 "5 pack", "3 pairs"
+    productForm: string | null;  // v26.5: 产品形态，如 "kit", "set", "bundle", "single"
   };
 }
 
@@ -65,6 +66,7 @@ export interface OwnProductAttributes {
   size: string | null;
   style: string | null;
   quantity: string | null;
+  productForm: string | null;  // v26.5: 产品形态（kit/set/bundle/pack/pair/single）
   rawExtraction: Record<string, unknown>;  // LLM 原始提取结果
 }
 
@@ -234,7 +236,7 @@ export class M1BAttributeAnalysisService {
    */
   async updateConfirmedAttributes(
     projectId: number,
-    confirmedAttributes: { color?: string | null; size?: string | null; style?: string | null; quantity?: string | null }
+    confirmedAttributes: { color?: string | null; size?: string | null; style?: string | null; quantity?: string | null; productForm?: string | null }
   ): Promise<{ success: boolean; error?: string }> {
     const db = await getDb();
     if (!db) return { success: false, error: 'Database not available' };
@@ -324,7 +326,7 @@ export class M1BAttributeAnalysisService {
 
       const prompt = `You are an Amazon product search behavior analyst. Analyze each search keyword and extract any explicit attribute information the user specified in their search query.
 
-For each keyword, extract these 4 attribute dimensions:
+For each keyword, extract these 5 attribute dimensions:
 1. **color**: Any color mentioned (e.g., "red", "black", "navy blue", "multicolor"). Return null if no color is specified.
 2. **size**: Any size/dimension mentioned (e.g., "large", "xl", "king size", "12 inch", "small"). Return null if no size is specified.
 3. **style**: Product FORM VARIANT or STRUCTURAL DESIGN that fundamentally changes the product shape/construction (e.g., "fingerless", "foldable", "v-neck", "clip-on", "pull-on", "over-ear", "in-ear"). 
@@ -334,6 +336,14 @@ For each keyword, extract these 4 attribute dimensions:
    - DO NOT extract: material descriptors (leather, cotton, nylon) — these are materials
    Return null if no form variant is specified.
 4. **quantity**: Any quantity/pack count mentioned (e.g., "5 pack", "3 pairs", "set of 6", "dozen", "bulk"). Return null if no quantity is specified.
+5. **productForm**: Whether the search term indicates a SET/KIT/BUNDLE product form (e.g., "kit", "set", "bundle", "combo", "system", "starter kit", "complete set", "all-in-one"). Return the specific form word found (e.g., "kit", "set", "bundle"). Return null if the search term refers to a single/standalone product or doesn't specify product form.
+   - DO extract: "teeth whitening kit" → productForm: "kit"
+   - DO extract: "skincare set" → productForm: "set"
+   - DO extract: "camping bundle" → productForm: "bundle"
+   - DO extract: "starter kit" → productForm: "starter kit"
+   - DO extract: "complete system" → productForm: "system"
+   - DO NOT extract: "running shoes" → productForm: null (single product, no form indicator)
+   - DO NOT extract: "5 pack socks" → productForm: null (quantity, not product form — already captured in quantity)
 
 IMPORTANT RULES:
 - Only extract attributes that are EXPLICITLY stated in the search term
@@ -352,11 +362,11 @@ Keywords to analyze:
 ${kwList}
 
 Return JSON array with one entry per keyword:
-[{"keyword":"...","color":null,"size":null,"style":"fingerless","quantity":null}]`;
+[{"keyword":"...","color":null,"size":null,"style":"fingerless","quantity":null,"productForm":null}]`;
 
       try {
         const extracted = await geminiStructuredOutput<
-          { keyword: string; color: string | null; size: string | null; style: string | null; quantity: string | null }[]
+          { keyword: string; color: string | null; size: string | null; style: string | null; quantity: string | null; productForm: string | null }[]
         >('', prompt, { temperature: 0.05 });
 
         for (const ext of extracted) {
@@ -383,6 +393,7 @@ Return JSON array with one entry per keyword:
                 size: ext.size || null,
                 style: ext.style || null,
                 quantity: ext.quantity || null,
+                productForm: ext.productForm || null,
               },
             });
           }
@@ -394,7 +405,7 @@ Return JSON array with one entry per keyword:
           allExtractions.push({
             keyword: kw.keyword,
             keywordId: kw.id,
-            attributes: { color: null, size: null, style: null, quantity: null },
+            attributes: { color: null, size: null, style: null, quantity: null, productForm: null },
           });
         }
       }
@@ -415,7 +426,7 @@ Return JSON array with one entry per keyword:
    * v3.1 P2-1: 小样本保护 — 关键词数 < 100 时使用更高的阈值
    */
   private calculateDimensionStats(extractions: KeywordAttributeExtraction[]): AttributeDimensionStats[] {
-    const dimensions: AttributeDimension[] = ['color', 'size', 'style', 'quantity'];
+    const dimensions: AttributeDimension[] = ['color', 'size', 'style', 'quantity', 'productForm'];
     const totalKeywords = extractions.length;
 
     // v3.1 P2-1: 根据样本量动态调整阈值
@@ -480,7 +491,7 @@ Return JSON array with one entry per keyword:
       .limit(1);
 
     if (!project) {
-      return { color: null, size: null, style: null, quantity: null, rawExtraction: {} };
+      return { color: null, size: null, style: null, quantity: null, productForm: null, rawExtraction: {} };
     }
 
     // 从 seed_keywords 和 project_name 中推断产品属性
@@ -496,13 +507,14 @@ Return JSON array with one entry per keyword:
     if (confirmedAttrs) {
       try {
         const parsed = typeof confirmedAttrs === 'string' ? JSON.parse(confirmedAttrs) : confirmedAttrs;
-        if (parsed && (parsed.color || parsed.size || parsed.style || parsed.quantity)) {
+        if (parsed && (parsed.color || parsed.size || parsed.style || parsed.quantity || parsed.productForm)) {
           log.info(`[M1B] Using user-confirmed attributes for project ${projectId}`);
           return {
             color: parsed.color || null,
             size: parsed.size || null,
             style: parsed.style || null,
             quantity: parsed.quantity || null,
+            productForm: parsed.productForm || null,
             rawExtraction: { source: 'user_confirmed', ...parsed },
           };
         }
@@ -516,14 +528,15 @@ ASIN: ${asin}
 Category: ${category}
 Seed Keywords: ${seedKwStr}
 
-Extract these 4 attribute dimensions for THIS SPECIFIC product:
+Extract these 5 attribute dimensions for THIS SPECIFIC product:
 1. **color**: What specific color(s) is this product? (e.g., "black", "red and blue"). Return null if unclear.
 2. **size**: What specific size is this product? (e.g., "large", "12 inch", "queen size"). Return null if unclear.
 3. **style**: What specific FORM VARIANT is this product? (e.g., "fingerless", "over-ear", "foldable", "clip-on"). Only structural/form variants, NOT functional features. Return null if unclear.
 4. **quantity**: What quantity/pack count is this product sold in? (e.g., "5 pack", "3 pairs", "single"). Return null if unclear.
+5. **productForm**: Is this product a SET/KIT/BUNDLE or a SINGLE standalone product? (e.g., "kit", "set", "bundle", "combo", "system", "single"). Return "kit"/"set"/"bundle"/etc. if it's a multi-component product, "single" if it's clearly a standalone product, or null if unclear.
 
 Return JSON object:
-{"color":null,"size":null,"style":null,"quantity":null,"confidence":"low|medium|high","reasoning":"brief explanation"}`;
+{"color":null,"size":null,"style":null,"quantity":null,"productForm":null,"confidence":"low|medium|high","reasoning":"brief explanation"}`;
 
     try {
       const result = await geminiStructuredOutput<Record<string, unknown>>('', prompt, { temperature: 0.1 });
@@ -532,10 +545,11 @@ Return JSON object:
         size: (result.size as string) || null,
         style: (result.style as string) || null,
         quantity: (result.quantity as string) || null,
+        productForm: (result.productForm as string) || null,
         rawExtraction: result,
       };
     } catch {
-      return { color: null, size: null, style: null, quantity: null, rawExtraction: {} };
+      return { color: null, size: null, style: null, quantity: null, productForm: null, rawExtraction: {} };
     }
   }
 
@@ -778,6 +792,7 @@ Our Product Attributes:
 - size: ${ownAttributes.size || 'N/A'}
 - style: ${ownAttributes.style || 'N/A'} (form variant only, not functional features)
 - quantity: ${ownAttributes.quantity || 'N/A'}
+- productForm: ${ownAttributes.productForm || 'N/A'} (kit/set/bundle vs single product)
 
 Active Filter Dimensions (dimensions where users have clear attribute preferences): [${activeFilterDimensions.join(', ')}]
 
@@ -795,6 +810,9 @@ MATCHING GUIDELINES:
 - For size: "small" vs "king size" = MAJOR mismatch (fundamentally different)
 - For style: "fingerless" vs "full finger" = MAJOR mismatch (different product form)
 - For style: "over-ear" vs "in-ear" = MAJOR mismatch (different product form)
+- For productForm: "kit" vs "single item" = MAJOR mismatch (fundamentally different product offering)
+- For productForm: "set" vs "kit" = match (both are multi-component products)
+- For productForm: "bundle" vs "single gel" = MAJOR mismatch (bundle vs standalone component)
 
 Return JSON:
 {

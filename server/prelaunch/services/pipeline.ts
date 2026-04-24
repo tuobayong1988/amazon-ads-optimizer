@@ -132,7 +132,7 @@ export class PrelaunchPipelineOrchestrator {
           const { M7AdFrameworkService } = await import('./m7-ad-framework');
           return new M7AdFrameworkService().compileFrameworks({
             projectId,
-            frameworkTypes: ['SP_KW_MANUAL', 'SP_PT_MANUAL', 'SP_AUTO', 'SBV_KW', 'SBV_PT'],
+            frameworkTypes: ['SP_KW_MANUAL', 'SP_PT_MANUAL', 'SP_AUTO', 'SBV_KW', 'SBV_PT', 'SB_KW', 'SD_PT'],
             defaultBid: 0.75,
             dailyBudget: 30,
           });

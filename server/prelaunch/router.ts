@@ -464,6 +464,8 @@ export const prelaunchRouter = router({
         // @ts-expect-error Legacy code type compatibility
         'SBV_KW',
         'SBV_PT',
+        'SB_KW',   // v26.5: Sponsored Brands Keyword
+        'SD_PT',   // v26.5: Sponsored Display Product Targeting
       ])).min(1),
       defaultBid: z.number().default(0.75),
       dailyBudget: z.number().default(30),

@@ -10,8 +10,19 @@ import {
 import { eq, desc, and } from 'drizzle-orm';
 import { geminiStructuredOutput } from '../gemini';
 
-/** 广告框架类型定义 */
-type FrameworkType = 'SP_KW_MANUAL' | 'SP_PT_MANUAL' | 'SP_AUTO' | 'SBV_KW' | 'SBV_PT';
+/** 广告框架类型定义（v26.5: 新增 SB_KW 和 SD_PT） */
+type FrameworkType = 'SP_KW_MANUAL' | 'SP_PT_MANUAL' | 'SP_AUTO' | 'SBV_KW' | 'SBV_PT' | 'SB_KW' | 'SD_PT';
+
+/**
+ * v26.5 优化3A: 竞品流量结构分析结果
+ * 用于动态调整各渠道的预算分配比例
+ */
+interface TrafficStructure {
+  spShare: number;    // SP 流量占比 (0-1)
+  sbShare: number;    // SB 流量占比 (0-1)
+  sdShare: number;    // SD 流量占比 (0-1)
+  organicShare: number; // 自然流量占比 (0-1)
+}
 
 export class M7AdFrameworkService {
 
@@ -33,7 +44,7 @@ export class M7AdFrameworkService {
     }
   }
 
-  /** 编译广告框架 */
+  /** 编译广告框架（v26.5: 支持动态渠道分配 + 新广告类型） */
   async compileFrameworks(input: {
     projectId: number;
     frameworkTypes: FrameworkType[];
@@ -50,26 +61,37 @@ export class M7AdFrameworkService {
       const competitors = await db.select().from(prelaunchCompetitors)
         .where(eq(prelaunchCompetitors.projectId, input.projectId));
 
+      // v26.5 优化3A: 分析竞品流量结构，动态调整渠道预算分配
+      const trafficStructure = this.analyzeCompetitorTrafficStructure(competitors);
+      const budgetAllocation = this.calculateDynamicBudgetAllocation(input.dailyBudget, trafficStructure, input.frameworkTypes);
+
       const results: unknown[] = [];
 
       for (const fwType of input.frameworkTypes) {
         let compiledPayload: unknown;
+        const channelBudget = budgetAllocation[fwType] || input.dailyBudget;
 
         switch (fwType) {
           case 'SP_KW_MANUAL':
-            compiledPayload = this.compileSPKeywordManual(keywords, input.defaultBid, input.dailyBudget);
+            compiledPayload = this.compileSPKeywordManual(keywords, input.defaultBid, channelBudget);
             break;
           case 'SP_PT_MANUAL':
-            compiledPayload = this.compileSPProductTargeting(competitors, input.defaultBid, input.dailyBudget);
+            compiledPayload = this.compileSPProductTargeting(competitors, input.defaultBid, channelBudget);
             break;
           case 'SP_AUTO':
-            compiledPayload = this.compileSPAuto(input.defaultBid, input.dailyBudget);
+            compiledPayload = this.compileSPAuto(input.defaultBid, channelBudget);
             break;
           case 'SBV_KW':
-            compiledPayload = this.compileSBVKeyword(keywords, input.defaultBid, input.dailyBudget);
+            compiledPayload = this.compileSBVKeyword(keywords, input.defaultBid, channelBudget);
             break;
           case 'SBV_PT':
-            compiledPayload = this.compileSBVProductTargeting(competitors, input.defaultBid, input.dailyBudget);
+            compiledPayload = this.compileSBVProductTargeting(competitors, input.defaultBid, channelBudget);
+            break;
+          case 'SB_KW':
+            compiledPayload = this.compileSBKeyword(keywords, input.defaultBid, channelBudget);
+            break;
+          case 'SD_PT':
+            compiledPayload = this.compileSDProductTargeting(competitors, input.defaultBid, channelBudget);
             break;
         }
 
@@ -419,6 +441,238 @@ export class M7AdFrameworkService {
     }
 
     return { type: 'SBV_PT', campaigns, totalKeywords: 0, totalTargets };
+  }
+
+  // ==================== v26.5 新增广告类型 ====================
+
+  /**
+   * v26.5 优化3B: SB 关键词广告（Sponsored Brands Keyword）
+   * 与 SBV_KW 类似但使用品牌模式而非视频模式
+   */
+  private compileSBKeyword(keywords: unknown[], defaultBid: number, dailyBudget: number) {
+    // @ts-expect-error Dynamic property access
+    const coreKws = keywords.filter((k: Record<string, unknown>) => k.relevanceLayer === 'core' || k.relevanceLayer === 'extended');
+    // @ts-expect-error Type inference limitation
+    const scenarioGroups = new Map<string, Record<string, unknown>[]>();
+
+    for (const kw of (coreKws as unknown[])) {
+      // @ts-expect-error Type inference limitation
+      const scenario = kw.scenarioCode || 'S01';
+      if (!scenarioGroups.has(scenario)) scenarioGroups.set(scenario, []);
+      // @ts-expect-error Array method type inference
+      scenarioGroups.get(scenario)!.push(kw);
+    }
+
+    const campaigns: unknown[] = [];
+    let totalKeywords = 0;
+
+    for (const [scenario, kws] of scenarioGroups) {
+      if (kws.length === 0) continue;
+
+      // SB 关键词广告使用 BROAD + PHRASE 匹配
+      const matchTypes = ['BROAD', 'PHRASE'];
+      const adGroups = matchTypes.map(matchType => {
+        const targets = kws.map((kw: Record<string, unknown>) => {
+          totalKeywords++;
+          return {
+            keyword: kw.keyword,
+            matchType,
+            bid: Math.round(defaultBid * 1.1 * 100) / 100,
+          };
+        });
+
+        return {
+          adGroupName: `SB-KW-${scenario}-${matchType}`,
+          defaultBid: Math.round(defaultBid * 1.1 * 100) / 100,
+          targets,
+        };
+      });
+
+      campaigns.push({
+        campaignName: `SB-KW-${scenario}`,
+        campaignType: 'sponsoredBrands',
+        targetingType: 'MANUAL',
+        dailyBudget: Math.round(dailyBudget * 1.2),
+        startDate: new Date().toISOString().slice(0, 10),
+        state: 'PAUSED',
+        adFormat: 'productCollection',
+        adGroups,
+      });
+    }
+
+    return { type: 'SB_KW', campaigns, totalKeywords, totalTargets: 0 };
+  }
+
+  /**
+   * v26.5 优化3B: SD 产品定位广告（Sponsored Display Product Targeting）
+   * 利用 SD 的受众定位能力，对竞品详情页进行拦截
+   */
+  private compileSDProductTargeting(competitors: unknown[], defaultBid: number, dailyBudget: number) {
+    const tiers = ['T1_head', 'T2_waist', 'T3_niche'];
+    const campaigns: unknown[] = [];
+    let totalTargets = 0;
+
+    for (const tier of tiers) {
+      // @ts-expect-error - array method type inference
+      const tierComps = competitors.filter((c: Record<string, unknown>) => c.tier === tier);
+      if (tierComps.length === 0) continue;
+
+      // SD 产品定位：针对竞品 ASIN 和品类
+      // @ts-expect-error - array method type inference
+      const asinTargets = tierComps.map((c: Record<string, unknown>) => {
+        totalTargets++;
+        return {
+          expressionType: 'ASIN_SAME_AS',
+          asin: c.asin,
+          bid: this.calculateCompetitorBid(c, tier, defaultBid) * 0.9, // SD 出价略低于 SP
+        };
+      });
+
+      // 添加品类定位（仅对 T1 头部竞品）
+      if (tier === 'T1_head') {
+        const categories = new Set<string>();
+        for (const c of tierComps as Record<string, unknown>[]) {
+          if (c.category) categories.add(String(c.category));
+        }
+        for (const cat of categories) {
+          totalTargets++;
+          asinTargets.push({
+            expressionType: 'ASIN_CATEGORY_SAME_AS' as 'ASIN_SAME_AS',
+            asin: cat,
+            bid: defaultBid * 0.7,
+          });
+        }
+      }
+
+      campaigns.push({
+        campaignName: `SD-PT-${tier}`,
+        campaignType: 'sponsoredDisplay',
+        targetingType: 'MANUAL',
+        tactic: 'T00030', // 产品定位
+        dailyBudget: Math.round(dailyBudget * 0.8),
+        startDate: new Date().toISOString().slice(0, 10),
+        state: 'PAUSED',
+        adGroups: [{
+          adGroupName: `SD-PT-${tier}-Targets`,
+          defaultBid: Math.round(defaultBid * 0.9 * 100) / 100,
+          targets: asinTargets,
+        }],
+      });
+    }
+
+    return { type: 'SD_PT', campaigns, totalKeywords: 0, totalTargets };
+  }
+
+  // ==================== v26.5 优化3A: 动态渠道分配 ====================
+
+  /**
+   * 分析竞品流量结构
+   * 从竞品数据中推断 SP/SB/SD 的流量占比
+   */
+  private analyzeCompetitorTrafficStructure(competitors: unknown[]): TrafficStructure {
+    // 默认流量结构（亚马逊平均值）
+    const defaultStructure: TrafficStructure = {
+      spShare: 0.55,
+      sbShare: 0.20,
+      sdShare: 0.10,
+      organicShare: 0.15,
+    };
+
+    if (!competitors || competitors.length === 0) return defaultStructure;
+
+    // 从竞品数据中提取流量信号
+    let totalSpSignal = 0;
+    let totalSbSignal = 0;
+    let totalSdSignal = 0;
+    let totalOrganicSignal = 0;
+    let validCount = 0;
+
+    for (const comp of competitors as Record<string, unknown>[]) {
+      // 从竞品的 trafficSources 或 adPresence 字段提取信号
+      const trafficSources = comp.trafficSources || comp.traffic_sources;
+      const adPresence = comp.adPresence || comp.ad_presence;
+
+      if (trafficSources && typeof trafficSources === 'object') {
+        const ts = trafficSources as Record<string, number>;
+        totalSpSignal += ts.sp || ts.sponsoredProducts || 0;
+        totalSbSignal += ts.sb || ts.sponsoredBrands || 0;
+        totalSdSignal += ts.sd || ts.sponsoredDisplay || 0;
+        totalOrganicSignal += ts.organic || 0;
+        validCount++;
+      } else if (adPresence) {
+        // 简化信号：根据竞品是否有 SB/SD 广告在投来推断
+        totalSpSignal += 1;
+        if (String(adPresence).includes('SB') || String(adPresence).includes('brand')) totalSbSignal += 1;
+        if (String(adPresence).includes('SD') || String(adPresence).includes('display')) totalSdSignal += 1;
+        totalOrganicSignal += 0.5;
+        validCount++;
+      }
+    }
+
+    if (validCount === 0) return defaultStructure;
+
+    const total = totalSpSignal + totalSbSignal + totalSdSignal + totalOrganicSignal;
+    if (total === 0) return defaultStructure;
+
+    return {
+      spShare: Math.max(0.3, totalSpSignal / total),
+      sbShare: Math.max(0.1, totalSbSignal / total),
+      sdShare: Math.max(0.05, totalSdSignal / total),
+      organicShare: totalOrganicSignal / total,
+    };
+  }
+
+  /**
+   * 根据流量结构计算动态预算分配
+   * 将总预算按渠道流量占比分配到各广告类型
+   */
+  private calculateDynamicBudgetAllocation(
+    totalDailyBudget: number,
+    trafficStructure: TrafficStructure,
+    frameworkTypes: FrameworkType[]
+  ): Record<string, number> {
+    // 计算广告渠道总预算（排除自然流量占比）
+    const adBudgetTotal = totalDailyBudget * frameworkTypes.length;
+    const adTrafficTotal = trafficStructure.spShare + trafficStructure.sbShare + trafficStructure.sdShare;
+
+    // 各渠道基础预算比例
+    const spRatio = trafficStructure.spShare / adTrafficTotal;
+    const sbRatio = trafficStructure.sbShare / adTrafficTotal;
+    const sdRatio = trafficStructure.sdShare / adTrafficTotal;
+
+    // 计算各类型数量
+    const spTypes = frameworkTypes.filter(t => t.startsWith('SP_'));
+    const sbTypes = frameworkTypes.filter(t => t.startsWith('SB'));
+    const sdTypes = frameworkTypes.filter(t => t.startsWith('SD_'));
+
+    const allocation: Record<string, number> = {};
+
+    // SP 渠道预算分配
+    const spBudget = adBudgetTotal * spRatio;
+    for (const t of spTypes) {
+      allocation[t] = Math.round(spBudget / Math.max(1, spTypes.length));
+    }
+
+    // SB 渠道预算分配
+    const sbBudget = adBudgetTotal * sbRatio;
+    for (const t of sbTypes) {
+      allocation[t] = Math.round(sbBudget / Math.max(1, sbTypes.length));
+    }
+
+    // SD 渠道预算分配
+    const sdBudget = adBudgetTotal * sdRatio;
+    for (const t of sdTypes) {
+      allocation[t] = Math.round(sdBudget / Math.max(1, sdTypes.length));
+    }
+
+    // 确保每个渠道至少有最低预算
+    for (const t of frameworkTypes) {
+      if (!allocation[t] || allocation[t] < 5) {
+        allocation[t] = Math.max(5, totalDailyBudget * 0.5); // 最低单渠道预算
+      }
+    }
+
+    return allocation;
   }
 
   // ==================== 辅助方法 ====================

@@ -6,6 +6,7 @@ import { DbInstance, getDb } from '../../db';
 import {
   prelaunchKeywords, prelaunchKeywordClusters,
   prelaunchKeywordRelations, prelaunchCosmoTriples, prelaunchProjects,
+  prelaunchCompetitors,
 } from '../../../drizzle/schema';
 import { eq, desc, and, sql } from 'drizzle-orm';
 import { geminiChat, geminiStructuredOutput } from '../gemini';
@@ -105,13 +106,37 @@ export class M1KeywordService {
       // Step 1: 使用Gemini扩展种子词
       const expandedKeywords = await this.expandKeywords(seedKeywords, marketplace);
 
-      // Step 2: 四维分类（相关性层级 × 维度类型 × 场景编码 × 意图标签）
-      const classifiedKeywords = await this.classifyKeywords(expandedKeywords, seedKeywords);
+      // Step 1.5: v26.5 优化1B — 构建动态品牌名称库
+      const brandLibrary = await this.buildBrandLibrary(db, projectId);
 
-      // Step 3: 计算KVI评分
+      // Step 2: 四维分类（相关性层级 × 维度类型 × 场景编码 × 意图标签）+ 动态品牌词库
+      const classifiedKeywords = await this.classifyKeywords(expandedKeywords, seedKeywords, brandLibrary);
+
+      // Step 2.5: v26.5 优化2A — 获取产品售价和目标ACoS用于盈亏平衡计算
+      let cpcContext: { productPrice: number; targetAcos: number } | undefined;
+      let lifecycleStage: string | undefined;
+      try {
+        const [project] = await db.select()
+          .from(prelaunchProjects)
+          .where(eq(prelaunchProjects.id, projectId))
+          .limit(1);
+        if (project) {
+          const projInfo = project as Record<string, unknown>;
+          const price = parseFloat(String(projInfo.productPrice || projInfo.product_price || 0));
+          // 目标 ACoS 默认 30%（新品期常见值）
+          const targetAcos = parseFloat(String(projInfo.targetAcos || projInfo.target_acos || 0.30));
+          if (price > 0) {
+            cpcContext = { productPrice: price, targetAcos };
+          }
+          // v26.5 优化2B: 获取生命周期阶段（默认 launch）
+          lifecycleStage = String(projInfo.lifecycleStage || projInfo.lifecycle_stage || 'launch');
+        }
+      } catch { /* 忽略，使用默认值 */ }
+
+      // Step 3: 计算KVI评分（v26.5: 引入CPC效率+生命周期动态权重）
       const scoredKeywords = classifiedKeywords.map(kw => ({
         ...kw,
-        kviScore: this.calculateKVI(kw),
+        kviScore: this.calculateKVI(kw, cpcContext, lifecycleStage),
       }));
 
       // Step 4: 批量写入数据库
@@ -191,10 +216,42 @@ Return as JSON array: [{"keyword":"...","searchVolume":...,"competitorDensity":.
     return geminiStructuredOutput<Record<string, unknown>[]>('', prompt, { temperature: 0.4 });
   }
 
-  /** 四维分类 */
-  private async classifyKeywords(keywords: unknown[], seedKeywords: string[]): Promise<Record<string, unknown>[]> {
+  /**
+   * v26.5 优化1B: 构建动态品牌名称库
+   * 
+   * 从 M2 竞品数据中提取已知品牌名，构建动态词库。
+   * 将品牌名列表作为上下文注入到 classifyKeywords 的 LLM prompt 中，
+   * 强制要求 LLM 依据此词库进行品牌词标注。
+   */
+  private async buildBrandLibrary(db: NonNullable<Awaited<ReturnType<typeof getDb>>>, projectId: number): Promise<string[]> {
+    try {
+      const competitors = await db.select({ brand: prelaunchCompetitors.brand })
+        .from(prelaunchCompetitors)
+        .where(eq(prelaunchCompetitors.projectId, projectId));
+
+      const brandSet = new Set<string>();
+      for (const comp of competitors) {
+        const brand = comp.brand?.trim();
+        if (brand && brand.length > 1 && brand.toLowerCase() !== 'unknown' && brand.toLowerCase() !== 'generic') {
+          brandSet.add(brand);
+        }
+      }
+
+      return Array.from(brandSet).slice(0, 50); // 最多50个品牌名避免 prompt 过长
+    } catch {
+      return [];
+    }
+  }
+
+  /** 四维分类（v26.5: 增强品牌词识别） */
+  private async classifyKeywords(keywords: unknown[], seedKeywords: string[], brandLibrary: string[] = []): Promise<Record<string, unknown>[]> {
     const batchSize = 30;
     const results: unknown[] = [];
+
+    // v26.5 优化1B: 构建品牌词库上下文
+    const brandContext = brandLibrary.length > 0
+      ? `\n\nKNOWN BRAND NAMES IN THIS CATEGORY (use this list to identify brand keywords):\n${brandLibrary.join(', ')}\n\nIMPORTANT: If a keyword contains any of the above brand names (exact match or close variation/misspelling), you MUST classify its dimensionType as "brand". Brand keywords include the brand name itself, brand + product combinations, and common misspellings of brand names.`
+      : '';
 
     for (let i = 0; i < keywords.length; i += batchSize) {
       const batch = keywords.slice(i, i + batchSize);
@@ -204,7 +261,7 @@ For each keyword, determine:
 1. relevanceLayer: "core" (directly describes product), "extended" (related attributes/use-cases), "long_tail" (specific niche queries), "irrelevant"
 2. dimensionType: one of "product_attribute", "audience", "scenario", "brand", "pain_point", "benefit", "comparison", "seasonal"
 3. scenarioCode: S01-S24 scenario code (S01=daily_use, S02=first_purchase, S03=replacement, S04=gift, S05=bulk_buy, S06=premium, S07=budget, S08=comparison, S09=problem_solving, S10=seasonal, S11=trending, S12=niche, S13-S24=other)
-4. intentTag: "informational", "navigational", "commercial", "transactional"
+4. intentTag: "informational", "navigational", "commercial", "transactional"${brandContext}
 
 Keywords to classify:
 // @ts-expect-error Dynamic type assertion
@@ -230,17 +287,51 @@ Return JSON array: [{"keyword":"...","relevanceLayer":"...","dimensionType":"...
     return results;
   }
 
-  /** 计算KVI评分 */
+  /**
+   * 计算KVI评分
+   * 
+   * v26.5 优化2A: 引入 CPC 效率因子
+   * - 计算盈亏平衡 CPC = productPrice × targetAcos × estimatedCVR
+   * - 如果关键词的估算 CPC 超过盈亏平衡 CPC 的 1.5 倍，施加惩罚系数
+   * 
+   * v26.5 优化2B: 动态生命周期权重
+   * - launch 期：long_tail 权重提高（低竞争快速起量）
+   * - growth 期：extended 权重提高（扩大覆盖）
+   * - mature 期：core 权重提高（精准防守）
+   */
   // @ts-expect-error Complex function parameter types
-  private calculateKVI(kw: unknown): number {
+  private calculateKVI(kw: unknown, cpcContext?: { productPrice: number; targetAcos: number }, lifecycleStage?: string): number {
     // @ts-expect-error Type inference limitation
     const volumeScore = Math.min(1, Math.log10(Math.max(1, kw.searchVolume || 1)) / 5);
+
+    // v26.5 优化2B: 根据生命周期动态调整 relevanceLayer 权重
+    let coreWeight = 1.0;
+    let extendedWeight = 0.7;
+    let longTailWeight = 0.4;
+
+    if (lifecycleStage === 'launch') {
+      // 新品期：提高 long_tail 权重（低竞争快速起量）
+      coreWeight = 0.9;
+      extendedWeight = 0.7;
+      longTailWeight = 0.6;
+    } else if (lifecycleStage === 'growth') {
+      // 成长期：提高 extended 权重（扩大覆盖）
+      coreWeight = 0.9;
+      extendedWeight = 0.85;
+      longTailWeight = 0.45;
+    } else if (lifecycleStage === 'mature') {
+      // 成熟期：提高 core 权重（精准防守）
+      coreWeight = 1.0;
+      extendedWeight = 0.55;
+      longTailWeight = 0.3;
+    }
+
     // @ts-expect-error Dynamic property access
-    const relevanceScore = kw.relevanceLayer === 'core' ? 1.0
+    const relevanceScore = kw.relevanceLayer === 'core' ? coreWeight
       // @ts-expect-error Dynamic property access
-      : kw.relevanceLayer === 'extended' ? 0.7
+      : kw.relevanceLayer === 'extended' ? extendedWeight
       // @ts-expect-error Dynamic property access
-      : kw.relevanceLayer === 'long_tail' ? 0.4
+      : kw.relevanceLayer === 'long_tail' ? longTailWeight
       : 0.1;
     // @ts-expect-error Type inference limitation
     const opportunityScore = kw.competitorDensity
@@ -248,7 +339,40 @@ Return JSON array: [{"keyword":"...","relevanceLayer":"...","dimensionType":"...
       ? Math.max(0, 1 - (kw.competitorDensity / 1000))
       : 0.5;
 
-    const kvi = (volumeScore * 0.35 + relevanceScore * 0.40 + opportunityScore * 0.25);
+    let kvi = (volumeScore * 0.35 + relevanceScore * 0.40 + opportunityScore * 0.25);
+
+    // v26.5 优化2A: CPC 盈亏平衡过滤
+    if (cpcContext && cpcContext.productPrice > 0 && cpcContext.targetAcos > 0) {
+      // 估算转化率：根据相关性层级估算
+      // @ts-expect-error Dynamic property access
+      const estimatedCVR = kw.relevanceLayer === 'core' ? 0.12
+        // @ts-expect-error Dynamic property access
+        : kw.relevanceLayer === 'extended' ? 0.08
+        // @ts-expect-error Dynamic property access
+        : kw.relevanceLayer === 'long_tail' ? 0.15
+        : 0.05;
+
+      // 盈亏平衡 CPC = 产品售价 × 目标ACoS × 估算转化率
+      const breakEvenCPC = cpcContext.productPrice * cpcContext.targetAcos * estimatedCVR;
+
+      // 估算关键词 CPC：从 avgPrice 和 competitorDensity 推算
+      // @ts-expect-error Type inference limitation
+      const estimatedCPC = kw.avgPrice
+        // @ts-expect-error Conditional type narrowing
+        ? Math.max(0.3, kw.avgPrice * 0.03 * (1 + (kw.competitorDensity || 100) / 500))
+        : 0.75; // 默认 CPC
+
+      if (breakEvenCPC > 0 && estimatedCPC > breakEvenCPC * 1.5) {
+        // CPC 超过盈亏平衡点的 1.5 倍，施加惩罚系数
+        const penaltyRatio = Math.min(estimatedCPC / breakEvenCPC, 3.0); // 最大惩罚 3 倍
+        const penalty = Math.max(0.3, 1.0 - (penaltyRatio - 1.5) * 0.25); // 惩罚系数 0.3~1.0
+        kvi *= penalty;
+      } else if (breakEvenCPC > 0 && estimatedCPC < breakEvenCPC * 0.5) {
+        // CPC 远低于盈亏平衡点，给予小幅加分
+        kvi *= 1.05;
+      }
+    }
+
     return Math.round(kvi * 10000) / 10000;
   }
 
