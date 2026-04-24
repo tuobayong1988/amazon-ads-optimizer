@@ -340,6 +340,20 @@ export async function runAutoCorrection(accountId?: number): Promise<CorrectionS
       }
       // ===== v679.3 END =====
       
+      // ===== v732.4: 资金异常预警熔断检测 =====
+      try {
+        const { isAccountCircuitBroken, ensureAnomalyAlertTable } = await import('../services/spendAnomalyDetector');
+        await ensureAnomalyAlertTable();
+        const cbState = isAccountCircuitBroken(accId);
+        if (cbState.broken) {
+          log.warn(`[AutoCorrector] v732.4: 账户${accId}处于熔断状态，跳过所有纠错操作。原因: ${cbState.reason}`);
+          continue;
+        }
+      } catch (anomalyErr: unknown) {
+        log.warn(`[AutoCorrector] v732.4: 异常检测模块加载失败: ${(anomalyErr as Error).message}，继续执行`);
+      }
+      // ===== v732.4 END =====
+      
       try {
         // v679.3: 实时审计辅助函数 — 每个子函数执行后立即记录审计日志
         const auditCorrections = (stepCorrections: CorrectionResult[], stepName: string) => {
@@ -1035,6 +1049,27 @@ async function correctBidMismatches(database: unknown, accountId: number, guard?
       log.info(`v178: 所有出价纠正项在max_bid限制后已无需纠正`);
       return results;
     }
+    
+    // ===== v732.4: 批量出价修改前置异常检测 =====
+    try {
+      const { preBatchBidCheck } = await import('../services/spendAnomalyDetector');
+      // @ts-expect-error - runtime type for anomaly check
+      const anomalyCheck = await preBatchBidCheck(accountId, correctionItems.map((item: Record<string, unknown>) => ({
+        keywordId: item.keywordId as number,
+        newBid: item.newBid as number,
+        currentBid: undefined, // AutoCorrector的correctionItems中没有currentBid
+      })));
+      if (!anomalyCheck.allowed) {
+        log.error(`[AutoCorrector] v732.4: 账户${accountId}批量出价修改被熔断拦截! 原因: ${anomalyCheck.reason}`);
+        return results;
+      }
+      if (anomalyCheck.warnings.length > 0) {
+        log.warn(`[AutoCorrector] v732.4: 账户${accountId}批量操作警告: ${anomalyCheck.warnings.join('; ')}`);
+      }
+    } catch (anomalyErr: unknown) {
+      log.warn(`[AutoCorrector] v732.4: 异常检测失败: ${(anomalyErr as Error).message}，继续执行`);
+    }
+    // ===== v732.4 END =====
     
     try {
       const syncResult: unknown = await amazonApiHelper.syncBidAdjustmentsToAmazon(
@@ -4317,6 +4352,17 @@ export function startAutoCorrector(): void {
       log.info(`定时纠错扫描开始... heap=${heapUtil}%`);
       const result = await runAutoCorrection();
       log.warn(`定时纠错扫描完成: 发现${result.totalIssuesFound}个问题, 纠正${result.totalCorrected}个, 失败${result.totalFailed}个`);
+      
+      // v732.4: 纠错扫描后自动执行花费异常巡检
+      try {
+        const { runSpendAnomalyCheck } = await import('../services/spendAnomalyDetector');
+        const anomalyResult = await runSpendAnomalyCheck();
+        if (anomalyResult.anomaliesDetected > 0) {
+          log.warn(`[AutoCorrector] v732.4: 花费异常巡检发现${anomalyResult.anomaliesDetected}个异常, ${anomalyResult.circuitBroken}个账户触发熔断`);
+        }
+      } catch (anomalyErr: unknown) {
+        log.warn(`[AutoCorrector] v732.4: 花费异常巡检失败: ${(anomalyErr as Error).message}`);
+      }
       
       // v235: 纠错扫描后自动触发风险行动引擎评估
       try {
