@@ -2131,8 +2131,29 @@ export async function syncKeywordStatusToAmazon(
           // @ts-expect-error - legacy type assertion
           result.failed += apiResult.errors.length;
           // @ts-expect-error - legacy type assertion
+          const entityNotFoundKwIds: string[] = [];
           for (const err of apiResult.errors) {
+            const errStr = String(err.details || err.code || '').toLowerCase();
             result.errors.push(`关键词 ${err.keywordId} 状态更新失败: ${err.details || (err as unknown as Record<string, unknown>).code}`);
+            // v733: 检测 entityNotFoundError，收集需要标记为 amazon_deleted 的关键词
+            if (errStr.includes('entitynotfounderror') || errStr.includes('entity_not_found') || errStr.includes('could not find') || errStr.includes('entitystateerror') || errStr.includes('archived entity')) {
+              if (err.keywordId) entityNotFoundKwIds.push(String(err.keywordId));
+            }
+          }
+          // v733: 自动将 entityNotFoundError 的关键词标记为 amazon_deleted
+          if (entityNotFoundKwIds.length > 0) {
+            try {
+              const cleanupDb = await db.getDb();
+              if (cleanupDb) {
+                const idList = entityNotFoundKwIds.map(id => `'${String(id).replace(/'/g, "''")}'`).join(',');
+                await cleanupDb.execute(
+                  sql.raw(`UPDATE keywords SET keywordStatus = 'amazon_deleted' WHERE keywordId IN (${idList})`)
+                );
+                log.warn(`[v733] syncKeywordStatusToAmazon: 已标记${entityNotFoundKwIds.length}个关键词为amazon_deleted`);
+              }
+            } catch (cleanupErr: unknown) {
+              log.warn(`[v733] 标记amazon_deleted失败: ${(cleanupErr as Error).message}`);
+            }
           }
         }
         // @ts-expect-error - legacy type assertion
@@ -2217,8 +2238,29 @@ export async function syncKeywordStatusToAmazon(
           // @ts-expect-error - legacy type assertion
           result.failed += apiResult.errors.length;
           // @ts-expect-error - legacy type assertion
+          const entityNotFoundPtIds: string[] = [];
           for (const err of apiResult.errors) {
+            const errStr = String(err.details || err.code || '').toLowerCase();
             result.errors.push(`商品定向 ${err.targetId} 状态更新失败: ${err.details || (err as unknown as Record<string, unknown>).code}`);
+            // v733: 检测 entityNotFoundError，收集需要标记为 amazon_deleted 的商品定向
+            if (errStr.includes('entitynotfounderror') || errStr.includes('entity_not_found') || errStr.includes('could not find') || errStr.includes('entitystateerror') || errStr.includes('archived entity')) {
+              if (err.targetId) entityNotFoundPtIds.push(String(err.targetId));
+            }
+          }
+          // v733: 自动将 entityNotFoundError 的商品定向标记为 amazon_deleted
+          if (entityNotFoundPtIds.length > 0) {
+            try {
+              const cleanupDb = await db.getDb();
+              if (cleanupDb) {
+                const idList = entityNotFoundPtIds.map(id => `'${String(id).replace(/'/g, "''")}'`).join(',');
+                await cleanupDb.execute(
+                  sql.raw(`UPDATE product_targets SET targetStatus = 'amazon_deleted' WHERE targetId IN (${idList})`)
+                );
+                log.warn(`[v733] syncKeywordStatusToAmazon: 已标记${entityNotFoundPtIds.length}个商品定向为amazon_deleted`);
+              }
+            } catch (cleanupErr: unknown) {
+              log.warn(`[v733] 标记amazon_deleted失败: ${(cleanupErr as Error).message}`);
+            }
           }
         }
         // @ts-expect-error - legacy type assertion

@@ -489,12 +489,24 @@ export async function syncKeywordPerformanceData(service: SyncContext,days: numb
       const impressions = row.impressions || 0;
       const clicks = row.clicks || 0;
       
-      // 层1: 通过keywordId精确匹配
-      let kw = kwByKeywordId.get(reportTargetId);
+      // v733: entity type 校验 - 防止 product_target 数据被错误写入 keyword 表
+      // spTargeting 报告中 keyword 和 product_target 混在一起，
+      // 通过 targeting 表达式和 keywordType 字段判断真实类型
+      const _targetingExpr = String(row.targetingExpression || row.targeting || '').toLowerCase();
+      const _keywordTypeVal = String(row.keywordType || '').toUpperCase();
+      const _isProductTargetRow = 
+        _targetingExpr.startsWith('asin=') ||
+        _targetingExpr.startsWith('asin"') ||
+        _targetingExpr.startsWith('category=') ||
+        _targetingExpr.includes('asin-') ||
+        _keywordTypeVal === 'TARGETING';
+      
+      // 层1: 通过keywordId精确匹配（仅当不是product_target时）
+      let kw = _isProductTargetRow ? undefined : kwByKeywordId.get(reportTargetId);
       if (kw) { matchStats.byKeywordId++; }
       
-      // 层2: 通过adGroupId + keywordText + matchType三元组匹配
-      if (!kw && row.targetingText && row.adGroupId) {
+      // 层2: 通过adGroupId + keywordText + matchType三元组匹配（仅当不是product_target时）
+      if (!_isProductTargetRow && !kw && row.targetingText && row.adGroupId) {
         const localAgId = adGroupAmazonToLocal.get(String(row.adGroupId));
         if (localAgId) {
           const matchType = row.matchType || row.keywordType || '';
@@ -510,8 +522,8 @@ export async function syncKeywordPerformanceData(service: SyncContext,days: numb
         }
       }
       
-      // 层4: 通过纯keywordText匹配（兜底）
-      if (!kw && row.targetingText) {
+      // 层4: 通过纯keywordText匹配（兜底，仅当不是product_target时）
+      if (!_isProductTargetRow && !kw && row.targetingText) {
         kw = kwByText.get(row.targetingText.toLowerCase());
         if (kw) matchStats.byText++;
       }

@@ -13,4 +13,4 @@
  * 每次发版时，只需修改此文件中的版本号，并在 postDeployOptimizer.ts 的
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
-export const SYSTEM_VERSION = 687;  // v687: 内存削峰+真空账户降级+UI状态恢复 — (1)流式GC触发+UPSERT批次500→200+报告引用释放 (2)TRULY_EMPTY账户同步冷却6h+连续3次空触发 (3)登录过期检测+友好提示+隐藏ApiHealthMonitor误导
+export const SYSTEM_VERSION = 733;  // v733: ElaraFit系统优化 — (1)DAILY报告真实分日数据 (2)entity_type校验防混淆 (3)API优先操作原子性 (4)entityNotFoundError自动清理 (5)多时间窗口批量分析端点 (6)数据健康检查

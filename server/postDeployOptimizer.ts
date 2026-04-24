@@ -86,6 +86,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 733,
+    description: 'v733: [ElaraFit系统优化 — 6项增强] — (1)P0-DAILY报告真实分日数据: requestSpTargetingDailyReport新增+syncDailyPerformanceHook重写使用真实API报告 (2)P0-entity_type校验防混淆: keywordSync.ts四层匹配增加product_target过滤 (3)P0-API优先操作原子性: executePause/executeBidAdjust改为API成功后才更新本地DB (4)P1-entityNotFoundError自动清理: syncKeywordStatusToAmazon检测并标记amazon_deleted (5)P1-多时间窗口批量分析: bulkAnalyzeWithTimeWindows通用端点+可配置ROAS阈值 (6)P1-数据健康检查: dailyPerformanceHealth端点监控分日数据覆盖率',
+    affectedModules: ['sync', 'optimization'],
+    correctionActions: ['rerun_analysis'],
+  },
+  {
     version: 687,
     description: 'v687: [内存削峰+真空账户降级+UI状态恢复 — 3项增强] — (1)P0-极端数据量内存削峰: downloadReport流式解析每5万条触发GC+submitAndWaitMultipleReports报告下载后立即GC+processReportData UPSERT批次500→200+flushDailyPerfBatch消除完整副本克隆+syncPerformanceData报告引用释放 (2)P1-真空账户同步频率降级: 连续3次TRULY_EMPTY诊断后触发6小时冷却期+仅对high/medium层生效+冷却期后自动重置+配置中心可调 (3)P1-UI状态恢复逻辑: useSyncProgressWs检测WebSocket 1008/1006认证失败+暴露isAuthExpired+AmazonApiSettings 21个mutation注入checkAuthError+登录过期友好banner+隐藏ApiHealthMonitor误导',
     affectedModules: ['sync', 'system', 'client'],

@@ -75,6 +75,7 @@ import { debugSyncRouter } from './_debug/debug-sync';
 import { devRouter } from './routes/dev';
 import { rollbackRouter } from './routes/rollback'; // v732 越权操作回滚
 import { spendAnomalyRouter } from './routes/spendAnomaly'; // v732.4 资金异常预警
+import { elarafitAnalysisRouter } from './routes/elarafitAnalysis'; // v732.5 ElaraFit多时间窗口分析
 import { monitoringRouter } from './routes/monitoring';
 import { intelligentRecommendationRouter } from './routes/intelligentRecommendation';
 import { dashboardRecommendationRouter } from './routes/dashboardRecommendation'; // v501 数据概览智能建议
@@ -263,6 +264,7 @@ export const appRouter = router({
   aggressiveBleedingStop: aggressiveBleedingStopRouter, // v721 激进止血
   rollback: rollbackRouter, // v732 越权操作回滚
   spendAnomaly: spendAnomalyRouter, // v732.4 资金异常预警与熔断
+  elarafitAnalysis: elarafitAnalysisRouter, // v732.5 ElaraFit多时间窗口分析与优化
 
   // v328: 亚马逊智能预发布引擎 v4.0 (仅admin可访问)
   prelaunch: prelaunchRouter,

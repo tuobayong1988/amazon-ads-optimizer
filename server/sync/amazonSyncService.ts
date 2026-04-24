@@ -664,7 +664,7 @@ export class AmazonSyncService {
     // 在绩效数据同步完成后，将当天的数据快照写入keyword_daily_performance表
     try {
       const { syncDailyPerformanceSnapshot } = await import('./syncDailyPerformanceHook');
-      await syncDailyPerformanceSnapshot(this.accountId, this.marketplace);
+      await syncDailyPerformanceSnapshot(this.accountId, this.marketplace, { syncService: this, daysBack: 7, skipRecentDays: 2 });
     } catch (dailyPerfErr: unknown) {
       log.warn(`[v717] 每日绩效快照写入异常(不影响主流程): ${(dailyPerfErr as Error).message}`);
     }

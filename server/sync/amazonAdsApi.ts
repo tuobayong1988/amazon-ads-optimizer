@@ -2167,6 +2167,75 @@ export class AmazonAdsApiClient {
       throw error;
     }
   }
+  /**
+   * v733: 请求SP关键词/定向 DAILY 报告 (Amazon Ads API v3)
+   * 
+   * 与 requestSpKeywordReport (SUMMARY模式) 不同，此函数使用 timeUnit: 'DAILY'，
+   * 返回每天独立的绩效数据行，用于填充 keyword_daily_performance 表。
+   * 
+   * 修复问题1.1: keyword_daily_performance 分日数据不完整
+   * 根因: 原有的 syncDailyPerformanceHook 使用 keywords 表的汇总数据"推算"每日增量，
+   *       导致数据严重不完整。改为直接请求 DAILY 维度报告获取真实分日数据。
+   */
+  async requestSpTargetingDailyReport(
+    startDate: string,
+    endDate: string
+  ): Promise<string> {
+    try {
+      log.info(`[Amazon API] v733: 请求SP定向DAILY报告: ${startDate} - ${endDate}`);
+      
+      const requestBody = {
+        name: `SP Targeting Daily Report ${startDate} to ${endDate}`,
+        startDate,
+        endDate,
+        configuration: {
+          adProduct: 'SPONSORED_PRODUCTS',
+          groupBy: ['targeting'],
+          columns: [
+            // DAILY模式支持 'date' 列，返回每天独立的数据行
+            'date',
+            'campaignId',
+            'adGroupId',
+            'keywordId',
+            'keyword',
+            'keywordBid',
+            'keywordType',
+            'matchType',
+            'targeting',
+            // 流量指标
+            'impressions',
+            'clicks',
+            // 花费指标
+            'cost',
+            'costPerClick',
+            // 7天归因销售指标
+            'sales7d',
+            'purchases7d',
+            // @ts-expect-error - legacy type assertion
+            'unitsSoldClicks7d',
+          ],
+          reportTypeId: 'spTargeting',
+          timeUnit: 'DAILY',
+          format: 'GZIP_JSON',
+        },
+      };
+      
+      const response = await this.axiosInstance.post('/reporting/reports', requestBody, {
+        headers: { 
+          'Content-Type': 'application/vnd.createasyncreportrequest.v3+json',
+          'Accept': 'application/vnd.createasyncreportrequest.v3+json'
+        },
+      });
+      
+      log.info(`[Amazon API] v733: SP定向DAILY报告请求成功, reportId: ${response.data.reportId}`);
+      return response.data.reportId;
+    } catch (error: unknown) {
+      const _errStatus = (error as any).response?.status;
+      const _errMsg = (error as any).response?.data || (error as Error).message;
+      log.warn(`[Amazon API] v733: 请求SP定向DAILY报告失败: status=${_errStatus}, ${JSON.stringify(_errMsg)?.slice(0, 500)}`);
+      throw error;
+    }
+  }
 
   /**
    * 请求SB品牌广告活动报告 (Amazon Ads API v3)
