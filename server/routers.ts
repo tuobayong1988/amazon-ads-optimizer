@@ -73,6 +73,7 @@ import { smartCampaignRouter } from './routes/smartCampaign';
 import { multiTenantRouter } from './routes/multiTenant';
 import { debugSyncRouter } from './_debug/debug-sync';
 import { devRouter } from './routes/dev';
+import { rollbackRouter } from './routes/rollback'; // v732 越权操作回滚
 import { monitoringRouter } from './routes/monitoring';
 import { intelligentRecommendationRouter } from './routes/intelligentRecommendation';
 import { dashboardRecommendationRouter } from './routes/dashboardRecommendation'; // v501 数据概览智能建议
@@ -259,6 +260,7 @@ export const appRouter = router({
   systemDefense: systemDefenseRouter, // v504
   emergencyBidCorrection: emergencyBidCorrectionRouter, // v717
   aggressiveBleedingStop: aggressiveBleedingStopRouter, // v721 激进止血
+  rollback: rollbackRouter, // v732 越权操作回滚
 
   // v328: 亚马逊智能预发布引擎 v4.0 (仅admin可访问)
   prelaunch: prelaunchRouter,
