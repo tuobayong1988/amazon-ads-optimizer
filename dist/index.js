@@ -21033,10 +21033,46 @@ var closedLoopRouter = router({
     };
     if (existing) {
       await db.update(adsIntegration).set(bridgeData).where(eq18(adsIntegration.id, existing.id));
-      return { id: existing.id, status: "connected", bridgeType: "ppcopt_bridge", message: "已成功连接到 PPCOPT 广告优化系统。" };
+      // v26.7.6.2: Auto-trigger full sync after authorization
+      setTimeout(async () => {
+        try {
+          console.log('[Bridge-AutoTrigger] New authorization detected, triggering initial full sync for marketplace=' + input.marketplace);
+          bridgeAutoSync.resetIncrementalState();
+          const syncResult = await bridgeAutoSync.executeBridgeSync({
+            storeName: input.ppcoptAccountId,
+            marketplace: input.marketplace,
+            projectId: null
+          });
+          console.log('[Bridge-AutoTrigger] Initial full sync complete: ' + JSON.stringify({ success: syncResult.success, campaigns: syncResult.totalCampaigns, written: syncResult.campaignsWritten, duration: syncResult.duration }));
+          // Auto-start recurring sync (every 2 hours)
+          bridgeAutoSync.startAutoSync([{ storeName: input.ppcoptAccountId, marketplace: input.marketplace }], 2 * 60 * 60 * 1000);
+          console.log('[Bridge-AutoTrigger] Auto-sync scheduler started (interval=2h)');
+        } catch (err) {
+          console.error('[Bridge-AutoTrigger] Initial sync failed:', err.message);
+        }
+      }, 5000);
+      return { id: existing.id, status: "connected", bridgeType: "ppcopt_bridge", message: "已成功连接到 PPCOPT 广告优化系统。系统将在5秒后自动开始首次全量数据同步。" };
     }
     await db.insert(adsIntegration).values({ id, userId: ctx.user.id, tenantId: ctx.tenantId || null, ...bridgeData });
-    return { id, status: "connected", bridgeType: "ppcopt_bridge", message: "已成功连接到 PPCOPT 广告优化系统。" };
+    // v26.7.6.2: Auto-trigger full sync after new authorization
+    setTimeout(async () => {
+      try {
+        console.log('[Bridge-AutoTrigger] New authorization created, triggering initial full sync for marketplace=' + input.marketplace);
+        bridgeAutoSync.resetIncrementalState();
+        const syncResult = await bridgeAutoSync.executeBridgeSync({
+          storeName: input.ppcoptAccountId,
+          marketplace: input.marketplace,
+          projectId: null
+        });
+        console.log('[Bridge-AutoTrigger] Initial full sync complete: ' + JSON.stringify({ success: syncResult.success, campaigns: syncResult.totalCampaigns, written: syncResult.campaignsWritten, duration: syncResult.duration }));
+        // Auto-start recurring sync (every 2 hours)
+        bridgeAutoSync.startAutoSync([{ storeName: input.ppcoptAccountId, marketplace: input.marketplace }], 2 * 60 * 60 * 1000);
+        console.log('[Bridge-AutoTrigger] Auto-sync scheduler started (interval=2h)');
+      } catch (err) {
+        console.error('[Bridge-AutoTrigger] Initial sync failed:', err.message);
+      }
+    }, 5000);
+    return { id, status: "connected", bridgeType: "ppcopt_bridge", message: "已成功连接到 PPCOPT 广告优化系统。系统将在5秒后自动开始首次全量数据同步。" };
   }),
   /**
    * Disconnect Amazon Ads or PPCOPT Bridge
@@ -32088,7 +32124,26 @@ ${productContext}
       
       console.log("[Bridge-DualKey] Handshake complete: scope=" + scopeId + ", aKey=" + aKey.substring(0, 12) + "..., pKey=" + pKey.substring(0, 12) + "...");
       
-      return { success: true, bridge: { ...bridgeConfig, aKey: aKey.substring(0, 12) + "...", pKey: pKey.substring(0, 12) + "..." } };
+      // v26.7.6.2: Auto-trigger full sync after dual-key authorization
+      setTimeout(async () => {
+        try {
+          console.log('[Bridge-AutoTrigger-DualKey] New dual-key authorization, triggering initial full sync for store=' + storeName + ', marketplace=' + marketplace);
+          bridgeAutoSync.resetIncrementalState();
+          const syncResult = await bridgeAutoSync.executeBridgeSync({
+            storeName: storeName.trim(),
+            marketplace: marketplace,
+            projectId: null
+          });
+          console.log('[Bridge-AutoTrigger-DualKey] Initial full sync complete: ' + JSON.stringify({ success: syncResult.success, campaigns: syncResult.totalCampaigns, written: syncResult.campaignsWritten, duration: syncResult.duration }));
+          // Auto-start recurring sync (every 2 hours)
+          bridgeAutoSync.startAutoSync([{ storeName: storeName.trim(), marketplace: marketplace }], 2 * 60 * 60 * 1000);
+          console.log('[Bridge-AutoTrigger-DualKey] Auto-sync scheduler started (interval=2h)');
+        } catch (err) {
+          console.error('[Bridge-AutoTrigger-DualKey] Initial sync failed:', err.message);
+        }
+      }, 5000);
+      
+      return { success: true, bridge: { ...bridgeConfig, aKey: aKey.substring(0, 12) + "...", pKey: pKey.substring(0, 12) + "..." }, message: "\u53cc\u5411\u5bc6\u94a5\u6388\u6743\u6210\u529f\u3002\u7cfb\u7edf\u5c06\u57285\u79d2\u540e\u81ea\u52a8\u5f00\u59cb\u9996\u6b21\u5168\u91cf\u6570\u636e\u540c\u6b65\u3002" };
     }),
     getPpcoptStatus: tenantProcedure.input(z27.object({
       brandTeamId: z27.string()
@@ -40106,7 +40161,7 @@ var behaviorCleanupTimer = null;
 var alertCheckTimer = null;
 var dataQualityRepairTimer = null;
 
-// ==================== v26.7.6: PPCOPT Bridge Auto-Sync Module ====================
+// ==================== v26.7.6.2: PPCOPT Bridge Auto-Sync Module (DB-Persisted) ====================
 var bridgeAutoSync = (function() {
   const BRIDGE_BASE_URL = process.env.PPCOPT_BRIDGE_URL || 'https://www.ppcopt.com/api/bridge/v1';
   const BRIDGE_ADMIN_SECRET = process.env.PPCOPT_BRIDGE_ADMIN_SECRET || 'ppcopt-bridge-admin-2026';
@@ -40115,9 +40170,127 @@ var bridgeAutoSync = (function() {
   let autoSyncConfigs = [];
   let lastSyncResults = {};
   let syncHistory = [];
-  let lastSyncTimestamps = {}; // Track last sync time per account for incremental sync
+  let lastSyncTimestamps = {}; // In-memory cache, backed by DB
+  let dbReady = false;
   const MAX_HISTORY = 100;
   const DEFAULT_INTERVAL_MS = 2 * 3600 * 1000; // 2 hours
+
+  // ---- DB persistence helpers ----
+  async function getPool() {
+    try {
+      const { pool: pool2 } = await Promise.resolve().then(() => (init_db(), db_exports));
+      return pool2;
+    } catch (e) { return null; }
+  }
+
+  async function ensureTable() {
+    if (dbReady) return;
+    try {
+      const pool2 = await getPool();
+      if (!pool2) return;
+      await pool2.execute(`CREATE TABLE IF NOT EXISTS bridge_sync_state (
+        id varchar(36) NOT NULL PRIMARY KEY,
+        config_key varchar(200) NOT NULL,
+        store_name varchar(200) NOT NULL,
+        marketplace varchar(10) NOT NULL DEFAULT 'US',
+        last_sync_timestamp varchar(50) NULL,
+        last_full_sync_at timestamp NULL,
+        last_incremental_sync_at timestamp NULL,
+        total_syncs int NOT NULL DEFAULT 0,
+        total_campaigns_synced int NOT NULL DEFAULT 0,
+        last_sync_duration_ms int NULL,
+        last_sync_mode enum('full','incremental') NULL,
+        last_sync_success boolean NOT NULL DEFAULT true,
+        last_error text NULL,
+        auto_sync_enabled boolean NOT NULL DEFAULT false,
+        auto_sync_interval_minutes int NOT NULL DEFAULT 120,
+        created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY idx_bridge_sync_state_config_key (config_key)
+      )`);
+      dbReady = true;
+      console.log('[BridgeAutoSync] bridge_sync_state table ensured');
+    } catch (e) {
+      console.log('[BridgeAutoSync] Table ensure skipped: ' + e.message);
+    }
+  }
+
+  async function loadStateFromDb() {
+    try {
+      await ensureTable();
+      const pool2 = await getPool();
+      if (!pool2) return;
+      const [rows] = await pool2.execute('SELECT config_key, last_sync_timestamp FROM bridge_sync_state WHERE last_sync_timestamp IS NOT NULL');
+      for (const row of (rows || [])) {
+        lastSyncTimestamps[row.config_key] = row.last_sync_timestamp;
+      }
+      console.log('[BridgeAutoSync] Loaded ' + Object.keys(lastSyncTimestamps).length + ' incremental states from DB');
+    } catch (e) {
+      console.log('[BridgeAutoSync] DB load skipped: ' + e.message);
+    }
+  }
+
+  async function saveStateToDb(configKey, storeName, marketplace, syncResult) {
+    try {
+      await ensureTable();
+      const pool2 = await getPool();
+      if (!pool2) return;
+      const id = crypto12.randomUUID();
+      const mode = syncResult.syncMode || 'full';
+      const now = new Date();
+      await pool2.execute(
+        `INSERT INTO bridge_sync_state (id, config_key, store_name, marketplace, last_sync_timestamp, last_full_sync_at, last_incremental_sync_at, total_syncs, total_campaigns_synced, last_sync_duration_ms, last_sync_mode, last_sync_success, last_error, auto_sync_enabled, auto_sync_interval_minutes)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, 120)
+         ON DUPLICATE KEY UPDATE
+           last_sync_timestamp = VALUES(last_sync_timestamp),
+           last_full_sync_at = IF(VALUES(last_sync_mode)='full', NOW(), last_full_sync_at),
+           last_incremental_sync_at = IF(VALUES(last_sync_mode)='incremental', NOW(), last_incremental_sync_at),
+           total_syncs = total_syncs + 1,
+           total_campaigns_synced = total_campaigns_synced + VALUES(total_campaigns_synced),
+           last_sync_duration_ms = VALUES(last_sync_duration_ms),
+           last_sync_mode = VALUES(last_sync_mode),
+           last_sync_success = VALUES(last_sync_success),
+           last_error = VALUES(last_error),
+           auto_sync_enabled = VALUES(auto_sync_enabled)`,
+        [id, configKey, storeName, marketplace,
+         lastSyncTimestamps[configKey] || null,
+         mode === 'full' ? now : null,
+         mode === 'incremental' ? now : null,
+         syncResult.campaignsWritten || 0,
+         syncResult.duration || 0,
+         mode,
+         syncResult.success !== false,
+         syncResult.error || null,
+         autoSyncInterval !== null]
+      );
+    } catch (e) {
+      console.log('[BridgeAutoSync] DB save skipped: ' + e.message);
+    }
+  }
+
+  async function resetStateInDb(configKey) {
+    try {
+      const pool2 = await getPool();
+      if (!pool2) return;
+      if (configKey) {
+        await pool2.execute('UPDATE bridge_sync_state SET last_sync_timestamp = NULL WHERE config_key = ?', [configKey]);
+      } else {
+        await pool2.execute('UPDATE bridge_sync_state SET last_sync_timestamp = NULL');
+      }
+    } catch (e) {
+      console.log('[BridgeAutoSync] DB reset skipped: ' + e.message);
+    }
+  }
+
+  async function getDbStates() {
+    try {
+      const pool2 = await getPool();
+      if (!pool2) return [];
+      const [rows] = await pool2.execute('SELECT * FROM bridge_sync_state ORDER BY updated_at DESC');
+      return rows || [];
+    } catch (e) { return []; }
+  }
+  // ---- End DB persistence helpers ----
 
   async function getApiKey(storeName, marketplace) {
     const cacheKey = storeName + ':' + marketplace;
@@ -40138,7 +40311,7 @@ var bridgeAutoSync = (function() {
     const apiKey = await getApiKey(config.storeName, config.marketplace);
     const body = { storeName: config.storeName, marketplace: config.marketplace };
     if (dateRange) body.dateRange = dateRange;
-    // Incremental sync: pass lastModified if available
+    // Incremental sync: pass lastModified if available (from memory cache or DB)
     const opts = options || {};
     const configKey = config.storeName + ':' + config.marketplace;
     if (!opts.forceFullSync && lastSyncTimestamps[configKey]) {
@@ -40153,7 +40326,7 @@ var bridgeAutoSync = (function() {
     });
     if (!resp.ok) throw new Error('pull-performance failed: ' + resp.status);
     const data = await resp.json();
-    // Save serverTimestamp for next incremental sync
+    // Save serverTimestamp for next incremental sync (memory + DB)
     if (data.serverTimestamp) {
       lastSyncTimestamps[configKey] = data.serverTimestamp;
     }
@@ -40163,17 +40336,16 @@ var bridgeAutoSync = (function() {
   async function writeToDb(config, perfData) {
     let campaignsWritten = 0, trendWritten = 0;
     try {
-      const { pool: pool2 } = await Promise.resolve().then(() => (init_db(), db_exports));
+      const pool2 = await getPool();
       if (!pool2) return { campaignsWritten: 0, trendWritten: 0, dbSkipped: true };
 
-      // Write per-campaign performance to ad_performance table
       const campaigns = perfData.campaigns || [];
       const campaignsWithData = campaigns.filter(c => c.impressions > 0 || c.clicks > 0);
       const endDate = perfData.summary?.dateRange?.endDate || new Date().toISOString().split('T')[0];
 
       for (const camp of campaignsWithData) {
         try {
-          const perfId = require('crypto').randomUUID();
+          const perfId = crypto12.randomUUID();
           await pool2.execute(
             `INSERT INTO ad_performance (id, project_id, campaign_name, date, impressions, clicks, spend, sales, orders, acos, roas, ctr, cvr, cpc)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -40200,8 +40372,9 @@ var bridgeAutoSync = (function() {
       console.log('[BridgeAutoSync] Starting ' + (isIncremental ? 'INCREMENTAL' : 'FULL') + ' sync for ' + config.storeName + '/' + config.marketplace);
       const perfData = await pullPerformance(config, dateRange);
       if (!perfData.success) {
-        const result = { success: false, error: perfData.error || 'Unknown', duration: Date.now() - startTime };
+        const result = { success: false, error: perfData.error || 'Unknown', duration: Date.now() - startTime, syncMode: 'full' };
         recordHistory(config, result);
+        await saveStateToDb(configKey, config.storeName, config.marketplace, result);
         return result;
       }
       const dbResult = await writeToDb(config, perfData);
@@ -40214,14 +40387,16 @@ var bridgeAutoSync = (function() {
         summary: perfData.summary,
         duration: Date.now() - startTime,
       };
-      lastSyncResults[config.storeName + ':' + config.marketplace] = { ...result, timestamp: new Date().toISOString() };
+      lastSyncResults[configKey] = { ...result, timestamp: new Date().toISOString() };
       recordHistory(config, result);
       result.syncMode = isIncremental ? 'incremental' : 'full';
       result.incrementalInfo = perfData.incremental || null;
-      console.log('[BridgeAutoSync] Sync complete (' + result.syncMode + '): ' + result.campaignsWritten + ' campaigns written, ' + result.duration + 'ms');
+      // Persist state to DB
+      await saveStateToDb(configKey, config.storeName, config.marketplace, result);
+      console.log('[BridgeAutoSync] Sync complete (' + result.syncMode + '): ' + result.campaignsWritten + ' campaigns written, ' + result.duration + 'ms [DB-persisted]');
       return result;
     } catch (err) {
-      const result = { success: false, error: err.message, duration: Date.now() - startTime };
+      const result = { success: false, error: err.message, duration: Date.now() - startTime, syncMode: 'full' };
       recordHistory(config, result);
       console.error('[BridgeAutoSync] Sync failed: ' + err.message);
       return result;
@@ -40233,6 +40408,7 @@ var bridgeAutoSync = (function() {
       storeName: config.storeName, marketplace: config.marketplace,
       timestamp: new Date().toISOString(), success: result.success,
       campaignsWritten: result.campaignsWritten || 0, duration: result.duration || 0,
+      syncMode: result.syncMode || 'full',
       error: result.error || null,
     });
     if (syncHistory.length > MAX_HISTORY) syncHistory.length = MAX_HISTORY;
@@ -40254,26 +40430,60 @@ var bridgeAutoSync = (function() {
         try { await executeBridgeSync(config); } catch (err) { console.error('[BridgeAutoSync] Initial sync error: ' + err.message); }
       }
     }, 15000);
+    // Persist auto-sync enabled state
+    (async () => {
+      try {
+        const pool2 = await getPool();
+        if (!pool2) return;
+        for (const c of configs) {
+          const ck = c.storeName + ':' + c.marketplace;
+          await pool2.execute(
+            'UPDATE bridge_sync_state SET auto_sync_enabled = true, auto_sync_interval_minutes = ? WHERE config_key = ?',
+            [Math.round(intervalMs / 60000), ck]
+          );
+        }
+      } catch (e) {}
+    })();
   }
 
   function stopAutoSync() {
     if (autoSyncInterval) { clearInterval(autoSyncInterval); autoSyncInterval = null; }
     console.log('[BridgeAutoSync] Auto-sync stopped');
+    // Persist auto-sync disabled state
+    (async () => {
+      try {
+        const pool2 = await getPool();
+        if (!pool2) return;
+        await pool2.execute('UPDATE bridge_sync_state SET auto_sync_enabled = false');
+      } catch (e) {}
+    })();
   }
 
-  function getStatus() {
+  async function getStatus() {
+    const dbStates = await getDbStates();
     return {
       autoSyncRunning: autoSyncInterval !== null,
       configCount: autoSyncConfigs.length,
       configs: autoSyncConfigs.map(c => ({ storeName: c.storeName, marketplace: c.marketplace })),
       lastSyncResults, recentHistory: syncHistory.slice(0, 20),
       incrementalState: Object.keys(lastSyncTimestamps).map(k => ({ account: k, lastSyncTimestamp: lastSyncTimestamps[k] })),
+      dbPersistedStates: dbStates.map(r => ({
+        configKey: r.config_key, storeName: r.store_name, marketplace: r.marketplace,
+        lastSyncTimestamp: r.last_sync_timestamp,
+        lastFullSyncAt: r.last_full_sync_at, lastIncrementalSyncAt: r.last_incremental_sync_at,
+        totalSyncs: r.total_syncs, totalCampaignsSynced: r.total_campaigns_synced,
+        lastSyncDurationMs: r.last_sync_duration_ms, lastSyncMode: r.last_sync_mode,
+        lastSyncSuccess: r.last_sync_success, lastError: r.last_error,
+        autoSyncEnabled: r.auto_sync_enabled, autoSyncIntervalMinutes: r.auto_sync_interval_minutes,
+        updatedAt: r.updated_at
+      })),
     };
   }
 
-  function resetIncrementalState(configKey) {
+  async function resetIncrementalState(configKey) {
     if (configKey) { delete lastSyncTimestamps[configKey]; }
     else { lastSyncTimestamps = {}; }
+    await resetStateInDb(configKey);
   }
 
   async function checkBridgeHealth() {
@@ -40287,7 +40497,12 @@ var bridgeAutoSync = (function() {
     }
   }
 
-  return { executeBridgeSync, pullPerformance, startAutoSync, stopAutoSync, getStatus, checkBridgeHealth, resetIncrementalState };
+  // Initialize: load persisted state from DB on startup
+  async function init() {
+    await loadStateFromDb();
+  }
+
+  return { executeBridgeSync, pullPerformance, startAutoSync, stopAutoSync, getStatus, checkBridgeHealth, resetIncrementalState, init };
 })();
 // ==================== End Bridge Auto-Sync Module ====================
 
@@ -40320,9 +40535,12 @@ function startBackgroundSchedulers() {
     runDataQualityRepair().catch(console.error);
   }, 5 * 60 * 1e3);
 
-  // v26.7.6: Initialize Bridge Auto-Sync
+  // v26.7.6.2: Initialize Bridge Auto-Sync (with DB-persisted state)
   (async function() {
     try {
+      // Load persisted incremental state from DB
+      await bridgeAutoSync.init();
+      log("Init", "[BridgeAutoSync] v26.7.6.2: Persisted incremental states loaded from DB");
       const health = await bridgeAutoSync.checkBridgeHealth();
       if (health.connected) {
         log("Init", "[BridgeAutoSync] v26.7.6: PPCOPT Bridge connected (version=" + health.bridgeVersion + ")");
@@ -40544,8 +40762,8 @@ async function startServer() {
     catch (err) { res.status(500).json({ success: false, error: err.message }); }
   });
 
-  app.get("/api/bridge-sync/status", (req, res) => {
-    try { res.json({ success: true, ...bridgeAutoSync.getStatus() }); }
+  app.get("/api/bridge-sync/status", async (req, res) => {
+    try { res.json({ success: true, ...(await bridgeAutoSync.getStatus()) }); }
     catch (err) { res.status(500).json({ success: false, error: err.message }); }
   });
 
@@ -40591,11 +40809,11 @@ async function startServer() {
     catch (err) { res.status(500).json({ success: false, error: err.message }); }
   });
 
-  app.post("/api/bridge-sync/reset-incremental", (req, res) => {
+  app.post("/api/bridge-sync/reset-incremental", async (req, res) => {
     try {
       const { configKey } = req.body || {};
-      bridgeAutoSync.resetIncrementalState(configKey || null);
-      res.json({ success: true, message: configKey ? 'Reset incremental state for ' + configKey : 'Reset all incremental states' });
+      await bridgeAutoSync.resetIncrementalState(configKey || null);
+      res.json({ success: true, message: configKey ? 'Reset incremental state for ' + configKey : 'Reset all incremental states', persisted: true });
     } catch (err) { res.status(500).json({ success: false, error: err.message }); }
   });
   // ==================== End Bridge Auto-Sync Management API ====================

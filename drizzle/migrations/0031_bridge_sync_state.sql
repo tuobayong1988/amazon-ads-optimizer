@@ -1,0 +1,21 @@
+CREATE TABLE IF NOT EXISTS `bridge_sync_state` (
+  `id` varchar(36) NOT NULL PRIMARY KEY,
+  `config_key` varchar(200) NOT NULL COMMENT 'storeName:marketplace composite key',
+  `store_name` varchar(200) NOT NULL,
+  `marketplace` varchar(10) NOT NULL DEFAULT 'US',
+  `last_sync_timestamp` varchar(50) NULL COMMENT 'PPCOPT serverTimestamp for incremental sync',
+  `last_full_sync_at` timestamp NULL COMMENT 'Last full sync completion time',
+  `last_incremental_sync_at` timestamp NULL COMMENT 'Last incremental sync completion time',
+  `total_syncs` int NOT NULL DEFAULT 0,
+  `total_campaigns_synced` int NOT NULL DEFAULT 0,
+  `last_sync_duration_ms` int NULL,
+  `last_sync_mode` enum('full','incremental') NULL,
+  `last_sync_success` boolean NOT NULL DEFAULT true,
+  `last_error` text NULL,
+  `auto_sync_enabled` boolean NOT NULL DEFAULT false,
+  `auto_sync_interval_minutes` int NOT NULL DEFAULT 120,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY `idx_bridge_sync_state_config_key` (`config_key`),
+  INDEX `idx_bridge_sync_state_store` (`store_name`, `marketplace`)
+);
