@@ -451,15 +451,23 @@ async function executeRecovery(candidate: RecoveryCandidate): Promise<boolean> {
     });
     
     // 4. 同步到Amazon API
+    // v737: 同步到Amazon API并使用itemResults逐条验证
     try {
       const { syncBidAdjustmentsToAmazon } = await import('./amazonApiHelper');
+      const entityId = candidate.entityId;
       // @ts-expect-error Complex function parameter types
-      await syncBidAdjustmentsToAmazon(candidate.accountId, [{
-        keywordId: candidate.entityType === 'keyword' ? candidate.entityId : undefined,
-        targetId: candidate.entityType === 'product_target' ? candidate.entityId : undefined,
+      const syncResult = await syncBidAdjustmentsToAmazon(candidate.accountId, [{
+        keywordId: candidate.entityType === 'keyword' ? entityId : undefined,
+        targetId: candidate.entityType === 'product_target' ? entityId : undefined,
         newBid: candidate.proposedBid,
         reason: `[HistoricalRecovery] $${candidate.currentBid}→$${candidate.proposedBid}`,
       } as Record<string, unknown>]);
+      
+      // v737: 验证单条结果
+      const itemResult = syncResult.itemResults?.get(entityId);
+      if (itemResult?.status !== 'synced') {
+        log.warn(`[HistoricalRecovery] v737: API同步未确认(${candidate.entityType}=${entityId}): ${itemResult?.error || 'API返回无结果'}`); 
+      }
     } catch (syncErr: unknown) {
       log.warn(`[HistoricalRecovery] API同步失败(${candidate.entityType}=${candidate.entityId}): ${(syncErr as Error).message}`);
     }

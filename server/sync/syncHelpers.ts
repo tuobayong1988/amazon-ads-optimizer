@@ -5,9 +5,9 @@
  * 供 syncWithTracking 和其他同步模块使用。
  */
 
-import { eq, and, gte, inArray, sql } from 'drizzle-orm';
+import { eq, and, gte, inArray, sql, isNotNull, ne } from 'drizzle-orm';
 import { getDb } from '../db';
-import { optimizationEvents } from '../../drizzle/schema';
+import { optimizationEvents, keywords } from '../../drizzle/schema';
 import { createModuleLogger } from '../utils/logger';
 
 const log = createModuleLogger('SyncHelpers');
@@ -24,7 +24,9 @@ export const SYNC_PROTECTION_CONFIG = {
 } as const;
 
 /**
- * 检查是否有最近已同步的优化操作
+ * v737: 检查是否有最近已同步的优化操作
+ * 重构：对于bid_adjustment类型，基于keywords表的真实状态判断
+ * 对于budget_adjustment类型，仍使用optimization_events（但要求有api_response_id）
  */
 export async function hasRecentSyncedOptimization(
   keywordId?: number,
@@ -38,10 +40,31 @@ export async function hasRecentSyncedOptimization(
     const cutoff = new Date(Date.now() - hoursWindow * 60 * 60 * 1000)
       .toISOString().slice(0, 19).replace('T', ' ');
     
+    if (category === 'bid_adjustment' && keywordId) {
+      // v737: 对于bid_adjustment，直接查询keywords表的真实状态
+      const result = await db
+        .select({ id: keywords.id })
+        .from(keywords)
+        .where(and(
+          eq(keywords.id, keywordId),
+          // @ts-expect-error Legacy column type compatibility
+          eq(keywords.bidSyncStatus, 'pending_confirmation'),
+          // @ts-expect-error Legacy column type compatibility
+          isNotNull(keywords.lastApiResponseId),
+          // @ts-expect-error Legacy column type compatibility
+          gte(keywords.lastOptimizedAt, cutoff)
+        ))
+        .limit(1);
+      return result.length > 0;
+    }
+    
+    // 对于budget_adjustment或无keywordId的情况，仍使用optimization_events但要求有api_response_id
     const conditions: unknown[] = [
       eq(optimizationEvents.eventCategory, category),
       eq(optimizationEvents.apiSyncStatus, 'synced'),
       gte(optimizationEvents.createdAt, cutoff),
+      // v737: 要求有API执行凭证
+      isNotNull(optimizationEvents.apiResponseId),
     ];
     
     if (keywordId) {
@@ -67,7 +90,13 @@ export async function hasRecentSyncedOptimization(
 }
 
 /**
- * v150+v212: 批量查询有近期出价优化事件的关键词ID集合
+ * v737: 重构出价保护机制 - 基于keywords表的bid_sync_status和last_api_response_id判断保护
+ * 替代旧的基于optimization_events.api_sync_status='synced'的不可靠判断
+ * 
+ * 保护条件（同时满足）：
+ * 1. bid_sync_status = 'pending_confirmation' — 表示出价已发送但未验证
+ * 2. last_api_response_id IS NOT NULL — 表示有Amazon API执行凭证
+ * 3. last_optimized_at >= cutoff — 在保护时间窗口内
  */
 export async function getRecentlyOptimizedKeywordIds(
   keywordIds: number[],
@@ -77,61 +106,33 @@ export async function getRecentlyOptimizedKeywordIds(
     if (keywordIds.length === 0) return new Set();
     const db = await getDb();
     if (!db) {
-      log.warn('v212: 数据库连接不可用，保护机制无法工作！');
+      log.warn('v737: 数据库连接不可用，保护机制无法工作！');
       return new Set();
     }
     const cutoff = new Date(Date.now() - hoursWindow * 60 * 60 * 1000)
       .toISOString().slice(0, 19).replace('T', ' ');
     
-    // v212: 查询synced状态的记录（主要保护对象）
+    // v737: 直接查询keywords表 - 基于真实的API执行凭证判断保护
     const results = await db
-      .select({ keywordId: optimizationEvents.keywordId })
-      .from(optimizationEvents)
+      .select({ id: keywords.id })
+      .from(keywords)
       .where(and(
-        eq(optimizationEvents.eventCategory, 'bid_adjustment'),
-        // @ts-expect-error Legacy code type compatibility
-        eq(optimizationEvents.apiSyncStatus, 'synced'),
-        gte(optimizationEvents.createdAt, cutoff),
-        // @ts-expect-error Legacy code type compatibility
-        inArray(optimizationEvents.keywordId, keywordIds)
-      ))
-      .groupBy(optimizationEvents.keywordId);
+        inArray(keywords.id, keywordIds),
+        // @ts-expect-error Legacy column type compatibility
+        eq(keywords.bidSyncStatus, 'pending_confirmation'),
+        // @ts-expect-error Legacy column type compatibility
+        isNotNull(keywords.lastApiResponseId),
+        // @ts-expect-error Legacy column type compatibility
+        gte(keywords.lastOptimizedAt, cutoff)
+      ));
     
-    const protectedSet = new Set(results.map(r => r.keywordId!).filter(Boolean));
+    const protectedSet = new Set(results.map(r => r.id).filter(Boolean));
     
-    // v212: Fallback - 如果optimization_events查询结果为空，尝试从optimization_logs中查找
-    if (protectedSet.size === 0 && keywordIds.length > 0) {
-      try {
-        const fallbackResults = await db.execute(
-          sql`SELECT DISTINCT JSON_UNQUOTE(JSON_EXTRACT(action_detail, '$.keywordId')) as kw_id
-              FROM optimization_logs
-              WHERE log_category = 'bid_adjustment'
-                AND api_sync_status IN ('synced', 'partial')
-                AND created_at >= ${cutoff}
-                AND JSON_EXTRACT(action_detail, '$.keywordId') IS NOT NULL`
-        // @ts-expect-error Legacy code type compatibility
-        );
-        const fallbackRows = (fallbackResults as unknown as unknown[][])[0] || [];
-        if (fallbackRows && fallbackRows.length > 0) {
-          // @ts-expect-error Type inference limitation
-          const fallbackKeywordIds = new Set(fallbackRows.map((r: Record<string, unknown>) => Number(r.kw_id)).filter((id: number) => id > 0 && keywordIds.includes(id)));
-          if (fallbackKeywordIds.size > 0) {
-            log.debug(`v212: Fallback查询optimization_logs找到${fallbackKeywordIds.size}个需要保护的关键词`);
-            // @ts-expect-error Legacy code type compatibility
-            for (const id of fallbackKeywordIds) protectedSet.add(id);
-          }
-        }
-      } catch (fallbackErr: any) {
-        // @ts-expect-error Conditional type narrowing
-        log.warn('v212: Fallback查询optimization_logs失败:', (fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr)));
-      }
-    }
-    
-    log.info(`v212: 查询完成, 输入${keywordIds.length}个关键词, 保护${protectedSet.size}个`);
+    log.info(`v737: 出价保护查询完成, 输入${keywordIds.length}个关键词, 保护${protectedSet.size}个 (基于pending_confirmation+apiResponseId)`);
     // @ts-expect-error Return type compatibility
     return protectedSet;
   } catch (error: any) {
-    log.warn('v212: 批量查询优化关键词失败，保护机制降级！', (error instanceof Error ? (error as Error).message : String(error)));
+    log.warn('v737: 批量查询优化关键词失败，保护机制降级！', (error instanceof Error ? (error as Error).message : String(error)));
     return new Set();
   }
 }

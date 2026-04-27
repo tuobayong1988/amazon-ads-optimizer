@@ -2051,6 +2051,9 @@ export const keywords = mysqlTable("keywords", {
 	lastOptimizedAt: datetime("last_optimized_at", { mode: 'string' }),
 	pendingBid: decimal("pending_bid", { precision: 10, scale: 2 }),
 	bidSyncStatus: mysqlEnum("bid_sync_status", ['synced','pending_confirmation','conflict']).default('synced'),
+	// v737: 闭环验证字段 - 记录Amazon真实出价和API执行凭证
+	amazonBid: decimal("amazonBid", { precision: 10, scale: 2 }),
+	lastApiResponseId: varchar("last_api_response_id", { length: 128 }),
 }, (table) => ({
 	idx_keywords_accountId: index('idx_keywords_accountId').on(table.accountId),
 	idx_keywords_campaignId: index('idx_keywords_campaignId').on(table.campaignId),

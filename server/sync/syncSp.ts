@@ -585,15 +585,18 @@ AmazonSyncService.prototype.syncSpKeywords = async function(this: AmazonSyncServ
           const localBid = parseFloat(existing.bid || '0');
           const apiBid = parseFloat(String(apiKeyword.bid || '0'));
           
+          // v737: 始终写入amazonBid（Amazon真实出价），无论bid是否被保护
+          keywordData.amazonBid = String(apiKeyword.bid);
+          
           if (Math.abs(localBid - apiBid) > SYNC_PROTECTION_CONFIG.BID_THRESHOLD && localBid > 0) {
             const hasRecentOpt = protectedKeywordIds.has(existing.id);
             if (hasRecentOpt) {
-              log.debug(`v150: 出价保护生效 - keyword=${existing.keywordText}, local=$${localBid}, api=$${apiBid}, 保留本地优化出价`);
+              log.debug(`v737: 出价保护生效 - keyword=${existing.keywordText}, local=$${localBid}, api=$${apiBid}, 保留本地优化出价 (amazonBid=$${apiBid}已记录)`);
               delete keywordData.bid;
               protectionStats.bidProtected++;
               protectionStats.protectedEntities.push(`kw:${existing.keywordText}`);
             } else {
-              log.debug(`v150: 出价差异 - keyword=${existing.keywordText}, local=$${localBid}, api=$${apiBid}, 以API为准`);
+              log.debug(`v737: 出价差异 - keyword=${existing.keywordText}, local=$${localBid}, api=$${apiBid}, 以API为准`);
               protectionStats.bidOverwritten++;
             }
           }
@@ -857,22 +860,22 @@ AmazonSyncService.prototype.syncSpProductTargets = async function(this: AmazonSy
           delete (targetData as Record<string, unknown>).targetStatus;
         }
         // v150: 智能出价保护策略
-        // 检查optimization_events表，如果该产品定向有24小时内成功同步的出价优化事件，
-        // 则保留本地bid不被覆盖
         const localBid = parseFloat(existing.bid || '0');
         const apiBid = parseFloat(String(apiTarget.bid || '0'));
         
+        // v737: 始终写入amazonBid（Amazon真实出价）
+        (targetData as Record<string, unknown>).amazonBid = String(apiTarget.bid);
+        
         if (Math.abs(localBid - apiBid) > SYNC_PROTECTION_CONFIG.BID_THRESHOLD && localBid > 0) {
-          // 出价不一致，检查是否有近期优化事件（使用批量查询结果）
           const hasRecentOpt = protectedTargetIds.has(existing.id);
           if (hasRecentOpt) {
-            log.debug(`v150: 出价保护生效 - target=${existing.targetValue}, local=$${localBid}, api=$${apiBid}, 保留本地优化出价`);
+            log.debug(`v737: 出价保护生效 - target=${existing.targetValue}, local=$${localBid}, api=$${apiBid}, 保留本地优化出价 (amazonBid=$${apiBid}已记录)`);
             // @ts-expect-error Amazon API response type flexibility
             delete (targetData as Record<string, unknown>[]).bid;
             protectionStats.bidProtected++;
             protectionStats.protectedEntities.push(`tgt:${existing.targetValue}`);
           } else {
-            log.debug(`v150: 出价差异 - target=${existing.targetValue}, local=$${localBid}, api=$${apiBid}, 以API为准`);
+            log.debug(`v737: 出价差异 - target=${existing.targetValue}, local=$${localBid}, api=$${apiBid}, 以API为准`);
             protectionStats.bidOverwritten++;
           }
         }

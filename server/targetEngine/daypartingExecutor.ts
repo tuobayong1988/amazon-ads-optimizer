@@ -187,19 +187,24 @@ export async function executeDaypartingOptimization(
                   isProductTarget: false,
                 }]
               );
+              // v737: 使用itemResults逐条判定，而非批量success > 0
               // @ts-expect-error Dynamic property access
-              if (syncResult.success > 0) {
+              const itemResult = syncResult.itemResults?.get(Number(kwId));
+              const itemSuccess = itemResult?.status === 'synced';
+              if (itemSuccess) {
+                const apiRespId = itemResult?.apiResponseId || null;
                 // @ts-expect-error DB query type inference limitation
                 await dbConn2.execute(sql`
  UPDATE optimization_logs SET api_sync_status = 'synced',
- api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.retry_synced', 'v310: dayparting_bid重试成功')
+ api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.retry_synced', 'v737: dayparting_bid重试成功', '$.apiResponseId', ${apiRespId || 'null'})
  WHERE id = ${(row as any).id}
  `);
                 retried++;
               } else {
+                const itemError = itemResult?.error || (syncResult as any).errors?.join('; ') || 'API返回无该关键词结果';
                 await dbConn2.execute(sql`
  UPDATE optimization_logs SET api_sync_status = 'failed',
- api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.retry_error', ${(syncResult as any).errors.join('; ')})
+ api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.retry_error', ${itemError})
  WHERE id = ${(row as any).id}
  `);
               }
@@ -527,14 +532,52 @@ export async function executeDaypartingOptimization(
                 isProductTarget: false,
               }]
             );
+            // v737: 使用itemResults逐条判定，而非批量success > 0
             // @ts-expect-error Dynamic property access
-            if (syncResult.success > 0) {
+            const itemResult = syncResult.itemResults?.get(keyword.id);
+            const itemSuccess = itemResult?.status === 'synced';
+            if (itemSuccess) {
               adjustmentsCount++;
               adjustment.apiSyncStatus = 'synced';
+              adjustment.apiResponseId = itemResult?.apiResponseId || null;
+              adjustment.apiSyncDetail = JSON.stringify({ status: 'synced', apiResponseId: itemResult?.apiResponseId || null });
+              // v737: 同步更新本地keywords表的bid和验证状态
+              try {
+                const dbConn = await getDb();
+                if (dbConn) {
+                  await dbConn.update(keywordsTable)
+                    .set({
+                      bid: adjustedBid.toFixed(2),
+                      lastOptimizedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+                      pendingBid: adjustedBid.toFixed(2),
+                      bidSyncStatus: 'pending_confirmation',
+                      lastApiResponseId: itemResult?.apiResponseId || null,
+                    } as Record<string, unknown>)
+                    .where(eq(keywordsTable.id, keyword.id));
+                }
+              } catch (dbErr: unknown) {
+                log.warn(`v737: dayparting本地bid更新失败 kw=${keyword.id}: ${(dbErr as Error).message}`);
+              }
+              // v737: 调度出价验证 - 确认Amazon端是否真正执行
+              try {
+                postOptVerifier.scheduleBidVerification(
+                  config.accountId,
+                  [{
+                    localId: keyword.id,
+                    amazonId: keyword.keywordId,
+                    type: 'bid_adjustment',
+                    expectedValue: adjustedBid,
+                    previousValue: parseFloat(keyword.bid || '0'),
+                    context: { fieldName: 'keyword_bid', campaignId: campaignAmazonId },
+                  }]
+                );
+              } catch (verifyErr: unknown) {
+                log.warn(`v737: dayparting验证调度失败 kw=${keyword.id}: ${(verifyErr as Error).message}`);
+              }
             } else {
               adjustment.apiSyncStatus = 'failed';
-              // @ts-expect-error Dynamic property access
-              adjustment.apiSyncDetail = JSON.stringify({ errors: syncResult.errors });
+              const itemError = itemResult?.error || (syncResult as any).errors?.join('; ') || 'API返回无该关键词结果';
+              adjustment.apiSyncDetail = JSON.stringify({ status: 'failed', error: itemError });
             }
           } catch (apiError: unknown) {
             // v267 P2-1: 分时竞价失败自动重试一次
@@ -552,13 +595,19 @@ export async function executeDaypartingOptimization(
                   isProductTarget: false,
                 }]
               );
-              if (retryResult.success > 0) {
+              // v737: 重试路径也使用itemResults逐条判定
+              const retryItemResult = retryResult.itemResults?.get(keyword.id);
+              const retrySuccess = retryItemResult?.status === 'synced';
+              if (retrySuccess) {
                 adjustmentsCount++;
                 adjustment.apiSyncStatus = 'synced';
+                adjustment.apiResponseId = retryItemResult?.apiResponseId || null;
+                adjustment.apiSyncDetail = JSON.stringify({ status: 'synced', apiResponseId: retryItemResult?.apiResponseId || null, retried: true });
                 log.info(`[DaypartingOptimization] v267 重试成功 (kw ${keyword.keywordText})`);
               } else {
                 adjustment.apiSyncStatus = 'failed';
-                adjustment.apiSyncDetail = JSON.stringify({ error: (apiError as Error).message, retryFailed: true });
+                const retryError = retryItemResult?.error || 'API返回无该关键词结果';
+                adjustment.apiSyncDetail = JSON.stringify({ error: (apiError as Error).message, retryFailed: true, retryError });
               }
             } catch (retryError: unknown) {
               adjustment.apiSyncStatus = 'failed';

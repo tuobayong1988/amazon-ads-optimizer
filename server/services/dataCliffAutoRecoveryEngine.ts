@@ -584,21 +584,28 @@ async function executeCliffRepair(cliff: CliffDetectionResult): Promise<boolean>
     });
     
     // 4. 同步到Amazon API（通过现有的同步引擎）
+    // v737: 同步到Amazon API并使用itemResults逐条验证
     try {
       const { syncBidAdjustmentsToAmazon } = await import('./amazonApiHelper');
+      const entityId = cliff.entityId;
       // @ts-expect-error Complex function parameter types
-      await syncBidAdjustmentsToAmazon(cliff.accountId, [{
-        keywordId: cliff.entityType === 'keyword' ? cliff.entityId : undefined,
-        targetId: cliff.entityType === 'product_target' ? cliff.entityId : undefined,
+      const syncResult = await syncBidAdjustmentsToAmazon(cliff.accountId, [{
+        keywordId: cliff.entityType === 'keyword' ? entityId : undefined,
+        targetId: cliff.entityType === 'product_target' ? entityId : undefined,
         newBid: cliff.actualRecoveryBid,
         reason: `[DataCliffRecovery] 步骤${cliff.recoveryStep}: $${cliff.currentBid}→$${cliff.actualRecoveryBid}`,
       } as Record<string, unknown>]);
+      
+      // v737: 验证单条结果
+      const itemResult = syncResult.itemResults?.get(entityId);
+      if (itemResult?.status !== 'synced') {
+        log.warn(`[DataCliffRecovery] v737: API同步未确认(${cliff.entityType}=${entityId}): ${itemResult?.error || 'API返回无结果'}`); 
+      }
     // @ts-expect-error Legacy code type compatibility
     } catch (syncErr: unknown) {
       log.warn(`[DataCliffRecovery] API同步失败(${cliff.entityType}=${cliff.entityId}): ${(syncErr as Error).message}`);
       // API同步失败不影响本地修复记录
     }
-    
     // @ts-expect-error Complex function parameter types
     logOptimization(`[DataCliffRecovery] 修复成功: ${cliff.entityType}="${cliff.entityName}" $${cliff.currentBid.toFixed(2)}→$${cliff.actualRecoveryBid.toFixed(2)} (${cliff.severity})`);
     

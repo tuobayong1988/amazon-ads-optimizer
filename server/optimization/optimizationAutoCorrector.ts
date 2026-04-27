@@ -1024,8 +1024,10 @@ async function correctBidMismatches(database: unknown, accountId: number, guard?
         const actualTargetBid = correctionMap.get(row.keyword_id);
         if (actualTargetBid === undefined) continue; // 该关键词已被过滤（max_bid限制后无需纠正）
         
+        // v737: 使用itemResults逐条判定，而非批量success > 0
         // @ts-expect-error v653: drizzle/mysql2 untyped query result
-        const success = syncResult.success > 0;
+        const itemResult = (syncResult as any).itemResults?.get(row.keyword_id);
+        const success = itemResult?.status === 'synced';
         
         results.push({
           type: 'bid_mismatch',
@@ -1594,10 +1596,12 @@ async function executeUnfinishedRollbacks(database: unknown, accountId: number, 
         rollbackItems
       );
       
-      // @ts-expect-error v653: drizzle/mysql2 untyped query result
-      const success = syncResult.success > 0;
+      // v737: 使用itemResults逐条判定，而非批量success > 0
       
       for (const [kwId, event] of latestByKeyword) {
+        const itemResult = (syncResult as any).itemResults?.get(kwId);
+        const success = itemResult?.status === 'synced';
+        
         results.push({
           type: 'rollback_execution',
           accountId,
@@ -1776,8 +1780,9 @@ async function retryFailedSettingsChanges(database: unknown, accountId: number, 
               accountId,
               [{ keywordId: kwId, newBid: parseFloat(String(event.newValue || '0').replace(/[^0-9.\-]/g, '')), reason: `v329 AutoCorrector: 重试失败的${actionType}操作` }]
             );
-            // @ts-expect-error v653: drizzle/mysql2 untyped query result
-            success = syncResult.success > 0;
+            // v737: 使用itemResults逐条判定
+            const itemResult = (syncResult as any).itemResults?.get(kwId);
+            success = itemResult?.status === 'synced';
           }
         }
         // 3. v267: 位置倾斜类型的settings_update

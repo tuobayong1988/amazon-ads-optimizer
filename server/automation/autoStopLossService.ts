@@ -763,15 +763,28 @@ export async function scanAndRepairDataCliffs(accountId: number): Promise<StopLo
       }
     }
     
-    // 批量同步竞价到Amazon API
+    // v737: 批量同步竞价到Amazon API，使用itemResults逐条验证
     if (bidAdjustments.length > 0) {
       try {
-        await syncBidAdjustmentsToAmazon(accountId, bidAdjustments.map(adj => ({
+        const syncResult = await syncBidAdjustmentsToAmazon(accountId, bidAdjustments.map(adj => ({
           keywordId: adj.keywordId,
           newBid: adj.newBid,
           reason: adj.reason,
           algorithmUsed: 'auto_stop_loss_cliff_repair',
         })));
+        
+        // v737: 逐条检查每个关键词的实际同步结果
+        let syncedCount = 0, failedCount = 0;
+        for (const adj of bidAdjustments) {
+          const itemResult = syncResult.itemResults?.get(adj.keywordId);
+          if (itemResult?.status === 'synced') {
+            syncedCount++;
+          } else {
+            failedCount++;
+            log.warn(`[AutoStopLoss] v737: 关键词${adj.keywordId}竞价修复同步失败: ${itemResult?.error || 'API返回无结果'}`);
+          }
+        }
+        log.info(`[AutoStopLoss] v737: 竞价修复API同步结果: 成功=${syncedCount}, 失败=${failedCount}`);
       } catch (apiErr: unknown) {
         log.warn(`[AutoStopLoss] 竞价修复API同步失败: ${(apiErr as Error).message}`);
       }

@@ -998,15 +998,16 @@ async function applyConfirmedResults(results: VerificationResult[]): Promise<voi
               // 商品定位 - 暂不添加sync状态字段
               log.debug(`v166: ✅ 商品定位 ${item.localId} 出价已确认: $${result.actualValue} (${fn})`);
             } else {
-              // 关键词出价确认 — 清除pending状态
+              // 关键词出价确认 — 清除pending状态，同时回填amazonBid
               await tx.update(keywords)
                 .set({
                   bid: String(result.actualValue),
+                  amazonBid: String(result.actualValue),
                   pendingBid: null,
                   bidSyncStatus: 'synced',
                 } as Record<string, unknown>)
                 .where(eq(keywords.id, item.localId));
-              log.debug(`v166: ✅ 关键词 ${item.localId} 出价已确认: $${result.actualValue} (${fn})`);
+              log.debug(`v737: ✅ 关键词 ${item.localId} 出价已确认: $${result.actualValue}, amazonBid已同步 (${fn})`);
             }
             break;
           }
@@ -1092,16 +1093,17 @@ async function handleConflicts(results: VerificationResult[]): Promise<void> {
         switch (item.type) {
           case 'bid_adjustment': {
             if (item.context?.fieldName !== 'product_target_bid') {
-              // 冲突时：以Amazon的实际值为准，但标记冲突状态
+              // v737: 冲突时以Amazon真实值为准，同时回填amazonBid
               await tx.update(keywords)
                 .set({
                   bid: String(result.actualValue),
+                  amazonBid: String(result.actualValue),
                   pendingBid: null,
                   bidSyncStatus: 'conflict',
                 } as Record<string, unknown>)
                 .where(eq(keywords.id, item.localId));
             }
-            log.warn(`v166: ⚠️ 出价冲突 keyword=${item.localId}: ${result.message}`);
+            log.warn(`v737: ⚠️ 出价冲突 keyword=${item.localId}: ${result.message}, 已以Amazon真实值为准回填`);
             break;
           }
           

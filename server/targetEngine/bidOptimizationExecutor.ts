@@ -1094,12 +1094,14 @@ export async function executeBidOptimization(
                     .where(eq(productTargetsTable.id, detail.keywordId));
                 } else {
                   // v166: 更新bid的同时，标记pending状态和优化时间
+                  // v737: 同时写入lastApiResponseId作为API执行凭证
                   await tx.update(keywordsTable)
                     .set({
                       bid: (typeof detail.newBid === 'number' ? detail.newBid : 0).toFixed(2),
                       lastOptimizedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
                       pendingBid: (typeof detail.newBid === 'number' ? detail.newBid : 0).toFixed(2),
                       bidSyncStatus: 'pending_confirmation',
+                      lastApiResponseId: detail.apiResponseId || null,
                     } as Record<string, unknown>)
                     // @ts-expect-error DB query type inference limitation
                     .where(eq(keywordsTable.id, detail.keywordId));
