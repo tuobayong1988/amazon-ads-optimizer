@@ -221,6 +221,7 @@ async function scanKeywordCliffs(accountId: number): Promise<{ scanned: number; 
         c.campaignType
       FROM keywords k
       JOIN campaigns c ON k.campaignId = c.campaignId AND k.accountId = c.accountId
+      INNER JOIN performance_groups pg ON c.performanceGroupId = pg.id AND pg.auto_optimize = 1 AND pg.status = 'active'
       WHERE k.accountId = ${accountId}
         AND k.keywordStatus = 'enabled'
         AND k.bid IS NOT NULL
@@ -282,6 +283,7 @@ async function scanProductTargetCliffs(accountId: number): Promise<{ scanned: nu
         c.campaignType
       FROM product_targets pt
       JOIN campaigns c ON pt.campaignId = c.campaignId AND pt.accountId = c.accountId
+      INNER JOIN performance_groups pg ON c.performanceGroupId = pg.id AND pg.auto_optimize = 1 AND pg.status = 'active'
       WHERE pt.accountId = ${accountId}
         AND pt.targetStatus = 'enabled'
         AND pt.bid IS NOT NULL

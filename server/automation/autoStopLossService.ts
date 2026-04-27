@@ -668,6 +668,7 @@ export async function scanAndRepairDataCliffs(accountId: number): Promise<StopLo
         c.campaignName
       FROM keywords k
       JOIN campaigns c ON k.campaignId = c.campaignId AND k.accountId = c.accountId
+      INNER JOIN performance_groups pg ON c.performanceGroupId = pg.id AND pg.auto_optimize = 1 AND pg.status = 'active'
       WHERE k.accountId = ${accountId}
         AND k.keywordStatus = 'enabled'
         AND k.bid IS NOT NULL

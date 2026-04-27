@@ -858,10 +858,10 @@ async function correctBidMismatches(database: unknown, accountId: number, guard?
  JOIN keywords k ON oe.keyword_id = k.id
  JOIN ad_groups ag ON k.internal_ad_group_id = ag.id
  JOIN campaigns c ON ag.campaignId = c.campaignId
- LEFT JOIN performance_groups pg ON c.performanceGroupId = pg.id
+ INNER JOIN performance_groups pg ON c.performanceGroupId = pg.id
  WHERE oe.account_id = ${accountId}
- AND (pg.auto_optimize = 1 OR pg.auto_optimize IS NULL)
- AND (pg.status = 'active' OR pg.status IS NULL)
+ AND pg.auto_optimize = 1
+ AND pg.status = 'active'
  AND oe.event_category = 'bid_adjustment'
  AND oe.status = 'success'
  AND oe.api_sync_status = 'synced'
@@ -1262,7 +1262,7 @@ async function correctBudgetMismatches(database: unknown, accountId: number): Pr
  oe.created_at as optimized_at
  FROM optimization_events oe
  JOIN campaigns c ON oe.campaign_id = c.id
- LEFT JOIN performance_groups pg ON c.performanceGroupId = pg.id
+ INNER JOIN performance_groups pg ON c.performanceGroupId = pg.id
  WHERE oe.account_id = ${accountId}
  AND oe.event_category = 'budget_adjustment'
  AND oe.status = 'success'
@@ -1270,8 +1270,8 @@ async function correctBudgetMismatches(database: unknown, accountId: number): Pr
  AND oe.created_at > DATE_SUB(NOW(), INTERVAL 3 DAY)
  AND (oe.change_reason IS NULL OR oe.change_reason NOT LIKE '%AutoCorrector%')
  AND (pg.daypartingEnabled IS NULL OR pg.daypartingEnabled = 0)
- AND (pg.auto_optimize = 1 OR pg.auto_optimize IS NULL)
- AND (pg.status = 'active' OR pg.status IS NULL)
+ AND pg.auto_optimize = 1
+ AND pg.status = 'active'
  AND ABS(CAST(c.dailyBudget AS DECIMAL(10,2)) - CAST(REPLACE(REPLACE(oe.new_value, '$', ''), ',', '') AS DECIMAL(10,2))) > ${budgetTolerance}
  AND oe.id = (
  SELECT MAX(oe2.id) FROM optimization_events oe2 
@@ -1406,10 +1406,10 @@ async function correctPlacementMismatches(database: unknown, accountId: number):
  oe.created_at as optimized_at
  FROM optimization_events oe
  JOIN campaigns c ON oe.campaign_id = c.id
- LEFT JOIN performance_groups pg ON c.performanceGroupId = pg.id
+ INNER JOIN performance_groups pg ON c.performanceGroupId = pg.id
  WHERE oe.account_id = ${accountId}
- AND (pg.auto_optimize = 1 OR pg.auto_optimize IS NULL)
- AND (pg.status = 'active' OR pg.status IS NULL)
+ AND pg.auto_optimize = 1
+ AND pg.status = 'active'
  AND oe.event_category = 'placement_adjustment'
  AND oe.status = 'success'
  AND oe.api_sync_status IN ('synced', 'pending')
@@ -2363,11 +2363,11 @@ async function retryFailedNegativeKeywordAdds(database: unknown, accountId: numb
 
 async function getActiveAccountIds(database: unknown): Promise<number[]> {
   try {
-    // v657: typedExecute eliminates @ts-expect-error for raw SQL
+    // v736: 使用ad_accounts表获取活跃账号，而非optimization_events
+    // 修复根因: optimization_events中包含已删除账号的记录，导致对已删除账号执行纠错
     const result = await database.execute(sql`
-      SELECT DISTINCT account_id FROM optimization_events 
-      WHERE created_at > DATE_SUB(NOW(), INTERVAL 7 DAY) 
-        AND account_id IS NOT NULL
+      SELECT id as account_id FROM ad_accounts 
+      WHERE status IS NULL OR status != 'deleted'
     `);
     const rows = (result as Record<string, unknown>[][])[0] || result;
     // @ts-expect-error v653: drizzle/mysql2 untyped query result
@@ -4681,14 +4681,14 @@ async function retryFailedProductTargetCreations(database: unknown, accountId: n
  FROM product_targets pt
  INNER JOIN ad_groups ag ON pt.internal_ad_group_id = ag.id
  INNER JOIN campaigns c ON ag.campaignId = c.campaignId
- LEFT JOIN performance_groups pg ON c.performanceGroupId = pg.id
+ INNER JOIN performance_groups pg ON c.performanceGroupId = pg.id
  WHERE pt.accountId = ${accountId}
  AND (pt.targetId IS NULL OR pt.targetId = '' OR pt.targetId = '0')
  AND pt.targetStatus != 'archived'
  AND ag.adGroupId IS NOT NULL
  AND ag.campaignId IS NOT NULL
- AND (pg.auto_optimize = 1 OR pg.auto_optimize IS NULL)
- AND (pg.status = 'active' OR pg.status IS NULL)
+ AND pg.auto_optimize = 1
+ AND pg.status = 'active'
  LIMIT 200
  `);
     
@@ -4853,8 +4853,7 @@ async function revalidateStalePendingCommands(database: unknown, accountId: numb
         AND oe.created_at < DATE_SUB(NOW(), INTERVAL 24 HOUR)
         AND oe.created_at > DATE_SUB(NOW(), INTERVAL 14 DAY)
         AND oe.account_id = ${accountId}
-        AND (pg.auto_optimize = 1 OR pg.auto_optimize IS NULL)
-        AND (pg.status = 'active' OR pg.status IS NULL)
+        AND (c.performanceGroupId IS NOT NULL AND pg.auto_optimize = 1 AND pg.status = 'active')
       ORDER BY oe.created_at ASC
       LIMIT 500
     `);
