@@ -6963,7 +6963,7 @@ export class AmazonAdsApiClient {
     for (const report of pendingReports) {
       if (!report.completed) {
         report.completed = true;
-        report.error = `Report generation timeout after ${totalSec}s`;
+        report.error = `Report generation timeout after ${totalSec}s, reportId=${report.reportId}`;
         log.warn(`[Amazon API] v413: 报告超时 [${report.name}]: reportId=${report.reportId}`);
       }
     }

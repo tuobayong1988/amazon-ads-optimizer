@@ -17,7 +17,7 @@
  */
 
 import { getDb } from '../db';
-import { campaigns, keywords, negativeKeywords } from '../../drizzle/schema';
+import { campaigns, keywords, negativeKeywords, performanceGroups } from '../../drizzle/schema';
 import { eq, and, sql } from 'drizzle-orm';
 import { createModuleLogger } from '../utils/logger';
 import { logOptimization, logOptimizationWarn } from '../utils/opsLogger';
@@ -144,7 +144,25 @@ export async function scanAndPauseHighAcosCampaigns(accountId: number): Promise<
     const dbInstance = await getDb();
     if (!dbInstance) return actions;
     
-    // 获取所有enabled的Campaign
+    // v739: 仅获取已纳入活跃且autoOptimize已开启的优化目标下的Campaign
+    // 修复：之前查询账户下所有enabled Campaign，导致未纳入优化目标的广告活动也被自动暂停
+    // 查询已纳入活跃且autoOptimize已开启的优化目标ID列表
+    const activeTargetIds = await dbInstance
+      .select({ id: performanceGroups.id })
+      .from(performanceGroups)
+      .where(and(
+        eq(performanceGroups.accountId, accountId),
+        eq(performanceGroups.status, 'active'),
+        eq(performanceGroups.autoOptimize, 1)
+      ));
+    const targetIdSet = new Set(activeTargetIds.map(t => t.id));
+    
+    if (targetIdSet.size === 0) {
+      log.info(`[AutoStopLoss] v739: 账户 ${accountId} 没有活跃且autoOptimize已开启的优化目标，跳过止血扫描`);
+      return actions;
+    }
+    
+    // 获取属于这些优化目标的enabled Campaign
     const enabledCampaigns = await dbInstance
       .select({
         id: campaigns.id,
@@ -152,6 +170,7 @@ export async function scanAndPauseHighAcosCampaigns(accountId: number): Promise<
         campaignName: campaigns.campaignName,
         campaignType: campaigns.campaignType,
         campaignStatus: campaigns.campaignStatus,
+        performanceGroupId: campaigns.performanceGroupId,
       })
       .from(campaigns)
       .where(and(
@@ -159,7 +178,13 @@ export async function scanAndPauseHighAcosCampaigns(accountId: number): Promise<
         eq(campaigns.campaignStatus, 'enabled')
       ));
     
-    log.info(`[AutoStopLoss] 扫描 ${enabledCampaigns.length} 个活跃Campaign (accountId=${accountId})`);
+    // v739: 过滤只保留属于活跃优化目标的Campaign
+    const filteredCampaigns = enabledCampaigns.filter(c => c.performanceGroupId && targetIdSet.has(c.performanceGroupId));
+    log.info(`[AutoStopLoss] v739: 账户 ${accountId} 共 ${enabledCampaigns.length} 个活跃Campaign，其中 ${filteredCampaigns.length} 个属于活跃优化目标(跳过 ${enabledCampaigns.length - filteredCampaigns.length} 个未纳入目标的Campaign)`);
+    // 用过滤后的列表替代原始列表
+    const campaignsToScan = filteredCampaigns;
+    
+    log.info(`[AutoStopLoss] v739: 扫描 ${campaignsToScan.length} 个纳入优化目标的活跃Campaign (accountId=${accountId})`);
     
     const endDate = new Date();
     const startDate = new Date();
@@ -171,7 +196,7 @@ export async function scanAndPauseHighAcosCampaigns(accountId: number): Promise<
     historyStartDate.setDate(historyStartDate.getDate() - 90);
     const historyStartStr = historyStartDate.toISOString().split('T')[0];
     
-    for (const campaign of enabledCampaigns) {
+    for (const campaign of campaignsToScan) {
       try {
         // 查询最近N天的每日表现（daily_performance表以campaignId关联）
         const dailyData = await dbInstance.execute(sql`
@@ -334,6 +359,42 @@ export async function scanAndNegateSearchTerms(accountId: number): Promise<StopL
     const dbInstance = await getDb();
     if (!dbInstance) return actions;
     
+    // v739: 查询已纳入活跃且autoOptimize已开启的优化目标下的Campaign ID列表
+    const activeTargetIds = await dbInstance
+      .select({ id: performanceGroups.id })
+      .from(performanceGroups)
+      .where(and(
+        eq(performanceGroups.accountId, accountId),
+        eq(performanceGroups.status, 'active'),
+        eq(performanceGroups.autoOptimize, 1)
+      ));
+    const targetIdSet = new Set(activeTargetIds.map(t => t.id));
+    
+    if (targetIdSet.size === 0) {
+      log.info(`[AutoStopLoss] v739: 账户 ${accountId} 没有活跃且autoOptimize已开启的优化目标，跳过搜索词自动否定`);
+      return actions;
+    }
+    
+    // 获取属于这些优化目标的Campaign ID
+    const managedCampaigns = await dbInstance
+      .select({ campaignId: campaigns.campaignId })
+      .from(campaigns)
+      .where(and(
+        eq(campaigns.accountId, accountId),
+        eq(campaigns.campaignStatus, 'enabled')
+      ));
+    const managedCampaignIds = new Set(
+      managedCampaigns
+        .filter(c => (c as Record<string, unknown>).performanceGroupId && targetIdSet.has((c as Record<string, unknown>).performanceGroupId as number))
+        .map(c => c.campaignId)
+    );
+    
+    if (managedCampaignIds.size === 0) {
+      log.info(`[AutoStopLoss] v739: 账户 ${accountId} 没有属于活跃优化目标的Campaign，跳过搜索词自动否定`);
+      return actions;
+    }
+    log.info(`[AutoStopLoss] v739: 账户 ${accountId} 共 ${managedCampaignIds.size} 个Campaign属于活跃优化目标`);
+    
     // 查询最近14天的搜索词数据（使用search_terms表的实际字段名）
     const endDate = new Date();
     const startDate = new Date();
@@ -375,6 +436,10 @@ export async function scanAndNegateSearchTerms(accountId: number): Promise<StopL
     }> = [];
     
     for (const row of rows as Array<Record<string, unknown>>) {
+      // v739: 跳过不属于活跃优化目标的Campaign的搜索词
+      const rowCampaignId = String(row.campaignId || '');
+      if (!managedCampaignIds.has(rowCampaignId)) continue;
+      
       const searchTerm = String(row.searchTerm || '').toLowerCase();
       const spend = Number(row.totalSpend) || 0;
       const sales = Number(row.totalSales) || 0;

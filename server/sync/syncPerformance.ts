@@ -18,6 +18,7 @@ import {
   searchTerms,
   negativeKeywords,
   optimizationEvents,
+  reportJobs,
 } from '../../drizzle/schema';
 import { createModuleLogger } from '../utils/logger';
 import type { AmazonAdsApiClient, SpCampaign } from './amazonAdsApi';
@@ -387,7 +388,45 @@ AmazonSyncService.prototype.syncPerformanceDataBatch = async function(this: Amaz
       log.debug(`[v413] ${result.name}报告数据为空`);
     }
   }
-  
+
+  // v738: 超时报告救援机制 — 将超时但已提交的报告转入异步队列
+  // 原问题：全量同步(_forceSync=true)时使用同步等待模式，超时后reportId被丢弃，导致绩效数据缺失
+  // 修复：检测超时报告，从error中提取reportId，写入report_jobs表由ReportJobScheduler接管
+  const timedOutResults = reportResults.filter(r => r.error?.includes('timeout'));
+  if (timedOutResults.length > 0) {
+    log.warn(`[v738] 检测到${timedOutResults.length}个超时报告，尝试转入异步队列救援`);
+    try {
+      for (const result of timedOutResults) {
+        const reportIdMatch = result.error?.match(/reportId=([a-f0-9-]+)/i);
+        if (!reportIdMatch) {
+          log.warn(`[v738] 超时报告无法提取reportId [${result.name}]: ${result.error}`);
+          continue;
+        }
+        const reportId = reportIdMatch[1];
+        // @ts-expect-error - db type assertion
+        await db.insert(reportJobs).values({
+          accountId: this.accountId,
+          profileId: String(this.client.credentials?.profileId || ''),
+          reportId: reportId,
+          reportType: result.name || 'performance',
+          status: 'pending',
+          startDate: startDateStr,
+          endDate: endDateStr,
+          metadata: JSON.stringify({
+            source: 'v738_timeout_rescue',
+            originalTimeout: reportWaitTimeout,
+            timedOutAt: new Date().toISOString(),
+          }),
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+        log.info(`[v738] 超时报告已转入异步队列: reportId=${reportId}, name=${result.name}`);
+      }
+    } catch (rescueErr: unknown) {
+      log.warn(`[v738] 超时报告救援失败: ${(rescueErr as Error).message}`);
+    }
+  }
+
   const resultSummary = reportAdTypes.map((t, i) => `${t}=${reportResults[i]?.data?.length || 0}`).join(', ');
   log.info(`[v413] 绩效数据同步完成(批量模式): ${resultSummary}, 总入库=${totalSynced}`);
   return totalSynced;

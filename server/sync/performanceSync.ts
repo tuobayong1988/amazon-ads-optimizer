@@ -16,6 +16,7 @@ import {
   searchTerms,
   negativeKeywords,
   optimizationEvents,
+  reportJobs,
 } from '../../drizzle/schema';
 import { createModuleLogger } from '../utils/logger';
 import type { AmazonAdsApiClient } from './amazonAdsApi';
@@ -152,6 +153,55 @@ async function syncPerformanceDataBatch(service: SyncContext, startDateStr: stri
   const spData = results[0]?.data || null;
   const sbData = results[1]?.data || null;
   const sdData = results[2]?.data || null;
+  
+  // v738: 超时报告自动转入异步队列 — 当同步等待超时时，报告已提交到Amazon但未完成
+  // 原问题：超时后报告被丢弃，导致绩效数据缺失
+  // 修复：将超时报告转入异步队列，由ReportJobScheduler接管轮询和处理
+  const timedOutReports = results.filter(r => r.error?.includes('timeout'));
+  if (timedOutReports.length > 0 && process.env.P5_ASYNC_REPORTS === 'true') {
+    try {
+      const database = await getDb();
+      if (database) {
+        for (const report of timedOutReports) {
+          // 从error中提取reportId（submitAndWaitMultipleReports在超时时记录了reportId）
+          const reportIdMatch = report.error?.match(/reportId=([a-f0-9-]+)/i);
+          if (!reportIdMatch) {
+            log.warn(`[v738] 超时报告无法提取reportId [${report.name}]: ${report.error}`);
+            continue;
+          }
+          const reportId = reportIdMatch[1];
+          const adType = report.name.includes('SP') ? 'SP' : report.name.includes('SB') ? 'SB' : 'SD';
+          await database.insert(reportJobs).values({
+            accountId: service.accountId || 0,
+            profileId: String(service.credentials?.profileId || ''),
+            reportType: report.name,
+            adProduct: adType === 'SP' ? 'SPONSORED_PRODUCTS' : adType === 'SB' ? 'SPONSORED_BRANDS' : 'SPONSORED_DISPLAY',
+            status: 'submitted',
+            reportId: reportId,
+            startDate: startDateStr,
+            endDate: endDateStr,
+            requestPayload: JSON.stringify({
+              source: 'v738_timeout_rescue',
+              adType: adType.toLowerCase(),
+              reportName: report.name,
+              startDate: startDateStr,
+              endDate: endDateStr,
+              syncType: 'performance_sync',
+              accountId: service.accountId || 0,
+              originalTimeout: perfSyncTimeout,
+            }),
+            retryCount: 0,
+            maxRetries: 5,
+            submittedAt: new Date().toISOString(),
+          });
+          log.info(`[v738] 超时报告已转入异步队列 [${report.name}]: reportId=${reportId}`);
+        }
+      }
+    } catch (rescueErr: unknown) {
+      log.warn(`[v738] 超时报告转入异步队列失败: ${(rescueErr as Error).message}`);
+    }
+  }
+  
   if (results[0]?.error) log.warn(`[SP] 报告同步失败: ${results[0].error}`);
   if (results[1]?.error) log.warn(`[SB] 报告同步失败: ${results[1].error}`);
   if (results[2]?.error) log.warn(`[SD] 报告同步失败: ${results[2].error}`);

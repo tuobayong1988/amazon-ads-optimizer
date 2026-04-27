@@ -516,9 +516,11 @@ async function executeHistoricalOptimization(
       try {
         log.info(`[ColdStart] 处理优化目标: ${target.name} (id=${target.id})`);
         
+        // v740: 移除forceExecution:true，让冷启动也受数据断路器和初始化门控保护
+        // 之前冷启动使用forceExecution:true绕过所有安全检查，导致在数据缺失时仍执行优化
         const execResult = await executeOptimizationTarget(target.id, {
           dryRun: false,
-          forceExecution: true,
+          forceExecution: false,
           specificModules: modulesToRun,
         });
         

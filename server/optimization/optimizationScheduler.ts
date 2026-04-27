@@ -9,8 +9,8 @@
  */
 
 import { getDb } from "../db";
-import { performanceGroups } from "../../drizzle/schema";
-import { eq, and } from "drizzle-orm";
+import { performanceGroups, dailyPerformance } from "../../drizzle/schema";
+import { eq, and, sql } from "drizzle-orm";
 import { notifyOwner } from "../_core/notification";
 import { createModuleLogger } from '../utils/logger';
 import { logOptimization, logOptimizationWarn, logOptimizationError, logSystem } from '../utils/opsLogger';
@@ -193,9 +193,11 @@ export async function triggerInitialOptimization(
       }
       // specificModules = undefined → 执行所有模块
       
+      // v740: 移除forceExecution:true，首次优化也必须受数据断路器和初始化门控保护
+      // 之前的注释"忽略启用状态检查"是不安全的，因为它同时绕过了数据断路器
       const executionResult = await optimizationTargetEngine.executeOptimizationTarget(targetId, {
         dryRun: false,
-        forceExecution: true, // 首次执行强制执行，忽略启用状态检查
+        forceExecution: false,
         specificModules,
       });
       
@@ -663,7 +665,49 @@ export async function triggerAccountOptimizations(
       return result;
     }
     
-    // 获取该账户下所有活跃的优化目标
+    // v739+v740: 账户初始化状态检查 — 全量同步未完成时不触发优化
+    // v740修复：null/undefined视为'pending'，但对老账户（有历史数据）允许继续
+    try {
+      const { getAdAccountById } = await import('../db/accounts');
+      const account = await getAdAccountById(accountId);
+      if (account) {
+        const initStatus = (account as Record<string, unknown>).initializationStatus as string | undefined;
+        const effectiveStatus = initStatus || 'pending';
+        if (effectiveStatus !== 'completed' && effectiveStatus !== 'ready') {
+          if (!initStatus) {
+            // 老账户（initializationStatus为null），检查是否有历史数据
+            try {
+              const database = await getDb();
+              if (database) {
+                const { dailyPerformance } = await import('../../drizzle/schema');
+                const dataCheck = await database.select({
+                  count: sql<number>`COUNT(*)`
+                }).from(dailyPerformance).where(
+                  eq(dailyPerformance.accountId, accountId)
+                );
+                const hasData = Number(dataCheck[0]?.count || 0) > 0;
+                if (hasData) {
+                  log.info(`[OptScheduler] v740: 账户 ${accountId} initializationStatus为null但有历史数据，视为老账户，允许继续`);
+                } else {
+                  log.warn(`[OptScheduler] v740: 账户 ${accountId} initializationStatus为null且无历史数据，判定为未初始化新账户，跳过优化触发`);
+                  return result;
+                }
+              }
+            } catch (dataCheckErr: unknown) {
+              log.warn(`[OptScheduler] v740: 老账户数据检查异常，保守允许继续: ${(dataCheckErr as Error).message}`);
+            }
+          } else {
+            log.warn(`[OptScheduler] v740: 账户 ${accountId} 初始化状态为 "${effectiveStatus}"(非completed/ready)，全量同步未完成，跳过优化触发`);
+            return result;
+          }
+        }
+      }
+    } catch (initErr: unknown) {
+      log.warn(`[OptScheduler] v740: 账户初始化状态检查异常: ${(initErr as Error).message}`);
+    }
+    
+    // v739: 获取该账户下所有活跃且autoOptimize已开启的优化目标
+    // 修复：之前只检查status='active'，不检查autoOptimize，导致用户关闭自动优化后系统仍继续优化
     const activeTargets = await dbInstance
       .select({
         id: performanceGroups.id,
@@ -674,7 +718,8 @@ export async function triggerAccountOptimizations(
       .where(
         and(
           eq(performanceGroups.accountId, accountId),
-          eq(performanceGroups.status, 'active')
+          eq(performanceGroups.status, 'active'),
+          eq(performanceGroups.autoOptimize, 1)
         )
       );
     

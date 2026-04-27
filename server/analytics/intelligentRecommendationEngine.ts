@@ -227,9 +227,10 @@ async function executeAutoOptimizationForTarget(
     log.info(`[智能推荐] 对优化目标「${targetName}」(#${targetId})执行补充优化，模块: ${specificModules.join(', ')}, 恶化严重度: ${maxSeverity}`);
     
     // 调用现有的优化执行引擎
+    // v740: 移除forceExecution:true，让智能推荐引擎也受数据断路器和autoOptimize门控保护
     const result = await optimizationTargetEngine.executeOptimizationTarget(targetId, {
       dryRun: false,
-      forceExecution: true,
+      forceExecution: false,
       specificModules,
     });
     

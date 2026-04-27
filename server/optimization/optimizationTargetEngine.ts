@@ -14,8 +14,8 @@
 
 import * as db from "../db";
 import { getDb } from "../db";
-import { keywords as keywordsTable, productTargets as productTargetsTable, campaigns as campaignsTable } from "../../drizzle/schema";
-import { eq, sql } from "drizzle-orm";
+import { keywords as keywordsTable, productTargets as productTargetsTable, campaigns as campaignsTable, dailyPerformance } from "../../drizzle/schema";
+import { eq, sql, and } from "drizzle-orm";
 import { safeInClause } from '../utils/safeSql';
 import * as bidOptimizer from "./bidOptimizer";
 import * as daypartingService from "../budget/daypartingService";
@@ -362,6 +362,89 @@ export async function executeOptimizationTarget(
     throw new Error(`优化目标 ${config.name} 未启用`);
   }
   
+  // v739+v740: 账户初始化状态门控 — 全量同步未完成时禁止自动优化
+  // v740修复：使用 isAccountReady() 函数替代直接检查字段值
+  // v739的问题：initializationStatus为null/undefined时被跳过（if(initStatus && ...)的falsy检查）
+  // v740修复：null/undefined视为'pending'（未初始化），触发门控拦截
+  // 注意：即使forceExecution=true，也不应跳过此检查（数据安全优先于强制执行）
+  if (!dryRun) {
+    try {
+      const account = await db.getAdAccountById(config.accountId);
+      if (account) {
+        // v740: 将null/undefined视为'pending'（与isAccountReady()逻辑一致）
+        const initStatus = (account as Record<string, unknown>).initializationStatus as string | undefined;
+        const effectiveStatus = initStatus || 'pending';
+        if (effectiveStatus !== 'completed' && effectiveStatus !== 'ready') {
+          // 对于已存在的老账户（initializationStatus为null），检查是否有历史绩效数据
+          // 如果有数据，说明是老账户，允许继续（但记录警告）
+          // 如果没数据，说明是真正未初始化的新账户，必须拦截
+          if (!initStatus) {
+            // initializationStatus为null，可能是老账户（在初始化服务之前接入的）
+            // 检查是否有绩效数据来区分老账户和新账户
+            try {
+              const database = await (await import('../db')).getDb();
+              if (database) {
+                const { dailyPerformance } = await import('../../drizzle/schema');
+                const dataCheck = await database.select({
+                  count: sql<number>`COUNT(*)`
+                }).from(dailyPerformance).where(
+                  eq(dailyPerformance.accountId, config.accountId)
+                );
+                const hasData = Number(dataCheck[0]?.count || 0) > 0;
+                if (hasData) {
+                  log.info(`[OptimizationTarget] v740: 账户 ${config.accountId} initializationStatus为null但有历史数据(${dataCheck[0]?.count}条)，视为老账户，允许继续`);
+                } else {
+                  const blockMsg = `v740: 🔴 账户初始化门控触发 — 账户 ${config.accountId} initializationStatus为null且无历史绩效数据，判定为未初始化新账户，拒绝执行优化`;
+                  log.warn(`[OptimizationTarget] ${blockMsg}`);
+                  if (shouldReleaseLock) await releaseAccountOptimizationLock(config.accountId, moduleLockGroup);
+                  unregisterActiveTask(activeTaskId);
+                  result.status = 'skipped';
+                  result.errors.push(blockMsg);
+                  return result;
+                }
+              }
+            } catch (dataCheckErr: unknown) {
+              log.warn(`[OptimizationTarget] v740: 老账户数据检查异常，保守允许继续: ${(dataCheckErr as Error).message}`);
+            }
+          } else {
+            // initializationStatus有值但不是completed/ready（如pending/collecting/failed）
+            const blockMsg = `v740: 🔴 账户初始化门控触发 — 账户 ${config.accountId} 初始化状态为 "${effectiveStatus}"(非completed/ready)，全量同步尚未完成，拒绝执行优化`;
+            log.warn(`[OptimizationTarget] ${blockMsg}`);
+            if (shouldReleaseLock) await releaseAccountOptimizationLock(config.accountId, moduleLockGroup);
+            unregisterActiveTask(activeTaskId);
+            result.status = 'skipped';
+            result.errors.push(blockMsg);
+            return result;
+          }
+        }
+      }
+    } catch (initCheckErr: unknown) {
+      const errMsg = (initCheckErr as Error).message || '';
+      if (errMsg.includes('v740')) throw initCheckErr; // 重新抛出门控拦截错误
+      log.warn(`[OptimizationTarget] v740: 账户初始化状态检查异常: ${errMsg}`);
+    }
+  }
+  
+  // v739: autoOptimize字段检查 — 用户关闭自动优化时必须尊重
+  if (!forceExecution && !dryRun) {
+    try {
+      const group = await db.getPerformanceGroupById(targetId);
+      if (group) {
+        const autoOptimize = (group as Record<string, unknown>).autoOptimize;
+        // autoOptimize为0或false时，表示用户已关闭自动优化
+        if (autoOptimize !== undefined && autoOptimize !== null && Number(autoOptimize) === 0) {
+          const blockMsg = `v739: 🔴 autoOptimize门控触发 — 优化目标 "${config.name}"(ID:${targetId}) 的autoOptimize已关闭(值=${autoOptimize})，用户已明确禁止自动优化`;
+          log.warn(`[OptimizationTarget] ${blockMsg}`);
+          throw new Error(blockMsg);
+        }
+      }
+    } catch (autoOptCheckErr: unknown) {
+      const errMsg = (autoOptCheckErr as Error).message || '';
+      if (errMsg.includes('v739')) throw autoOptCheckErr;
+      log.warn(`[OptimizationTarget] v739: autoOptimize检查异常: ${errMsg}`);
+    }
+  }
+  
   // v181+v642: 获取账户+模块级优化锁，不同模块类型可以并行执行
   // v642: 改用带重试的锁获取，避免多个优化目标同时竞争同一账户的锁时频繁失败
   const moduleLockGroup = getModuleLockGroup(specificModules);
@@ -438,33 +521,173 @@ export async function executeOptimizationTarget(
     log.warn(`[OptimizationTarget] v162 安全检查异常，继续执行: ${(safetyErr as Error).message}`);
   }
   
-  // v221: 数据新鲜度检查 - 确保不基于过时数据做优化决策
-  try {
-    const lastSyncTime = await getLastSyncTimeForAccount(config.accountId);
-    if (lastSyncTime) {
-      const dataAgeMinutes = (Date.now() - lastSyncTime.getTime()) / (1000 * 60);
-      if (dataAgeMinutes > 120 && !forceExecution) {
-        // 数据超过2小时未同步，警告但不阻止执行
-        const staleMsg = `v221: 数据新鲜度警告 - 账户 ${config.accountId} 最后同步于 ${Math.round(dataAgeMinutes)} 分钟前，优化决策可能基于过时数据`;
-        log.warn(`[OptimizationTarget] ${staleMsg}`);
-        result.warnings.push(staleMsg);
-      }
-      if (dataAgeMinutes > 360 && !forceExecution) {
-        // 数据超过6小时未同步，先触发同步再执行优化
-        const criticalMsg = `v221: 数据严重过时 - 账户 ${config.accountId} 最后同步于 ${Math.round(dataAgeMinutes)} 分钟前，尝试触发紧急同步`;
-        log.warn(`[OptimizationTarget] ${criticalMsg}`);
-        result.warnings.push(criticalMsg);
-        try {
-          const { syncAllAccounts } = await import('../sync/unifiedSyncEngine');
-          await syncAllAccounts('high');
-          log.info(`[OptimizationTarget] v221: 紧急同步完成，继续执行优化`);
-        } catch (syncErr: unknown) {
-          log.warn(`[OptimizationTarget] v221: 紧急同步失败，仍继续执行: ${(syncErr as Error).message}`);
+  // v738: 数据断路器（Circuit Breaker）— 基于真实数据存在性的硬性拦截
+  // 替代v221的仅警告不拦截逻辑，彻底解决"数据缺失但仍继续优化"的致命问题
+  // 核心原则：无准确数据不优化，宁可暂停优化也不能基于缺失数据做错误决策
+  if (!forceExecution && !dryRun) {
+    try {
+      const database = await getDb();
+      if (database) {
+        const { dailyPerformance } = await import('../../drizzle/schema');
+        
+        // 检查1: 查询最近3天的绩效数据覆盖情况
+        const threeDaysAgo = new Date();
+        threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+        const coverageResult = await database.select({
+          distinctDates: sql<number>`COUNT(DISTINCT DATE(${dailyPerformance.date}))`,
+          totalRecords: sql<number>`COUNT(*)`,
+          latestDate: sql<string>`MAX(DATE(${dailyPerformance.date}))`,
+        })
+        .from(dailyPerformance)
+        .where(and(
+          eq(dailyPerformance.accountId, config.accountId),
+          sql`${dailyPerformance.date} >= ${threeDaysAgo.toISOString().split('T')[0]}`
+        ));
+        
+        const coverage = coverageResult[0];
+        const distinctDates = Number(coverage?.distinctDates || 0);
+        const totalRecords = Number(coverage?.totalRecords || 0);
+        const latestDateStr = coverage?.latestDate as string | null;
+        
+        // 检查2: 计算最新数据距今天数
+        let dataGapDays = 999;
+        if (latestDateStr) {
+          const latestDate = new Date(latestDateStr);
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          dataGapDays = Math.floor((today.getTime() - latestDate.getTime()) / (1000 * 60 * 60 * 24));
+        }
+        
+        // 断路器判定逻辑:
+        // - 最近3天完全没有绩效数据 → 硬性拦截
+        // - 最新数据距今超过2天 → 硬性拦截
+        // - 最近3天数据覆盖不足2天 → 警告并降低调整幅度
+        
+        if (totalRecords === 0 || distinctDates === 0) {
+          // 完全没有绩效数据 — 硬性拦截
+          const blockMsg = `v738: 🔴 数据断路器触发(硬性拦截) — 账户 ${config.accountId} 最近3天完全没有绩效数据(0条记录)，拒绝执行优化以保护广告表现`;
+          log.warn(`[OptimizationTarget] ${blockMsg}`);
+          result.warnings.push(blockMsg);
+          result.status = 'skipped';
+          result.errors.push(blockMsg);
+          
+          // 记录断路器事件到优化日志
+          try {
+            const { optimizationEvents } = await import('../../drizzle/schema');
+            await database.insert(optimizationEvents).values({
+              accountId: config.accountId,
+              performanceGroupId: targetId,
+              performanceGroupName: config.name,
+              eventCategory: 'settings_change',
+              actionType: 'auto_correction',
+              changeReason: blockMsg,
+              actionDetail: JSON.stringify({
+                type: 'data_circuit_breaker',
+                severity: 'critical',
+                distinctDates,
+                totalRecords,
+                latestDate: latestDateStr,
+                dataGapDays,
+                action: 'optimization_blocked',
+              }),
+              algorithmVersion: `v738`,
+              status: 'skipped',
+              apiSyncStatus: 'not_applicable',
+            });
+          } catch (logErr: unknown) {
+            log.debug(`[OptimizationTarget] v738: 记录断路器事件失败: ${(logErr as Error).message}`);
+          }
+          
+          // 触发紧急同步请求
+          try {
+            const { syncAllAccounts } = await import('../sync/unifiedSyncEngine');
+            log.info(`[OptimizationTarget] v738: 断路器触发紧急同步请求...`);
+            syncAllAccounts('high').catch((err: Error) => {
+              log.warn(`[OptimizationTarget] v738: 紧急同步失败: ${err.message}`);
+            });
+          } catch (syncErr: unknown) {
+            log.warn(`[OptimizationTarget] v738: 触发紧急同步失败: ${(syncErr as Error).message}`);
+          }
+          
+          if (shouldReleaseLock) await releaseAccountOptimizationLock(config.accountId, moduleLockGroup);
+          unregisterActiveTask(activeTaskId);
+          return result;
+        }
+        
+        if (dataGapDays >= 2) {
+          // 最新数据距今超过2天 — 硬性拦截
+          const blockMsg = `v738: 🔴 数据断路器触发(硬性拦截) — 账户 ${config.accountId} 最新绩效数据距今${dataGapDays}天(最新日期:${latestDateStr})，数据严重过时，拒绝执行优化`;
+          log.warn(`[OptimizationTarget] ${blockMsg}`);
+          result.warnings.push(blockMsg);
+          result.status = 'skipped';
+          result.errors.push(blockMsg);
+          
+          try {
+            const { optimizationEvents } = await import('../../drizzle/schema');
+            await database.insert(optimizationEvents).values({
+              accountId: config.accountId,
+              performanceGroupId: targetId,
+              performanceGroupName: config.name,
+              eventCategory: 'settings_change',
+              actionType: 'auto_correction',
+              changeReason: blockMsg,
+              actionDetail: JSON.stringify({
+                type: 'data_circuit_breaker',
+                severity: 'critical',
+                distinctDates,
+                totalRecords,
+                latestDate: latestDateStr,
+                dataGapDays,
+                action: 'optimization_blocked',
+              }),
+              algorithmVersion: `v738`,
+              status: 'skipped',
+              apiSyncStatus: 'not_applicable',
+            });
+          } catch (logErr: unknown) {
+            log.debug(`[OptimizationTarget] v738: 记录断路器事件失败: ${(logErr as Error).message}`);
+          }
+          
+          try {
+            const { syncAllAccounts } = await import('../sync/unifiedSyncEngine');
+            log.info(`[OptimizationTarget] v738: 断路器触发紧急同步请求...`);
+            syncAllAccounts('high').catch((err: Error) => {
+              log.warn(`[OptimizationTarget] v738: 紧急同步失败: ${err.message}`);
+            });
+          } catch (syncErr: unknown) {
+            log.warn(`[OptimizationTarget] v738: 触发紧急同步失败: ${(syncErr as Error).message}`);
+          }
+          
+          if (shouldReleaseLock) await releaseAccountOptimizationLock(config.accountId, moduleLockGroup);
+          unregisterActiveTask(activeTaskId);
+          return result;
+        }
+        
+        if (distinctDates < 2) {
+          // 数据覆盖不足 — 警告但允许执行（降低调整幅度）
+          const warnMsg = `v738: 🟡 数据断路器警告 — 账户 ${config.accountId} 最近3天仅有${distinctDates}天数据(${totalRecords}条记录)，数据覆盖不足，优化将以保守模式执行`;
+          log.warn(`[OptimizationTarget] ${warnMsg}`);
+          result.warnings.push(warnMsg);
+        }
+        
+        // 同时保留时间戳检查作为补充
+        const lastSyncTime = await getLastSyncTimeForAccount(config.accountId);
+        if (lastSyncTime) {
+          const dataAgeMinutes = (Date.now() - lastSyncTime.getTime()) / (1000 * 60);
+          if (dataAgeMinutes > 120) {
+            const staleMsg = `v738: 数据新鲜度补充警告 - 账户 ${config.accountId} 最后同步于 ${Math.round(dataAgeMinutes)} 分钟前`;
+            log.warn(`[OptimizationTarget] ${staleMsg}`);
+            result.warnings.push(staleMsg);
+          }
         }
       }
+    } catch (circuitBreakerErr: unknown) {
+      // 断路器检查本身异常时，保守拦截（宁可不优化也不能错误优化）
+      const errMsg = `v738: 数据断路器检查异常: ${(circuitBreakerErr as Error).message}`;
+      log.warn(`[OptimizationTarget] ${errMsg}`);
+      result.warnings.push(errMsg);
+      // 异常时不阻止执行，但记录警告
     }
-  } catch (freshnessErr: unknown) {
-    log.warn(`[OptimizationTarget] v221: 数据新鲜度检查异常: ${(freshnessErr as Error).message}`);
   }
   
   // v164: 自我进化周期 - 在每次优化执行前自动评估上一轮优化效果并学习

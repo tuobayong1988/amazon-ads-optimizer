@@ -2490,9 +2490,9 @@ export async function runPostDeployOptimization(): Promise<PostDeployResult> {
   log.debug(`[PostDeployOptimizer] 受影响模块: ${affectedModules.join(', ')}`);
   log.info(`[PostDeployOptimizer] 纠正动作: ${correctionActions.join(', ')}`);
   
-  // 4. v244: 部署前先恢复所有被v232安全检查错误关闭的优化目标
-  // 问题背景：v232的安全检查逻辑会因单个campaign的正常波动就关闭整个优化目标
-  // 修复：在每次部署时，自动检查并恢复所有status=active但autoOptimize=0的优化目标
+  // 4. v244: [v740已禁用] 原逻辑会在每次部署时自动将autoOptimize=0恢复为1
+  // v740修复：该行为覆盖了用户手动关闭自动优化的意图，属于严重违反用户授权的行为
+  // 现在只记录状态日志，绝不自动修改autoOptimize字段
   try {
     const database = await getDb();
     if (database) {
@@ -2505,24 +2505,17 @@ export async function runPostDeployOptimization(): Promise<PostDeployResult> {
         ));
       
       if (allGroups.length > 0) {
-        log.warn(`[PostDeployOptimizer] v244: 发现 ${allGroups.length} 个活跃优化目标的autoOptimize被关闭，正在自动恢复...`);
+        // v740: 只记录日志，不自动恢复 — 尊重用户的autoOptimize设置
+        log.info(`[PostDeployOptimizer] v740: 发现 ${allGroups.length} 个活跃优化目标的autoOptimize已关闭（用户手动设置），尊重用户意图，不自动恢复`);
         for (const group of allGroups) {
-          // 检查该优化目标下是否有enabled状态的广告活动（v168的合理暂停不应被恢复）
-          const pgCampaigns = await db.getCampaignsByPerformanceGroupId(group.id);
-          const enabledCount = pgCampaigns.filter((c: Record<string, unknown>) => c.campaignStatus === 'enabled').length;
-          if (enabledCount > 0) {
-            await db.updatePerformanceGroup(group.id, { autoOptimize: 1 });
-            log.info(`[PostDeployOptimizer] v244: 已恢复优化目标 "${group.name}" (ID:${group.id}) 的自动优化 - 有${enabledCount}个enabled广告活动`);
-          } else {
-            log.info(`[PostDeployOptimizer] v244: 优化目标 "${group.name}" (ID:${group.id}) 下无enabled广告活动，保持关闭状态`);
-          }
+          log.info(`[PostDeployOptimizer] v740: 优化目标 "${group.name}" (ID:${group.id}) autoOptimize=0，保持用户设置不变`);
         }
       } else {
-        log.info(`[PostDeployOptimizer] v244: 所有活跃优化目标的autoOptimize状态正常`);
+        log.info(`[PostDeployOptimizer] v740: 所有活跃优化目标的autoOptimize状态正常(均为开启)`);
       }
     }
   } catch (restoreErr: unknown) {
-    log.warn(`[PostDeployOptimizer] v244: 恢复优化目标状态失败:`, (restoreErr as Error).message);
+    log.warn(`[PostDeployOptimizer] v740: 检查优化目标autoOptimize状态失败:`, (restoreErr as Error).message);
   }
 
   // 4b. v257: match_type历史数据回填迁移

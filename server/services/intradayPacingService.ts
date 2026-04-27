@@ -180,20 +180,41 @@ export async function checkAllCampaignsPacing(
   if (!db) return [];
   
   try {
-    // 获取所有启用的Campaign
+    // v739: 仅获取已纳入活跃且autoOptimize已开启的优化目标下的Campaign
+    // 修复：之前查询账户下所有enabled Campaign，导致未纳入优化目标的广告活动也被日内节奏调整
+    // @ts-expect-error - Drizzle raw SQL execution
+    const [targetRows] = await db.execute(sql`
+      SELECT id FROM performance_groups
+      WHERE accountId = ${accountId}
+        AND status = 'active'
+        AND auto_optimize = 1
+    `) as unknown;
+    const activeTargetIds = new Set((Array.isArray(targetRows) ? targetRows : []).map((r: Record<string, unknown>) => Number(r.id)));
+    
+    if (activeTargetIds.size === 0) {
+      log.info(`[IntradayPacing] v739: 账户 ${accountId} 没有活跃且autoOptimize已开启的优化目标，跳过日内节奏检查`);
+      return [];
+    }
+    
     // @ts-expect-error - Drizzle raw SQL execution
     const [rows] = await db.execute(sql`
-      SELECT campaignId, dailyBudget
+      SELECT campaignId, dailyBudget, performanceGroupId
       FROM campaigns
       WHERE accountId = ${accountId}
         AND state = 'enabled'
         AND dailyBudget > 0
     `) as unknown;
     
-    const campaigns = Array.isArray(rows) ? rows : [];
+    const allCampaigns = Array.isArray(rows) ? rows : [];
+    // v739: 过滤只保留属于活跃优化目标的Campaign
+    const managedCampaigns = (allCampaigns as Array<Record<string, unknown>>).filter(
+      c => c.performanceGroupId && activeTargetIds.has(Number(c.performanceGroupId))
+    );
+    log.info(`[IntradayPacing] v739: 账户 ${accountId} 共 ${allCampaigns.length} 个活跃Campaign，其中 ${managedCampaigns.length} 个属于活跃优化目标`);
+    
     const results: IntradayAdjustment[] = [];
     
-    for (const campaign of (campaigns as unknown[])) {
+    for (const campaign of managedCampaigns) {
       const adjustment = await adjustIntradayPacing(
         // @ts-expect-error Amazon API response type flexibility
         campaign.campaignId,

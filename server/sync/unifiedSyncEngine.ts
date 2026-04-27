@@ -2469,15 +2469,40 @@ export async function syncAccount(
       log.warn(`[UnifiedSync] v689: 账户${account.accountId}(${account.accountName}) ${tier}层同步失败汇总: ${categoryBreakdown.join(' | ')} | 完成=${result.completedSteps}, 失败=${result.failedSteps}, 跳过=${result.skippedSteps}`);
     }
 
-    // 更新最后同步时间
-    // v641: 更新同步状态 — 区分完全成功/部分成功/失败
+    // v738: 修夌lastSyncAt更新逻辑 — 绩效数据失败时不更新lastSyncAt
+    // 原问题：无论同步是否成功都更新lastSyncAt，导致优化引擎误以为数据是最新的
+    // 修复：检查绩效数据步骤(performance_today/performance_7d/performance_95d)是否成功
+    //        只有绩效数据步骤成功时才更新lastSyncAt
     try {
-      const syncStatus = result.success ? 'idle' : (result.partialSuccess ? 'partial_success' : 'error');
-      await db.updateAmazonApiCredentials(account.accountId, {
-        lastSyncAt: new Date().toISOString(),
+      // v738: 检查绩效数据步骤是否成功
+      const performanceStepIds = ['performance_today', 'performance_7d', 'performance_95d'];
+      const performanceStepsExecuted = performanceStepIds.filter(id => result.stepResults[id]);
+      const performanceStepsSucceeded = performanceStepsExecuted.filter(id => result.stepResults[id]?.success);
+      const hasPerformanceData = performanceStepsSucceeded.length > 0;
+      
+      // v738: 只有绩效数据步骤成功时才更新lastSyncAt
+      // 如果绩效数据步骤全部失败/跳过，不更新lastSyncAt，让优化引擎能感知数据过时
+      const shouldUpdateLastSync = hasPerformanceData || performanceStepsExecuted.length === 0;
+      
+      const syncStatus = result.success ? 'idle' : (result.failedSteps > 0 ? 'error' : 'idle');
+      const updatePayload: Record<string, unknown> = {
         syncStatus,
         syncErrorMessage: result.errors.length > 0 ? result.errors.slice(0, 3).join('; ') : null,
-      });
+      };
+      
+      if (shouldUpdateLastSync) {
+        updatePayload.lastSyncAt = new Date().toISOString();
+      } else {
+        // v738: 绩效数据失败，不更新lastSyncAt，记录警告
+        log.warn(`[UnifiedSync] v738: 账户${account.accountId} 绩效数据步骤全部失败(${performanceStepsExecuted.join(',')})，不更新lastSyncAt，保留旧值以触发优化引擎数据断路器`);
+        updatePayload.syncErrorMessage = `v738: 绩效数据同步失败(步骤:${performanceStepsExecuted.join(',')})，lastSyncAt未更新; ${result.errors.slice(0, 2).join('; ')}`;
+      }
+      
+      await db.updateAmazonApiCredentials(account.accountId, updatePayload);
+      
+      if (!shouldUpdateLastSync) {
+        log.info(`[UnifiedSync] v738: 账户${account.accountId} lastSyncAt未更新 | 绩效步骤执行=${performanceStepsExecuted.length}, 成功=${performanceStepsSucceeded.length}`);
+      }
     } catch (e: unknown) {
       log.warn(`[UnifiedSync] 更新账户 ${account.accountId} 同步状态失败: ${(e as Error).message}`);
     }

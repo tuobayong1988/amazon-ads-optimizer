@@ -501,32 +501,58 @@ async function deduplicatePerformanceData(accountId: number): Promise<number> {
 }
 
 /**
- * 记录待补偿同步的日期
+ * v738: 重写补偿同步逻辑 — 直接执行补偿同步而不是写入不存在的repair tier
+ * 原问题：recordPendingResync尝试写入'repair' tier到sync_tasks_v2表，
+ *          但该表的tier枚举只有'high','medium','full','confirmation'，
+ *          导致INSERT失败，补偿同步永远不会执行
+ * 修复：直接调用syncAccount的specificSteps来执行绩效数据补偿同步
  */
 async function recordPendingResync(accountId: number, dates: string[]): Promise<void> {
   try {
-    const { getDb } = await import('../../db');
-    const database = await getDb();
-    if (!database) return;
-
-    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    log.info(`[v738] 开始执行账户${accountId}的补偿同步: ${dates.length}个日期(${dates.join(',')})`);
     
-    // 使用sync_tasks_v2表记录补偿同步任务
-    await database.execute(sql`
-      INSERT INTO sync_tasks_v2 (task_id, tier, trigger_source, status, total_shards, created_at, updated_at)
-      VALUES (
-        ${`repair-${accountId}-${Date.now()}`},
-        'repair',
-        'data_integrity_checker',
-        'pending',
-        ${dates.length},
-        ${now},
-        ${now}
-      )
-    `);
-
-    log.info(`[v358] 已记录账户${accountId}的补偿同步任务: ${dates.length}个日期`);
+    // v738: 直接调用同步引擎执行绩效数据补偿同步
+    const { syncAccount, discoverSyncableAccounts } = await import('../unifiedSyncEngine');
+    
+    // 查找对应账户
+    const allAccounts = await discoverSyncableAccounts();
+    const account = allAccounts.find(a => a.accountId === accountId);
+    
+    if (!account) {
+      log.warn(`[v738] 补偿同步跳过: 账户${accountId}未找到或不可同步`);
+      return;
+    }
+    
+    // 确定需要补偿的步骤
+    let repairSteps: string[];
+    if (dates.includes('full')) {
+      // 全量补偿: 执行所有绩效相关步骤
+      repairSteps = ['performance_today', 'performance_7d', 'performance_95d'];
+    } else {
+      // 部分补偿: 根据缺失日期范围决定步骤
+      const missingDays = dates.length;
+      if (missingDays <= 1) {
+        repairSteps = ['performance_today'];
+      } else if (missingDays <= 7) {
+        repairSteps = ['performance_7d'];
+      } else {
+        repairSteps = ['performance_95d'];
+      }
+    }
+    
+    log.info(`[v738] 账户${accountId}补偿同步步骤: ${repairSteps.join(',')}`);
+    
+    // 执行补偿同步
+    const result = await syncAccount(account, 'high', {
+      specificSteps: repairSteps,
+    });
+    
+    if (result.success || result.partialSuccess) {
+      log.info(`[v738] 账户${accountId}补偿同步成功: 同步${result.totalSynced}条记录, 完成步骤=${result.completedSteps}/${result.totalSteps}`);
+    } else {
+      log.warn(`[v738] 账户${accountId}补偿同步失败: 错误=${result.errors.join('; ')}`);
+    }
   } catch (error: unknown) {
-    log.warn(`[v358] 记录补偿同步失败: ${(error as Error).message}`);
+    log.warn(`[v738] 账户${accountId}补偿同步异常: ${(error as Error).message}`);
   }
 }
