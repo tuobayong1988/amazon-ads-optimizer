@@ -13,4 +13,4 @@
  * 每次发版时，只需修改此文件中的版本号，并在 postDeployOptimizer.ts 的
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
-export const SYSTEM_VERSION = 688;  // v688: 预发布引擎三维度优化 — (1A)套装/单品形态识别 (1B)动态品牌名称库 (2A)CPC盈亏平衡过滤 (2B)动态生命周期权重 (3A)竞品流量动态渠道分配 (3B)新增SB_KW+SD_PT广告类型
+export const SYSTEM_VERSION = 741;  // v741: 空站点指数退避策略 + 大账户增量同步优化 — (1)空站点从固定6h冷却升级为指数退避(6h→12h→24h→168h)，覆盖所有层级 (2)大账户full层冷却期从24h延长到48h (3)大账户high/medium层新增2h per-account冷却期

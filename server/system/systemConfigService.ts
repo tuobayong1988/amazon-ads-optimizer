@@ -302,6 +302,38 @@ const DEFAULT_CONFIG: Record<string, Omit<ConfigParameter, 'updatedAt' | 'update
     defaultValue: 3,
     range: { min: 2, max: 10 },
   },
+  'execution.empty_account_max_backoff_hours': {
+    key: 'execution.empty_account_max_backoff_hours',
+    value: 168,
+    category: 'execution',
+    description: 'v741: 空站点指数退避的最大冷却时间（小时），退避序列: 6h→12h→24h→48h→96h→168h',
+    defaultValue: 168,
+    range: { min: 24, max: 336 },
+  },
+  'execution.large_account_campaign_threshold': {
+    key: 'execution.large_account_campaign_threshold',
+    value: 200,
+    category: 'execution',
+    description: 'v741: 大账户判定阈值（广告活动数），超过此值的账户启用大账户同步优化策略',
+    defaultValue: 200,
+    range: { min: 50, max: 1000 },
+  },
+  'execution.large_account_full_sync_cooldown_hours': {
+    key: 'execution.large_account_full_sync_cooldown_hours',
+    value: 48,
+    category: 'execution',
+    description: 'v741: 大账户全量同步冷却期（小时），在此时间内跳过full/nightly层全量同步，依赖high/medium层增量同步保持数据新鲜',
+    defaultValue: 48,
+    range: { min: 24, max: 168 },
+  },
+  'execution.large_account_high_sync_cooldown_hours': {
+    key: 'execution.large_account_high_sync_cooldown_hours',
+    value: 2,
+    category: 'execution',
+    description: 'v741: 大账户high层同步冷却期（小时），避免大账户每30分钟重复同步浪费资源',
+    defaultValue: 2,
+    range: { min: 1, max: 6 },
+  },
   
   // ===== 业务参数 =====
   'business.default_target_acos': {

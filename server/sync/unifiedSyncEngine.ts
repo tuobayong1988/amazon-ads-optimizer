@@ -1219,7 +1219,7 @@ export async function saveAllActiveCheckpoints(): Promise<number> {
 
 // v653: 空账户诊断去重缓存 — 连续相同诊断结果的账户不再重复输出warn日志
 // 解决v652验证报告4.1：日志缓冲区使用率从84%升至100%的问题
-const emptyAccountDiagCache = new Map<number, { diagnosisType: string; count: number; firstSeen: Date }>();
+const emptyAccountDiagCache = new Map<number, { diagnosisType: string; count: number; firstSeen: Date; backoffLevel: number; lastSyncAttempt: Date }>();
 const DIAG_DEDUP_LOG_INTERVAL = 10;  // 每10次相同诊断才输出一次汇总日志
 
 /**
@@ -1241,21 +1241,29 @@ export function getActiveSyncAccountIds(): Set<number> {
 
 export function getEmptyAccountStats(): {
   totalEmpty: number;
-  accounts: Array<{ accountId: number; diagnosisType: string; count: number; firstSeen: string; ageMins: number }>;
+  accounts: Array<{ accountId: number; diagnosisType: string; count: number; firstSeen: string; ageMins: number; backoffLevel: number; nextSyncInHours: number }>;
   apiRequestsSaved: number;
 } {
-  const accounts: Array<{ accountId: number; diagnosisType: string; count: number; firstSeen: string; ageMins: number }> = [];
+  const accounts: Array<{ accountId: number; diagnosisType: string; count: number; firstSeen: string; ageMins: number; backoffLevel: number; nextSyncInHours: number }> = [];
   let totalSkippedCycles = 0;
   const now = Date.now();
   
   for (const [accountId, diag] of emptyAccountDiagCache.entries()) {
     const ageMins = Math.round((now - diag.firstSeen.getTime()) / 60000);
+    // v741: 计算下次同步时间
+    const backoffLevel = diag.backoffLevel || 0;
+    const baseCooldownHours = 6; // 默认值，与 systemConfigService 一致
+    const effectiveCooldownMs = Math.min(baseCooldownHours * Math.pow(2, backoffLevel), 168) * 60 * 60 * 1000;
+    const timeSinceLastSync = now - diag.lastSyncAttempt.getTime();
+    const nextSyncInHours = Math.max(0, (effectiveCooldownMs - timeSinceLastSync) / (1000 * 60 * 60));
     accounts.push({
       accountId,
       diagnosisType: diag.diagnosisType,
       count: diag.count,
       firstSeen: diag.firstSeen.toISOString(),
       ageMins,
+      backoffLevel,
+      nextSyncInHours: Math.round(nextSyncInHours * 10) / 10,
     });
     totalSkippedCycles += diag.count;
   }
@@ -2585,7 +2593,7 @@ export async function syncAccount(
           }
         } else {
           // 首次或诊断类型变化：记录并正常输出
-          emptyAccountDiagCache.set(account.accountId, { diagnosisType: 'TRULY_EMPTY', count: 1, firstSeen: new Date() });
+          emptyAccountDiagCache.set(account.accountId, { diagnosisType: 'TRULY_EMPTY', count: 1, firstSeen: new Date(), backoffLevel: 0, lastSyncAttempt: new Date() });
         }
       } else {
         // 非TRULY_EMPTY诊断：清除缓存（账户状态变化）
@@ -2871,19 +2879,31 @@ export async function syncAllAccounts(tier: SyncTier): Promise<BatchSyncResult> 
       log.debug(`[UnifiedSync] v683: 获取账户锁失败: ${(lockErr as Error).message}`);
     }
     
-    // v661: per-account 24h冒却期 — 对于full/nightly层，检查该账户上次全量同步是否在24小时内
-    // 核心原则: 避免同一账户在短时间内重复进行全量同步，降低API压力
+    // v741: per-account 智能冷却期 — 大账户使用更长的冷却期（默认48h），普通账户保持24h
+    // 核心原则: 大账户全量同步耗时长且资源消耗大，延长冷却期可显著降低系统负载
+    // 大账户的数据新鲜度由 high/medium 层增量同步保障
     if (tier === 'full' || tier === 'nightly') {
       try {
         const database = await db.getDb();
         if (database) {
+          // v741: 根据账户大小动态调整冷却期
+          let cooldownHours = 24; // 默认24小时
+          try {
+            const { getConfig } = await import('../services/systemConfigService');
+            const largeAccountThreshold = getConfig('execution.large_account_campaign_threshold') as number;
+            const largeAccountCooldown = getConfig('execution.large_account_full_sync_cooldown_hours') as number;
+            if (acctSize >= largeAccountThreshold) {
+              cooldownHours = largeAccountCooldown;
+            }
+          } catch { /* 配置读取失败使用默认值 */ }
+          
           const lastFullSync = await database.execute(
             sql`SELECT MAX(completedAt) as lastCompleted
                 FROM data_sync_jobs
                 WHERE accountId = ${account.accountId}
                 AND syncType = 'all'
                 AND status = 'completed'
-                AND completedAt >= DATE_SUB(NOW(), INTERVAL 24 HOUR)`
+                AND completedAt >= DATE_SUB(NOW(), INTERVAL ${cooldownHours} HOUR)`
           );
           // @ts-expect-error - drizzle result
           const rows = Array.isArray(lastFullSync) ? lastFullSync[0] : (lastFullSync?.rows || lastFullSync);
@@ -2891,42 +2911,95 @@ export async function syncAllAccounts(tier: SyncTier): Promise<BatchSyncResult> 
           const lastCompleted = rows?.[0]?.lastCompleted || (Array.isArray(rows) ? rows[0]?.lastCompleted : null);
           if (lastCompleted) {
             const hoursSince = (Date.now() - new Date(lastCompleted).getTime()) / (1000 * 60 * 60);
-            log.info(`[UnifiedSync] v661: 账户${account.accountId} 上次全量同步在 ${hoursSince.toFixed(1)}小时前，冒却期内，跳过`);
-            logSync('UnifiedSync', `v661: 账户${account.accountId}全量同步冒却期跳过`, {
-              accountId: account.accountId, hoursSince: hoursSince.toFixed(1), tier
+            const isLarge = acctSize >= 200;
+            log.info(`[UnifiedSync] v741: 账户${account.accountId}${isLarge ? '(大账户)' : ''} 上次全量同步在 ${hoursSince.toFixed(1)}小时前，冷却期${cooldownHours}h内，跳过`);
+            logSync('UnifiedSync', `v741: 账户${account.accountId}全量同步冷却期跳过`, {
+              accountId: account.accountId, hoursSince: hoursSince.toFixed(1), tier,
+              cooldownHours, isLargeAccount: isLarge, campaignCount: acctSize,
             });
             batchResult.skippedAccounts++;
             continue;
           }
         }
       } catch (cooldownErr: any) {
-        // 冒却期检查失败不阻止同步继续
-        log.debug(`[UnifiedSync] v661: 账户${account.accountId}冒却期检查失败: ${(cooldownErr as Error).message}`);
+        // 冷却期检查失败不阻止同步继续
+        log.debug(`[UnifiedSync] v741: 账户${account.accountId}冷却期检查失败: ${(cooldownErr as Error).message}`);
       }
     }
     
-    // v687: 真空账户(TRULY_EMPTY)同步频率降级
-    // 对于中高频同步层，如果账户已被连续多次诊断为TRULY_EMPTY，则在冷却期内跳过
-    // 全量同步(full/nightly)不受影响，确保真空账户仍能定期被完整检查
-    if (tier === 'high' || tier === 'medium') {
+    // v741: 大账户 high/medium 层智能冷却期
+    // 大账户(>200活动)在 high 层每30分钟触发一次同步太频繁，浪费资源
+    // 对大账户实施 per-account 冷却期（默认2小时），避免重复同步
+    if ((tier === 'high' || tier === 'medium') && acctSize > 0) {
+      try {
+        const { getConfig } = await import('../services/systemConfigService');
+        const largeAccountThreshold = getConfig('execution.large_account_campaign_threshold') as number;
+        const highSyncCooldownHours = getConfig('execution.large_account_high_sync_cooldown_hours') as number;
+        
+        if (acctSize >= largeAccountThreshold) {
+          const database = await db.getDb();
+          if (database) {
+            const lastSync = await database.execute(
+              sql`SELECT MAX(completedAt) as lastCompleted
+                  FROM data_sync_jobs
+                  WHERE accountId = ${account.accountId}
+                  AND status = 'completed'
+                  AND completedAt >= DATE_SUB(NOW(), INTERVAL ${highSyncCooldownHours} HOUR)`
+            );
+            // @ts-expect-error - drizzle result
+            const rows = Array.isArray(lastSync) ? lastSync[0] : (lastSync?.rows || lastSync);
+            // @ts-expect-error - drizzle result
+            const lastCompleted = rows?.[0]?.lastCompleted || (Array.isArray(rows) ? rows[0]?.lastCompleted : null);
+            if (lastCompleted) {
+              const hoursSince = (Date.now() - new Date(lastCompleted).getTime()) / (1000 * 60 * 60);
+              log.info(`[UnifiedSync] v741: 大账户${account.accountId}(${acctSize}活动) ${tier}层上次同步在${hoursSince.toFixed(1)}h前，冷却期${highSyncCooldownHours}h内，跳过`);
+              logSync('UnifiedSync', `v741: 大账户${account.accountId} ${tier}层冷却期跳过`, {
+                accountId: account.accountId, tier, campaignCount: acctSize,
+                hoursSince: hoursSince.toFixed(1), cooldownHours: highSyncCooldownHours,
+              });
+              batchResult.skippedAccounts++;
+              // 释放账户锁
+              try {
+                const { releaseAccountLock } = await import('./syncCoordinator');
+                releaseAccountLock(account.accountId, `auto_${tier}`);
+              } catch { /* ignore */ }
+              continue;
+            }
+          }
+        }
+      } catch (largeCooldownErr: any) {
+        log.debug(`[UnifiedSync] v741: 大账户${tier}层冷却期检查失败: ${(largeCooldownErr as Error).message}`);
+      }
+    }
+    
+    // v741: 真空账户(TRULY_EMPTY)指数退避策略（替代v687的固定冷却期）
+    // 覆盖所有层级（包括full/nightly），彻底消除空站点的无效重试和超时浪费
+    // 退避策略：baseCooldown * 2^backoffLevel，从6h逐步升级到最大168h（7天）
+    // 当账户重新出现广告活动时（非TRULY_EMPTY诊断），缓存自动清除，恢复正常同步频率
+    {
       const emptyDiag = emptyAccountDiagCache.get(account.accountId);
       if (emptyDiag && emptyDiag.diagnosisType === 'TRULY_EMPTY') {
         try {
           const { getConfig } = await import('../services/systemConfigService');
           const minDiagCount = getConfig('execution.empty_account_min_diag_count') as number;
-          const cooldownHours = getConfig('execution.empty_account_cooldown_hours') as number;
+          const baseCooldownHours = getConfig('execution.empty_account_cooldown_hours') as number;
+          const maxBackoffHours = getConfig('execution.empty_account_max_backoff_hours') as number;
           
           if (emptyDiag.count >= minDiagCount) {
-            const hoursSinceFirst = (Date.now() - emptyDiag.firstSeen.getTime()) / (1000 * 60 * 60);
-            const cooldownMs = cooldownHours * 60 * 60 * 1000;
-            const timeSinceLastSync = Date.now() - emptyDiag.firstSeen.getTime();
+            // v741: 指数退避计算 — cooldown = baseCooldown * 2^backoffLevel，上限为maxBackoffHours
+            const backoffLevel = emptyDiag.backoffLevel || 0;
+            const effectiveCooldownHours = Math.min(baseCooldownHours * Math.pow(2, backoffLevel), maxBackoffHours);
+            const effectiveCooldownMs = effectiveCooldownHours * 60 * 60 * 1000;
+            const timeSinceLastSync = Date.now() - emptyDiag.lastSyncAttempt.getTime();
+            const hoursSinceLastSync = timeSinceLastSync / (1000 * 60 * 60);
             
-            // 在冷却期内跳过：连续N次TRULY_EMPTY且距首次发现不超过cooldownHours
-            if (timeSinceLastSync < cooldownMs) {
-              log.info(`[UnifiedSync] v687: 真空账户频率降级 — 账户${account.accountId}(${account.accountName}) 已连续${emptyDiag.count}次TRULY_EMPTY(${hoursSinceFirst.toFixed(1)}h)，${tier}层跳过(冷却${cooldownHours}h)`);
-              logSync('UnifiedSync', `v687: 真空账户${account.accountId}频率降级跳过`, {
+            if (timeSinceLastSync < effectiveCooldownMs) {
+              // 仍在退避冷却期内，跳过同步
+              log.info(`[UnifiedSync] v741: 空站点指数退避 — 账户${account.accountId}(${account.accountName}) 连续${emptyDiag.count}次TRULY_EMPTY，退避等级=${backoffLevel}，${tier}层跳过(冷却${effectiveCooldownHours.toFixed(0)}h，已过${hoursSinceLastSync.toFixed(1)}h)`);
+              logSync('UnifiedSync', `v741: 空站点${account.accountId}指数退避跳过`, {
                 accountId: account.accountId, tier, diagCount: emptyDiag.count,
-                hoursSinceFirst: hoursSinceFirst.toFixed(1), cooldownHours,
+                backoffLevel, effectiveCooldownHours: effectiveCooldownHours.toFixed(0),
+                hoursSinceLastSync: hoursSinceLastSync.toFixed(1),
               });
               batchResult.skippedAccounts++;
               // 释放账户锁
@@ -2936,14 +3009,16 @@ export async function syncAllAccounts(tier: SyncTier): Promise<BatchSyncResult> 
               } catch { /* ignore */ }
               continue;
             } else {
-              // 冷却期已过，重置诊断缓存让账户重新被完整检查
-              log.info(`[UnifiedSync] v687: 真空账户${account.accountId}冷却期(${cooldownHours}h)已过，重新同步检查`);
-              emptyAccountDiagCache.delete(account.accountId);
+              // 冷却期已过，执行一次同步检查，并提升退避等级
+              emptyDiag.backoffLevel = backoffLevel + 1;
+              emptyDiag.lastSyncAttempt = new Date();
+              const nextCooldownHours = Math.min(baseCooldownHours * Math.pow(2, emptyDiag.backoffLevel), maxBackoffHours);
+              log.info(`[UnifiedSync] v741: 空站点${account.accountId}退避冷却期(${effectiveCooldownHours.toFixed(0)}h)已过，执行检查同步，退避等级提升${backoffLevel}→${emptyDiag.backoffLevel}，下次冷却${nextCooldownHours.toFixed(0)}h`);
             }
           }
         } catch (emptyCheckErr: any) {
           // 配置读取失败不阻止同步
-          log.debug(`[UnifiedSync] v687: 真空账户降级检查失败: ${(emptyCheckErr as Error).message}`);
+          log.debug(`[UnifiedSync] v741: 空站点退避检查失败: ${(emptyCheckErr as Error).message}`);
         }
       }
     }
