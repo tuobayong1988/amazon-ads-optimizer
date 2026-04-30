@@ -745,6 +745,20 @@ async function executeUnifiedSync(tier: SyncTier): Promise<void> {
   logSync('DataSyncScheduler', `v222: 开始${SYNC_TIER_CONFIG[tier].description}`, { tier, mode: 'unified_engine' });
   schedulerStatus.currentTier = tier;
 
+  // ==================== v742: 初始化状态自愈 ====================
+  // 在 full 层同步前检测并修复卡在 collecting 状态超过 48 小时的账户
+  if (tier === 'full') {
+    try {
+      const { healStuckInitializationAccounts } = await import('../system/accountInitializationService');
+      const healResult = await healStuckInitializationAccounts();
+      if (healResult.healed > 0) {
+        log.info(`[DataSyncScheduler] v742: 初始化自愈修复了 ${healResult.healed} 个卡死账户: ${healResult.accounts.map(a => `${a.accountId}(${a.marketplace},${a.hoursStuck}h)`).join(', ')}`);
+      }
+    } catch (healErr: any) {
+      log.warn(`[DataSyncScheduler] v742: 初始化自愈检查异常: ${(healErr as Error).message}`);
+    }
+  }
+
   try {
     const { syncAllAccounts } = await import('./unifiedSyncEngine');
     // @ts-expect-error - type assertion

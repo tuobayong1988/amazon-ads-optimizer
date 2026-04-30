@@ -537,3 +537,76 @@ export async function initializeMultipleAccounts(accounts: Array<{
   
   return results;
 }
+
+/**
+ * v742: 初始化状态自愈机制
+ * 
+ * 检测卡在 collecting 状态超过指定时间的账户，自动修复为 completed。
+ * 根因：setTimeout 调度的后续同步轮次在服务器重启时丢失，导致账户永远停留在 collecting。
+ * 
+ * 自愈策略：
+ * - 超过 48 小时仍为 collecting 的账户，如果已有广告活动数据，直接标记为 completed
+ * - 超过 48 小时仍为 collecting 的空站点账户，也标记为 completed（空站点不影响）
+ * - 自愈后记录日志，方便追踪
+ * 
+ * 应在每次同步调度周期中调用此函数。
+ */
+export async function healStuckInitializationAccounts(): Promise<{
+  healed: number;
+  accounts: Array<{ accountId: number; marketplace: string; hoursStuck: number; hadData: boolean }>;
+}> {
+  const STUCK_THRESHOLD_HOURS = 48;
+  const result: { healed: number; accounts: Array<{ accountId: number; marketplace: string; hoursStuck: number; hadData: boolean }> } = {
+    healed: 0,
+    accounts: [],
+  };
+
+  try {
+    // 查找所有卡在 collecting 状态超过阈值的账户
+    const allAccounts = await db.getAdAccounts();
+    const now = Date.now();
+
+    for (const account of allAccounts) {
+      if (account.initializationStatus !== 'collecting') continue;
+
+      const startedAt = account.initializationStartedAt 
+        ? new Date(account.initializationStartedAt).getTime() 
+        : 0;
+      
+      if (startedAt === 0) continue; // 没有开始时间的跳过
+
+      const hoursStuck = (now - startedAt) / 3600000;
+      if (hoursStuck < STUCK_THRESHOLD_HOURS) continue; // 未超时的跳过
+
+      // 自愈：标记为 completed
+      try {
+        await db.updateAdAccount(account.id, {
+          initializationStatus: 'completed',
+          initializationCompletedAt: new Date().toISOString(),
+          initializationProgress: 100,
+        });
+
+        const hadData = (account as any).campaignCount > 0 || false;
+        result.accounts.push({
+          accountId: account.id,
+          marketplace: account.marketplace || 'unknown',
+          hoursStuck: Math.round(hoursStuck),
+          hadData,
+        });
+        result.healed++;
+
+        log.info(`[v742] 初始化自愈: 账号 ${account.id} (${account.marketplace}) 卡在 collecting ${Math.round(hoursStuck)}h, 已自动标记为 completed`);
+      } catch (healErr: any) {
+        log.warn(`[v742] 初始化自愈失败: 账号 ${account.id}: ${(healErr as Error).message}`);
+      }
+    }
+
+    if (result.healed > 0) {
+      log.info(`[v742] 初始化自愈完成: 共修复 ${result.healed} 个卡死账户`);
+    }
+  } catch (err: any) {
+    log.warn(`[v742] 初始化自愈检查异常: ${(err as Error).message}`);
+  }
+
+  return result;
+}

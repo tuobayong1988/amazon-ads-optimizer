@@ -1313,7 +1313,7 @@ AmazonSyncService.prototype.syncSbNegativeKeywords = async function(this: Amazon
           negativeSource: 'manual',
           negativeStatus: 'active',
         }).onDuplicateKeyUpdate({
-          set: { negativeStatus: sql`VALUES(negativeStatus)`, amazonNegativeKeywordId: sql`VALUES(amazonNegativeKeywordId)` }
+          set: { negativeStatus: sql`VALUES(negativeStatus)`, amazonNegativeKeywordId: sql`VALUES(amazon_negative_keyword_id)` }
         });
         synced++;
       }
@@ -1410,7 +1410,7 @@ AmazonSyncService.prototype.syncSbNegativeTargets = async function(this: AmazonS
           negativeSource: 'manual',
           negativeStatus: 'active',
         }).onDuplicateKeyUpdate({
-          set: { negativeStatus: sql`VALUES(negativeStatus)`, amazonNegativeKeywordId: sql`VALUES(amazonNegativeKeywordId)` }
+          set: { negativeStatus: sql`VALUES(negativeStatus)`, amazonNegativeKeywordId: sql`VALUES(amazon_negative_keyword_id)` }
         });
         synced++;
       }

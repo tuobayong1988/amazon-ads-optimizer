@@ -13,4 +13,4 @@
  * 每次发版时，只需修改此文件中的版本号，并在 postDeployOptimizer.ts 的
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
-export const SYSTEM_VERSION = 741;  // v741: 空站点指数退避策略 + 大账户增量同步优化 — (1)空站点从固定6h冷却升级为指数退避(6h→12h→24h→168h)，覆盖所有层级 (2)大账户full层冷却期从24h延长到48h (3)大账户high/medium层新增2h per-account冷却期
+export const SYSTEM_VERSION = 742;  // v742: 三大数据同步阻断性问题修复 — (1)否词同步崩溃: syncSp/syncSb/syncSd onDuplicateKeyUpdate SQL列名映射(amazonNegativeKeywordId→amazon_negative_keyword_id) (2)新账户初始化卡死自愈: collecting状态超时24h自动完成 (3)搜索词停滞: full/nightly层_forceSync=true+移除searchTermSync.ts无效this引用

@@ -44,14 +44,8 @@ export async function syncSbSearchTerms(service: SyncContext, days: number = 14)
     log.info(`开始同步SB搜索词数据: ${startDate} - ${endDate}`);
 
     // v649: P5 异步报告模式 — 提交到队列后立即返回
-    if (process.env.P5_ASYNC_REPORTS === 'true' && !this._forceSync) { // v676
-      const asyncResult = await service.client.submitReportsToAsyncQueue(
-        [{ name: `SB搜索词(${startDate}~${endDate})`, requestFn: () => service.client.requestSbSearchTermReport(startDate, endDate) }],
-        { accountId: service.accountId, syncType: 'search_term_sync', startDate, endDate }
-      );
-      log.info(`[v649:P5] Async SB search term report submitted: ${asyncResult.queued} queued, ${asyncResult.failed} failed`);
-      return 0; // 异步模式下由 ReportJobScheduler 处理数据
-    }
+    // v742: 移除死代码 — 独立函数中 this 为 undefined，且 full 层已设置 _forceSync=true
+    // 搜索词报告始终使用同步等待模式获取数据，不再依赖异步队列
 
     // 请求SB搜索词报告
     const reportId = await service.client.requestSbSearchTermReport(startDate, endDate);
@@ -232,15 +226,8 @@ export async function syncSearchTerms(service: SyncContext,days: number = 14): P
     const { startDate, endDate } = getMarketplaceDateRange(service.marketplace, days);
     log.info(`v196: 开始同步搜索词数据: ${startDate} - ${endDate}`);
 
-    // v649: P5 异步报告模式 — 提交到队列后立即返回
-    if (process.env.P5_ASYNC_REPORTS === 'true' && !this._forceSync) { // v676
-      const asyncResult = await service.client.submitReportsToAsyncQueue(
-        [{ name: `SP搜索词(${startDate}~${endDate})`, requestFn: () => service.client.requestSpSearchTermReport(startDate, endDate) }],
-        { accountId: service.accountId, syncType: 'search_term_sync', startDate, endDate }
-      );
-      log.info(`[v649:P5] Async SP search term report submitted: ${asyncResult.queued} queued, ${asyncResult.failed} failed`);
-      return 0; // 异步模式下由 ReportJobScheduler 处理数据
-    }
+    // v742: 移除死代码 — 独立函数中 this 为 undefined，且 full 层已设置 _forceSync=true
+    // 搜索词报告始终使用同步等待模式获取数据，不再依赖异步队列
 
     // 请求SP搜索词报告
     const reportId = await service.client.requestSpSearchTermReport(startDate, endDate);

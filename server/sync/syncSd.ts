@@ -809,7 +809,7 @@ AmazonSyncService.prototype.syncSdNegativeTargets = async function(this: AmazonS
           negativeSource: 'manual',
           negativeStatus: negState === 'enabled' ? 'active' as const : 'removed' as const,
         }).onDuplicateKeyUpdate({
-          set: { negativeStatus: sql`VALUES(negativeStatus)`, amazonNegativeKeywordId: sql`VALUES(amazonNegativeKeywordId)` }
+          set: { negativeStatus: sql`VALUES(negativeStatus)`, amazonNegativeKeywordId: sql`VALUES(amazon_negative_keyword_id)` }
         });
         synced++;
       }

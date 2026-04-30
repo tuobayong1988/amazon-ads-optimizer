@@ -1629,6 +1629,13 @@ export async function syncAccount(
       syncService._forceSync = true;
       syncService._reportWaitTimeoutMs = 1800000; // 30分钟
       log.info(`[v676-fix] syncAccount: 手动全量同步模式, _forceSync=true, 报告等待超时=1800秒`);
+    } else if (tier === 'full' || tier === 'nightly') {
+      // v742: full/nightly 层自动同步也使用同步等待模式
+      // 修复搜索词停滞问题：P5异步队列对搜索词报告的提交存在静默失败
+      // 全量同步层的报告（搜索词、定向、广告位等）必须同步等待获取数据
+      syncService._forceSync = true;
+      syncService._reportWaitTimeoutMs = 1800000; // 30分钟
+      log.info(`[v742] syncAccount: full/nightly层自动同步, _forceSync=true, 确保搜索词等报告同步获取数据`);
     }
 
     // 确定要执行的步骤
