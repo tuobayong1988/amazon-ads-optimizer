@@ -298,6 +298,7 @@ async function startSchedulerTasks(defaultIntervalMs: number): Promise<void> {
     }, 24 * 60 * 60 * 1000); // 24小时
   }, fullSyncDelayMs);
   log.info(`[DataSyncScheduler] v659: 全量同步已调度（每24小时），首次执行将在 ${Math.round(fullSyncDelayMs / 1000 / 60)} 分钟后（PST凌晨3点 = UTC 11:00）`);
+
   // v406: 夜间同步：计算距离下一个 PST 凌晨2点的毫秒数
   // 服务器运行在UTC，但广告数据以PST时区为准，所以nightly同步应在PST凌晨2点执行
   // PST = UTC-8，所以PST 2:00 AM = UTC 10:00 AM
@@ -325,6 +326,37 @@ async function startSchedulerTasks(defaultIntervalMs: number): Promise<void> {
     }, 24 * 60 * 60 * 1000);
   }, nightlyDelayMs);
   log.info(`[DataSyncScheduler] v406: 夜间同步已调度，首次执行将在 ${Math.round(nightlyDelayMs / 1000 / 60)} 分钟后（PST凌晨2点 = UTC 10:00）`);
+
+  // v743: 部署后紧急全量同步 — 当距离下次定时 full 同步超过 12 小时时，
+  // 在启动后 10 分钟触发一次 full 同步，确保搜索词等报告数据不会停滞超过 24 小时
+  // 解决 v742 验证报告：full 层同步 36 小时内从未触发的问题
+  const DEPLOY_FULL_SYNC_THRESHOLD_MS = 12 * 60 * 60 * 1000; // 12小时
+  const DEPLOY_FULL_SYNC_DELAY_MS = 10 * 60 * 1000; // 启动后10分钟
+  if (fullSyncDelayMs > DEPLOY_FULL_SYNC_THRESHOLD_MS) {
+    log.info(`[DataSyncScheduler] v743: 距离下次定时full同步${Math.round(fullSyncDelayMs / 1000 / 60)}分钟(>${DEPLOY_FULL_SYNC_THRESHOLD_MS / 3600000}h)，将在启动后${DEPLOY_FULL_SYNC_DELAY_MS / 60000}分钟触发部署后紧急full同步`);
+    logSystem('DataSyncScheduler', 'v743: 部署后紧急full同步已调度', { fullSyncDelayMins: Math.round(fullSyncDelayMs / 60000), triggerDelayMins: DEPLOY_FULL_SYNC_DELAY_MS / 60000 });
+    setTimeout(async () => {
+      log.info('[DataSyncScheduler] v743: 执行部署后紧急full同步（确保搜索词等报告数据恢复）...');
+      try {
+        await executeUnifiedSync('full');
+        log.info('[DataSyncScheduler] v743: 部署后紧急full同步完成');
+      } catch (err: unknown) {
+        log.warn(`[DataSyncScheduler] v743: 部署后紧急full同步失败: ${(err as Error).message}`);
+      }
+      // v743: full 完成后立即触发 nightly（搜索词报告在 nightly 层）
+      if (nightlyDelayMs > DEPLOY_FULL_SYNC_THRESHOLD_MS) {
+        log.info('[DataSyncScheduler] v743: full同步完成，立即触发nightly同步（搜索词报告恢复）...');
+        try {
+          await executeUnifiedSync('nightly');
+          log.info('[DataSyncScheduler] v743: 部署后紧急nightly同步完成');
+        } catch (err: unknown) {
+          log.warn(`[DataSyncScheduler] v743: 部署后紧急nightly同步失败: ${(err as Error).message}`);
+        }
+      }
+    }, DEPLOY_FULL_SYNC_DELAY_MS);
+  } else {
+    log.info(`[DataSyncScheduler] v743: 距离下次定时full同步${Math.round(fullSyncDelayMs / 1000 / 60)}分钟(<${DEPLOY_FULL_SYNC_THRESHOLD_MS / 3600000}h)，无需部署后紧急同步`);
+  }
 
   // v336: 缩短启动后首次同步延迟（v335的2分钟→30秒，5分钟→60秒）
   // 部署后尽快恢复数据同步，减少数据空窗期

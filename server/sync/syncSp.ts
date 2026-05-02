@@ -940,25 +940,46 @@ AmazonSyncService.prototype.syncSpNegativeKeywords = async function(this: Amazon
       .where(eq(campaigns.accountId, this.accountId));
     const allCampaignIds = allCampaignRows.map(r => r.campaignId);
 
+    // v743: 预加载所有 campaigns 和 adGroups 到 Map，避免逐条查询
+    // 解决大账户（90124有23.7万条否词）71万次DB查询导致45分钟超时的问题
+    const campaignMap = new Map<string, { campaignId: string }>();
+    for (const row of allCampaignRows) {
+      campaignMap.set(String(row.campaignId), row);
+    }
+    
+    // 预加载所有 adGroups
+    const allAdGroupRows = await db.select({ id: adGroups.id, adGroupId: adGroups.adGroupId, campaignId: adGroups.campaignId })
+      .from(adGroups)
+      .where(eq(adGroups.accountId, this.accountId));
+    const adGroupMap = new Map<string, { id: number; adGroupId: string; campaignId: string }>();
+    for (const row of allAdGroupRows) {
+      adGroupMap.set(String(row.adGroupId), row as any);
+    }
+    
+    // 预加载所有现有否定关键词（用于判断是更新还是插入）
+    const existingNegKws = await db.select({ id: negativeKeywords.id, campaignId: negativeKeywords.campaignId, internalAdGroupId: negativeKeywords.internalAdGroupId, negativeLevel: negativeKeywords.negativeLevel, negativeText: negativeKeywords.negativeText })
+      .from(negativeKeywords)
+      .where(and(eq(negativeKeywords.accountId, this.accountId), eq(negativeKeywords.negativeType, 'keyword')));
+    // 构建复合键查找 Map: campaignId:level:adGroupId:text
+    const existingNegKwMap = new Map<string, { id: number }>();
+    for (const row of existingNegKws) {
+      const key = `${row.campaignId}:${row.negativeLevel}:${row.internalAdGroupId || 0}:${row.negativeText}`;
+      existingNegKwMap.set(key, { id: row.id });
+    }
+    
+    log.info(`[v743] syncSpNegativeKeywords: 预加载完成 — campaigns=${campaignMap.size}, adGroups=${adGroupMap.size}, existingNegKws=${existingNegKwMap.size}`);
+
     // 1. 同步活动级别否定关键词
     log.info(`开始同步SP活动级别否定关键词...`);
-    // 注意: listSpCampaignNegativeKeywords是活动级别API，不支持campaignIdFilter，保持全量拉取
     const campaignNegatives = await this.client.listSpCampaignNegativeKeywords();
     log.debug(`获取到 ${campaignNegatives.length} 个活动级别否定关键词`);
 
+    // v743: 批量处理活动级否词 — 使用预加载的Map查找，批量upsert
+    const campaignNegBatchInsert: any[] = [];
+    const campaignNegBatchUpdate: { id: number; matchType: string; amazonKeywordId: string }[] = [];
+    
     for (const neg of campaignNegatives) {
-      // @ts-expect-error Async operation type inference
-      const [campaign] = await db
-        .select()
-        .from(campaigns)
-        .where(
-          and(
-            eq(campaigns.accountId, this.accountId),
-            eq(campaigns.campaignId, String(neg.campaignId))
-          )
-        )
-        .limit(1);
-      // @ts-expect-error Conditional type narrowing
+      const campaign = campaignMap.get(String(neg.campaignId));
       if (!campaign) continue;
       // @ts-expect-error Type inference limitation
       const negState = (neg.state || 'enabled').toLowerCase();
@@ -968,49 +989,49 @@ AmazonSyncService.prototype.syncSpNegativeKeywords = async function(this: Amazon
         ? 'negative_phrase' as const 
         : 'negative_exact' as const;
       const amazonKeywordId = String(neg.keywordId || neg.campaignNegativeKeywordId || '');
-      const [existing] = await db
-        .select()
-        .from(negativeKeywords)
-        .where(
-          and(
-            eq(negativeKeywords.accountId, this.accountId),
-            eq(negativeKeywords.campaignId, String(campaign.campaignId)),
-            eq(negativeKeywords.negativeLevel, 'campaign'),
-            // @ts-expect-error Legacy code type compatibility
-            eq(negativeKeywords.negativeText, neg.keywordText || '')
-          )
-        )
-        // @ts-expect-error Legacy code type compatibility
-        .limit(1);
+      
+      const lookupKey = `${campaign.campaignId}:campaign:0:${neg.keywordText || ''}`;
+      const existing = existingNegKwMap.get(lookupKey);
+      
       if (existing) {
-        await db.update(negativeKeywords)
-          .set({ negativeMatchType: matchType, amazonNegativeKeywordId: amazonKeywordId || null, negativeStatus: 'active' as const })
-          .where(eq(negativeKeywords.id, existing.id));
+        campaignNegBatchUpdate.push({ id: existing.id, matchType, amazonKeywordId });
         updated++;
       } else {
-        // @ts-expect-error Legacy code type compatibility
-        // v529: 添加onDuplicateKeyUpdate处理竞态条件下的DUP_ENTRY错误
-        await db.insert(negativeKeywords).values({
+        campaignNegBatchInsert.push({
           accountId: this.accountId,
           campaignId: String(campaign.campaignId),
           negativeLevel: 'campaign',
           negativeType: 'keyword',
           negativeText: neg.keywordText || '',
-          // @ts-expect-error Legacy code type compatibility
           negativeMatchType: matchType,
           amazonNegativeKeywordId: amazonKeywordId || null,
           negativeSource: 'manual',
           negativeStatus: 'active',
-        }).onDuplicateKeyUpdate({
-          set: { negativeStatus: sql`VALUES(negativeStatus)`, amazonNegativeKeywordId: sql`VALUES(amazon_negative_keyword_id)` }
         });
         synced++;
       }
     }
+    
+    // v743: 批量插入（每批500条）
+    const BATCH_SIZE = 500;
+    for (let i = 0; i < campaignNegBatchInsert.length; i += BATCH_SIZE) {
+      const batch = campaignNegBatchInsert.slice(i, i + BATCH_SIZE);
+      // @ts-expect-error Legacy code type compatibility
+      await db.insert(negativeKeywords).values(batch).onDuplicateKeyUpdate({
+        set: { negativeStatus: sql`VALUES(negativeStatus)`, amazonNegativeKeywordId: sql`VALUES(amazon_negative_keyword_id)` }
+      });
+    }
+    // v743: 批量更新（逐条但使用简化查询）
+    for (const upd of campaignNegBatchUpdate) {
+      await db.update(negativeKeywords)
+        .set({ negativeMatchType: upd.matchType as any, amazonNegativeKeywordId: upd.amazonKeywordId || null, negativeStatus: 'active' as const })
+        .where(eq(negativeKeywords.id, upd.id));
+    }
+    
+    log.info(`[v743] 活动级否词处理完成: 插入=${campaignNegBatchInsert.length}, 更新=${campaignNegBatchUpdate.length}`);
 
     // 2. 同步广告组级别否定关键词
     log.info(`开始同步SP广告组级别否定关键词...`);
-    // v672: 使用batchApiFetch实现广告组级否定关键词的分批拉取
     const negKwFetchResult = await batchApiFetch<Record<string, unknown>>({
       campaignIds: allCampaignIds,
       fetchBatch: (batchIds) => this.client.listSpNegativeKeywords(undefined, { campaignIds: batchIds }),
@@ -1024,55 +1045,35 @@ AmazonSyncService.prototype.syncSpNegativeKeywords = async function(this: Amazon
     }
     log.debug(`获取到 ${adGroupNegatives.length} 个广告组级别否定关键词`);
 
+    // v743: 批量处理广告组级否词 — 使用预加载的Map查找
+    const adGroupNegBatchInsert: any[] = [];
+    const adGroupNegBatchUpdate: { id: number; matchType: string; amazonKeywordId: string }[] = [];
+    
     for (const neg of adGroupNegatives) {
       // @ts-expect-error Type inference limitation
       const negState = (neg.state || 'enabled').toLowerCase();
       if (negState === 'archived') continue;
-      const [adGroup] = await db
-        .select()
-        .from(adGroups)
-        .where(and(eq(adGroups.accountId, this.accountId), eq(adGroups.adGroupId, String(neg.adGroupId))))
-        .limit(1);
-      // @ts-expect-error Conditional type narrowing
+      const adGroup = adGroupMap.get(String(neg.adGroupId));
       if (!adGroup) continue;
-      const [campaign] = await db
-        .select()
-        .from(campaigns)
-        .where(eq(campaigns.campaignId, adGroup.campaignId))
-        .limit(1);
+      const campaign = campaignMap.get(String(adGroup.campaignId));
       if (!campaign) continue;
       // @ts-expect-error Type inference limitation
       const matchType = (neg.matchType || '').toLowerCase().includes('phrase') 
         ? 'negative_phrase' as const 
         : 'negative_exact' as const;
       const amazonKeywordId = String(neg.keywordId || neg.negativeKeywordId || '');
-      const [existing] = await db
-        .select()
-        .from(negativeKeywords)
-        .where(
-          and(
-            eq(negativeKeywords.accountId, this.accountId),
-            eq(negativeKeywords.campaignId, String(campaign.campaignId)),
-            eq(negativeKeywords.internalAdGroupId, adGroup.id),  // v420: 修复 - internalAdGroupId是int类型
-            eq(negativeKeywords.negativeLevel, 'ad_group'),
-            // @ts-expect-error Legacy code type compatibility
-            eq(negativeKeywords.negativeText, neg.keywordText || '')
-          )
-        )
-        .limit(1);
+      
+      const lookupKey = `${campaign.campaignId}:ad_group:${adGroup.id}:${neg.keywordText || ''}`;
+      const existing = existingNegKwMap.get(lookupKey);
+      
       if (existing) {
-        await db.update(negativeKeywords)
-          .set({ negativeMatchType: matchType, amazonNegativeKeywordId: amazonKeywordId || null, negativeStatus: 'active' as const })
-          .where(eq(negativeKeywords.id, existing.id));
+        adGroupNegBatchUpdate.push({ id: existing.id, matchType, amazonKeywordId });
         updated++;
       } else {
-        // @ts-expect-error Legacy code type compatibility
-        // v529: 添加onDuplicateKeyUpdate处理竞态条件下的DUP_ENTRY错误
-        await db.insert(negativeKeywords).values({
-          // @ts-expect-error Legacy code type compatibility
+        adGroupNegBatchInsert.push({
           accountId: this.accountId,
           campaignId: String(campaign.campaignId),
-          internalAdGroupId: adGroup.id,  // v418: ID体系重构
+          internalAdGroupId: adGroup.id,
           negativeLevel: 'ad_group',
           negativeType: 'keyword',
           negativeText: neg.keywordText || '',
@@ -1080,13 +1081,26 @@ AmazonSyncService.prototype.syncSpNegativeKeywords = async function(this: Amazon
           amazonNegativeKeywordId: amazonKeywordId || null,
           negativeSource: 'manual',
           negativeStatus: 'active',
-        }).onDuplicateKeyUpdate({
-          set: { negativeStatus: sql`VALUES(negativeStatus)`, amazonNegativeKeywordId: sql`VALUES(amazon_negative_keyword_id)` }
         });
         synced++;
       }
     }
-
+    
+    // v743: 批量插入广告组级否词
+    for (let i = 0; i < adGroupNegBatchInsert.length; i += BATCH_SIZE) {
+      const batch = adGroupNegBatchInsert.slice(i, i + BATCH_SIZE);
+      // @ts-expect-error Legacy code type compatibility
+      await db.insert(negativeKeywords).values(batch).onDuplicateKeyUpdate({
+        set: { negativeStatus: sql`VALUES(negativeStatus)`, amazonNegativeKeywordId: sql`VALUES(amazon_negative_keyword_id)` }
+      });
+    }
+    for (const upd of adGroupNegBatchUpdate) {
+      await db.update(negativeKeywords)
+        .set({ negativeMatchType: upd.matchType as any, amazonNegativeKeywordId: upd.amazonKeywordId || null, negativeStatus: 'active' as const })
+        .where(eq(negativeKeywords.id, upd.id));
+    }
+    
+    log.info(`[v743] 广告组级否词处理完成: 插入=${adGroupNegBatchInsert.length}, 更新=${adGroupNegBatchUpdate.length}`);
     log.info(`SP否定关键词同步完成: ${synced} 条新记录, ${updated} 条更新`);
     return { synced, updated };
   } catch (error: any) {

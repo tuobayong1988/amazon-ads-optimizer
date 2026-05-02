@@ -1222,6 +1222,106 @@ export async function saveAllActiveCheckpoints(): Promise<number> {
 const emptyAccountDiagCache = new Map<number, { diagnosisType: string; count: number; firstSeen: Date; backoffLevel: number; lastSyncAttempt: Date }>();
 const DIAG_DEDUP_LOG_INTERVAL = 10;  // 每10次相同诊断才输出一次汇总日志
 
+// v743: 启动时从数据库恢复空账户退避状态，解决部署重启后内存缓存丢失的问题
+// 核心问题：emptyAccountDiagCache 是内存 Map，每次 EB 部署重启后清空，
+// 空账户需要重新积累 3 次 TRULY_EMPTY 诊断才能触发退避，
+// 在 high 层 30 分钟频率下需要 90 分钟才能重新建立退避状态
+async function restoreEmptyAccountBackoffState(): Promise<void> {
+  try {
+    const database = await db.getDb();
+    if (!database) return;
+    
+    // 查询所有活跃账户的广告活动数量
+    const accountCampaignCounts = await database.execute(
+      sql`SELECT a.id as accountId, COUNT(c.id) as campaignCount,
+             a.emptyAccountBackoff as backoffJson
+           FROM ad_accounts a
+           LEFT JOIN campaigns c ON c.accountId = a.id
+           WHERE a.isActive = 1
+           GROUP BY a.id`
+    );
+    // @ts-expect-error - drizzle result
+    const rows = Array.isArray(accountCampaignCounts) ? accountCampaignCounts[0] : (accountCampaignCounts?.rows || accountCampaignCounts);
+    // @ts-expect-error - drizzle result
+    if (!rows || !Array.isArray(rows)) return;
+    
+    let restoredFromDb = 0;
+    let prefilledFromCampaigns = 0;
+    
+    for (const row of rows as any[]) {
+      const accountId = row.accountId;
+      const campaignCount = Number(row.campaignCount || 0);
+      
+      // 尝试从 DB JSON 字段恢复
+      if (row.backoffJson) {
+        try {
+          const saved = JSON.parse(row.backoffJson);
+          if (saved.diagnosisType === 'TRULY_EMPTY' && saved.backoffLevel > 0) {
+            emptyAccountDiagCache.set(accountId, {
+              diagnosisType: saved.diagnosisType,
+              count: saved.count || 3,
+              firstSeen: new Date(saved.firstSeen || Date.now() - 86400000),
+              backoffLevel: saved.backoffLevel,
+              lastSyncAttempt: new Date(saved.lastSyncAttempt || Date.now() - 86400000),
+            });
+            restoredFromDb++;
+            continue;
+          }
+        } catch { /* JSON解析失败，回退到广告活动数检测 */ }
+      }
+      
+      // 对 campaigns 表中 COUNT=0 的账户，直接预填充缓存
+      if (campaignCount === 0) {
+        emptyAccountDiagCache.set(accountId, {
+          diagnosisType: 'TRULY_EMPTY',
+          count: 3, // 预设为最小触发次数，立即生效
+          firstSeen: new Date(Date.now() - 24 * 60 * 60 * 1000), // 假设24小时前开始
+          backoffLevel: 1, // 从第1级开始（冷却期12h），而不是0级（6h）
+          lastSyncAttempt: new Date(Date.now() - 6 * 60 * 60 * 1000), // 假设6小时前同步过
+        });
+        prefilledFromCampaigns++;
+      }
+    }
+    
+    if (restoredFromDb > 0 || prefilledFromCampaigns > 0) {
+      log.info(`[UnifiedSync] v743: 空账户退避状态恢复完成 — 从DB恢复=${restoredFromDb}, 从广告活动数预填充=${prefilledFromCampaigns}, 总计=${emptyAccountDiagCache.size}个空账户已启用退避`);
+    }
+  } catch (err: unknown) {
+    log.warn(`[UnifiedSync] v743: 空账户退避状态恢复失败: ${(err as Error).message}`);
+  }
+}
+
+// v743: 将空账户退避状态持久化到数据库
+async function persistEmptyAccountBackoffState(accountId: number): Promise<void> {
+  try {
+    const diag = emptyAccountDiagCache.get(accountId);
+    if (!diag) return;
+    
+    const database = await db.getDb();
+    if (!database) return;
+    
+    const backoffJson = JSON.stringify({
+      diagnosisType: diag.diagnosisType,
+      count: diag.count,
+      firstSeen: diag.firstSeen.toISOString(),
+      backoffLevel: diag.backoffLevel,
+      lastSyncAttempt: diag.lastSyncAttempt.toISOString(),
+    });
+    
+    await database.execute(
+      sql`UPDATE ad_accounts SET emptyAccountBackoff = ${backoffJson} WHERE id = ${accountId}`
+    );
+  } catch (err: unknown) {
+    // 持久化失败不影响同步继续
+    log.debug(`[UnifiedSync] v743: 空账户退避状态持久化失败(${accountId}): ${(err as Error).message}`);
+  }
+}
+
+// v743: 启动时调用恢复函数
+restoreEmptyAccountBackoffState().catch(err => {
+  log.warn(`[UnifiedSync] v743: 启动时恢复空账户退避状态失败: ${(err as Error).message}`);
+});
+
 /**
  * v657: 获取空账户监控统计数据
  * 用于 /api/ops/status 端点展示空账户预检机制的效果
@@ -2218,7 +2318,7 @@ export async function syncAccount(
           'sp_ad_groups': 10, 'sb_ad_groups': 10, 'sd_ad_groups': 10,
           'sp_keywords': 50, 'sb_keywords': 10, // v666: sp_keywords从10→50分钟（针对90084/90023等8万+关键词账户）
           'sp_product_targets': 20, 'sb_product_targets': 10, 'sd_product_targets': 10, // v678: sp_product_targets从10→20分钟（v677实测90023的SP商品定位步骤10分钟超时）
-          'sp_negative_keywords': 45, 'sb_negative_keywords': 30,
+          'sp_negative_keywords': 90, 'sb_negative_keywords': 30, // v743: sp_negative_keywords从45→90分钟（v742实测90124的23.7万条否词需要更多时间，即使v743已优化为批量模式）
           'sp_negative_targets': 50, 'sb_negative_targets': 15, 'sd_negative_targets': 15, // v666: sp_negative_targets从15→50分钟（针对90052等大账户）
           'sp_auto_targeting': 10, 'sd_targeting': 10, 'sb_targeting': 10,
           'sb_ads': 10, 'sp_budget_rules': 10,
@@ -2601,10 +2701,21 @@ export async function syncAccount(
         } else {
           // 首次或诊断类型变化：记录并正常输出
           emptyAccountDiagCache.set(account.accountId, { diagnosisType: 'TRULY_EMPTY', count: 1, firstSeen: new Date(), backoffLevel: 0, lastSyncAttempt: new Date() });
+          // v743: 首次检测到TRULY_EMPTY时持久化
+          persistEmptyAccountBackoffState(account.accountId).catch(() => {});
         }
       } else {
         // 非TRULY_EMPTY诊断：清除缓存（账户状态变化）
         emptyAccountDiagCache.delete(account.accountId);
+        // v743: 同时清除DB中的退避状态
+        (async () => {
+          try {
+            const database = await db.getDb();
+            if (database) {
+              await database.execute(sql`UPDATE ad_accounts SET emptyAccountBackoff = NULL WHERE id = ${account.accountId}`);
+            }
+          } catch { /* 清除失败不影响同步 */ }
+        })();
       }
       
       // v474: confirmation层同步0条是常见的(无待确认的出价更新)，降级为WARN
@@ -3021,6 +3132,8 @@ export async function syncAllAccounts(tier: SyncTier): Promise<BatchSyncResult> 
               emptyDiag.lastSyncAttempt = new Date();
               const nextCooldownHours = Math.min(baseCooldownHours * Math.pow(2, emptyDiag.backoffLevel), maxBackoffHours);
               log.info(`[UnifiedSync] v741: 空站点${account.accountId}退避冷却期(${effectiveCooldownHours.toFixed(0)}h)已过，执行检查同步，退避等级提升${backoffLevel}→${emptyDiag.backoffLevel}，下次冷却${nextCooldownHours.toFixed(0)}h`);
+              // v743: 持久化退避状态到DB，确保重启后不丢失
+              persistEmptyAccountBackoffState(account.accountId).catch(() => {});
             }
           }
         } catch (emptyCheckErr: any) {

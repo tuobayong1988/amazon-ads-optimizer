@@ -595,14 +595,50 @@ export async function healStuckInitializationAccounts(): Promise<{
         });
         result.healed++;
 
-        log.info(`[v742] 初始化自愈: 账号 ${account.id} (${account.marketplace}) 卡在 collecting ${Math.round(hoursStuck)}h, 已自动标记为 completed`);
+        log.info(`[v743] 初始化自愈: 账号 ${account.id} (${account.marketplace}) 卡在 collecting ${Math.round(hoursStuck)}h, 已自动标记为 completed`);
       } catch (healErr: any) {
-        log.warn(`[v742] 初始化自愈失败: 账号 ${account.id}: ${(healErr as Error).message}`);
+        log.warn(`[v743] 初始化自愈失败: 账号 ${account.id}: ${(healErr as Error).message}`);
       }
     }
 
     if (result.healed > 0) {
-      log.info(`[v742] 初始化自愈完成: 共修复 ${result.healed} 个卡死账户`);
+      log.info(`[v743] 初始化自愈完成: 共修复 ${result.healed} 个卡死账户，开始触发深度全量同步回填缺失数据...`);
+      
+      // v743: 为每个恢复的账户触发深度全量同步
+      // 解决 v742 验证报告：卡死恢复账户仅改状态为 completed，但广告组和关键词数据严重缺失
+      try {
+        const { syncAccount } = await import('../sync/unifiedSyncEngine');
+        
+        for (const healedAccount of result.accounts) {
+          try {
+            // 获取完整账户信息
+            const fullAccount = await db.getAdAccountById(healedAccount.accountId);
+            if (!fullAccount) {
+              log.warn(`[v743] 深度同步跳过: 账号 ${healedAccount.accountId} 未找到`);
+              continue;
+            }
+            
+            log.info(`[v743] 触发深度全量同步: 账号 ${healedAccount.accountId} (${healedAccount.marketplace}), 卡死${healedAccount.hoursStuck}h, 有数据=${healedAccount.hadData}`);
+            
+            // 使用 full 层级同步，确保所有数据层级都被同步
+            const syncResult = await syncAccount(fullAccount, 'full', {
+              onProgress: (step: string, current: number, total: number) => {
+                if (current % 5 === 0) { // 每5步记录一次进度
+                  log.info(`[v743] 深度同步进度: 账号 ${healedAccount.accountId} - ${step} (${current}/${total})`);
+                }
+              },
+            });
+            
+            log.info(`[v743] 深度全量同步完成: 账号 ${healedAccount.accountId}, 同步数据=${syncResult?.totalSynced || 0}, 耗时=${syncResult?.durationMs || 0}ms`);
+          } catch (syncErr: any) {
+            log.warn(`[v743] 深度全量同步失败: 账号 ${healedAccount.accountId}: ${(syncErr as Error).message}`);
+          }
+        }
+        
+        log.info(`[v743] 所有卡死账户深度同步已完成`);
+      } catch (deepSyncErr: any) {
+        log.warn(`[v743] 深度同步模块加载失败: ${(deepSyncErr as Error).message}`);
+      }
     }
   } catch (err: any) {
     log.warn(`[v742] 初始化自愈检查异常: ${(err as Error).message}`);

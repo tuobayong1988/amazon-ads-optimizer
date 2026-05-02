@@ -137,6 +137,8 @@ export const adAccounts = mysqlTable("ad_accounts", {
 	initializationCompletedAt: timestamp("initialization_completed_at", { mode: 'string' }),
 	initializationProgress: int("initialization_progress").default(0),
 	initializationError: text("initialization_error"),
+	// v743: 空账户退避状态持久化字段
+	emptyAccountBackoff: text("emptyAccountBackoff"),
 },
 (table) => [
 	index("idx_ad_organization").on(table.organizationId),
