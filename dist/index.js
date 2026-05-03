@@ -63027,6 +63027,23 @@ __export(optimizationTargetEngine_exports, {
   getTargetLifecycleInfo: () => getTargetLifecycleInfo
 });
 import { eq as eq64, sql as sql61, and as and52 } from "drizzle-orm";
+async function throttledCircuitBreakerSync() {
+  const now = Date.now();
+  if (now - _lastCircuitBreakerSyncTime < CIRCUIT_BREAKER_SYNC_THROTTLE_MS) {
+    log109.debug(`[OptimizationTarget] v743-fix2: \u65AD\u8DEF\u5668\u540C\u6B65\u8282\u6D41\u4E2D\uFF0C\u8DDD\u4E0A\u6B21\u89E6\u53D1${Math.round((now - _lastCircuitBreakerSyncTime) / 1e3)}\u79D2\uFF0C\u8DF3\u8FC7`);
+    return;
+  }
+  _lastCircuitBreakerSyncTime = now;
+  try {
+    const { syncAllAccounts: syncAllAccounts2 } = await Promise.resolve().then(() => (init_unifiedSyncEngine(), unifiedSyncEngine_exports));
+    log109.info(`[OptimizationTarget] v743-fix2: \u65AD\u8DEF\u5668\u89E6\u53D1\u8282\u6D41\u540C\u6B65\u8BF7\u6C42\uFF085\u5206\u949F\u5185\u4EC5\u6B641\u6B21\uFF09...`);
+    syncAllAccounts2("high").catch((err) => {
+      log109.warn(`[OptimizationTarget] v743-fix2: \u8282\u6D41\u540C\u6B65\u5931\u8D25: ${err.message}`);
+    });
+  } catch (syncErr) {
+    log109.warn(`[OptimizationTarget] v743-fix2: \u89E6\u53D1\u8282\u6D41\u540C\u6B65\u5931\u8D25: ${syncErr.message}`);
+  }
+}
 function throttleDelay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -63317,15 +63334,7 @@ async function executeOptimizationTarget(targetId, options = {}) {
           } catch (logErr) {
             log109.debug(`[OptimizationTarget] v738: \u8BB0\u5F55\u65AD\u8DEF\u5668\u4E8B\u4EF6\u5931\u8D25: ${logErr.message}`);
           }
-          try {
-            const { syncAllAccounts: syncAllAccounts2 } = await Promise.resolve().then(() => (init_unifiedSyncEngine(), unifiedSyncEngine_exports));
-            log109.info(`[OptimizationTarget] v738: \u65AD\u8DEF\u5668\u89E6\u53D1\u7D27\u6025\u540C\u6B65\u8BF7\u6C42...`);
-            syncAllAccounts2("high").catch((err) => {
-              log109.warn(`[OptimizationTarget] v738: \u7D27\u6025\u540C\u6B65\u5931\u8D25: ${err.message}`);
-            });
-          } catch (syncErr) {
-            log109.warn(`[OptimizationTarget] v738: \u89E6\u53D1\u7D27\u6025\u540C\u6B65\u5931\u8D25: ${syncErr.message}`);
-          }
+          throttledCircuitBreakerSync();
           if (shouldReleaseLock) await releaseAccountOptimizationLock(config.accountId, moduleLockGroup);
           unregisterActiveTask(activeTaskId);
           return result;
@@ -63361,15 +63370,7 @@ async function executeOptimizationTarget(targetId, options = {}) {
           } catch (logErr) {
             log109.debug(`[OptimizationTarget] v738: \u8BB0\u5F55\u65AD\u8DEF\u5668\u4E8B\u4EF6\u5931\u8D25: ${logErr.message}`);
           }
-          try {
-            const { syncAllAccounts: syncAllAccounts2 } = await Promise.resolve().then(() => (init_unifiedSyncEngine(), unifiedSyncEngine_exports));
-            log109.info(`[OptimizationTarget] v738: \u65AD\u8DEF\u5668\u89E6\u53D1\u7D27\u6025\u540C\u6B65\u8BF7\u6C42...`);
-            syncAllAccounts2("high").catch((err) => {
-              log109.warn(`[OptimizationTarget] v738: \u7D27\u6025\u540C\u6B65\u5931\u8D25: ${err.message}`);
-            });
-          } catch (syncErr) {
-            log109.warn(`[OptimizationTarget] v738: \u89E6\u53D1\u7D27\u6025\u540C\u6B65\u5931\u8D25: ${syncErr.message}`);
-          }
+          throttledCircuitBreakerSync();
           if (shouldReleaseLock) await releaseAccountOptimizationLock(config.accountId, moduleLockGroup);
           unregisterActiveTask(activeTaskId);
           return result;
@@ -64129,7 +64130,7 @@ async function getOptimizationTargetSummary(targetId) {
     pendingActions
   };
 }
-var log109, INTER_MODULE_DELAY_MS, CACHE_TTL_MS4, marketplaceCache2;
+var _lastCircuitBreakerSyncTime, CIRCUIT_BREAKER_SYNC_THROTTLE_MS, log109, INTER_MODULE_DELAY_MS, CACHE_TTL_MS4, marketplaceCache2;
 var init_optimizationTargetEngine = __esm({
   "server/optimization/optimizationTargetEngine.ts"() {
     "use strict";
@@ -64153,6 +64154,8 @@ var init_optimizationTargetEngine = __esm({
     init_budgetExecutor();
     init_bidCoordinationExecutor();
     init_executionLogger();
+    _lastCircuitBreakerSyncTime = 0;
+    CIRCUIT_BREAKER_SYNC_THROTTLE_MS = 5 * 60 * 1e3;
     log109 = createModuleLogger("TargetEngine");
     INTER_MODULE_DELAY_MS = 2e4;
     CACHE_TTL_MS4 = 30 * 60 * 1e3;
@@ -70067,7 +70070,7 @@ async function restoreEmptyAccountBackoffState() {
              a.emptyAccountBackoff as backoffJson
            FROM ad_accounts a
            LEFT JOIN campaigns c ON c.accountId = a.id
-           WHERE a.isActive = 1
+           WHERE a.status = 'active'
            GROUP BY a.id`
     );
     const rows = Array.isArray(accountCampaignCounts) ? accountCampaignCounts[0] : accountCampaignCounts?.rows || accountCampaignCounts;
@@ -70080,12 +70083,13 @@ async function restoreEmptyAccountBackoffState() {
       if (row.backoffJson) {
         try {
           const saved = JSON.parse(row.backoffJson);
-          if (saved.diagnosisType === "TRULY_EMPTY" && saved.backoffLevel > 0) {
+          if (saved.diagnosisType === "TRULY_EMPTY") {
             emptyAccountDiagCache.set(accountId, {
               diagnosisType: saved.diagnosisType,
               count: saved.count || 3,
               firstSeen: new Date(saved.firstSeen || Date.now() - 864e5),
-              backoffLevel: saved.backoffLevel,
+              backoffLevel: Math.max(saved.backoffLevel || 0, 1),
+              // v743-fix2: at least level 1
               lastSyncAttempt: new Date(saved.lastSyncAttempt || Date.now() - 864e5)
             });
             restoredFromDb++;
@@ -71560,6 +71564,21 @@ async function syncAllAccounts(tier) {
             batchResult.skippedAccounts++;
           }
           break;
+        }
+      }
+    } catch {
+    }
+    try {
+      const database = await getDb();
+      if (database) {
+        const runningCheck = await database.execute(
+          sql76`SELECT id FROM data_sync_jobs WHERE accountId = ${account.accountId} AND status = 'running' AND startedAt > DATE_SUB(NOW(), INTERVAL 30 MINUTE) LIMIT 1`
+        );
+        const runningRows = Array.isArray(runningCheck) ? runningCheck[0] : runningCheck?.rows || runningCheck;
+        if (runningRows && runningRows.length > 0) {
+          log125.debug(`[UnifiedSync] v743-fix2: \u8D26\u6237${account.accountId}\u5DF2\u6709running\u4EFB\u52A1Job#${runningRows[0].id}\uFF0C\u8DF3\u8FC7`);
+          batchResult.skippedAccounts++;
+          continue;
         }
       }
     } catch {

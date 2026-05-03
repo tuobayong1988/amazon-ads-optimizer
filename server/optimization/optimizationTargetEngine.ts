@@ -18,6 +18,27 @@ import { keywords as keywordsTable, productTargets as productTargetsTable, campa
 import { eq, sql, and } from "drizzle-orm";
 import { safeInClause } from '../utils/safeSql';
 import * as bidOptimizer from "./bidOptimizer";
+
+// v743-fix2: 断路器同步触发全局节流 — 防止多个优化目标同时触发syncAllAccounts洪泛
+let _lastCircuitBreakerSyncTime = 0;
+const CIRCUIT_BREAKER_SYNC_THROTTLE_MS = 5 * 60 * 1000; // 5分钟内最多触发1次
+async function throttledCircuitBreakerSync(): Promise<void> {
+  const now = Date.now();
+  if (now - _lastCircuitBreakerSyncTime < CIRCUIT_BREAKER_SYNC_THROTTLE_MS) {
+    log.debug(`[OptimizationTarget] v743-fix2: 断路器同步节流中，距上次触发${Math.round((now - _lastCircuitBreakerSyncTime) / 1000)}秒，跳过`);
+    return;
+  }
+  _lastCircuitBreakerSyncTime = now;
+  try {
+    const { syncAllAccounts } = await import('../sync/unifiedSyncEngine');
+    log.info(`[OptimizationTarget] v743-fix2: 断路器触发节流同步请求（5分钟内仅此1次）...`);
+    syncAllAccounts('high').catch((err: Error) => {
+      log.warn(`[OptimizationTarget] v743-fix2: 节流同步失败: ${err.message}`);
+    });
+  } catch (syncErr: unknown) {
+    log.warn(`[OptimizationTarget] v743-fix2: 触发节流同步失败: ${(syncErr as Error).message}`);
+  }
+}
 import * as daypartingService from "../budget/daypartingService";
 import * as placementOptimizationService from "./placementOptimizationService";
 import { preOptimizationSafetyCheck, applyBidGuardrail, applyBudgetGuardrail, applyPlacementGuardrail, SAFETY_LIMITS } from './optimizationSafetyGuardrails';
@@ -598,16 +619,8 @@ export async function executeOptimizationTarget(
             log.debug(`[OptimizationTarget] v738: 记录断路器事件失败: ${(logErr as Error).message}`);
           }
           
-          // 触发紧急同步请求
-          try {
-            const { syncAllAccounts } = await import('../sync/unifiedSyncEngine');
-            log.info(`[OptimizationTarget] v738: 断路器触发紧急同步请求...`);
-            syncAllAccounts('high').catch((err: Error) => {
-              log.warn(`[OptimizationTarget] v738: 紧急同步失败: ${err.message}`);
-            });
-          } catch (syncErr: unknown) {
-            log.warn(`[OptimizationTarget] v738: 触发紧急同步失败: ${(syncErr as Error).message}`);
-          }
+          // v743-fix2: 使用节流版本替代原始fire-and-forget，防止洪泛
+          throttledCircuitBreakerSync();
           
           if (shouldReleaseLock) await releaseAccountOptimizationLock(config.accountId, moduleLockGroup);
           unregisterActiveTask(activeTaskId);
@@ -648,15 +661,8 @@ export async function executeOptimizationTarget(
             log.debug(`[OptimizationTarget] v738: 记录断路器事件失败: ${(logErr as Error).message}`);
           }
           
-          try {
-            const { syncAllAccounts } = await import('../sync/unifiedSyncEngine');
-            log.info(`[OptimizationTarget] v738: 断路器触发紧急同步请求...`);
-            syncAllAccounts('high').catch((err: Error) => {
-              log.warn(`[OptimizationTarget] v738: 紧急同步失败: ${err.message}`);
-            });
-          } catch (syncErr: unknown) {
-            log.warn(`[OptimizationTarget] v738: 触发紧急同步失败: ${(syncErr as Error).message}`);
-          }
+          // v743-fix2: 使用节流版本替代原始fire-and-forget，防止洪泛
+          throttledCircuitBreakerSync();
           
           if (shouldReleaseLock) await releaseAccountOptimizationLock(config.accountId, moduleLockGroup);
           unregisterActiveTask(activeTaskId);

@@ -1237,7 +1237,7 @@ async function restoreEmptyAccountBackoffState(): Promise<void> {
              a.emptyAccountBackoff as backoffJson
            FROM ad_accounts a
            LEFT JOIN campaigns c ON c.accountId = a.id
-           WHERE a.isActive = 1
+           WHERE a.status = 'active'
            GROUP BY a.id`
     );
     // @ts-expect-error - drizzle result
@@ -1256,12 +1256,12 @@ async function restoreEmptyAccountBackoffState(): Promise<void> {
       if (row.backoffJson) {
         try {
           const saved = JSON.parse(row.backoffJson);
-          if (saved.diagnosisType === 'TRULY_EMPTY' && saved.backoffLevel > 0) {
+          if (saved.diagnosisType === 'TRULY_EMPTY') {
             emptyAccountDiagCache.set(accountId, {
               diagnosisType: saved.diagnosisType,
               count: saved.count || 3,
               firstSeen: new Date(saved.firstSeen || Date.now() - 86400000),
-              backoffLevel: saved.backoffLevel,
+              backoffLevel: Math.max(saved.backoffLevel || 0, 1), // v743-fix2: at least level 1
               lastSyncAttempt: new Date(saved.lastSyncAttempt || Date.now() - 86400000),
             });
             restoredFromDb++;
@@ -3173,6 +3173,26 @@ export async function syncAllAccounts(tier: SyncTier): Promise<BatchSyncResult> 
       // 内存检查失败不阻止同步
     }
     
+    // v743-fix2: 账户级并发保护 — 检查该账户是否已有running状态的任务
+    // 防止断路器/多路径同时触发导致同一账户创建重复任务
+    try {
+      const database = await db.getDb();
+      if (database) {
+        const runningCheck = await database.execute(
+          sql`SELECT id FROM data_sync_jobs WHERE accountId = ${account.accountId} AND status = 'running' AND startedAt > DATE_SUB(NOW(), INTERVAL 30 MINUTE) LIMIT 1`
+        );
+        // @ts-expect-error - drizzle result
+        const runningRows = Array.isArray(runningCheck) ? runningCheck[0] : (runningCheck?.rows || runningCheck);
+        // @ts-expect-error - drizzle result
+        if (runningRows && runningRows.length > 0) {
+          // @ts-expect-error - drizzle result
+          log.debug(`[UnifiedSync] v743-fix2: 账户${account.accountId}已有running任务Job#${runningRows[0].id}，跳过`);
+          batchResult.skippedAccounts++;
+          continue;
+        }
+      }
+    } catch { /* 检查失败不阻止同步 */ }
+
     // v651: 自动同步也创建running状态的data_sync_jobs记录
     let autoSyncJobId: number | null = null;
     try {
