@@ -1135,22 +1135,47 @@ AmazonSyncService.prototype.syncSpNegativeProductTargets = async function(this: 
       .where(eq(campaigns.accountId, this.accountId));
     const allCampaignIds = allCampaignRows.map(r => r.campaignId);
 
+    // v744: 预加载所有 campaigns 和 adGroups 到 Map，避免逐条查询
+    // 解决大账户（90052有16.7万+否词，90124有53万+否词）N+1查询导致50分钟超时的问题
+    const campaignMap = new Map<string, { campaignId: string }>();
+    for (const row of allCampaignRows) {
+      campaignMap.set(String(row.campaignId), row);
+    }
+    
+    // 预加载所有 adGroups
+    const allAdGroupRows = await db.select({ id: adGroups.id, adGroupId: adGroups.adGroupId, campaignId: adGroups.campaignId })
+      .from(adGroups)
+      .where(eq(adGroups.accountId, this.accountId));
+    const adGroupMap = new Map<string, { id: number; adGroupId: string; campaignId: string }>();
+    for (const row of allAdGroupRows) {
+      adGroupMap.set(String(row.adGroupId), row as any);
+    }
+    
+    // 预加载所有现有否定商品定位（negativeType='product'）用于判断是更新还是插入
+    const existingNegProducts = await db.select({ id: negativeKeywords.id, campaignId: negativeKeywords.campaignId, internalAdGroupId: negativeKeywords.internalAdGroupId, negativeLevel: negativeKeywords.negativeLevel, negativeText: negativeKeywords.negativeText })
+      .from(negativeKeywords)
+      .where(and(eq(negativeKeywords.accountId, this.accountId), eq(negativeKeywords.negativeType, 'product')));
+    // 构建复合键查找 Map: campaignId:level:adGroupId:text
+    const existingNegProductMap = new Map<string, { id: number }>();
+    for (const row of existingNegProducts) {
+      const key = `${row.campaignId}:${row.negativeLevel}:${row.internalAdGroupId || 0}:${row.negativeText}`;
+      existingNegProductMap.set(key, { id: row.id });
+    }
+    
+    log.info(`[v744] syncSpNegativeProductTargets: 预加载完成 — campaigns=${campaignMap.size}, adGroups=${adGroupMap.size}, existingNegProducts=${existingNegProductMap.size}`);
+
     // 1. 同步活动级别否定商品定向
     log.info(`开始同步SP活动级别否定商品定向...`);
     // 注意: listSpCampaignNegativeTargets是活动级别API，不支持campaignIdFilter，保持全量拉取
     const campaignNegTargets = await this.client.listSpCampaignNegativeTargets();
     log.debug(`获取到 ${campaignNegTargets.length} 个活动级别否定商品定向`);
+
+    // v744: 批量处理活动级否定商品定向 — 使用预加载的Map查找，批量upsert
+    const campaignNegBatchInsert: any[] = [];
+    const campaignNegBatchUpdate: { id: number; amazonTargetId: string }[] = [];
+    
     for (const neg of campaignNegTargets) {
-      const [campaign] = await db
-        .select()
-        .from(campaigns)
-        .where(
-          and(
-            eq(campaigns.accountId, this.accountId),
-            eq(campaigns.campaignId, String(neg.campaignId))
-          )
-        )
-        .limit(1);
+      const campaign = campaignMap.get(String(neg.campaignId));
       if (!campaign) continue;
       // @ts-expect-error Type inference limitation
       const negState = (neg.state || 'enabled').toLowerCase();
@@ -1160,29 +1185,15 @@ AmazonSyncService.prototype.syncSpNegativeProductTargets = async function(this: 
       const asinExpr = expression.find((e: Record<string, unknown>) => e.type?.toLowerCase().includes('asin'));
       const negativeText = asinExpr?.value || JSON.stringify(expression);
       const amazonTargetId = String(neg.targetId || '');
-      const [existing] = await db
-        .select()
-        // @ts-expect-error DB query type inference limitation
-        .from(negativeKeywords)
-        .where(
-          and(
-            eq(negativeKeywords.accountId, this.accountId),
-            eq(negativeKeywords.campaignId, String(campaign.campaignId)),
-            eq(negativeKeywords.negativeLevel, 'campaign'),
-            eq(negativeKeywords.negativeType, 'product'),
-            eq(negativeKeywords.negativeText, negativeText)
-          )
-        )
-        .limit(1);
+      
+      const lookupKey = `${campaign.campaignId}:campaign:0:${negativeText}`;
+      const existing = existingNegProductMap.get(lookupKey);
+      
       if (existing) {
-        await db.update(negativeKeywords)
-          .set({ amazonNegativeKeywordId: amazonTargetId || null, negativeStatus: 'active' as const })
-          .where(eq(negativeKeywords.id, existing.id));
-        // @ts-expect-error Legacy code type compatibility
+        campaignNegBatchUpdate.push({ id: existing.id, amazonTargetId });
         updated++;
       } else {
-        // v529: 添加onDuplicateKeyUpdate处理竞态条件下的DUP_ENTRY错误
-        await db.insert(negativeKeywords).values({
+        campaignNegBatchInsert.push({
           accountId: this.accountId,
           campaignId: String(campaign.campaignId),
           negativeLevel: 'campaign',
@@ -1192,12 +1203,29 @@ AmazonSyncService.prototype.syncSpNegativeProductTargets = async function(this: 
           amazonNegativeKeywordId: amazonTargetId || null,
           negativeSource: 'manual',
           negativeStatus: 'active',
-        }).onDuplicateKeyUpdate({
-          set: { negativeStatus: sql`VALUES(negativeStatus)`, amazonNegativeKeywordId: sql`VALUES(amazon_negative_keyword_id)` }
         });
         synced++;
       }
     }
+    
+    // v744: 批量插入（每批500条）
+    const BATCH_SIZE = 500;
+    for (let i = 0; i < campaignNegBatchInsert.length; i += BATCH_SIZE) {
+      const batch = campaignNegBatchInsert.slice(i, i + BATCH_SIZE);
+      // @ts-expect-error Legacy code type compatibility
+      await db.insert(negativeKeywords).values(batch).onDuplicateKeyUpdate({
+        set: { negativeStatus: sql`VALUES(negativeStatus)`, amazonNegativeKeywordId: sql`VALUES(amazon_negative_keyword_id)` }
+      });
+    }
+    // v744: 批量更新
+    for (const upd of campaignNegBatchUpdate) {
+      await db.update(negativeKeywords)
+        .set({ amazonNegativeKeywordId: upd.amazonTargetId || null, negativeStatus: 'active' as const })
+        .where(eq(negativeKeywords.id, upd.id));
+    }
+    
+    log.info(`[v744] 活动级否定商品定向处理完成: 插入=${campaignNegBatchInsert.length}, 更新=${campaignNegBatchUpdate.length}`);
+
     // 2. 同步广告组级别否定商品定向
     log.info(`开始同步SP广告组级别否定商品定向...`);
     // v672: 使用batchApiFetch实现广告组级否定商品定向的分批拉取
@@ -1213,52 +1241,36 @@ AmazonSyncService.prototype.syncSpNegativeProductTargets = async function(this: 
       log.info(`[v672] syncSpNegativeProductTargets(广告组级): API分批拉取完成, ${negTargetFetchResult.totalBatches}批次, 共${adGroupNegTargets.length}个, 耗时${Math.round(negTargetFetchResult.durationMs / 1000)}秒`);
     }
     log.debug(`获取到 ${adGroupNegTargets.length} 个广告组级别否定商品定向`);
+
+    // v744: 批量处理广告组级否定商品定向 — 使用预加载的Map查找
+    const adGroupNegBatchInsert: any[] = [];
+    const adGroupNegBatchUpdate: { id: number; amazonTargetId: string }[] = [];
+    
     for (const neg of adGroupNegTargets) {
       // @ts-expect-error Type inference limitation
       const negState = (neg.state || 'enabled').toLowerCase();
       if (negState === 'archived') continue;
-      const [adGroup] = await db
-        .select()
-        .from(adGroups)
-        .where(and(eq(adGroups.accountId, this.accountId), eq(adGroups.adGroupId, String(neg.adGroupId))))
-        .limit(1);
+      const adGroup = adGroupMap.get(String(neg.adGroupId));
       if (!adGroup) continue;
-      const [campaign] = await db
-        .select()
-        .from(campaigns)
-        .where(eq(campaigns.campaignId, adGroup.campaignId))
-        .limit(1);
+      const campaign = campaignMap.get(String(adGroup.campaignId));
       if (!campaign) continue;
       const expression = neg.expression || [];
       // @ts-expect-error Type inference limitation
       const asinExpr = expression.find((e: Record<string, unknown>) => e.type?.toLowerCase().includes('asin'));
       const negativeText = asinExpr?.value || JSON.stringify(expression);
       const amazonTargetId = String(neg.targetId || '');
-      const [existing] = await db
-        .select()
-        .from(negativeKeywords)
-        .where(
-          and(
-            eq(negativeKeywords.accountId, this.accountId),
-            eq(negativeKeywords.campaignId, String(campaign.campaignId)),
-            eq(negativeKeywords.internalAdGroupId, adGroup.id),  // v420: 修复 - internalAdGroupId是int类型
-            eq(negativeKeywords.negativeLevel, 'ad_group'),
-            eq(negativeKeywords.negativeType, 'product'),
-            eq(negativeKeywords.negativeText, negativeText)
-          )
-        )
-        .limit(1);
+      
+      const lookupKey = `${campaign.campaignId}:ad_group:${adGroup.id}:${negativeText}`;
+      const existing = existingNegProductMap.get(lookupKey);
+      
       if (existing) {
-        await db.update(negativeKeywords)
-          .set({ amazonNegativeKeywordId: amazonTargetId || null, negativeStatus: 'active' as const })
-          .where(eq(negativeKeywords.id, existing.id));
+        adGroupNegBatchUpdate.push({ id: existing.id, amazonTargetId });
         updated++;
       } else {
-        // v529: 添加onDuplicateKeyUpdate处理竞态条件下的DUP_ENTRY错误
-        await db.insert(negativeKeywords).values({
+        adGroupNegBatchInsert.push({
           accountId: this.accountId,
           campaignId: String(campaign.campaignId),
-          internalAdGroupId: adGroup.id,  // v418: ID体系重构
+          internalAdGroupId: adGroup.id,
           negativeLevel: 'ad_group',
           // @ts-expect-error Legacy code type compatibility
           negativeType: 'product',
@@ -1267,12 +1279,26 @@ AmazonSyncService.prototype.syncSpNegativeProductTargets = async function(this: 
           amazonNegativeKeywordId: amazonTargetId || null,
           negativeSource: 'manual',
           negativeStatus: 'active',
-        }).onDuplicateKeyUpdate({
-          set: { negativeStatus: sql`VALUES(negativeStatus)`, amazonNegativeKeywordId: sql`VALUES(amazon_negative_keyword_id)` }
         });
         synced++;
       }
     }
+    
+    // v744: 批量插入广告组级否定商品定向
+    for (let i = 0; i < adGroupNegBatchInsert.length; i += BATCH_SIZE) {
+      const batch = adGroupNegBatchInsert.slice(i, i + BATCH_SIZE);
+      // @ts-expect-error Legacy code type compatibility
+      await db.insert(negativeKeywords).values(batch).onDuplicateKeyUpdate({
+        set: { negativeStatus: sql`VALUES(negativeStatus)`, amazonNegativeKeywordId: sql`VALUES(amazon_negative_keyword_id)` }
+      });
+    }
+    for (const upd of adGroupNegBatchUpdate) {
+      await db.update(negativeKeywords)
+        .set({ amazonNegativeKeywordId: upd.amazonTargetId || null, negativeStatus: 'active' as const })
+        .where(eq(negativeKeywords.id, upd.id));
+    }
+    
+    log.info(`[v744] 广告组级否定商品定向处理完成: 插入=${adGroupNegBatchInsert.length}, 更新=${adGroupNegBatchUpdate.length}`);
     log.info(`SP否定商品定向同步完成: ${synced} 条新记录, ${updated} 条更新`);
     return { synced, updated };
   } catch (error: any) {

@@ -2319,7 +2319,7 @@ export async function syncAccount(
           'sp_keywords': 50, 'sb_keywords': 10, // v666: sp_keywords从10→50分钟（针对90084/90023等8万+关键词账户）
           'sp_product_targets': 20, 'sb_product_targets': 10, 'sd_product_targets': 10, // v678: sp_product_targets从10→20分钟（v677实测90023的SP商品定位步骤10分钟超时）
           'sp_negative_keywords': 90, 'sb_negative_keywords': 30, // v743: sp_negative_keywords从45→90分钟（v742实测90124的23.7万条否词需要更多时间，即使v743已优化为批量模式）
-          'sp_negative_targets': 50, 'sb_negative_targets': 15, 'sd_negative_targets': 15, // v666: sp_negative_targets从15→50分钟（针对90052等大账户）
+          'sp_negative_targets': 90, 'sb_negative_targets': 15, 'sd_negative_targets': 15, // v744: sp_negative_targets从50→90分钟（v743-fix2监控发现90052/90124仍100%超时，配合批量优化）
           'sp_auto_targeting': 10, 'sd_targeting': 10, 'sb_targeting': 10,
           'sb_ads': 10, 'sp_budget_rules': 10,
           // v679: 报告步骤超时优化 — 跨批并行提交后统一轮询，但大账户报告生成仍需时间
@@ -2699,8 +2699,18 @@ export async function syncAccount(
             log.info(`[UnifiedSync] v653: 账户${account.accountId}(${account.accountName}) 已连续${cached.count}次诊断为TRULY_EMPTY（距首次发现${ageMins}分钟），已降级日志`);
           }
         } else {
-          // 首次或诊断类型变化：记录并正常输出
-          emptyAccountDiagCache.set(account.accountId, { diagnosisType: 'TRULY_EMPTY', count: 1, firstSeen: new Date(), backoffLevel: 0, lastSyncAttempt: new Date() });
+          // v744: 首次检测或诊断类型变化 — 检查缓存中是否已有从 DB 恢复的状态
+          // 修复 v743-fix2 发现的问题：启动时 restoreEmptyAccountBackoffState 成功恢复了 count=3/backoffLevel=1，
+          // 但第一次同步时这里的 else 分支会用 count=1/backoffLevel=0 覆盖掉恢复的状态
+          const existingCached = emptyAccountDiagCache.get(account.accountId);
+          if (existingCached && existingCached.diagnosisType === 'TRULY_EMPTY' && existingCached.count >= 3) {
+            // 已有从 DB 恢复的有效退避状态，保留并递增 count
+            existingCached.count++;
+            log.info(`[UnifiedSync] v744: 账户${account.accountId} 已有恢复的退避状态(count=${existingCached.count}, backoffLevel=${existingCached.backoffLevel})，保留而非重置`);
+          } else {
+            // 真正的首次检测：设置初始状态
+            emptyAccountDiagCache.set(account.accountId, { diagnosisType: 'TRULY_EMPTY', count: 1, firstSeen: new Date(), backoffLevel: 0, lastSyncAttempt: new Date() });
+          }
           // v743: 首次检测到TRULY_EMPTY时持久化
           persistEmptyAccountBackoffState(account.accountId).catch(() => {});
         }

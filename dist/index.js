@@ -70900,10 +70900,10 @@ async function syncAccount(account, tier, options) {
             "sp_negative_keywords": 90,
             "sb_negative_keywords": 30,
             // v743: sp_negative_keywords从45→90分钟（v742实测90124的23.7万条否词需要更多时间，即使v743已优化为批量模式）
-            "sp_negative_targets": 50,
+            "sp_negative_targets": 90,
             "sb_negative_targets": 15,
             "sd_negative_targets": 15,
-            // v666: sp_negative_targets从15→50分钟（针对90052等大账户）
+            // v744: sp_negative_targets从50→90分钟（v743-fix2监控发现90052/90124仍100%超时，配合批量优化）
             "sp_auto_targeting": 10,
             "sd_targeting": 10,
             "sb_targeting": 10,
@@ -71205,7 +71205,13 @@ async function syncAccount(account, tier, options) {
             log125.info(`[UnifiedSync] v653: \u8D26\u6237${account.accountId}(${account.accountName}) \u5DF2\u8FDE\u7EED${cached.count}\u6B21\u8BCA\u65AD\u4E3ATRULY_EMPTY\uFF08\u8DDD\u9996\u6B21\u53D1\u73B0${ageMins}\u5206\u949F\uFF09\uFF0C\u5DF2\u964D\u7EA7\u65E5\u5FD7`);
           }
         } else {
-          emptyAccountDiagCache.set(account.accountId, { diagnosisType: "TRULY_EMPTY", count: 1, firstSeen: /* @__PURE__ */ new Date(), backoffLevel: 0, lastSyncAttempt: /* @__PURE__ */ new Date() });
+          const existingCached = emptyAccountDiagCache.get(account.accountId);
+          if (existingCached && existingCached.diagnosisType === "TRULY_EMPTY" && existingCached.count >= 3) {
+            existingCached.count++;
+            log125.info(`[UnifiedSync] v744: \u8D26\u6237${account.accountId} \u5DF2\u6709\u6062\u590D\u7684\u9000\u907F\u72B6\u6001(count=${existingCached.count}, backoffLevel=${existingCached.backoffLevel})\uFF0C\u4FDD\u7559\u800C\u975E\u91CD\u7F6E`);
+          } else {
+            emptyAccountDiagCache.set(account.accountId, { diagnosisType: "TRULY_EMPTY", count: 1, firstSeen: /* @__PURE__ */ new Date(), backoffLevel: 0, lastSyncAttempt: /* @__PURE__ */ new Date() });
+          }
           persistEmptyAccountBackoffState(account.accountId).catch(() => {
           });
         }
@@ -77917,7 +77923,7 @@ async function startSchedulerTasks(defaultIntervalMs) {
     }, 24 * 60 * 60 * 1e3);
   }, nightlyDelayMs);
   log136.info(`[DataSyncScheduler] v406: \u591C\u95F4\u540C\u6B65\u5DF2\u8C03\u5EA6\uFF0C\u9996\u6B21\u6267\u884C\u5C06\u5728 ${Math.round(nightlyDelayMs / 1e3 / 60)} \u5206\u949F\u540E\uFF08PST\u51CC\u66682\u70B9 = UTC 10:00\uFF09`);
-  const DEPLOY_FULL_SYNC_THRESHOLD_MS = 12 * 60 * 60 * 1e3;
+  const DEPLOY_FULL_SYNC_THRESHOLD_MS = 4 * 60 * 60 * 1e3;
   const DEPLOY_FULL_SYNC_DELAY_MS = 10 * 60 * 1e3;
   if (fullSyncDelayMs > DEPLOY_FULL_SYNC_THRESHOLD_MS) {
     log136.info(`[DataSyncScheduler] v743: \u8DDD\u79BB\u4E0B\u6B21\u5B9A\u65F6full\u540C\u6B65${Math.round(fullSyncDelayMs / 1e3 / 60)}\u5206\u949F(>${DEPLOY_FULL_SYNC_THRESHOLD_MS / 36e5}h)\uFF0C\u5C06\u5728\u542F\u52A8\u540E${DEPLOY_FULL_SYNC_DELAY_MS / 6e4}\u5206\u949F\u89E6\u53D1\u90E8\u7F72\u540E\u7D27\u6025full\u540C\u6B65`);
@@ -126612,16 +126618,29 @@ var init_syncSp = __esm({
         let updated = 0;
         const allCampaignRows = await db.select({ campaignId: campaigns.campaignId }).from(campaigns).where(eq128(campaigns.accountId, this.accountId));
         const allCampaignIds = allCampaignRows.map((r) => r.campaignId);
+        const campaignMap = /* @__PURE__ */ new Map();
+        for (const row of allCampaignRows) {
+          campaignMap.set(String(row.campaignId), row);
+        }
+        const allAdGroupRows = await db.select({ id: adGroups.id, adGroupId: adGroups.adGroupId, campaignId: adGroups.campaignId }).from(adGroups).where(eq128(adGroups.accountId, this.accountId));
+        const adGroupMap = /* @__PURE__ */ new Map();
+        for (const row of allAdGroupRows) {
+          adGroupMap.set(String(row.adGroupId), row);
+        }
+        const existingNegProducts = await db.select({ id: negativeKeywords.id, campaignId: negativeKeywords.campaignId, internalAdGroupId: negativeKeywords.internalAdGroupId, negativeLevel: negativeKeywords.negativeLevel, negativeText: negativeKeywords.negativeText }).from(negativeKeywords).where(and110(eq128(negativeKeywords.accountId, this.accountId), eq128(negativeKeywords.negativeType, "product")));
+        const existingNegProductMap = /* @__PURE__ */ new Map();
+        for (const row of existingNegProducts) {
+          const key = `${row.campaignId}:${row.negativeLevel}:${row.internalAdGroupId || 0}:${row.negativeText}`;
+          existingNegProductMap.set(key, { id: row.id });
+        }
+        log200.info(`[v744] syncSpNegativeProductTargets: \u9884\u52A0\u8F7D\u5B8C\u6210 \u2014 campaigns=${campaignMap.size}, adGroups=${adGroupMap.size}, existingNegProducts=${existingNegProductMap.size}`);
         log200.info(`\u5F00\u59CB\u540C\u6B65SP\u6D3B\u52A8\u7EA7\u522B\u5426\u5B9A\u5546\u54C1\u5B9A\u5411...`);
         const campaignNegTargets = await this.client.listSpCampaignNegativeTargets();
         log200.debug(`\u83B7\u53D6\u5230 ${campaignNegTargets.length} \u4E2A\u6D3B\u52A8\u7EA7\u522B\u5426\u5B9A\u5546\u54C1\u5B9A\u5411`);
+        const campaignNegBatchInsert = [];
+        const campaignNegBatchUpdate = [];
         for (const neg of campaignNegTargets) {
-          const [campaign] = await db.select().from(campaigns).where(
-            and110(
-              eq128(campaigns.accountId, this.accountId),
-              eq128(campaigns.campaignId, String(neg.campaignId))
-            )
-          ).limit(1);
+          const campaign = campaignMap.get(String(neg.campaignId));
           if (!campaign) continue;
           const negState = (neg.state || "enabled").toLowerCase();
           if (negState === "archived") continue;
@@ -126629,20 +126648,13 @@ var init_syncSp = __esm({
           const asinExpr = expression.find((e) => e.type?.toLowerCase().includes("asin"));
           const negativeText = asinExpr?.value || JSON.stringify(expression);
           const amazonTargetId = String(neg.targetId || "");
-          const [existing] = await db.select().from(negativeKeywords).where(
-            and110(
-              eq128(negativeKeywords.accountId, this.accountId),
-              eq128(negativeKeywords.campaignId, String(campaign.campaignId)),
-              eq128(negativeKeywords.negativeLevel, "campaign"),
-              eq128(negativeKeywords.negativeType, "product"),
-              eq128(negativeKeywords.negativeText, negativeText)
-            )
-          ).limit(1);
+          const lookupKey = `${campaign.campaignId}:campaign:0:${negativeText}`;
+          const existing = existingNegProductMap.get(lookupKey);
           if (existing) {
-            await db.update(negativeKeywords).set({ amazonNegativeKeywordId: amazonTargetId || null, negativeStatus: "active" }).where(eq128(negativeKeywords.id, existing.id));
+            campaignNegBatchUpdate.push({ id: existing.id, amazonTargetId });
             updated++;
           } else {
-            await db.insert(negativeKeywords).values({
+            campaignNegBatchInsert.push({
               accountId: this.accountId,
               campaignId: String(campaign.campaignId),
               negativeLevel: "campaign",
@@ -126652,12 +126664,21 @@ var init_syncSp = __esm({
               amazonNegativeKeywordId: amazonTargetId || null,
               negativeSource: "manual",
               negativeStatus: "active"
-            }).onDuplicateKeyUpdate({
-              set: { negativeStatus: sql145`VALUES(negativeStatus)`, amazonNegativeKeywordId: sql145`VALUES(amazon_negative_keyword_id)` }
             });
             synced++;
           }
         }
+        const BATCH_SIZE3 = 500;
+        for (let i = 0; i < campaignNegBatchInsert.length; i += BATCH_SIZE3) {
+          const batch = campaignNegBatchInsert.slice(i, i + BATCH_SIZE3);
+          await db.insert(negativeKeywords).values(batch).onDuplicateKeyUpdate({
+            set: { negativeStatus: sql145`VALUES(negativeStatus)`, amazonNegativeKeywordId: sql145`VALUES(amazon_negative_keyword_id)` }
+          });
+        }
+        for (const upd of campaignNegBatchUpdate) {
+          await db.update(negativeKeywords).set({ amazonNegativeKeywordId: upd.amazonTargetId || null, negativeStatus: "active" }).where(eq128(negativeKeywords.id, upd.id));
+        }
+        log200.info(`[v744] \u6D3B\u52A8\u7EA7\u5426\u5B9A\u5546\u54C1\u5B9A\u5411\u5904\u7406\u5B8C\u6210: \u63D2\u5165=${campaignNegBatchInsert.length}, \u66F4\u65B0=${campaignNegBatchUpdate.length}`);
         log200.info(`\u5F00\u59CB\u540C\u6B65SP\u5E7F\u544A\u7EC4\u7EA7\u522B\u5426\u5B9A\u5546\u54C1\u5B9A\u5411...`);
         const negTargetFetchResult = await batchApiFetch({
           campaignIds: allCampaignIds,
@@ -126671,37 +126692,29 @@ var init_syncSp = __esm({
           log200.info(`[v672] syncSpNegativeProductTargets(\u5E7F\u544A\u7EC4\u7EA7): API\u5206\u6279\u62C9\u53D6\u5B8C\u6210, ${negTargetFetchResult.totalBatches}\u6279\u6B21, \u5171${adGroupNegTargets.length}\u4E2A, \u8017\u65F6${Math.round(negTargetFetchResult.durationMs / 1e3)}\u79D2`);
         }
         log200.debug(`\u83B7\u53D6\u5230 ${adGroupNegTargets.length} \u4E2A\u5E7F\u544A\u7EC4\u7EA7\u522B\u5426\u5B9A\u5546\u54C1\u5B9A\u5411`);
+        const adGroupNegBatchInsert = [];
+        const adGroupNegBatchUpdate = [];
         for (const neg of adGroupNegTargets) {
           const negState = (neg.state || "enabled").toLowerCase();
           if (negState === "archived") continue;
-          const [adGroup] = await db.select().from(adGroups).where(and110(eq128(adGroups.accountId, this.accountId), eq128(adGroups.adGroupId, String(neg.adGroupId)))).limit(1);
+          const adGroup = adGroupMap.get(String(neg.adGroupId));
           if (!adGroup) continue;
-          const [campaign] = await db.select().from(campaigns).where(eq128(campaigns.campaignId, adGroup.campaignId)).limit(1);
+          const campaign = campaignMap.get(String(adGroup.campaignId));
           if (!campaign) continue;
           const expression = neg.expression || [];
           const asinExpr = expression.find((e) => e.type?.toLowerCase().includes("asin"));
           const negativeText = asinExpr?.value || JSON.stringify(expression);
           const amazonTargetId = String(neg.targetId || "");
-          const [existing] = await db.select().from(negativeKeywords).where(
-            and110(
-              eq128(negativeKeywords.accountId, this.accountId),
-              eq128(negativeKeywords.campaignId, String(campaign.campaignId)),
-              eq128(negativeKeywords.internalAdGroupId, adGroup.id),
-              // v420: 修复 - internalAdGroupId是int类型
-              eq128(negativeKeywords.negativeLevel, "ad_group"),
-              eq128(negativeKeywords.negativeType, "product"),
-              eq128(negativeKeywords.negativeText, negativeText)
-            )
-          ).limit(1);
+          const lookupKey = `${campaign.campaignId}:ad_group:${adGroup.id}:${negativeText}`;
+          const existing = existingNegProductMap.get(lookupKey);
           if (existing) {
-            await db.update(negativeKeywords).set({ amazonNegativeKeywordId: amazonTargetId || null, negativeStatus: "active" }).where(eq128(negativeKeywords.id, existing.id));
+            adGroupNegBatchUpdate.push({ id: existing.id, amazonTargetId });
             updated++;
           } else {
-            await db.insert(negativeKeywords).values({
+            adGroupNegBatchInsert.push({
               accountId: this.accountId,
               campaignId: String(campaign.campaignId),
               internalAdGroupId: adGroup.id,
-              // v418: ID体系重构
               negativeLevel: "ad_group",
               // @ts-expect-error Legacy code type compatibility
               negativeType: "product",
@@ -126710,12 +126723,20 @@ var init_syncSp = __esm({
               amazonNegativeKeywordId: amazonTargetId || null,
               negativeSource: "manual",
               negativeStatus: "active"
-            }).onDuplicateKeyUpdate({
-              set: { negativeStatus: sql145`VALUES(negativeStatus)`, amazonNegativeKeywordId: sql145`VALUES(amazon_negative_keyword_id)` }
             });
             synced++;
           }
         }
+        for (let i = 0; i < adGroupNegBatchInsert.length; i += BATCH_SIZE3) {
+          const batch = adGroupNegBatchInsert.slice(i, i + BATCH_SIZE3);
+          await db.insert(negativeKeywords).values(batch).onDuplicateKeyUpdate({
+            set: { negativeStatus: sql145`VALUES(negativeStatus)`, amazonNegativeKeywordId: sql145`VALUES(amazon_negative_keyword_id)` }
+          });
+        }
+        for (const upd of adGroupNegBatchUpdate) {
+          await db.update(negativeKeywords).set({ amazonNegativeKeywordId: upd.amazonTargetId || null, negativeStatus: "active" }).where(eq128(negativeKeywords.id, upd.id));
+        }
+        log200.info(`[v744] \u5E7F\u544A\u7EC4\u7EA7\u5426\u5B9A\u5546\u54C1\u5B9A\u5411\u5904\u7406\u5B8C\u6210: \u63D2\u5165=${adGroupNegBatchInsert.length}, \u66F4\u65B0=${adGroupNegBatchUpdate.length}`);
         log200.info(`SP\u5426\u5B9A\u5546\u54C1\u5B9A\u5411\u540C\u6B65\u5B8C\u6210: ${synced} \u6761\u65B0\u8BB0\u5F55, ${updated} \u6761\u66F4\u65B0`);
         return { synced, updated };
       } catch (error) {
