@@ -892,57 +892,67 @@ export async function flushSearchTermBatch(db: unknown, batch: unknown[]): Promi
   if (batch.length === 0) return;
   try {
     // v395: 使用ON DUPLICATE KEY UPDATE实现真正的UPSERT，防止重复插入
+    // v745: 修复VALUES()列名 — 必须使用实际DB列名（混合camelCase/snake_case）
+    // 根因: VALUES(search_term_impressions)引用不存在的列，导致ERROR 1054
+    // 修复: 使用正确的DB列名 searchTermImpressions, source_match_type 等
     // @ts-expect-error - legacy type assertion
     await db.insert(searchTerms).values(batch)
       // @ts-expect-error - legacy type assertion
       .onDuplicateKeyUpdate({
         set: {
-          searchTermImpressions: sql`VALUES(search_term_impressions)`,
-          searchTermClicks: sql`VALUES(search_term_clicks)`,
-          searchTermSpend: sql`VALUES(search_term_spend)`,
-          searchTermSales: sql`VALUES(search_term_sales)`,
-          searchTermOrders: sql`VALUES(search_term_orders)`,
-          searchTermAcos: sql`VALUES(search_term_acos)`,
-          searchTermRoas: sql`VALUES(search_term_roas)`,
-          searchTermCtr: sql`VALUES(search_term_ctr)`,
-          searchTermCvr: sql`VALUES(search_term_cvr)`,
-          searchTermCpc: sql`VALUES(search_term_cpc)`,
-          searchTermUnitsOrdered: sql`VALUES(search_term_units_ordered)`,
-          searchTermTargetId: sql`VALUES(search_term_target_id)`,
-          targetText: sql`VALUES(target_text)`,
-          searchTermMatchType: sql`VALUES(search_term_match_type)`,
-          sourceMatchType: sql`VALUES(source_match_type)`,
-          sourceTargetType: sql`VALUES(source_target_type)`,
-          searchTermType: sql`VALUES(search_term_type)`,
-          reportEndDate: sql`VALUES(report_end_date)`,
-          updatedAt: sql`VALUES(updated_at)`,
+          searchTermImpressions: sql`VALUES(\`searchTermImpressions\`)`,
+          searchTermClicks: sql`VALUES(\`searchTermClicks\`)`,
+          searchTermSpend: sql`VALUES(\`searchTermSpend\`)`,
+          searchTermSales: sql`VALUES(\`searchTermSales\`)`,
+          searchTermOrders: sql`VALUES(\`searchTermOrders\`)`,
+          searchTermAcos: sql`VALUES(\`searchTermAcos\`)`,
+          searchTermRoas: sql`VALUES(\`searchTermRoas\`)`,
+          searchTermCtr: sql`VALUES(\`searchTermCtr\`)`,
+          searchTermCvr: sql`VALUES(\`searchTermCvr\`)`,
+          searchTermCpc: sql`VALUES(\`searchTermCpc\`)`,
+          searchTermUnitsOrdered: sql`VALUES(\`search_term_units_ordered\`)`,
+          searchTermTargetId: sql`VALUES(\`searchTermTargetId\`)`,
+          targetText: sql`VALUES(\`targetText\`)`,
+          searchTermMatchType: sql`VALUES(\`searchTermMatchType\`)`,
+          sourceMatchType: sql`VALUES(\`source_match_type\`)`,
+          sourceTargetType: sql`VALUES(\`source_target_type\`)`,
+          searchTermType: sql`VALUES(\`search_term_type\`)`,
+          reportEndDate: sql`VALUES(\`reportEndDate\`)`,
+          updatedAt: sql`VALUES(\`updatedAt\`)`,
         },
       });
   } catch (insertErr: unknown) {
     // @ts-expect-error - legacy type assertion
-    log.warn(`[v395] 搜索词批量UPSERT失败，回退到逐条模式: ${(insertErr as Error).message}`);
+    log.warn(`[v745] 搜索词批量UPSERT失败，回退到逐条模式: ${(insertErr as Error).message}`);
     for (const row of batch) {
       try {
         // @ts-expect-error - legacy type assertion
         await db.insert(searchTerms).values(row)
           .onDuplicateKeyUpdate({
             set: {
-              searchTermImpressions: sql`VALUES(search_term_impressions)`,
-              searchTermClicks: sql`VALUES(search_term_clicks)`,
-              searchTermSpend: sql`VALUES(search_term_spend)`,
-              searchTermSales: sql`VALUES(search_term_sales)`,
-              searchTermOrders: sql`VALUES(search_term_orders)`,
-              searchTermAcos: sql`VALUES(search_term_acos)`,
-              searchTermRoas: sql`VALUES(search_term_roas)`,
-              searchTermCtr: sql`VALUES(search_term_ctr)`,
-              searchTermCvr: sql`VALUES(search_term_cvr)`,
-              searchTermCpc: sql`VALUES(search_term_cpc)`,
-              searchTermUnitsOrdered: sql`VALUES(search_term_units_ordered)`,
-              updatedAt: sql`VALUES(updated_at)`,
+              searchTermImpressions: sql`VALUES(\`searchTermImpressions\`)`,
+              searchTermClicks: sql`VALUES(\`searchTermClicks\`)`,
+              searchTermSpend: sql`VALUES(\`searchTermSpend\`)`,
+              searchTermSales: sql`VALUES(\`searchTermSales\`)`,
+              searchTermOrders: sql`VALUES(\`searchTermOrders\`)`,
+              searchTermAcos: sql`VALUES(\`searchTermAcos\`)`,
+              searchTermRoas: sql`VALUES(\`searchTermRoas\`)`,
+              searchTermCtr: sql`VALUES(\`searchTermCtr\`)`,
+              searchTermCvr: sql`VALUES(\`searchTermCvr\`)`,
+              searchTermCpc: sql`VALUES(\`searchTermCpc\`)`,
+              searchTermUnitsOrdered: sql`VALUES(\`search_term_units_ordered\`)`,
+              searchTermTargetId: sql`VALUES(\`searchTermTargetId\`)`,
+              targetText: sql`VALUES(\`targetText\`)`,
+              searchTermMatchType: sql`VALUES(\`searchTermMatchType\`)`,
+              sourceMatchType: sql`VALUES(\`source_match_type\`)`,
+              sourceTargetType: sql`VALUES(\`source_target_type\`)`,
+              searchTermType: sql`VALUES(\`search_term_type\`)`,
+              reportEndDate: sql`VALUES(\`reportEndDate\`)`,
+              updatedAt: sql`VALUES(\`updatedAt\`)`,
             },
           });
       } catch (singleErr: unknown) {
-        log.debug(`[v395] 搜索词单条UPSERT失败: ${(singleErr as Error).message}`);
+        log.warn(`[v745] 搜索词单条UPSERT失败: ${(singleErr as Error).message}`);
       }
     }
   }
