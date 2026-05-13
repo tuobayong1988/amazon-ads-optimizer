@@ -13,4 +13,4 @@
  * 每次发版时，只需修改此文件中的版本号，并在 postDeployOptimizer.ts 的
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
-export const SYSTEM_VERSION = 742;  // v742: 三大数据同步阻断性问题修复 — (1)否词同步崩溃: syncSp/syncSb/syncSd onDuplicateKeyUpdate SQL列名映射(amazonNegativeKeywordId→amazon_negative_keyword_id) (2)新账户初始化卡死自愈: collecting状态超时24h自动完成 (3)搜索词停滞: full/nightly层_forceSync=true+移除searchTermSync.ts无效this引用
+export const SYSTEM_VERSION = 750;  // v750: 修复PostOptVerifier await缺失 + SB关键词keywordId=null双重防护
