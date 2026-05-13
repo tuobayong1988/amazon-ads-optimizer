@@ -156,7 +156,23 @@ export async function getDb() {
       // v394: 启动连接泄露检查器
       startLeakChecker();
       
-      log.info(`[Database] v751: 连接池已建立 (limit=${poolSize}, idle=${Math.floor(poolSize*0.6)}, connectTimeout=30s, keepAlive=10s, queueLimit=${poolSize*6}, leakCheck=30s, maxHold=180s)`);
+      log.info(`[Database] v752: 连接池已建立 (limit=${poolSize}, idle=${Math.floor(poolSize*0.6)}, connectTimeout=30s, keepAlive=10s, queueLimit=${poolSize*6}, leakCheck=30s, maxHold=180s)`);
+      
+      // v752: 连接池预热 — 预创建最小连接数，避免冷启动延迟
+      const warmupSize = Math.min(Math.floor(poolSize * 0.3), 15); // 预热30%连接，最多15个
+      const warmupStart = Date.now();
+      try {
+        const warmupConns: mysql.PoolConnection[] = [];
+        for (let i = 0; i < warmupSize; i++) {
+          warmupConns.push(await _pool.getConnection());
+        }
+        for (const conn of warmupConns) {
+          conn.release();
+        }
+        log.info(`[Database] v752: 连接池预热完成，预创建 ${warmupSize} 个连接，耗时 ${Date.now() - warmupStart}ms`);
+      } catch (warmupErr) {
+        log.warn(`[Database] v752: 连接池预热部分失败（不影响正常使用）: ${(warmupErr as Error).message}`);
+      }
     } catch (error) {
       log.warn("[Database] v350: 连接池创建失败:", error);
       _db = null;
@@ -176,6 +192,116 @@ export async function getDb() {
  * @param timeoutMs 查询超时时间（毫秒），默认30秒
  * @returns mysql2 PoolConnection，使用完毕后必须release()
  */
+
+/**
+ * v752: 读写分离 — 读库连接池
+ * 
+ * 设计原则:
+ * - 所有纯读操作（SELECT）应优先使用读库，减轻主库压力
+ * - 读库连接池独立于主库连接池，互不影响
+ * - 当读库不可用时，自动回退到主库（getDb）
+ * - 读库连接池大小通过 DB_READ_POOL_SIZE 环境变量配置
+ */
+let _readDb: ReturnType<typeof drizzle> | null = null;
+let _readPool: mysql.Pool | null = null;
+let _readLastHealthCheck = 0;
+let _readPoolStats = { created: 0, healthChecksFailed: 0, rebuilds: 0, fallbackToWrite: 0 };
+let _readLastPoolRebuild = 0;
+
+export async function getReadDb(): Promise<ReturnType<typeof drizzle> | null> {
+  const readUrl = process.env.DATABASE_READ_URL;
+  
+  // 如果没有配置读库URL，回退到主库
+  if (!readUrl) {
+    _readPoolStats.fallbackToWrite++;
+    return getDb();
+  }
+  
+  // 定期健康检查
+  const now = Date.now();
+  if (_readDb && _readPool && (now - _readLastHealthCheck > HEALTH_CHECK_INTERVAL)) {
+    try {
+      const conn = await Promise.race([
+        _readPool.getConnection(),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Read pool health check timeout')), 10_000))
+      ]);
+      await Promise.race([
+        conn.ping(),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Read pool ping timeout')), 3000))
+      ]);
+      conn.release();
+      _readLastHealthCheck = now;
+    } catch (error: unknown) {
+      _readPoolStats.healthChecksFailed++;
+      log.warn(`[Database] v752: 读库健康检查失败(#${_readPoolStats.healthChecksFailed}):`, (error as Error).message);
+      
+      if (now - _readLastPoolRebuild > POOL_REBUILD_COOLDOWN) {
+        try { await _readPool.end(); } catch (e) { /* ignore */ }
+        _readDb = null;
+        _readPool = null;
+        _readLastPoolRebuild = now;
+        _readPoolStats.rebuilds++;
+        log.info(`[Database] v752: 读库连接池已销毁，将在下次getReadDb()时重建`);
+      }
+    }
+  }
+  
+  if (!_readDb) {
+    try {
+      const readPoolSize = parseInt(process.env.DB_READ_POOL_SIZE || '50', 10);
+      const poolIdleTimeout = parseInt(process.env.DB_IDLE_TIMEOUT || '300000', 10);
+      
+      _readPool = mysql.createPool({
+        uri: readUrl,
+        waitForConnections: true,
+        connectionLimit: readPoolSize,
+        maxIdle: Math.floor(readPoolSize * 0.6),
+        idleTimeout: poolIdleTimeout,
+        connectTimeout: 30_000,
+        enableKeepAlive: true,
+        keepAliveInitialDelay: 10_000,
+        queueLimit: readPoolSize * 6,
+      });
+      
+      _readPool.on('connection', () => {
+        _readPoolStats.created++;
+      });
+      
+      // @ts-expect-error - type assertion
+      _readDb = drizzle(_readPool as unknown, { casing: 'camelCase' });
+      _readLastHealthCheck = Date.now();
+      _readLastPoolRebuild = Date.now();
+      
+      log.info(`[Database] v752: 读库连接池已建立 (limit=${readPoolSize}, idle=${Math.floor(readPoolSize*0.6)}, url=${readUrl.replace(/:[^:@]+@/, ':***@')})`);
+    } catch (error) {
+      log.warn("[Database] v752: 读库连接池创建失败，回退到主库:", (error as Error).message);
+      _readDb = null;
+      _readPool = null;
+      _readPoolStats.fallbackToWrite++;
+      return getDb();
+    }
+  }
+  return _readDb;
+}
+
+/**
+ * v752: 获取读库连接池统计信息
+ */
+export function getReadPoolStats() {
+  if (!_readPool) return null;
+  const pool = _readPool as unknown as { pool: { _allConnections: { length: number }, _freeConnections: { length: number }, _connectionQueue: { length: number } } };
+  try {
+    return {
+      total: pool.pool._allConnections?.length ?? 0,
+      free: pool.pool._freeConnections?.length ?? 0,
+      queued: pool.pool._connectionQueue?.length ?? 0,
+      ...(_readPoolStats),
+    };
+  } catch {
+    return { ..._readPoolStats };
+  }
+}
+
 export async function getDirectConnection(timeoutMs: number = 30_000): Promise<mysql.PoolConnection> {
   // 确保连接池已初始化
   await getDb();
@@ -327,6 +453,8 @@ export function getPoolStats() {
  * v668: 定期连接池状态日志输出（每5分钟）
  * 便于在EB日志中排查多租户并发场景下的连接池瓶颈
  */
+// v752: 连接池自适应扩缩容状态
+const _poolAdaptiveState = { highLoadCount: 0, lowLoadCount: 0 };
 let _poolMonitorTimer: ReturnType<typeof setInterval> | null = null;
 export function startPoolMonitor() {
   if (_poolMonitorTimer) return;
@@ -346,6 +474,29 @@ export function startPoolMonitor() {
     }
     if (np.queuedRequests > 10) {
       log.warn(`[PoolMonitor] v751: 连接池等待队列过长 ${np.queuedRequests}，可能存在并发瓶颈`);
+    }
+    
+    // v752: 连接池自适应扩缩容建议
+    if (np.utilizationPercent > 85 && np.queuedRequests > 20) {
+      const suggestedSize = Math.min(np.connectionLimit * 1.5, 100);
+      log.warn(`[PoolMonitor] v752: [AUTO-SCALE建议] 连接池持续高负载，建议扩容到 ${Math.round(suggestedSize)} (当前${np.connectionLimit})`);
+      _poolAdaptiveState.highLoadCount++;
+    } else if (np.utilizationPercent < 20 && np.queuedRequests === 0) {
+      _poolAdaptiveState.lowLoadCount++;
+      if (_poolAdaptiveState.lowLoadCount >= 6) { // 连续30分钟低负载
+        const suggestedSize = Math.max(np.connectionLimit * 0.6, 20);
+        log.info(`[PoolMonitor] v752: [AUTO-SCALE建议] 连接池持续低负载，可缩容到 ${Math.round(suggestedSize)} (当前${np.connectionLimit})`);
+        _poolAdaptiveState.lowLoadCount = 0;
+      }
+    } else {
+      _poolAdaptiveState.lowLoadCount = 0;
+      _poolAdaptiveState.highLoadCount = 0;
+    }
+    
+    // v752: 读库连接池监控
+    const readStats = getReadPoolStats();
+    if (readStats) {
+      log.info(`[PoolMonitor] v752: 读库 total=${readStats.total} free=${readStats.free} queued=${readStats.queued} fallback=${readStats.fallbackToWrite}`);
     }
   }, MONITOR_INTERVAL);
   if (_poolMonitorTimer.unref) _poolMonitorTimer.unref();

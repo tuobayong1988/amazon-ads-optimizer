@@ -147,6 +147,87 @@ export interface RateLimitStore {
  * 内存限流存储实现
  * 适用于单实例部署，性能最优
  */
+/**
+ * v752: Redis分布式限流存储
+ * 使用Redis INCR + EXPIRE实现滑动窗口计数
+ * 部署多实例时，设置环境变量 REDIS_URL 即可自动切换
+ * 
+ * 使用方式：
+ *   1. 安装 ioredis: pnpm add ioredis
+ *   2. 设置环境变量: REDIS_URL=redis://host:6379
+ *   3. 系统自动检测并使用Redis限流存储
+ */
+class RedisRateLimitStore implements RateLimitStore {
+  private redis: any = null;
+  private fallback: InMemoryRateLimitStore;
+  
+  constructor() {
+    this.fallback = new InMemoryRateLimitStore();
+    if (process.env.REDIS_URL) {
+      try {
+        const Redis = require('ioredis');
+        this.redis = new Redis(process.env.REDIS_URL, {
+          maxRetriesPerRequest: 3,
+          retryStrategy: (times: number) => Math.min(times * 100, 3000),
+          lazyConnect: true,
+        });
+        this.redis.connect().catch((err: Error) => {
+          log.warn(`[RateLimit] v752: Redis连接失败，回退到内存限流: ${err.message}`);
+          this.redis = null;
+        });
+        log.info(`[RateLimit] v752: Redis分布式限流已启用`);
+      } catch (err) {
+        log.info(`[RateLimit] v752: ioredis未安装，使用内存限流（单实例模式）`);
+        this.redis = null;
+      }
+    }
+  }
+  
+  async incrementCounter(key: string, windowMs: number): Promise<number> {
+    if (!this.redis) return this.fallback.incrementCounter(key, windowMs);
+    try {
+      const windowKey = `ratelimit:${key}:${Math.floor(Date.now() / windowMs)}`;
+      const count = await this.redis.incr(windowKey);
+      if (count === 1) {
+        await this.redis.pexpire(windowKey, windowMs * 2);
+      }
+      return count;
+    } catch (err) {
+      return this.fallback.incrementCounter(key, windowMs);
+    }
+  }
+  
+  async getCounter(key: string): Promise<number> {
+    if (!this.redis) return this.fallback.getCounter(key);
+    try {
+      const windowMs = key.includes('minute') ? 60000 : 1000;
+      const windowKey = `ratelimit:${key}:${Math.floor(Date.now() / windowMs)}`;
+      const count = await this.redis.get(windowKey);
+      return parseInt(count || '0', 10);
+    } catch (err) {
+      return this.fallback.getCounter(key);
+    }
+  }
+}
+
+/**
+ * v752: 实例ID标识 — 水平扩展准备
+ * 每个实例生成唯一ID，用于日志追踪和分布式协调
+ */
+const INSTANCE_ID = process.env.INSTANCE_ID || `inst-${process.pid}-${Date.now().toString(36).slice(-4)}`;
+
+/**
+ * v752: 限流存储工厂 — 根据环境自动选择存储后端
+ */
+function createRateLimitStore(): RateLimitStore {
+  if (process.env.REDIS_URL) {
+    log.info(`[RateLimit] v752: 使用Redis分布式限流 (实例ID: ${INSTANCE_ID})`);
+    return new RedisRateLimitStore();
+  }
+  log.info(`[RateLimit] v752: 使用内存限流（单实例模式, ID: ${INSTANCE_ID})`);
+  return new InMemoryRateLimitStore();
+}
+
 class InMemoryRateLimitStore implements RateLimitStore {
   private buckets = new Map<string, { tokens: number; lastRefillTime: number }>();
   private counters = new Map<string, { count: number; windowStart: number; windowMs: number; prevCount: number; prevWindowStart: number }>();
@@ -292,10 +373,10 @@ const GLOBAL_ENDPOINT_CONFIGS: Record<ApiEndpointType, EndpointRateConfig> = {
     refillRatePerSecond: 8,
   },
   report: {
-    maxRequestsPerSecond: 3,      // v658: 从5降到3
-    maxRequestsPerMinute: 90,     // v658: 从150降到90
-    burstCapacity: 5,             // v658: 从10降到5
-    refillRatePerSecond: 3,
+    maxRequestsPerSecond: 5,      // v752: 从3提升到5（恢复v658前水平）
+    maxRequestsPerMinute: 150,    // v752: 从90提升到150（15账户并发report请求）
+    burstCapacity: 8,             // v752: 从5提升到8
+    refillRatePerSecond: 5,      // v752: 匹配TPS
   },
   snapshot: {
     maxRequestsPerSecond: 2,      // v658: 从3降到2
@@ -430,7 +511,7 @@ export class ApiRateLimitService {
         
         if (autoWait && acquireAttempt < MAX_ACQUIRE_RETRIES - 1) {
           acquireAttempt++;
-          log.warn(`[RateLimit] v${SYSTEM_VERSION}: 全局${endpointType}端点每分钟限额已满(${globalMinuteCount}/${globalConfig.maxRequestsPerMinute}), 等待10s (重试${acquireAttempt}/${MAX_ACQUIRE_RETRIES})`);
+          log.warn(`[RateLimit] v${SYSTEM_VERSION}: 全局${endpointType}端点每分钟限额已满(${globalMinuteCount}/${globalConfig.maxRequestsPerMinute}), 等待${waitMs/1000}s (重试${acquireAttempt}/${MAX_ACQUIRE_RETRIES})`);
           await this.delay(waitMs);
           continue;
         }

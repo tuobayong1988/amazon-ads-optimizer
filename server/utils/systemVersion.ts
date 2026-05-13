@@ -13,4 +13,4 @@
  * 每次发版时，只需修改此文件中的版本号，并在 postDeployOptimizer.ts 的
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
-export const SYSTEM_VERSION = 751;  // v750: 修复PostOptVerifier await缺失 + SB关键词keywordId=null双重防护
+export const SYSTEM_VERSION = 752;  // v750: 修复PostOptVerifier await缺失 + SB关键词keywordId=null双重防护
