@@ -1125,15 +1125,28 @@ export class AmazonAdsApiClient {
           }
           if (responseKeywords.error && Array.isArray(responseKeywords.error)) {
             for (const item of responseKeywords.error) {
-              allErrors.push(item);
-              const errorDetail = item.description || item.details || item.message || '';
+              // v749: 支持 Amazon SP API v3 的嵌套错误格式
+              // API v3 返回格式: { index, errors: [{ errorType, message }] }
+              // 旧格式: { index, code, description }
+              let errorCode = item.code || 'ERROR';
+              let errorDetail = item.description || item.details || item.message || '';
+              
+              // v749: 解析嵌套的 errors 数组（SP API v3 格式）
+              if (item.errors && Array.isArray(item.errors) && item.errors.length > 0) {
+                const nestedError = item.errors[0];
+                errorCode = nestedError.errorType || nestedError.code || errorCode;
+                errorDetail = nestedError.message || nestedError.description || errorDetail;
+              }
+              
+              // v749: 将解析后的错误信息存入 allErrors（标准化格式）
+              allErrors.push({ index: item.index, code: errorCode, description: errorDetail, raw: item });
               allCreatedKeywords.push({
                 keywordId: null,
                 keywordText: batchKeywords[item.index]?.keywordText || '',
-                code: item.code || 'ERROR',
+                code: errorCode,
               });
               // @ts-expect-error - legacy type assertion
-              log.warn(`[SP API] v168: 关键词创建失败详情: keyword="${batchKeywords[item.index]?.keywordText}", code=${item.code}, description="${errorDetail}"`);
+              log.warn(`[SP API] v749: 关键词创建失败详情: keyword="${batchKeywords[item.index]?.keywordText}", code=${errorCode}, description="${errorDetail}", rawResponse=${JSON.stringify(item).slice(0, 200)}`);
             }
           // @ts-expect-error - legacy type assertion
           }
@@ -4611,7 +4624,21 @@ export class AmazonAdsApiClient {
         // Request Content-Type: application/json
         // Accept: application/vnd.sbkeywordresponse.v3+json
         // Body: Array of {keywordId(int64), adGroupId(int64), campaignId(int64), state, bid}
-        const body = batch.map(u => ({
+        // v750: 过滤无效keywordId，避免发送NaN/null到Amazon API
+        const validBatch = batch.filter(u => {
+          const kwId = toInt(u.keywordId);
+          if (isNaN(kwId) || kwId === 0) {
+            log.warn(`[SB API] v750: 过滤无效SB关键词keywordId: raw="${u.keywordId}", parsed=${kwId}`);
+            allErrors.push({ keywordId: u.keywordId, code: 'INVALID_KEYWORD_ID', details: `v750: keywordId无效("${u.keywordId}")` });
+            return false;
+          }
+          return true;
+        });
+        if (validBatch.length === 0) {
+          log.warn(`[SB API] v750: 第${batchIdx + 1}批所有SB关键词keywordId无效，跳过`);
+          continue;
+        }
+        const body = validBatch.map(u => ({
           keywordId: toInt(u.keywordId),
           adGroupId: toInt(u.adGroupId),
           campaignId: toInt(u.campaignId),
@@ -4619,7 +4646,7 @@ export class AmazonAdsApiClient {
           bid: u.bid,
         }));
         
-        log.info(`[SB API] v429.5: PUT /sb/keywords, Content-Type: application/json, Accept: application/vnd.sbkeywordresponse.v3+json, body sample: ${JSON.stringify(body[0])}`);
+        log.info(`[SB API] v750: PUT /sb/keywords, Content-Type: application/json, Accept: application/vnd.sbkeywordresponse.v3+json, body sample: ${JSON.stringify(body[0])}, valid=${validBatch.length}/${batch.length}`);
         
         const response = await this.axiosInstance.put('/sb/keywords', body, {
           headers: {

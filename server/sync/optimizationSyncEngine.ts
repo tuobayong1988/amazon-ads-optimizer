@@ -932,13 +932,31 @@ async function executeBatchByType(
                     log.info(`[SyncEngine] v434: SB keyword bid $${sbBid} 超出${sbAdTypeKey}约束[$${sbConstraint.minBid}~$${sbConstraint.maxBid}]，调整为$${clampedSbBid} (marketplace=${sbMarketplace})`);
                   }
                   sbBid = clampedSbBid;
-                  sbUpdates.push({
+                  // v750: 修复SB关键词keywordId=null问题
+                  // 优先使用kwDetail.keywordId（从keywords表查询的Amazon keywordId）
+                  // 回退到t.amazon_entity_id（从optimization_tasks表）
+                  // @ts-expect-error v653: untyped task row from mysql2 execute result
+                  const sbResolvedKeywordId = (kwDetail.keywordId && kwDetail.keywordId !== '' && kwDetail.keywordId !== '0' && /^\d+$/.test(kwDetail.keywordId))
+                    ? kwDetail.keywordId
                     // @ts-expect-error v653: untyped task row from mysql2 execute result
-                    keywordId: String(t.amazon_entity_id),
-                    bid: sbBid,
-                    adGroupId: String(kwDetail.amazonAdGroupId),
-                    campaignId: String(kwDetail.amazonCampaignId),
-                  });
+                    : String(t.amazon_entity_id || '');
+                  
+                  // v750: 验证keywordId是否为有效的数字ID，避免发送null/NaN到Amazon API
+                  if (!sbResolvedKeywordId || sbResolvedKeywordId === 'null' || sbResolvedKeywordId === 'undefined' || sbResolvedKeywordId === '' || !/^\d+$/.test(sbResolvedKeywordId)) {
+                    // @ts-expect-error v653: untyped task row from mysql2 execute result
+                    log.warn(`[SyncEngine] v750: SB关键词 keywordId无效: resolved="${sbResolvedKeywordId}", amazon_entity_id=${t.amazon_entity_id}, kwDetail.keywordId=${kwDetail.keywordId}, target_entity_id=${t.target_entity_id}`);
+                    // @ts-expect-error v653: untyped task row from mysql2 execute result
+                    await markTaskFailed(conn, t.id, `v750: SB关键词keywordId无效("${sbResolvedKeywordId}")`);
+                    result.failed++;
+                    sbSkippedTasks.push(t);
+                  } else {
+                    sbUpdates.push({
+                      keywordId: sbResolvedKeywordId,
+                      bid: sbBid,
+                      adGroupId: String(kwDetail.amazonAdGroupId),
+                      campaignId: String(kwDetail.amazonCampaignId),
+                    });
+                  }
                 } else {
                   // 无法获取关联ID，标记失败
                   // @ts-expect-error v653: untyped task row from mysql2 execute result
