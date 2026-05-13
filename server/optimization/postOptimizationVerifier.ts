@@ -1409,3 +1409,11 @@ export async function autoResolveConflicts(accountId: number): Promise<{ resolve
   
   return { resolved, ignored, skipped };
 }
+
+// ============================================================
+// 测试入口（仅用于单元测试，生产环境不使用）
+// ============================================================
+export const __test__ = {
+  verifyBudgetAdjustments,
+  verifyBudgetAdjustmentsViaApi,
+};
