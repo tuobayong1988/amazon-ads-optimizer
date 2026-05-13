@@ -129,13 +129,13 @@ export async function getDb() {
       // connectTimeout: 15s→30s，高负载时连接建立需要更多时间
       // maxIdle: 40%→50%，保留更多空闲连接应对突发请求
       // queueLimit: 4x→6x，允许更多请求排队等待而非直接拒绝
-      const poolSize = parseInt(process.env.DB_POOL_SIZE || '100', 10);
+      const poolSize = parseInt(process.env.DB_POOL_SIZE || '50', 10);
       const poolIdleTimeout = parseInt(process.env.DB_IDLE_TIMEOUT || '300000', 10);
       _pool = mysql.createPool({
         uri: process.env.DATABASE_URL,
         waitForConnections: true,
         connectionLimit: poolSize,
-        maxIdle: Math.floor(poolSize * 0.5), // v686: 50%空闲连接（从40%提升，减少高负载时的连接创建开销）
+        maxIdle: Math.floor(poolSize * 0.6), // v751: 60%空闲连接（从50%提升，减少高负载时的连接创建开销）
         idleTimeout: poolIdleTimeout,
         connectTimeout: 30_000, // v686: 30s（从15s延长，避免高负载时ETIMEDOUT）
         enableKeepAlive: true,
@@ -156,7 +156,7 @@ export async function getDb() {
       // v394: 启动连接泄露检查器
       startLeakChecker();
       
-      log.info(`[Database] v686: 连接池已建立 (limit=${poolSize}, idle=${Math.floor(poolSize*0.5)}, connectTimeout=30s, keepAlive=10s, queueLimit=${poolSize*6}, leakCheck=30s, maxHold=180s)`);
+      log.info(`[Database] v751: 连接池已建立 (limit=${poolSize}, idle=${Math.floor(poolSize*0.6)}, connectTimeout=30s, keepAlive=10s, queueLimit=${poolSize*6}, leakCheck=30s, maxHold=180s)`);
     } catch (error) {
       log.warn("[Database] v350: 连接池创建失败:", error);
       _db = null;
@@ -341,11 +341,11 @@ export function startPoolMonitor() {
     log.info(`[PoolMonitor] v668: util=${utilStr} | total=${np.allConnections} free=${np.freeConnections}${queueStr}${leakStr} | rebuilds=${stats.rebuilds} hcFails=${stats.healthChecksFailed}`);
     
     // v668: 连接池利用率告警
-    if (np.utilizationPercent > 80) {
-      log.warn(`[PoolMonitor] v668: 连接池利用率过高 ${np.utilizationPercent}%，活跃=${np.activeConnections}/${np.connectionLimit}，队列=${np.queuedRequests}`);
+    if (np.utilizationPercent > 70) {
+      log.warn(`[PoolMonitor] v751: 连接池利用率过高 ${np.utilizationPercent}%，活跃=${np.activeConnections}/${np.connectionLimit}，队列=${np.queuedRequests}`);
     }
     if (np.queuedRequests > 10) {
-      log.warn(`[PoolMonitor] v668: 连接池等待队列过长 ${np.queuedRequests}，可能存在并发瓶颈`);
+      log.warn(`[PoolMonitor] v751: 连接池等待队列过长 ${np.queuedRequests}，可能存在并发瓶颈`);
     }
   }, MONITOR_INTERVAL);
   if (_poolMonitorTimer.unref) _poolMonitorTimer.unref();

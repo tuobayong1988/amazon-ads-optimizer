@@ -149,7 +149,7 @@ export interface RateLimitStore {
  */
 class InMemoryRateLimitStore implements RateLimitStore {
   private buckets = new Map<string, { tokens: number; lastRefillTime: number }>();
-  private counters = new Map<string, { count: number; windowStart: number; windowMs: number }>();
+  private counters = new Map<string, { count: number; windowStart: number; windowMs: number; prevCount: number; prevWindowStart: number }>();
   
   async getBucket(key: string): Promise<{ tokens: number; lastRefillTime: number } | null> {
     return this.buckets.get(key) || null;
@@ -191,10 +191,15 @@ class InMemoryRateLimitStore implements RateLimitStore {
     const now = Date.now();
     let counter = this.counters.get(key);
     
-    if (!counter || (now - counter.windowStart) >= counter.windowMs) {
-      // 窗口已过期，重置
-      counter = { count: 0, windowStart: now, windowMs };
+    if (!counter) {
+      counter = { count: 0, windowStart: now, windowMs, prevCount: 0, prevWindowStart: 0 };
       this.counters.set(key, counter);
+    } else if ((now - counter.windowStart) >= counter.windowMs) {
+      // v751: 滑动窗口 - 保存上一个窗口的计数用于平滑
+      counter.prevCount = counter.count;
+      counter.prevWindowStart = counter.windowStart;
+      counter.count = 0;
+      counter.windowStart = now;
     }
     
     counter.count++;
@@ -209,6 +214,20 @@ class InMemoryRateLimitStore implements RateLimitStore {
     if ((now - counter.windowStart) >= counter.windowMs) {
       return 0; // 窗口已过期
     }
+    
+    // v751: 滑动窗口加权计算
+    // 使用当前窗口已过去的时间比例来加权上一个窗口的计数
+    // 这样可以避免固定窗口边界处的突发问题
+    const elapsedInWindow = now - counter.windowStart;
+    const windowProgress = elapsedInWindow / counter.windowMs; // 0~1
+    const prevWeight = 1 - windowProgress; // 窗口刚开始时，上一窗口权重高
+    
+    if (counter.prevCount > 0 && counter.prevWindowStart > 0) {
+      // 上一窗口的加权贡献
+      const smoothedCount = counter.count + Math.floor(counter.prevCount * prevWeight);
+      return smoothedCount;
+    }
+    
     return counter.count;
   }
 }
@@ -261,10 +280,10 @@ const DEFAULT_ENDPOINT_CONFIGS: Record<ApiEndpointType, EndpointRateConfig> = {
 // 核心原则：宁可慢一点，也要确保每个请求都成功
 const GLOBAL_ENDPOINT_CONFIGS: Record<ApiEndpointType, EndpointRateConfig> = {
   list: {
-    maxRequestsPerSecond: 20,     // v675: 从15提升到20，全局限额需覆盖多账户并发
-    maxRequestsPerMinute: 800,    // v675: 从600提升到800，全局RPM需大于per-account以容纳多账户
-    burstCapacity: 30,            // v675: 从20提升到30，容纳多账户并发突发
-    refillRatePerSecond: 20,
+    maxRequestsPerSecond: 30,     // v751: 从20提升到30，15账户并发×2TPS=30TPS刚好匹配
+    maxRequestsPerMinute: 1200,   // v751: 从800提升到1200，消除频繁触顶（日志显示810/800）
+    burstCapacity: 45,            // v751: 从30提升到45，容纳15账户同时发起list请求
+    refillRatePerSecond: 30,      // v751: 匹配TPS
   },
   mutate: {
     maxRequestsPerSecond: 8,      // v658: 从15降到8
@@ -406,7 +425,7 @@ export class ApiRateLimitService {
       // v368: 先检查全局限额
       const globalMinuteCount = await this.globalStore.getCounter(globalMinuteKey);
       if (globalMinuteCount >= globalConfig.maxRequestsPerMinute) {
-        const waitMs = 10000; // 全局限额满时等待10秒
+        const waitMs = 3000; // v751: 全局限额满时等待3秒（从10s降低，RPM提升后触顶频率大幅降低）
         this.recordThrottle(accountId, endpointType, waitMs);
         
         if (autoWait && acquireAttempt < MAX_ACQUIRE_RETRIES - 1) {
