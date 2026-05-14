@@ -5,6 +5,10 @@
  * 核心原则: 必须先成功创建Amazon实体并获取有效ID后，才写入本地数据库。
  * API调用失败时不在本地留下任何痕迹，彻底杜绝"幽灵记录"。
  * 
+ * v753: 增加500错误指数退避重试机制 + 连续失败熔断保护
+ * - harvestSearchTermAtomic: Step1/Step2遇到500/internalServerError时，最多重试3次（退避1s→2s→4s）
+ * - batchHarvestSearchTerms: 连续5次500错误触发熔断，暂停60秒后继续；连续15次500错误终止整批
+ * 
  * 三步原子操作：
  * 1. 在目标广告组创建精确匹配关键词（createSpKeywords）→ 获取Amazon keywordId
  * 2. 在源广告组添加否定精确关键词（createSpNegativeKeywords）→ 获取Amazon negativeKeywordId
@@ -107,6 +111,48 @@ const DEFAULT_HARVEST_CONFIG: HarvestConfig = {
   dryRun: false,
 };
 
+// ==================== v753: 重试与熔断配置 ====================
+
+/** v753: 500错误指数退避重试配置 */
+const RETRY_CONFIG = {
+  /** 最大重试次数 */
+  maxRetries: 3,
+  /** 初始退避时间（毫秒） */
+  initialBackoffMs: 1000,
+  /** 退避倍数 */
+  backoffMultiplier: 2,
+  /** 可重试的错误码 */
+  retryableErrorCodes: ['internalServerError', 'INTERNAL_ERROR', 'THROTTLED', '500', '503', '429'],
+};
+
+/** v753: 批量收割熔断配置 */
+const CIRCUIT_BREAKER_CONFIG = {
+  /** 连续失败N次触发冷却 */
+  consecutiveFailuresForCooldown: 5,
+  /** 冷却等待时间（毫秒） */
+  cooldownMs: 60_000,
+  /** 连续失败N次终止整批 */
+  consecutiveFailuresForAbort: 15,
+};
+
+/**
+ * v753: 判断错误是否为可重试的服务端错误（500/503/429/internalServerError）
+ */
+function isRetryableServerError(error: unknown): boolean {
+  if (!error) return false;
+  const errStr = typeof error === 'string' ? error : JSON.stringify(error);
+  return RETRY_CONFIG.retryableErrorCodes.some(code => errStr.includes(code));
+}
+
+/**
+ * v753: 指数退避等待
+ */
+async function exponentialBackoff(attempt: number): Promise<void> {
+  const delayMs = RETRY_CONFIG.initialBackoffMs * Math.pow(RETRY_CONFIG.backoffMultiplier, attempt);
+  log.info(`[v753] 指数退避等待: attempt=${attempt + 1}, delay=${delayMs}ms`);
+  await new Promise(resolve => setTimeout(resolve, delayMs));
+}
+
 // ==================== 核心函数 ====================
 
 /**
@@ -122,16 +168,31 @@ const DEFAULT_HARVEST_CONFIG: HarvestConfig = {
  */
 export async function identifyHarvestCandidates(
   accountId: number,
-  config: Partial<HarvestConfig> = {}
+  config: Partial<HarvestConfig> = {},
+  allowedCampaignIds?: number[]  // v746: 限制范围为优化目标内的campaign IDs
 ): Promise<HarvestCandidate[]> {
   const cfg = { ...DEFAULT_HARVEST_CONFIG, ...config };
   const candidates: HarvestCandidate[] = [];
 
   try {
     // 1. 获取该账号下所有Campaign
-    const allCampaigns = await db.getCampaignsByAccountId(accountId);
+    let allCampaigns = await db.getCampaignsByAccountId(accountId);
     if (!allCampaigns || allCampaigns.length === 0) {
       log.debug(`账号 ${accountId} 无广告活动`);
+      return [];
+    }
+
+    // v746: 如果提供了 allowedCampaignIds，限制范围为优化目标内的campaigns
+    if (allowedCampaignIds && allowedCampaignIds.length > 0) {
+      const allowedSet = new Set(allowedCampaignIds);
+      allCampaigns = allCampaigns.filter(c => allowedSet.has(c.id));
+      log.info(`[SearchTermHarvester] v746: 权限边界控制 - 限制范围为 ${allCampaigns.length} 个优化目标内campaigns（总共 ${allowedCampaignIds.length} 个允许ID）`);
+      if (allCampaigns.length === 0) {
+        log.info(`[SearchTermHarvester] v746: 优化目标内无匹配campaigns，跳过收割`);
+        return [];
+      }
+    } else {
+      log.warn(`[SearchTermHarvester] v746: 未提供 allowedCampaignIds，跳过收割以防越权操作`);
       return [];
     }
 
@@ -264,46 +325,69 @@ export async function harvestSearchTermAtomic(
 
   log.info(`开始原子收割: "${candidate.searchTerm}" (${candidate.reason})`);
 
-  // ============ Step 1: 创建精确匹配关键词 ============
-  try {
-    const createResult = await apiClient.createSpKeywords([{
-      adGroupId: String(candidate.targetAmazonAdGroupId),  // v356: 使用String()替代parseInt()，避免未来ID格式变更导致截断
-      campaignId: String(candidate.targetAmazonCampaignId),  // v356: 使用String()替代parseInt()，全程保持字符串类型
-      keywordText: candidate.searchTerm,
-      matchType: 'exact',
-      bid: candidate.suggestedBid,
-      state: 'enabled',
-    }]);
+  // ============ Step 1: 创建精确匹配关键词（v753: 带指数退避重试） ============
+  for (let attempt = 0; attempt <= RETRY_CONFIG.maxRetries; attempt++) {
+    try {
+      const createResult = await apiClient.createSpKeywords([{
+        adGroupId: String(candidate.targetAmazonAdGroupId),
+        campaignId: String(candidate.targetAmazonCampaignId),
+        keywordText: candidate.searchTerm,
+        matchType: 'exact',
+        bid: candidate.suggestedBid,
+        state: 'enabled',
+      }]);
 
-    if (!createResult.success || createResult.createdKeywords.length === 0) {
-      const errorMsg = createResult.errors.length > 0 
-        ? JSON.stringify(createResult.errors) 
-        : '未知错误';
-      
-      // 检查是否是"已存在"错误（幂等处理）
-      // @ts-expect-error - runtime type mismatch
-      const isDuplicate = createResult.errors.some((e: Record<string, unknown>) => 
-        String(e).includes('DUPLICATE') || String(e).includes('already exists')
-      );
-      
-      if (isDuplicate) {
-        log.info(`关键词已存在，跳过: "${candidate.searchTerm}"`);
-        result.error = '关键词已存在于目标广告组';
+      if (!createResult.success || createResult.createdKeywords.length === 0) {
+        const errorMsg = createResult.errors.length > 0 
+          ? JSON.stringify(createResult.errors) 
+          : '未知错误';
+        
+        // v749: 检查是否是"已存在"错误（幂等处理）
+        const isDuplicate = createResult.errors.some((e: unknown) => {
+          try {
+            const errStr = JSON.stringify(e);
+            return errStr.includes('DUPLICATE') || errStr.includes('already exists') || errStr.includes('DUPLICATE_VALUE');
+          } catch { return false; }
+        });
+        
+        if (isDuplicate) {
+          log.info(`关键词已存在，跳过: "${candidate.searchTerm}"`);
+          result.error = '关键词已存在于目标广告组';
+          return result;
+        }
+        
+        // v753: 检查是否为可重试的500错误
+        if (isRetryableServerError(errorMsg) && attempt < RETRY_CONFIG.maxRetries) {
+          log.warn(`[v753] Step1 遇到服务端错误(attempt ${attempt + 1}/${RETRY_CONFIG.maxRetries}): "${candidate.searchTerm}" — ${errorMsg.slice(0, 200)}`);
+          await exponentialBackoff(attempt);
+          continue; // 重试
+        }
+        
+        result.error = `Step1 创建关键词失败: ${errorMsg}`;
+        log.warn(`${result.error}`);
         return result;
       }
-      
-      result.error = `Step1 创建关键词失败: ${errorMsg}`;
+
+      result.createdKeywordId = createResult.createdKeywords[0].keywordId;
+      result.stage = 'keyword_created';
+      log.info(`Step1 完成: 创建关键词 ID=${result.createdKeywordId}${attempt > 0 ? ` (第${attempt + 1}次尝试成功)` : ''}`);
+      break; // 成功，跳出重试循环
+
+    } catch (error: unknown) {
+      // v753: 网络层异常也支持重试
+      if (isRetryableServerError((error as Error).message) && attempt < RETRY_CONFIG.maxRetries) {
+        log.warn(`[v753] Step1 网络异常(attempt ${attempt + 1}/${RETRY_CONFIG.maxRetries}): ${(error as Error).message?.slice(0, 200)}`);
+        await exponentialBackoff(attempt);
+        continue;
+      }
+      result.error = `Step1 异常: ${(error as Error).message}`;
       log.warn(`${result.error}`);
       return result;
     }
-
-    result.createdKeywordId = createResult.createdKeywords[0].keywordId;
-    result.stage = 'keyword_created';
-    log.info(`Step1 完成: 创建关键词 ID=${result.createdKeywordId}`);
-
-  } catch (error: unknown) {
-    result.error = `Step1 异常: ${(error as Error).message}`;
-    log.warn(`${result.error}`);
+  }
+  // v753: 如果重试全部耗尽仍未成功（stage仍为failed），直接返回
+  if (result.stage === 'failed') {
+    result.error = result.error || `Step1 重试${RETRY_CONFIG.maxRetries}次后仍失败`;
     return result;
   }
 
@@ -313,52 +397,78 @@ export async function harvestSearchTermAtomic(
   // 多词搜索词使用negativeExact以避免过度否定
   const searchTermWords = candidate.searchTerm.trim().split(/\s+/);
   const negativeMatchType = searchTermWords.length <= 2 ? 'negativePhrase' : 'negativeExact';
-  try {
-    log.info(`v230: 搜索词"${candidate.searchTerm}"包含${searchTermWords.length}个词，使用${negativeMatchType}否定类型`);
-    
-    const negativeResult = await apiClient.createSpNegativeKeywords([{
-      adGroupId: String(candidate.sourceAmazonAdGroupId),  // v356: 使用String()替代parseInt()，避免未来ID格式变更导致截断
-      campaignId: String(candidate.sourceAmazonCampaignId),  // v356: 使用String()替代parseInt()，全程保持字符串类型
-      keywordText: candidate.searchTerm,
-      matchType: negativeMatchType,
-      state: 'enabled',
-    }]);
-
-    // 检查否定词创建结果
-    const negativeErrors = negativeResult.filter((r: Record<string, unknown>) => r.code && r.code !== 'SUCCESS');
-    
-    if (negativeErrors.length > 0) {
-      // 检查是否是"已存在"错误（幂等处理）
-      const isDuplicate = negativeErrors.some((e: Record<string, unknown>) => 
-        String(e.code).includes('DUPLICATE') || String(e.details).includes('already exists')
-      );
+  // v753: Step2也增加指数退避重试
+  for (let attempt = 0; attempt <= RETRY_CONFIG.maxRetries; attempt++) {
+    try {
+      log.info(`v230: 搜索词"${candidate.searchTerm}"包含${searchTermWords.length}个词，使用${negativeMatchType}否定类型`);
       
-      if (!isDuplicate) {
-        // Step 2 失败，需要回滚 Step 1
-        log.warn(`Step2 失败，开始回滚 Step1...`);
-        await rollbackKeywordCreation(apiClient, result.createdKeywordId!);
-        result.stage = 'rolled_back';
-        result.error = `Step2 否定词创建失败: ${JSON.stringify(negativeErrors)}`;
-        result.rollbackInfo = `已回滚: 删除关键词 ID=${result.createdKeywordId}`;
-        return result;
+      const negativeResult = await apiClient.createSpNegativeKeywords([{
+        adGroupId: String(candidate.sourceAmazonAdGroupId),
+        campaignId: String(candidate.sourceAmazonCampaignId),
+        keywordText: candidate.searchTerm,
+        matchType: negativeMatchType,
+        state: 'enabled',
+      }]);
+
+      // 检查否定词创建结果
+      const negativeErrors = negativeResult.filter((r: Record<string, unknown>) => r.code && r.code !== 'SUCCESS');
+      
+      if (negativeErrors.length > 0) {
+        // 检查是否是"已存在"错误（幂等处理）
+        const isDuplicate = negativeErrors.some((e: Record<string, unknown>) => 
+          String(e.code).includes('DUPLICATE') || String(e.details).includes('already exists')
+        );
+        
+        if (!isDuplicate) {
+          // v753: 检查是否为可重试的500错误
+          const negErrorStr = JSON.stringify(negativeErrors);
+          if (isRetryableServerError(negErrorStr) && attempt < RETRY_CONFIG.maxRetries) {
+            log.warn(`[v753] Step2 遇到服务端错误(attempt ${attempt + 1}/${RETRY_CONFIG.maxRetries}): "${candidate.searchTerm}" — ${negErrorStr.slice(0, 200)}`);
+            await exponentialBackoff(attempt);
+            continue; // 重试
+          }
+          // Step 2 失败，需要回滚 Step 1
+          log.warn(`Step2 失败，开始回滚 Step1...`);
+          await rollbackKeywordCreation(apiClient, result.createdKeywordId!);
+          result.stage = 'rolled_back';
+          result.error = `Step2 否定词创建失败: ${negErrorStr}`;
+          result.rollbackInfo = `已回滚: 删除关键词 ID=${result.createdKeywordId}`;
+          return result;
+        }
       }
-    }
 
-    // 获取否定词ID
-    const successNeg = negativeResult.find((r: Record<string, unknown>) => !r.code || r.code === 'SUCCESS');
-    if (successNeg) {
-      result.createdNegativeKeywordId = successNeg.keywordId;
-    }
-    
-    result.stage = 'negative_added';
-    log.info(`Step2 完成: 添加否定词 ID=${result.createdNegativeKeywordId}`);
+      // 获取否定词ID
+      const successNeg = negativeResult.find((r: Record<string, unknown>) => !r.code || r.code === 'SUCCESS');
+      if (successNeg) {
+        result.createdNegativeKeywordId = successNeg.keywordId;
+      }
+      
+      result.stage = 'negative_added';
+      log.info(`Step2 完成: 添加否定词 ID=${result.createdNegativeKeywordId}${attempt > 0 ? ` (第${attempt + 1}次尝试成功)` : ''}`);
+      break; // 成功，跳出重试循环
 
-  } catch (error: unknown) {
-    // Step 2 异常，回滚 Step 1
-    log.warn(`Step2 异常: ${(error as Error).message}，开始回滚 Step1...`);
+    } catch (error: unknown) {
+      // v753: 网络层异常也支持重试
+      if (isRetryableServerError((error as Error).message) && attempt < RETRY_CONFIG.maxRetries) {
+        log.warn(`[v753] Step2 网络异常(attempt ${attempt + 1}/${RETRY_CONFIG.maxRetries}): ${(error as Error).message?.slice(0, 200)}`);
+        await exponentialBackoff(attempt);
+        continue;
+      }
+      // Step 2 异常，回滚 Step 1
+      log.warn(`Step2 异常: ${(error as Error).message}，开始回滚 Step1...`);
+      await rollbackKeywordCreation(apiClient, result.createdKeywordId!);
+      result.stage = 'rolled_back';
+      result.error = `Step2 异常: ${(error as Error).message}`;
+      result.rollbackInfo = `已回滚: 删除关键词 ID=${result.createdKeywordId}`;
+      return result;
+    }
+  }
+  // v753: 如果Step2重试全部耗尽仍未成功
+  if (result.stage !== 'negative_added') {
+    log.warn(`[v753] Step2 重试${RETRY_CONFIG.maxRetries}次后仍失败，回滚Step1...`);
     await rollbackKeywordCreation(apiClient, result.createdKeywordId!);
     result.stage = 'rolled_back';
-    result.error = `Step2 异常: ${(error as Error).message}`;
+    result.error = result.error || `Step2 重试${RETRY_CONFIG.maxRetries}次后仍失败`;
     result.rollbackInfo = `已回滚: 删除关键词 ID=${result.createdKeywordId}`;
     return result;
   }
@@ -501,7 +611,8 @@ export async function harvestSearchTermAtomic(
  */
 export async function batchHarvestSearchTerms(
   accountId: number,
-  config: Partial<HarvestConfig> = {}
+  config: Partial<HarvestConfig> = {},
+  allowedCampaignIds?: number[]  // v746: 限制范围为优化目标内的campaign IDs
 ): Promise<{
   candidates: HarvestCandidate[];
   results: HarvestResult[];
@@ -515,8 +626,8 @@ export async function batchHarvestSearchTerms(
 }> {
   const cfg = { ...DEFAULT_HARVEST_CONFIG, ...config };
   
-  // 1. 识别候选项
-  const candidates = await identifyHarvestCandidates(accountId, cfg);
+  // 1. 识别候选项 - v746: 传入 allowedCampaignIds 限制范围
+  const candidates = await identifyHarvestCandidates(accountId, cfg, allowedCampaignIds);
   
   if (candidates.length === 0) {
     return {
@@ -555,21 +666,63 @@ export async function batchHarvestSearchTerms(
     region: credentials.region as 'NA' | 'EU' | 'FE',
   });
 
-  // 3. 逐个执行原子收割（串行执行，避免API速率限制）
+  // 3. 逐个执行原子收割（v753: 增加连续失败熔断保护）
   const results: HarvestResult[] = [];
   let success = 0, failed = 0, rolledBack = 0;
+  let consecutiveServerErrors = 0; // v753: 连续服务端错误计数
+  let totalServerErrors = 0; // v753: 总服务端错误计数
+  let aborted = false; // v753: 是否因熔断终止
 
   for (const candidate of candidates) {
+    // v753: 检查是否已触发终止熔断
+    if (aborted) {
+      results.push({
+        searchTerm: candidate.searchTerm,
+        success: false,
+        stage: 'failed',
+        error: `[v753] 批量收割已因连续${CIRCUIT_BREAKER_CONFIG.consecutiveFailuresForAbort}次服务端错误而终止`,
+      });
+      failed++;
+      continue;
+    }
+
     try {
       const result = await harvestSearchTermAtomic(candidate, apiClient, accountId);
       results.push(result);
       
       if (result.success) {
         success++;
+        consecutiveServerErrors = 0; // 成功则重置连续错误计数
       } else if (result.stage === 'rolled_back') {
         rolledBack++;
+        // v753: 检查是否为服务端错误导致的回滚
+        if (result.error && isRetryableServerError(result.error)) {
+          consecutiveServerErrors++;
+          totalServerErrors++;
+        } else {
+          consecutiveServerErrors = 0;
+        }
       } else {
         failed++;
+        // v753: 检查是否为服务端错误
+        if (result.error && isRetryableServerError(result.error)) {
+          consecutiveServerErrors++;
+          totalServerErrors++;
+        } else {
+          consecutiveServerErrors = 0;
+        }
+      }
+
+      // v753: 连续失败熔断检查
+      if (consecutiveServerErrors >= CIRCUIT_BREAKER_CONFIG.consecutiveFailuresForAbort) {
+        log.warn(`[v753] 熔断触发: 连续${consecutiveServerErrors}次服务端错误，终止剩余${candidates.length - results.length}个候选项`);
+        aborted = true;
+        continue;
+      }
+      if (consecutiveServerErrors >= CIRCUIT_BREAKER_CONFIG.consecutiveFailuresForCooldown && consecutiveServerErrors < CIRCUIT_BREAKER_CONFIG.consecutiveFailuresForAbort) {
+        log.warn(`[v753] 冷却触发: 连续${consecutiveServerErrors}次服务端错误，等待${CIRCUIT_BREAKER_CONFIG.cooldownMs / 1000}秒后继续...`);
+        await new Promise(resolve => setTimeout(resolve, CIRCUIT_BREAKER_CONFIG.cooldownMs));
+        consecutiveServerErrors = 0; // 冷却后重置
       }
 
       // API请求间隔，避免速率限制
@@ -584,10 +737,14 @@ export async function batchHarvestSearchTerms(
         error: (error as Error).message,
       });
       failed++;
+      if (isRetryableServerError((error as Error).message)) {
+        consecutiveServerErrors++;
+        totalServerErrors++;
+      }
     }
   }
 
-  log.warn(`批量收割完成: 成功=${success}, 失败=${failed}, 回滚=${rolledBack}`);
+  log.warn(`[v753] 批量收割完成: 成功=${success}, 失败=${failed}, 回滚=${rolledBack}, 服务端错误总计=${totalServerErrors}, 熔断终止=${aborted}`);
 
   return {
     candidates,

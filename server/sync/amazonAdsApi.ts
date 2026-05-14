@@ -3322,7 +3322,10 @@ export class AmazonAdsApiClient {
           groupBy: ['targeting'],
           columns: [
             // 基础信息 - 根据Excel文档SB Keyword sheet
-            'date',
+            // v753: 移除 'date' 列 — Amazon API 报错: "configuration date is not a supported column for this time unit"
+            // 当 timeUnit='SUMMARY' 时，应使用 startDate/endDate 而非 date 列
+            'startDate',
+            'endDate',
             'campaignId',
             'campaignName',                      // Excel: campaignName - 广告系列名称
             'campaignBudgetCurrencyCode',        // Excel: campaignBudgetCurrencyCode - 币种
@@ -3368,11 +3371,14 @@ export class AmazonAdsApiClient {
             'newToBrandUnitsSoldPercentage',     // Excel: newToBrandUnitsSoldPercentage
             'newToBrandPurchasesRate'            // Excel: newToBrandPurchasesRate
           ],
-          // 添加filters配置
+          // v753: 修复 SB定向报告 400 错误 — 移除 campaignStatus 过滤器
+          // Amazon API 报错: "configuration filters includes fields: (campaignStatus) which are invalid for groupBys: targeting"
+          // 当 groupBy=['targeting'] 时，Amazon 仅允许 adKeywordStatus 和 keywordType 作为过滤器
+          // 改为使用 adKeywordStatus 过滤，仅拉取 ENABLED 和 PAUSED 状态的定向数据
           filters: [
             {
-              field: 'campaignStatus',
-              values: ['ARCHIVED', 'ENABLED', 'PAUSED']
+              field: 'adKeywordStatus',
+              values: ['ENABLED', 'PAUSED']
             }
           ],
           reportTypeId: 'sbTargeting',

@@ -5821,6 +5821,8 @@ __export(connection_exports, {
   getDb: () => getDb,
   getDirectConnection: () => getDirectConnection,
   getPoolStats: () => getPoolStats,
+  getReadDb: () => getReadDb,
+  getReadPoolStats: () => getReadPoolStats,
   startPoolMonitor: () => startPoolMonitor
 });
 import { drizzle } from "drizzle-orm/mysql2";
@@ -5885,14 +5887,14 @@ async function getDb() {
   }
   if (!_db) {
     try {
-      const poolSize = parseInt(process.env.DB_POOL_SIZE || "100", 10);
+      const poolSize = parseInt(process.env.DB_POOL_SIZE || "50", 10);
       const poolIdleTimeout = parseInt(process.env.DB_IDLE_TIMEOUT || "300000", 10);
       _pool = mysql.createPool({
         uri: process.env.DATABASE_URL,
         waitForConnections: true,
         connectionLimit: poolSize,
-        maxIdle: Math.floor(poolSize * 0.5),
-        // v686: 50%空闲连接（从40%提升，减少高负载时的连接创建开销）
+        maxIdle: Math.floor(poolSize * 0.6),
+        // v751: 60%空闲连接（从50%提升，减少高负载时的连接创建开销）
         idleTimeout: poolIdleTimeout,
         connectTimeout: 3e4,
         // v686: 30s（从15s延长，避免高负载时ETIMEDOUT）
@@ -5908,7 +5910,21 @@ async function getDb() {
       _lastHealthCheck = Date.now();
       _lastPoolRebuild = Date.now();
       startLeakChecker();
-      log5.info(`[Database] v686: \u8FDE\u63A5\u6C60\u5DF2\u5EFA\u7ACB (limit=${poolSize}, idle=${Math.floor(poolSize * 0.5)}, connectTimeout=30s, keepAlive=10s, queueLimit=${poolSize * 6}, leakCheck=30s, maxHold=180s)`);
+      log5.info(`[Database] v752: \u8FDE\u63A5\u6C60\u5DF2\u5EFA\u7ACB (limit=${poolSize}, idle=${Math.floor(poolSize * 0.6)}, connectTimeout=30s, keepAlive=10s, queueLimit=${poolSize * 6}, leakCheck=30s, maxHold=180s)`);
+      const warmupSize = Math.min(Math.floor(poolSize * 0.3), 15);
+      const warmupStart = Date.now();
+      try {
+        const warmupConns = [];
+        for (let i = 0; i < warmupSize; i++) {
+          warmupConns.push(await _pool.getConnection());
+        }
+        for (const conn of warmupConns) {
+          conn.release();
+        }
+        log5.info(`[Database] v752: \u8FDE\u63A5\u6C60\u9884\u70ED\u5B8C\u6210\uFF0C\u9884\u521B\u5EFA ${warmupSize} \u4E2A\u8FDE\u63A5\uFF0C\u8017\u65F6 ${Date.now() - warmupStart}ms`);
+      } catch (warmupErr) {
+        log5.warn(`[Database] v752: \u8FDE\u63A5\u6C60\u9884\u70ED\u90E8\u5206\u5931\u8D25\uFF08\u4E0D\u5F71\u54CD\u6B63\u5E38\u4F7F\u7528\uFF09: ${warmupErr.message}`);
+      }
     } catch (error) {
       log5.warn("[Database] v350: \u8FDE\u63A5\u6C60\u521B\u5EFA\u5931\u8D25:", error);
       _db = null;
@@ -5916,6 +5932,87 @@ async function getDb() {
     }
   }
   return _db;
+}
+async function getReadDb() {
+  const readUrl = process.env.DATABASE_READ_URL;
+  if (!readUrl) {
+    _readPoolStats.fallbackToWrite++;
+    return getDb();
+  }
+  const now = Date.now();
+  if (_readDb && _readPool && now - _readLastHealthCheck > HEALTH_CHECK_INTERVAL) {
+    try {
+      const conn = await Promise.race([
+        _readPool.getConnection(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("Read pool health check timeout")), 1e4))
+      ]);
+      await Promise.race([
+        conn.ping(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("Read pool ping timeout")), 3e3))
+      ]);
+      conn.release();
+      _readLastHealthCheck = now;
+    } catch (error) {
+      _readPoolStats.healthChecksFailed++;
+      log5.warn(`[Database] v752: \u8BFB\u5E93\u5065\u5EB7\u68C0\u67E5\u5931\u8D25(#${_readPoolStats.healthChecksFailed}):`, error.message);
+      if (now - _readLastPoolRebuild > POOL_REBUILD_COOLDOWN) {
+        try {
+          await _readPool.end();
+        } catch (e) {
+        }
+        _readDb = null;
+        _readPool = null;
+        _readLastPoolRebuild = now;
+        _readPoolStats.rebuilds++;
+        log5.info(`[Database] v752: \u8BFB\u5E93\u8FDE\u63A5\u6C60\u5DF2\u9500\u6BC1\uFF0C\u5C06\u5728\u4E0B\u6B21getReadDb()\u65F6\u91CD\u5EFA`);
+      }
+    }
+  }
+  if (!_readDb) {
+    try {
+      const readPoolSize = parseInt(process.env.DB_READ_POOL_SIZE || "50", 10);
+      const poolIdleTimeout = parseInt(process.env.DB_IDLE_TIMEOUT || "300000", 10);
+      _readPool = mysql.createPool({
+        uri: readUrl,
+        waitForConnections: true,
+        connectionLimit: readPoolSize,
+        maxIdle: Math.floor(readPoolSize * 0.6),
+        idleTimeout: poolIdleTimeout,
+        connectTimeout: 3e4,
+        enableKeepAlive: true,
+        keepAliveInitialDelay: 1e4,
+        queueLimit: readPoolSize * 6
+      });
+      _readPool.on("connection", () => {
+        _readPoolStats.created++;
+      });
+      _readDb = drizzle(_readPool, { casing: "camelCase" });
+      _readLastHealthCheck = Date.now();
+      _readLastPoolRebuild = Date.now();
+      log5.info(`[Database] v752: \u8BFB\u5E93\u8FDE\u63A5\u6C60\u5DF2\u5EFA\u7ACB (limit=${readPoolSize}, idle=${Math.floor(readPoolSize * 0.6)}, url=${readUrl.replace(/:[^:@]+@/, ":***@")})`);
+    } catch (error) {
+      log5.warn("[Database] v752: \u8BFB\u5E93\u8FDE\u63A5\u6C60\u521B\u5EFA\u5931\u8D25\uFF0C\u56DE\u9000\u5230\u4E3B\u5E93:", error.message);
+      _readDb = null;
+      _readPool = null;
+      _readPoolStats.fallbackToWrite++;
+      return getDb();
+    }
+  }
+  return _readDb;
+}
+function getReadPoolStats() {
+  if (!_readPool) return null;
+  const pool = _readPool;
+  try {
+    return {
+      total: pool.pool._allConnections?.length ?? 0,
+      free: pool.pool._freeConnections?.length ?? 0,
+      queued: pool.pool._connectionQueue?.length ?? 0,
+      ..._readPoolStats
+    };
+  } catch {
+    return { ..._readPoolStats };
+  }
 }
 async function getDirectConnection(timeoutMs = 3e4) {
   await getDb();
@@ -6048,17 +6145,36 @@ function startPoolMonitor() {
     const leakStr = stats2.leakedConnections > 0 ? ` | LEAKED: ${stats2.leakedConnections}` : "";
     const queueStr = np.queuedRequests > 0 ? ` | QUEUED: ${np.queuedRequests}` : "";
     log5.info(`[PoolMonitor] v668: util=${utilStr} | total=${np.allConnections} free=${np.freeConnections}${queueStr}${leakStr} | rebuilds=${stats2.rebuilds} hcFails=${stats2.healthChecksFailed}`);
-    if (np.utilizationPercent > 80) {
-      log5.warn(`[PoolMonitor] v668: \u8FDE\u63A5\u6C60\u5229\u7528\u7387\u8FC7\u9AD8 ${np.utilizationPercent}%\uFF0C\u6D3B\u8DC3=${np.activeConnections}/${np.connectionLimit}\uFF0C\u961F\u5217=${np.queuedRequests}`);
+    if (np.utilizationPercent > 70) {
+      log5.warn(`[PoolMonitor] v751: \u8FDE\u63A5\u6C60\u5229\u7528\u7387\u8FC7\u9AD8 ${np.utilizationPercent}%\uFF0C\u6D3B\u8DC3=${np.activeConnections}/${np.connectionLimit}\uFF0C\u961F\u5217=${np.queuedRequests}`);
     }
     if (np.queuedRequests > 10) {
-      log5.warn(`[PoolMonitor] v668: \u8FDE\u63A5\u6C60\u7B49\u5F85\u961F\u5217\u8FC7\u957F ${np.queuedRequests}\uFF0C\u53EF\u80FD\u5B58\u5728\u5E76\u53D1\u74F6\u9888`);
+      log5.warn(`[PoolMonitor] v751: \u8FDE\u63A5\u6C60\u7B49\u5F85\u961F\u5217\u8FC7\u957F ${np.queuedRequests}\uFF0C\u53EF\u80FD\u5B58\u5728\u5E76\u53D1\u74F6\u9888`);
+    }
+    if (np.utilizationPercent > 85 && np.queuedRequests > 20) {
+      const suggestedSize = Math.min(np.connectionLimit * 1.5, 100);
+      log5.warn(`[PoolMonitor] v752: [AUTO-SCALE\u5EFA\u8BAE] \u8FDE\u63A5\u6C60\u6301\u7EED\u9AD8\u8D1F\u8F7D\uFF0C\u5EFA\u8BAE\u6269\u5BB9\u5230 ${Math.round(suggestedSize)} (\u5F53\u524D${np.connectionLimit})`);
+      _poolAdaptiveState.highLoadCount++;
+    } else if (np.utilizationPercent < 20 && np.queuedRequests === 0) {
+      _poolAdaptiveState.lowLoadCount++;
+      if (_poolAdaptiveState.lowLoadCount >= 6) {
+        const suggestedSize = Math.max(np.connectionLimit * 0.6, 20);
+        log5.info(`[PoolMonitor] v752: [AUTO-SCALE\u5EFA\u8BAE] \u8FDE\u63A5\u6C60\u6301\u7EED\u4F4E\u8D1F\u8F7D\uFF0C\u53EF\u7F29\u5BB9\u5230 ${Math.round(suggestedSize)} (\u5F53\u524D${np.connectionLimit})`);
+        _poolAdaptiveState.lowLoadCount = 0;
+      }
+    } else {
+      _poolAdaptiveState.lowLoadCount = 0;
+      _poolAdaptiveState.highLoadCount = 0;
+    }
+    const readStats = getReadPoolStats();
+    if (readStats) {
+      log5.info(`[PoolMonitor] v752: \u8BFB\u5E93 total=${readStats.total} free=${readStats.free} queued=${readStats.queued} fallback=${readStats.fallbackToWrite}`);
     }
   }, MONITOR_INTERVAL);
   if (_poolMonitorTimer.unref) _poolMonitorTimer.unref();
   log5.info("[PoolMonitor] v668: \u8FDE\u63A5\u6C60\u5B9A\u671F\u76D1\u63A7\u5DF2\u542F\u52A8\uFF08\u6BCF5\u5206\u949F\u8F93\u51FA\u72B6\u6001\uFF09");
 }
-var log5, _db, _pool, _lastHealthCheck, _poolStats, HEALTH_CHECK_INTERVAL, POOL_REBUILD_COOLDOWN, _lastPoolRebuild, CONNECTION_MAX_HOLD_TIME, LEAK_CHECK_INTERVAL, _activeConnections, _connIdCounter, _leakCheckTimer, _poolMonitorTimer;
+var log5, _db, _pool, _lastHealthCheck, _poolStats, HEALTH_CHECK_INTERVAL, POOL_REBUILD_COOLDOWN, _lastPoolRebuild, CONNECTION_MAX_HOLD_TIME, LEAK_CHECK_INTERVAL, _activeConnections, _connIdCounter, _leakCheckTimer, _readDb, _readPool, _readLastHealthCheck, _readPoolStats, _readLastPoolRebuild, _poolAdaptiveState, _poolMonitorTimer;
 var init_connection = __esm({
   "server/db/connection.ts"() {
     "use strict";
@@ -6080,6 +6196,12 @@ var init_connection = __esm({
     _activeConnections = /* @__PURE__ */ new Map();
     _connIdCounter = 0;
     _leakCheckTimer = null;
+    _readDb = null;
+    _readPool = null;
+    _readLastHealthCheck = 0;
+    _readPoolStats = { created: 0, healthChecksFailed: 0, rebuilds: 0, fallbackToWrite: 0 };
+    _readLastPoolRebuild = 0;
+    _poolAdaptiveState = { highLoadCount: 0, lowLoadCount: 0 };
     _poolMonitorTimer = null;
     queueMicrotask(() => {
       registerDbQueryProviders({
@@ -11342,6 +11464,8 @@ __export(db_exports, {
   getProductTargetHistoryData: () => getProductTargetHistoryData,
   getProductTargetsByAdGroupId: () => getProductTargetsByAdGroupId,
   getProductTargetsByAdGroupIds: () => getProductTargetsByAdGroupIds,
+  getReadDb: () => getReadDb,
+  getReadPoolStats: () => getReadPoolStats,
   getRecentEmailSendLogs: () => getRecentEmailSendLogs,
   getScheduledTaskById: () => getScheduledTaskById,
   getScheduledTasksByUserId: () => getScheduledTasksByUserId,
@@ -11899,7 +12023,7 @@ var SYSTEM_VERSION;
 var init_systemVersion = __esm({
   "server/utils/systemVersion.ts"() {
     "use strict";
-    SYSTEM_VERSION = 750;
+    SYSTEM_VERSION = 752;
   }
 });
 
@@ -12897,7 +13021,7 @@ function classifyEndpoint(methodName, httpMethod) {
   }
   return "default";
 }
-var log22, CONSUMER_PRIORITY_CONFIG, activeHighestPriority, activeHighestPrioritySetAt, PRIORITY_EXPIRY_MS, InMemoryRateLimitStore, DEFAULT_ENDPOINT_CONFIGS, GLOBAL_ENDPOINT_CONFIGS, accountThrottleStates, ApiRateLimitService, globalRateLimitService;
+var log22, CONSUMER_PRIORITY_CONFIG, activeHighestPriority, activeHighestPrioritySetAt, PRIORITY_EXPIRY_MS, INSTANCE_ID, InMemoryRateLimitStore, DEFAULT_ENDPOINT_CONFIGS, GLOBAL_ENDPOINT_CONFIGS, accountThrottleStates, ApiRateLimitService, globalRateLimitService;
 var init_apiRateLimitService = __esm({
   "server/services/apiRateLimitService.ts"() {
     "use strict";
@@ -12915,6 +13039,7 @@ var init_apiRateLimitService = __esm({
     activeHighestPriority = null;
     activeHighestPrioritySetAt = 0;
     PRIORITY_EXPIRY_MS = 3e5;
+    INSTANCE_ID = process.env.INSTANCE_ID || `inst-${process.pid}-${Date.now().toString(36).slice(-4)}`;
     InMemoryRateLimitStore = class {
       buckets = /* @__PURE__ */ new Map();
       counters = /* @__PURE__ */ new Map();
@@ -12947,9 +13072,14 @@ var init_apiRateLimitService = __esm({
       async incrementCounter(key, windowMs) {
         const now = Date.now();
         let counter = this.counters.get(key);
-        if (!counter || now - counter.windowStart >= counter.windowMs) {
-          counter = { count: 0, windowStart: now, windowMs };
+        if (!counter) {
+          counter = { count: 0, windowStart: now, windowMs, prevCount: 0, prevWindowStart: 0 };
           this.counters.set(key, counter);
+        } else if (now - counter.windowStart >= counter.windowMs) {
+          counter.prevCount = counter.count;
+          counter.prevWindowStart = counter.windowStart;
+          counter.count = 0;
+          counter.windowStart = now;
         }
         counter.count++;
         return counter.count;
@@ -12960,6 +13090,13 @@ var init_apiRateLimitService = __esm({
         const now = Date.now();
         if (now - counter.windowStart >= counter.windowMs) {
           return 0;
+        }
+        const elapsedInWindow = now - counter.windowStart;
+        const windowProgress = elapsedInWindow / counter.windowMs;
+        const prevWeight = 1 - windowProgress;
+        if (counter.prevCount > 0 && counter.prevWindowStart > 0) {
+          const smoothedCount = counter.count + Math.floor(counter.prevCount * prevWeight);
+          return smoothedCount;
         }
         return counter.count;
       }
@@ -13004,13 +13141,14 @@ var init_apiRateLimitService = __esm({
     };
     GLOBAL_ENDPOINT_CONFIGS = {
       list: {
-        maxRequestsPerSecond: 20,
-        // v675: 从15提升到20，全局限额需覆盖多账户并发
-        maxRequestsPerMinute: 800,
-        // v675: 从600提升到800，全局RPM需大于per-account以容纳多账户
-        burstCapacity: 30,
-        // v675: 从20提升到30，容纳多账户并发突发
-        refillRatePerSecond: 20
+        maxRequestsPerSecond: 30,
+        // v751: 从20提升到30，15账户并发×2TPS=30TPS刚好匹配
+        maxRequestsPerMinute: 1200,
+        // v751: 从800提升到1200，消除频繁触顶（日志显示810/800）
+        burstCapacity: 45,
+        // v751: 从30提升到45，容纳15账户同时发起list请求
+        refillRatePerSecond: 30
+        // v751: 匹配TPS
       },
       mutate: {
         maxRequestsPerSecond: 8,
@@ -13022,13 +13160,14 @@ var init_apiRateLimitService = __esm({
         refillRatePerSecond: 8
       },
       report: {
-        maxRequestsPerSecond: 3,
-        // v658: 从5降到3
-        maxRequestsPerMinute: 90,
-        // v658: 从150降到90
-        burstCapacity: 5,
-        // v658: 从10降到5
-        refillRatePerSecond: 3
+        maxRequestsPerSecond: 5,
+        // v752: 从3提升到5（恢复v658前水平）
+        maxRequestsPerMinute: 150,
+        // v752: 从90提升到150（15账户并发report请求）
+        burstCapacity: 8,
+        // v752: 从5提升到8
+        refillRatePerSecond: 5
+        // v752: 匹配TPS
       },
       snapshot: {
         maxRequestsPerSecond: 2,
@@ -13116,11 +13255,11 @@ var init_apiRateLimitService = __esm({
         while (acquireAttempt < MAX_ACQUIRE_RETRIES) {
           const globalMinuteCount = await this.globalStore.getCounter(globalMinuteKey);
           if (globalMinuteCount >= globalConfig.maxRequestsPerMinute) {
-            const waitMs2 = 1e4;
+            const waitMs2 = 3e3;
             this.recordThrottle(accountId, endpointType, waitMs2);
             if (autoWait && acquireAttempt < MAX_ACQUIRE_RETRIES - 1) {
               acquireAttempt++;
-              log22.warn(`[RateLimit] v${SYSTEM_VERSION}: \u5168\u5C40${endpointType}\u7AEF\u70B9\u6BCF\u5206\u949F\u9650\u989D\u5DF2\u6EE1(${globalMinuteCount}/${globalConfig.maxRequestsPerMinute}), \u7B49\u5F8510s (\u91CD\u8BD5${acquireAttempt}/${MAX_ACQUIRE_RETRIES})`);
+              log22.warn(`[RateLimit] v${SYSTEM_VERSION}: \u5168\u5C40${endpointType}\u7AEF\u70B9\u6BCF\u5206\u949F\u9650\u989D\u5DF2\u6EE1(${globalMinuteCount}/${globalConfig.maxRequestsPerMinute}), \u7B49\u5F85${waitMs2 / 1e3}s (\u91CD\u8BD5${acquireAttempt}/${MAX_ACQUIRE_RETRIES})`);
               await this.delay(waitMs2);
               continue;
             }
@@ -16594,7 +16733,10 @@ Profile ID: ${profileId}
               groupBy: ["targeting"],
               columns: [
                 // 基础信息 - 根据Excel文档SB Keyword sheet
-                "date",
+                // v753: 移除 'date' 列 — Amazon API 报错: "configuration date is not a supported column for this time unit"
+                // 当 timeUnit='SUMMARY' 时，应使用 startDate/endDate 而非 date 列
+                "startDate",
+                "endDate",
                 "campaignId",
                 "campaignName",
                 // Excel: campaignName - 广告系列名称
@@ -16674,11 +16816,14 @@ Profile ID: ${profileId}
                 "newToBrandPurchasesRate"
                 // Excel: newToBrandPurchasesRate
               ],
-              // 添加filters配置
+              // v753: 修复 SB定向报告 400 错误 — 移除 campaignStatus 过滤器
+              // Amazon API 报错: "configuration filters includes fields: (campaignStatus) which are invalid for groupBys: targeting"
+              // 当 groupBy=['targeting'] 时，Amazon 仅允许 adKeywordStatus 和 keywordType 作为过滤器
+              // 改为使用 adKeywordStatus 过滤，仅拉取 ENABLED 和 PAUSED 状态的定向数据
               filters: [
                 {
-                  field: "campaignStatus",
-                  values: ["ARCHIVED", "ENABLED", "PAUSED"]
+                  field: "adKeywordStatus",
+                  values: ["ENABLED", "PAUSED"]
                 }
               ],
               reportTypeId: "sbTargeting",
@@ -21676,6 +21821,16 @@ __export(searchTermHarvester_exports, {
   harvestSearchTermAtomic: () => harvestSearchTermAtomic,
   identifyHarvestCandidates: () => identifyHarvestCandidates
 });
+function isRetryableServerError(error) {
+  if (!error) return false;
+  const errStr = typeof error === "string" ? error : JSON.stringify(error);
+  return RETRY_CONFIG.retryableErrorCodes.some((code) => errStr.includes(code));
+}
+async function exponentialBackoff(attempt) {
+  const delayMs = RETRY_CONFIG.initialBackoffMs * Math.pow(RETRY_CONFIG.backoffMultiplier, attempt);
+  log30.info(`[v753] \u6307\u6570\u9000\u907F\u7B49\u5F85: attempt=${attempt + 1}, delay=${delayMs}ms`);
+  await new Promise((resolve) => setTimeout(resolve, delayMs));
+}
 async function identifyHarvestCandidates(accountId, config = {}, allowedCampaignIds) {
   const cfg = { ...DEFAULT_HARVEST_CONFIG, ...config };
   const candidates = [];
@@ -21776,82 +21931,117 @@ async function harvestSearchTermAtomic(candidate, apiClient, accountId) {
     stage: "failed"
   };
   log30.info(`\u5F00\u59CB\u539F\u5B50\u6536\u5272: "${candidate.searchTerm}" (${candidate.reason})`);
-  try {
-    const createResult = await apiClient.createSpKeywords([{
-      adGroupId: String(candidate.targetAmazonAdGroupId),
-      // v356: 使用String()替代parseInt()，避免未来ID格式变更导致截断
-      campaignId: String(candidate.targetAmazonCampaignId),
-      // v356: 使用String()替代parseInt()，全程保持字符串类型
-      keywordText: candidate.searchTerm,
-      matchType: "exact",
-      bid: candidate.suggestedBid,
-      state: "enabled"
-    }]);
-    if (!createResult.success || createResult.createdKeywords.length === 0) {
-      const errorMsg = createResult.errors.length > 0 ? JSON.stringify(createResult.errors) : "\u672A\u77E5\u9519\u8BEF";
-      const isDuplicate = createResult.errors.some((e) => {
-        try {
-          const errStr = JSON.stringify(e);
-          return errStr.includes("DUPLICATE") || errStr.includes("already exists") || errStr.includes("DUPLICATE_VALUE");
-        } catch {
-          return false;
+  for (let attempt = 0; attempt <= RETRY_CONFIG.maxRetries; attempt++) {
+    try {
+      const createResult = await apiClient.createSpKeywords([{
+        adGroupId: String(candidate.targetAmazonAdGroupId),
+        campaignId: String(candidate.targetAmazonCampaignId),
+        keywordText: candidate.searchTerm,
+        matchType: "exact",
+        bid: candidate.suggestedBid,
+        state: "enabled"
+      }]);
+      if (!createResult.success || createResult.createdKeywords.length === 0) {
+        const errorMsg = createResult.errors.length > 0 ? JSON.stringify(createResult.errors) : "\u672A\u77E5\u9519\u8BEF";
+        const isDuplicate = createResult.errors.some((e) => {
+          try {
+            const errStr = JSON.stringify(e);
+            return errStr.includes("DUPLICATE") || errStr.includes("already exists") || errStr.includes("DUPLICATE_VALUE");
+          } catch {
+            return false;
+          }
+        });
+        if (isDuplicate) {
+          log30.info(`\u5173\u952E\u8BCD\u5DF2\u5B58\u5728\uFF0C\u8DF3\u8FC7: "${candidate.searchTerm}"`);
+          result.error = "\u5173\u952E\u8BCD\u5DF2\u5B58\u5728\u4E8E\u76EE\u6807\u5E7F\u544A\u7EC4";
+          return result;
         }
-      });
-      if (isDuplicate) {
-        log30.info(`\u5173\u952E\u8BCD\u5DF2\u5B58\u5728\uFF0C\u8DF3\u8FC7: "${candidate.searchTerm}"`);
-        result.error = "\u5173\u952E\u8BCD\u5DF2\u5B58\u5728\u4E8E\u76EE\u6807\u5E7F\u544A\u7EC4";
+        if (isRetryableServerError(errorMsg) && attempt < RETRY_CONFIG.maxRetries) {
+          log30.warn(`[v753] Step1 \u9047\u5230\u670D\u52A1\u7AEF\u9519\u8BEF(attempt ${attempt + 1}/${RETRY_CONFIG.maxRetries}): "${candidate.searchTerm}" \u2014 ${errorMsg.slice(0, 200)}`);
+          await exponentialBackoff(attempt);
+          continue;
+        }
+        result.error = `Step1 \u521B\u5EFA\u5173\u952E\u8BCD\u5931\u8D25: ${errorMsg}`;
+        log30.warn(`${result.error}`);
         return result;
       }
-      result.error = `Step1 \u521B\u5EFA\u5173\u952E\u8BCD\u5931\u8D25: ${errorMsg}`;
+      result.createdKeywordId = createResult.createdKeywords[0].keywordId;
+      result.stage = "keyword_created";
+      log30.info(`Step1 \u5B8C\u6210: \u521B\u5EFA\u5173\u952E\u8BCD ID=${result.createdKeywordId}${attempt > 0 ? ` (\u7B2C${attempt + 1}\u6B21\u5C1D\u8BD5\u6210\u529F)` : ""}`);
+      break;
+    } catch (error) {
+      if (isRetryableServerError(error.message) && attempt < RETRY_CONFIG.maxRetries) {
+        log30.warn(`[v753] Step1 \u7F51\u7EDC\u5F02\u5E38(attempt ${attempt + 1}/${RETRY_CONFIG.maxRetries}): ${error.message?.slice(0, 200)}`);
+        await exponentialBackoff(attempt);
+        continue;
+      }
+      result.error = `Step1 \u5F02\u5E38: ${error.message}`;
       log30.warn(`${result.error}`);
       return result;
     }
-    result.createdKeywordId = createResult.createdKeywords[0].keywordId;
-    result.stage = "keyword_created";
-    log30.info(`Step1 \u5B8C\u6210: \u521B\u5EFA\u5173\u952E\u8BCD ID=${result.createdKeywordId}`);
-  } catch (error) {
-    result.error = `Step1 \u5F02\u5E38: ${error.message}`;
-    log30.warn(`${result.error}`);
+  }
+  if (result.stage === "failed") {
+    result.error = result.error || `Step1 \u91CD\u8BD5${RETRY_CONFIG.maxRetries}\u6B21\u540E\u4ECD\u5931\u8D25`;
     return result;
   }
   const searchTermWords = candidate.searchTerm.trim().split(/\s+/);
   const negativeMatchType = searchTermWords.length <= 2 ? "negativePhrase" : "negativeExact";
-  try {
-    log30.info(`v230: \u641C\u7D22\u8BCD"${candidate.searchTerm}"\u5305\u542B${searchTermWords.length}\u4E2A\u8BCD\uFF0C\u4F7F\u7528${negativeMatchType}\u5426\u5B9A\u7C7B\u578B`);
-    const negativeResult = await apiClient.createSpNegativeKeywords([{
-      adGroupId: String(candidate.sourceAmazonAdGroupId),
-      // v356: 使用String()替代parseInt()，避免未来ID格式变更导致截断
-      campaignId: String(candidate.sourceAmazonCampaignId),
-      // v356: 使用String()替代parseInt()，全程保持字符串类型
-      keywordText: candidate.searchTerm,
-      matchType: negativeMatchType,
-      state: "enabled"
-    }]);
-    const negativeErrors = negativeResult.filter((r) => r.code && r.code !== "SUCCESS");
-    if (negativeErrors.length > 0) {
-      const isDuplicate = negativeErrors.some(
-        (e) => String(e.code).includes("DUPLICATE") || String(e.details).includes("already exists")
-      );
-      if (!isDuplicate) {
-        log30.warn(`Step2 \u5931\u8D25\uFF0C\u5F00\u59CB\u56DE\u6EDA Step1...`);
-        await rollbackKeywordCreation(apiClient, result.createdKeywordId);
-        result.stage = "rolled_back";
-        result.error = `Step2 \u5426\u5B9A\u8BCD\u521B\u5EFA\u5931\u8D25: ${JSON.stringify(negativeErrors)}`;
-        result.rollbackInfo = `\u5DF2\u56DE\u6EDA: \u5220\u9664\u5173\u952E\u8BCD ID=${result.createdKeywordId}`;
-        return result;
+  for (let attempt = 0; attempt <= RETRY_CONFIG.maxRetries; attempt++) {
+    try {
+      log30.info(`v230: \u641C\u7D22\u8BCD"${candidate.searchTerm}"\u5305\u542B${searchTermWords.length}\u4E2A\u8BCD\uFF0C\u4F7F\u7528${negativeMatchType}\u5426\u5B9A\u7C7B\u578B`);
+      const negativeResult = await apiClient.createSpNegativeKeywords([{
+        adGroupId: String(candidate.sourceAmazonAdGroupId),
+        campaignId: String(candidate.sourceAmazonCampaignId),
+        keywordText: candidate.searchTerm,
+        matchType: negativeMatchType,
+        state: "enabled"
+      }]);
+      const negativeErrors = negativeResult.filter((r) => r.code && r.code !== "SUCCESS");
+      if (negativeErrors.length > 0) {
+        const isDuplicate = negativeErrors.some(
+          (e) => String(e.code).includes("DUPLICATE") || String(e.details).includes("already exists")
+        );
+        if (!isDuplicate) {
+          const negErrorStr = JSON.stringify(negativeErrors);
+          if (isRetryableServerError(negErrorStr) && attempt < RETRY_CONFIG.maxRetries) {
+            log30.warn(`[v753] Step2 \u9047\u5230\u670D\u52A1\u7AEF\u9519\u8BEF(attempt ${attempt + 1}/${RETRY_CONFIG.maxRetries}): "${candidate.searchTerm}" \u2014 ${negErrorStr.slice(0, 200)}`);
+            await exponentialBackoff(attempt);
+            continue;
+          }
+          log30.warn(`Step2 \u5931\u8D25\uFF0C\u5F00\u59CB\u56DE\u6EDA Step1...`);
+          await rollbackKeywordCreation(apiClient, result.createdKeywordId);
+          result.stage = "rolled_back";
+          result.error = `Step2 \u5426\u5B9A\u8BCD\u521B\u5EFA\u5931\u8D25: ${negErrorStr}`;
+          result.rollbackInfo = `\u5DF2\u56DE\u6EDA: \u5220\u9664\u5173\u952E\u8BCD ID=${result.createdKeywordId}`;
+          return result;
+        }
       }
+      const successNeg = negativeResult.find((r) => !r.code || r.code === "SUCCESS");
+      if (successNeg) {
+        result.createdNegativeKeywordId = successNeg.keywordId;
+      }
+      result.stage = "negative_added";
+      log30.info(`Step2 \u5B8C\u6210: \u6DFB\u52A0\u5426\u5B9A\u8BCD ID=${result.createdNegativeKeywordId}${attempt > 0 ? ` (\u7B2C${attempt + 1}\u6B21\u5C1D\u8BD5\u6210\u529F)` : ""}`);
+      break;
+    } catch (error) {
+      if (isRetryableServerError(error.message) && attempt < RETRY_CONFIG.maxRetries) {
+        log30.warn(`[v753] Step2 \u7F51\u7EDC\u5F02\u5E38(attempt ${attempt + 1}/${RETRY_CONFIG.maxRetries}): ${error.message?.slice(0, 200)}`);
+        await exponentialBackoff(attempt);
+        continue;
+      }
+      log30.warn(`Step2 \u5F02\u5E38: ${error.message}\uFF0C\u5F00\u59CB\u56DE\u6EDA Step1...`);
+      await rollbackKeywordCreation(apiClient, result.createdKeywordId);
+      result.stage = "rolled_back";
+      result.error = `Step2 \u5F02\u5E38: ${error.message}`;
+      result.rollbackInfo = `\u5DF2\u56DE\u6EDA: \u5220\u9664\u5173\u952E\u8BCD ID=${result.createdKeywordId}`;
+      return result;
     }
-    const successNeg = negativeResult.find((r) => !r.code || r.code === "SUCCESS");
-    if (successNeg) {
-      result.createdNegativeKeywordId = successNeg.keywordId;
-    }
-    result.stage = "negative_added";
-    log30.info(`Step2 \u5B8C\u6210: \u6DFB\u52A0\u5426\u5B9A\u8BCD ID=${result.createdNegativeKeywordId}`);
-  } catch (error) {
-    log30.warn(`Step2 \u5F02\u5E38: ${error.message}\uFF0C\u5F00\u59CB\u56DE\u6EDA Step1...`);
+  }
+  if (result.stage !== "negative_added") {
+    log30.warn(`[v753] Step2 \u91CD\u8BD5${RETRY_CONFIG.maxRetries}\u6B21\u540E\u4ECD\u5931\u8D25\uFF0C\u56DE\u6EDAStep1...`);
     await rollbackKeywordCreation(apiClient, result.createdKeywordId);
     result.stage = "rolled_back";
-    result.error = `Step2 \u5F02\u5E38: ${error.message}`;
+    result.error = result.error || `Step2 \u91CD\u8BD5${RETRY_CONFIG.maxRetries}\u6B21\u540E\u4ECD\u5931\u8D25`;
     result.rollbackInfo = `\u5DF2\u56DE\u6EDA: \u5220\u9664\u5173\u952E\u8BCD ID=${result.createdKeywordId}`;
     return result;
   }
@@ -22003,16 +22193,52 @@ async function batchHarvestSearchTerms(accountId, config = {}, allowedCampaignId
   });
   const results = [];
   let success = 0, failed = 0, rolledBack = 0;
+  let consecutiveServerErrors = 0;
+  let totalServerErrors = 0;
+  let aborted = false;
   for (const candidate of candidates) {
+    if (aborted) {
+      results.push({
+        searchTerm: candidate.searchTerm,
+        success: false,
+        stage: "failed",
+        error: `[v753] \u6279\u91CF\u6536\u5272\u5DF2\u56E0\u8FDE\u7EED${CIRCUIT_BREAKER_CONFIG.consecutiveFailuresForAbort}\u6B21\u670D\u52A1\u7AEF\u9519\u8BEF\u800C\u7EC8\u6B62`
+      });
+      failed++;
+      continue;
+    }
     try {
       const result = await harvestSearchTermAtomic(candidate, apiClient, accountId);
       results.push(result);
       if (result.success) {
         success++;
+        consecutiveServerErrors = 0;
       } else if (result.stage === "rolled_back") {
         rolledBack++;
+        if (result.error && isRetryableServerError(result.error)) {
+          consecutiveServerErrors++;
+          totalServerErrors++;
+        } else {
+          consecutiveServerErrors = 0;
+        }
       } else {
         failed++;
+        if (result.error && isRetryableServerError(result.error)) {
+          consecutiveServerErrors++;
+          totalServerErrors++;
+        } else {
+          consecutiveServerErrors = 0;
+        }
+      }
+      if (consecutiveServerErrors >= CIRCUIT_BREAKER_CONFIG.consecutiveFailuresForAbort) {
+        log30.warn(`[v753] \u7194\u65AD\u89E6\u53D1: \u8FDE\u7EED${consecutiveServerErrors}\u6B21\u670D\u52A1\u7AEF\u9519\u8BEF\uFF0C\u7EC8\u6B62\u5269\u4F59${candidates.length - results.length}\u4E2A\u5019\u9009\u9879`);
+        aborted = true;
+        continue;
+      }
+      if (consecutiveServerErrors >= CIRCUIT_BREAKER_CONFIG.consecutiveFailuresForCooldown && consecutiveServerErrors < CIRCUIT_BREAKER_CONFIG.consecutiveFailuresForAbort) {
+        log30.warn(`[v753] \u51B7\u5374\u89E6\u53D1: \u8FDE\u7EED${consecutiveServerErrors}\u6B21\u670D\u52A1\u7AEF\u9519\u8BEF\uFF0C\u7B49\u5F85${CIRCUIT_BREAKER_CONFIG.cooldownMs / 1e3}\u79D2\u540E\u7EE7\u7EED...`);
+        await new Promise((resolve) => setTimeout(resolve, CIRCUIT_BREAKER_CONFIG.cooldownMs));
+        consecutiveServerErrors = 0;
       }
       await new Promise((resolve) => setTimeout(resolve, 500));
     } catch (error) {
@@ -22024,9 +22250,13 @@ async function batchHarvestSearchTerms(accountId, config = {}, allowedCampaignId
         error: error.message
       });
       failed++;
+      if (isRetryableServerError(error.message)) {
+        consecutiveServerErrors++;
+        totalServerErrors++;
+      }
     }
   }
-  log30.warn(`\u6279\u91CF\u6536\u5272\u5B8C\u6210: \u6210\u529F=${success}, \u5931\u8D25=${failed}, \u56DE\u6EDA=${rolledBack}`);
+  log30.warn(`[v753] \u6279\u91CF\u6536\u5272\u5B8C\u6210: \u6210\u529F=${success}, \u5931\u8D25=${failed}, \u56DE\u6EDA=${rolledBack}, \u670D\u52A1\u7AEF\u9519\u8BEF\u603B\u8BA1=${totalServerErrors}, \u7194\u65AD\u7EC8\u6B62=${aborted}`);
   return {
     candidates,
     results,
@@ -22119,7 +22349,7 @@ async function rollbackKeywordCreation(apiClient, keywordId) {
     log30.warn(`\u56DE\u6EDA\u5931\u8D25: \u5173\u952E\u8BCD ${keywordId} - ${error.message}`);
   }
 }
-var log30, DEFAULT_HARVEST_CONFIG;
+var log30, DEFAULT_HARVEST_CONFIG, RETRY_CONFIG, CIRCUIT_BREAKER_CONFIG;
 var init_searchTermHarvester = __esm({
   "server/automation/searchTermHarvester.ts"() {
     "use strict";
@@ -22137,6 +22367,24 @@ var init_searchTermHarvester = __esm({
       bidDiscountFactor: 0.85,
       // 精确匹配出价为宽泛/短语的85%
       dryRun: false
+    };
+    RETRY_CONFIG = {
+      /** 最大重试次数 */
+      maxRetries: 3,
+      /** 初始退避时间（毫秒） */
+      initialBackoffMs: 1e3,
+      /** 退避倍数 */
+      backoffMultiplier: 2,
+      /** 可重试的错误码 */
+      retryableErrorCodes: ["internalServerError", "INTERNAL_ERROR", "THROTTLED", "500", "503", "429"]
+    };
+    CIRCUIT_BREAKER_CONFIG = {
+      /** 连续失败N次触发冷却 */
+      consecutiveFailuresForCooldown: 5,
+      /** 冷却等待时间（毫秒） */
+      cooldownMs: 6e4,
+      /** 连续失败N次终止整批 */
+      consecutiveFailuresForAbort: 15
     };
   }
 });
@@ -42909,7 +43157,7 @@ async function getAllDistributedLockStatus() {
     return [];
   }
 }
-var log67, INSTANCE_ID, tableEnsured, DistributedLock;
+var log67, INSTANCE_ID2, tableEnsured, DistributedLock;
 var init_distributedLock = __esm({
   "server/utils/distributedLock.ts"() {
     "use strict";
@@ -42917,14 +43165,14 @@ var init_distributedLock = __esm({
     init_logger();
     init_utilTypes();
     log67 = createModuleLogger("DistributedLock");
-    INSTANCE_ID = `inst-${process.pid}-${Date.now().toString(36)}`;
+    INSTANCE_ID2 = `inst-${process.pid}-${Date.now().toString(36)}`;
     tableEnsured = false;
     DistributedLock = class {
       lockKey;
       holderId;
       constructor(name) {
         this.lockKey = name;
-        this.holderId = `${INSTANCE_ID}-${uuidv42().substring(0, 8)}`;
+        this.holderId = `${INSTANCE_ID2}-${uuidv42().substring(0, 8)}`;
       }
       /**
        * 获取分布式锁
@@ -43122,14 +43370,14 @@ async function getAllRedisLockStatus() {
     return [];
   }
 }
-var log68, INSTANCE_ID2, LOCK_PREFIX, RELEASE_SCRIPT, RENEW_SCRIPT, RedisDistributedLock;
+var log68, INSTANCE_ID3, LOCK_PREFIX, RELEASE_SCRIPT, RENEW_SCRIPT, RedisDistributedLock;
 var init_redisDistributedLock = __esm({
   "server/utils/redisDistributedLock.ts"() {
     "use strict";
     init_logger();
     init_redisClient();
     log68 = createModuleLogger("RedisLock");
-    INSTANCE_ID2 = `inst-${process.pid}-${Date.now().toString(36)}`;
+    INSTANCE_ID3 = `inst-${process.pid}-${Date.now().toString(36)}`;
     LOCK_PREFIX = "lock:";
     RELEASE_SCRIPT = `
   if redis.call("get", KEYS[1]) == ARGV[1] then
@@ -43151,7 +43399,7 @@ var init_redisDistributedLock = __esm({
       renewTimer = null;
       constructor(name) {
         this.lockKey = `${LOCK_PREFIX}${name}`;
-        this.holderId = `${INSTANCE_ID2}-${uuidv43().substring(0, 8)}`;
+        this.holderId = `${INSTANCE_ID3}-${uuidv43().substring(0, 8)}`;
       }
       /**
        * 获取分布式锁
@@ -74495,7 +74743,7 @@ async function getScheduleExecutionHistory(scheduleId, limit = 50) {
 async function executeScheduledSyncWithRetry(scheduleId) {
   let retryCount = 0;
   let lastError = null;
-  while (retryCount <= RETRY_CONFIG.maxRetries) {
+  while (retryCount <= RETRY_CONFIG2.maxRetries) {
     try {
       const result = await executeScheduledSync(scheduleId);
       if (result.success) {
@@ -74508,8 +74756,8 @@ async function executeScheduledSyncWithRetry(scheduleId) {
     } catch (error) {
       lastError = error;
       retryCount++;
-      if (retryCount <= RETRY_CONFIG.maxRetries) {
-        const delay2 = RETRY_CONFIG.retryDelayMs * Math.pow(RETRY_CONFIG.backoffMultiplier, retryCount - 1);
+      if (retryCount <= RETRY_CONFIG2.maxRetries) {
+        const delay2 = RETRY_CONFIG2.retryDelayMs * Math.pow(RETRY_CONFIG2.backoffMultiplier, retryCount - 1);
         log128.info(`\u8C03\u5EA6 ${scheduleId} \u6267\u884C\u5931\u8D25\uFF0C${delay2 / 1e3}\u79D2\u540E\u8FDB\u884C\u7B2C ${retryCount} \u6B21\u91CD\u8BD5...`);
         await new Promise((resolve) => setTimeout(resolve, delay2));
       }
@@ -74575,7 +74823,7 @@ async function sendScheduleFailureAlert(scheduleId, errorMessage, retryCount) {
 // @ts-expect-error Dynamic type assertion
 \u540C\u6B65\u7C7B\u578B: ${syncTypeNames[schedule.syncType] || schedule.syncType}
 // @ts-expect-error Legacy code type compatibility
-\u91CD\u8BD5\u6B21\u6570: ${retryCount}/${RETRY_CONFIG.maxRetries}
+\u91CD\u8BD5\u6B21\u6570: ${retryCount}/${RETRY_CONFIG2.maxRetries}
 \u9519\u8BEF\u4FE1\u606F: ${errorMessage}
 
 \u8BF7\u68C0\u67E5Amazon API\u8FDE\u63A5\u72B6\u6001\u548C\u8D26\u53F7\u6388\u6743\u662F\u5426\u6B63\u5E38\u3002
@@ -74775,7 +75023,7 @@ async function cleanupOrphanedPendingJobs(maxPendingMinutes = 60) {
     return { cleaned: 0 };
   }
 }
-var log128, RATE_LIMITS, RateLimiter, rateLimiter, RETRY_CONFIG;
+var log128, RATE_LIMITS, RateLimiter, rateLimiter, RETRY_CONFIG2;
 var init_dataSyncService = __esm({
   "server/sync/dataSyncService.ts"() {
     "use strict";
@@ -74867,7 +75115,7 @@ var init_dataSyncService = __esm({
       }
     };
     rateLimiter = new RateLimiter();
-    RETRY_CONFIG = {
+    RETRY_CONFIG2 = {
       maxRetries: 3,
       retryDelayMs: 3e4,
       // 30秒
@@ -126858,10 +127106,13 @@ var init_syncSp = __esm({
             set: { negativeStatus: sql145`VALUES(negativeStatus)`, amazonNegativeKeywordId: sql145`VALUES(amazon_negative_keyword_id)` }
           });
         }
-        for (const upd of campaignNegBatchUpdate) {
-          await db.update(negativeKeywords).set({ negativeMatchType: upd.matchType, amazonNegativeKeywordId: upd.amazonKeywordId || null, negativeStatus: "active" }).where(eq128(negativeKeywords.id, upd.id));
+        const UPDATE_BATCH_SIZE = 500;
+        for (let i = 0; i < campaignNegBatchUpdate.length; i += UPDATE_BATCH_SIZE) {
+          const batch = campaignNegBatchUpdate.slice(i, i + UPDATE_BATCH_SIZE);
+          const ids = batch.map((u) => u.id);
+          await db.update(negativeKeywords).set({ negativeStatus: "active" }).where(inArray28(negativeKeywords.id, ids));
         }
-        log200.info(`[v743] \u6D3B\u52A8\u7EA7\u5426\u8BCD\u5904\u7406\u5B8C\u6210: \u63D2\u5165=${campaignNegBatchInsert.length}, \u66F4\u65B0=${campaignNegBatchUpdate.length}`);
+        log200.info(`[v753] \u6D3B\u52A8\u7EA7\u5426\u8BCD\u5904\u7406\u5B8C\u6210: \u63D2\u5165=${campaignNegBatchInsert.length}, \u6279\u91CF\u66F4\u65B0=${campaignNegBatchUpdate.length}(\u5206${Math.ceil(campaignNegBatchUpdate.length / UPDATE_BATCH_SIZE)}\u6279)`);
         log200.info(`\u5F00\u59CB\u540C\u6B65SP\u5E7F\u544A\u7EC4\u7EA7\u522B\u5426\u5B9A\u5173\u952E\u8BCD...`);
         const negKwFetchResult = await batchApiFetch({
           campaignIds: allCampaignIds,
@@ -126913,10 +127164,13 @@ var init_syncSp = __esm({
             set: { negativeStatus: sql145`VALUES(negativeStatus)`, amazonNegativeKeywordId: sql145`VALUES(amazon_negative_keyword_id)` }
           });
         }
-        for (const upd of adGroupNegBatchUpdate) {
-          await db.update(negativeKeywords).set({ negativeMatchType: upd.matchType, amazonNegativeKeywordId: upd.amazonKeywordId || null, negativeStatus: "active" }).where(eq128(negativeKeywords.id, upd.id));
+        for (let i = 0; i < adGroupNegBatchUpdate.length; i += UPDATE_BATCH_SIZE) {
+          const batch = adGroupNegBatchUpdate.slice(i, i + UPDATE_BATCH_SIZE);
+          const ids = batch.map((u) => u.id);
+          await db.update(negativeKeywords).set({ negativeStatus: "active" }).where(inArray28(negativeKeywords.id, ids));
         }
-        log200.info(`[v743] \u5E7F\u544A\u7EC4\u7EA7\u5426\u8BCD\u5904\u7406\u5B8C\u6210: \u63D2\u5165=${adGroupNegBatchInsert.length}, \u66F4\u65B0=${adGroupNegBatchUpdate.length}`);
+        log200.info(`[v753] \u5E7F\u544A\u7EC4\u7EA7\u5426\u8BCD\u5904\u7406\u5B8C\u6210: \u63D2\u5165=${adGroupNegBatchInsert.length}, \u6279\u91CF\u66F4\u65B0=${adGroupNegBatchUpdate.length}(\u5206${Math.ceil(adGroupNegBatchUpdate.length / UPDATE_BATCH_SIZE)}\u6279)`);
+        log200.info(`[v753] SP\u5426\u5B9A\u5173\u952E\u8BCD\u540C\u6B65\u6027\u80FD\u4F18\u5316: \u6279\u91CF\u66F4\u65B0\u6A21\u5F0F\u5DF2\u542F\u7528\uFF0C\u4ECE\u9010\u6761UPDATE\u6539\u4E3A\u6BCF\u6279${UPDATE_BATCH_SIZE}\u6761\u7684inArray\u6279\u91CF\u66F4\u65B0`);
         log200.info(`SP\u5426\u5B9A\u5173\u952E\u8BCD\u540C\u6B65\u5B8C\u6210: ${synced} \u6761\u65B0\u8BB0\u5F55, ${updated} \u6761\u66F4\u65B0`);
         return { synced, updated };
       } catch (error) {
@@ -126995,10 +127249,13 @@ var init_syncSp = __esm({
             set: { negativeStatus: sql145`VALUES(negativeStatus)`, amazonNegativeKeywordId: sql145`VALUES(amazon_negative_keyword_id)` }
           });
         }
-        for (const upd of campaignNegBatchUpdate) {
-          await db.update(negativeKeywords).set({ amazonNegativeKeywordId: upd.amazonTargetId || null, negativeStatus: "active" }).where(eq128(negativeKeywords.id, upd.id));
+        const PT_UPDATE_BATCH_SIZE = 500;
+        for (let i = 0; i < campaignNegBatchUpdate.length; i += PT_UPDATE_BATCH_SIZE) {
+          const batch = campaignNegBatchUpdate.slice(i, i + PT_UPDATE_BATCH_SIZE);
+          const ids = batch.map((u) => u.id);
+          await db.update(negativeKeywords).set({ negativeStatus: "active" }).where(inArray28(negativeKeywords.id, ids));
         }
-        log200.info(`[v744] \u6D3B\u52A8\u7EA7\u5426\u5B9A\u5546\u54C1\u5B9A\u5411\u5904\u7406\u5B8C\u6210: \u63D2\u5165=${campaignNegBatchInsert.length}, \u66F4\u65B0=${campaignNegBatchUpdate.length}`);
+        log200.info(`[v753] \u6D3B\u52A8\u7EA7\u5426\u5B9A\u5546\u54C1\u5B9A\u5411\u5904\u7406\u5B8C\u6210: \u63D2\u5165=${campaignNegBatchInsert.length}, \u6279\u91CF\u66F4\u65B0=${campaignNegBatchUpdate.length}(\u5206${Math.ceil(campaignNegBatchUpdate.length / PT_UPDATE_BATCH_SIZE)}\u6279)`);
         log200.info(`\u5F00\u59CB\u540C\u6B65SP\u5E7F\u544A\u7EC4\u7EA7\u522B\u5426\u5B9A\u5546\u54C1\u5B9A\u5411...`);
         const negTargetFetchResult = await batchApiFetch({
           campaignIds: allCampaignIds,
@@ -127053,10 +127310,13 @@ var init_syncSp = __esm({
             set: { negativeStatus: sql145`VALUES(negativeStatus)`, amazonNegativeKeywordId: sql145`VALUES(amazon_negative_keyword_id)` }
           });
         }
-        for (const upd of adGroupNegBatchUpdate) {
-          await db.update(negativeKeywords).set({ amazonNegativeKeywordId: upd.amazonTargetId || null, negativeStatus: "active" }).where(eq128(negativeKeywords.id, upd.id));
+        for (let i = 0; i < adGroupNegBatchUpdate.length; i += PT_UPDATE_BATCH_SIZE) {
+          const batch = adGroupNegBatchUpdate.slice(i, i + PT_UPDATE_BATCH_SIZE);
+          const ids = batch.map((u) => u.id);
+          await db.update(negativeKeywords).set({ negativeStatus: "active" }).where(inArray28(negativeKeywords.id, ids));
         }
-        log200.info(`[v744] \u5E7F\u544A\u7EC4\u7EA7\u5426\u5B9A\u5546\u54C1\u5B9A\u5411\u5904\u7406\u5B8C\u6210: \u63D2\u5165=${adGroupNegBatchInsert.length}, \u66F4\u65B0=${adGroupNegBatchUpdate.length}`);
+        log200.info(`[v753] \u5E7F\u544A\u7EC4\u7EA7\u5426\u5B9A\u5546\u54C1\u5B9A\u5411\u5904\u7406\u5B8C\u6210: \u63D2\u5165=${adGroupNegBatchInsert.length}, \u6279\u91CF\u66F4\u65B0=${adGroupNegBatchUpdate.length}(\u5206${Math.ceil(adGroupNegBatchUpdate.length / PT_UPDATE_BATCH_SIZE)}\u6279)`);
+        log200.info(`[v753] SP\u5426\u5B9A\u5546\u54C1\u5B9A\u5411\u540C\u6B65\u6027\u80FD\u4F18\u5316: \u6279\u91CF\u66F4\u65B0\u6A21\u5F0F\u5DF2\u542F\u7528`);
         log200.info(`SP\u5426\u5B9A\u5546\u54C1\u5B9A\u5411\u540C\u6B65\u5B8C\u6210: ${synced} \u6761\u65B0\u8BB0\u5F55, ${updated} \u6761\u66F4\u65B0`);
         return { synced, updated };
       } catch (error) {

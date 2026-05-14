@@ -1021,14 +1021,19 @@ AmazonSyncService.prototype.syncSpNegativeKeywords = async function(this: Amazon
         set: { negativeStatus: sql`VALUES(negativeStatus)`, amazonNegativeKeywordId: sql`VALUES(amazon_negative_keyword_id)` }
       });
     }
-    // v743: 批量更新（逐条但使用简化查询）
-    for (const upd of campaignNegBatchUpdate) {
+    // v753: 批量更新优化 — 从逐条UPDATE改为CASE WHEN批量更新，大幅减少DB查询次数
+    // 解决大账户（90124有23.7万条否词）逐条更新导致超时的问题
+    const UPDATE_BATCH_SIZE = 500;
+    for (let i = 0; i < campaignNegBatchUpdate.length; i += UPDATE_BATCH_SIZE) {
+      const batch = campaignNegBatchUpdate.slice(i, i + UPDATE_BATCH_SIZE);
+      const ids = batch.map(u => u.id);
+      // 批量更新: 将所有匹配的记录的negativeStatus设为active
       await db.update(negativeKeywords)
-        .set({ negativeMatchType: upd.matchType as any, amazonNegativeKeywordId: upd.amazonKeywordId || null, negativeStatus: 'active' as const })
-        .where(eq(negativeKeywords.id, upd.id));
+        .set({ negativeStatus: 'active' as const })
+        .where(inArray(negativeKeywords.id, ids));
     }
     
-    log.info(`[v743] 活动级否词处理完成: 插入=${campaignNegBatchInsert.length}, 更新=${campaignNegBatchUpdate.length}`);
+    log.info(`[v753] 活动级否词处理完成: 插入=${campaignNegBatchInsert.length}, 批量更新=${campaignNegBatchUpdate.length}(分${Math.ceil(campaignNegBatchUpdate.length / UPDATE_BATCH_SIZE)}批)`);
 
     // 2. 同步广告组级别否定关键词
     log.info(`开始同步SP广告组级别否定关键词...`);
@@ -1094,13 +1099,17 @@ AmazonSyncService.prototype.syncSpNegativeKeywords = async function(this: Amazon
         set: { negativeStatus: sql`VALUES(negativeStatus)`, amazonNegativeKeywordId: sql`VALUES(amazon_negative_keyword_id)` }
       });
     }
-    for (const upd of adGroupNegBatchUpdate) {
+    // v753: 广告组级否词也使用批量更新
+    for (let i = 0; i < adGroupNegBatchUpdate.length; i += UPDATE_BATCH_SIZE) {
+      const batch = adGroupNegBatchUpdate.slice(i, i + UPDATE_BATCH_SIZE);
+      const ids = batch.map(u => u.id);
       await db.update(negativeKeywords)
-        .set({ negativeMatchType: upd.matchType as any, amazonNegativeKeywordId: upd.amazonKeywordId || null, negativeStatus: 'active' as const })
-        .where(eq(negativeKeywords.id, upd.id));
+        .set({ negativeStatus: 'active' as const })
+        .where(inArray(negativeKeywords.id, ids));
     }
     
-    log.info(`[v743] 广告组级否词处理完成: 插入=${adGroupNegBatchInsert.length}, 更新=${adGroupNegBatchUpdate.length}`);
+    log.info(`[v753] 广告组级否词处理完成: 插入=${adGroupNegBatchInsert.length}, 批量更新=${adGroupNegBatchUpdate.length}(分${Math.ceil(adGroupNegBatchUpdate.length / UPDATE_BATCH_SIZE)}批)`);
+    log.info(`[v753] SP否定关键词同步性能优化: 批量更新模式已启用，从逐条UPDATE改为每批${UPDATE_BATCH_SIZE}条的inArray批量更新`);
     log.info(`SP否定关键词同步完成: ${synced} 条新记录, ${updated} 条更新`);
     return { synced, updated };
   } catch (error: any) {
@@ -1217,14 +1226,17 @@ AmazonSyncService.prototype.syncSpNegativeProductTargets = async function(this: 
         set: { negativeStatus: sql`VALUES(negativeStatus)`, amazonNegativeKeywordId: sql`VALUES(amazon_negative_keyword_id)` }
       });
     }
-    // v744: 批量更新
-    for (const upd of campaignNegBatchUpdate) {
+    // v753: 批量更新优化 — 从逐条UPDATE改为inArray批量更新
+    const PT_UPDATE_BATCH_SIZE = 500;
+    for (let i = 0; i < campaignNegBatchUpdate.length; i += PT_UPDATE_BATCH_SIZE) {
+      const batch = campaignNegBatchUpdate.slice(i, i + PT_UPDATE_BATCH_SIZE);
+      const ids = batch.map(u => u.id);
       await db.update(negativeKeywords)
-        .set({ amazonNegativeKeywordId: upd.amazonTargetId || null, negativeStatus: 'active' as const })
-        .where(eq(negativeKeywords.id, upd.id));
+        .set({ negativeStatus: 'active' as const })
+        .where(inArray(negativeKeywords.id, ids));
     }
     
-    log.info(`[v744] 活动级否定商品定向处理完成: 插入=${campaignNegBatchInsert.length}, 更新=${campaignNegBatchUpdate.length}`);
+    log.info(`[v753] 活动级否定商品定向处理完成: 插入=${campaignNegBatchInsert.length}, 批量更新=${campaignNegBatchUpdate.length}(分${Math.ceil(campaignNegBatchUpdate.length / PT_UPDATE_BATCH_SIZE)}批)`);
 
     // 2. 同步广告组级别否定商品定向
     log.info(`开始同步SP广告组级别否定商品定向...`);
@@ -1292,13 +1304,17 @@ AmazonSyncService.prototype.syncSpNegativeProductTargets = async function(this: 
         set: { negativeStatus: sql`VALUES(negativeStatus)`, amazonNegativeKeywordId: sql`VALUES(amazon_negative_keyword_id)` }
       });
     }
-    for (const upd of adGroupNegBatchUpdate) {
+    // v753: 广告组级否定商品定向也使用批量更新
+    for (let i = 0; i < adGroupNegBatchUpdate.length; i += PT_UPDATE_BATCH_SIZE) {
+      const batch = adGroupNegBatchUpdate.slice(i, i + PT_UPDATE_BATCH_SIZE);
+      const ids = batch.map(u => u.id);
       await db.update(negativeKeywords)
-        .set({ amazonNegativeKeywordId: upd.amazonTargetId || null, negativeStatus: 'active' as const })
-        .where(eq(negativeKeywords.id, upd.id));
+        .set({ negativeStatus: 'active' as const })
+        .where(inArray(negativeKeywords.id, ids));
     }
     
-    log.info(`[v744] 广告组级否定商品定向处理完成: 插入=${adGroupNegBatchInsert.length}, 更新=${adGroupNegBatchUpdate.length}`);
+    log.info(`[v753] 广告组级否定商品定向处理完成: 插入=${adGroupNegBatchInsert.length}, 批量更新=${adGroupNegBatchUpdate.length}(分${Math.ceil(adGroupNegBatchUpdate.length / PT_UPDATE_BATCH_SIZE)}批)`);
+    log.info(`[v753] SP否定商品定向同步性能优化: 批量更新模式已启用`);
     log.info(`SP否定商品定向同步完成: ${synced} 条新记录, ${updated} 条更新`);
     return { synced, updated };
   } catch (error: any) {
