@@ -100,6 +100,10 @@ AmazonSyncService.prototype.syncSdCampaigns = async function(this: AmazonSyncSer
       : [];
     const existingSdCampaignMap = new Map(existingSdCampaignRows.map(r => [r.campaignId, r]));
 
+    // v754: 批量收集后统一处理，减少DB往返次数
+    const sdBatchUpdates: { id: number; data: Record<string, unknown> }[] = [];
+    const sdBatchInserts: Record<string, unknown>[] = [];
+    
     for (const apiCampaign of apiCampaigns) {
       // v363: 使用批量预查询结果
       const existing = existingSdCampaignMap.get(String(apiCampaign.campaignId)) || null;
@@ -238,20 +242,38 @@ AmazonSyncService.prototype.syncSdCampaigns = async function(this: AmazonSyncSer
       };
 
       if (existing) {
-        await db
-          .update(campaigns)
-          // @ts-expect-error DB query type inference limitation
-          .set(campaignData)
-          .where(eq(campaigns.id, existing.id));
+        // v754: 收集到批量更新队列
+        sdBatchUpdates.push({ id: existing.id, data: campaignData });
       } else {
-        // @ts-expect-error DB query type inference limitation
-        await db.insert(campaigns).values({
+        // v754: 收集到批量插入队列
+        sdBatchInserts.push({
           ...campaignData,
           createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
         });
       }
       synced++;
     }
+    
+    // v754: 批量执行更新（每批100条并发）
+    const SD_CAMPAIGN_BATCH = 100;
+    for (let i = 0; i < sdBatchUpdates.length; i += SD_CAMPAIGN_BATCH) {
+      const batch = sdBatchUpdates.slice(i, i + SD_CAMPAIGN_BATCH);
+      await Promise.all(batch.map(item => 
+        // @ts-expect-error DB query type inference limitation
+        db.update(campaigns).set(item.data).where(eq(campaigns.id, item.id))
+      ));
+    }
+    
+    // v754: 批量执行插入
+    for (let i = 0; i < sdBatchInserts.length; i += SD_CAMPAIGN_BATCH) {
+      const batch = sdBatchInserts.slice(i, i + SD_CAMPAIGN_BATCH);
+      for (const item of batch) {
+        // @ts-expect-error DB query type inference limitation
+        await db.insert(campaigns).values(item);
+      }
+    }
+    
+    log.info(`[v754] SD广告活动同步性能优化: 批量更新=${sdBatchUpdates.length}(分${Math.ceil(sdBatchUpdates.length / SD_CAMPAIGN_BATCH)}批并发), 批量插入=${sdBatchInserts.length}`);
 
     // @ts-expect-error Return type compatibility
     return { synced, skipped };

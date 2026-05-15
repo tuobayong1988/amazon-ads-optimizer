@@ -148,6 +148,10 @@ AmazonSyncService.prototype.syncSpCampaigns = async function(this: AmazonSyncSer
     );
     const existingCampaignFullMap = new Map(existingCampaignFullRows.map(r => [r.campaignId, r]));
 
+    // v754: 批量收集后统一处理，减少DB往返次数
+    const batchUpdates: { id: number; data: Record<string, unknown> }[] = [];
+    const batchInserts: Record<string, unknown>[] = [];
+    
     for (const apiCampaign of apiCampaigns) {
       // v363: 使用批量预查询结果替代循环内查询
       const existing = existingCampaignFullMap.get(String(apiCampaign.campaignId)) || null;
@@ -319,21 +323,41 @@ AmazonSyncService.prototype.syncSpCampaigns = async function(this: AmazonSyncSer
           protectionStats.protectedEntities.push(`placement:${existing.campaignName}`);
         }
         
-        await db
-          .update(campaigns)
-          .set(campaignData)
-          .where(eq(campaigns.id, existing.id));
+        // v754: 收集到批量更新队列，后续统一执行
+        batchUpdates.push({ id: existing.id, data: campaignData });
       } else {
-        await db.insert(campaigns).values({
+        // v754: 收集到批量插入队列
+        batchInserts.push({
           ...campaignData,
           createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
         });
       }
       synced++;
-      if (synced === 1 || synced % 10 === 0) {
-        log.info(`[同步] 进度: 已同步 ${synced}/${apiCampaigns.length} 个广告活动`);
+      if (synced === 1 || synced % 100 === 0) {
+        log.info(`[同步] 进度: 已处理 ${synced}/${apiCampaigns.length} 个广告活动`);
       }
     }
+    
+    // v754: 批量执行更新（每批100条，减少DB往返）
+    const CAMPAIGN_UPDATE_BATCH = 100;
+    for (let i = 0; i < batchUpdates.length; i += CAMPAIGN_UPDATE_BATCH) {
+      const batch = batchUpdates.slice(i, i + CAMPAIGN_UPDATE_BATCH);
+      await Promise.all(batch.map(item => 
+        db.update(campaigns).set(item.data as any).where(eq(campaigns.id, item.id))
+      ));
+    }
+    
+    // v754: 批量执行插入（每批100条）
+    const CAMPAIGN_INSERT_BATCH = 100;
+    for (let i = 0; i < batchInserts.length; i += CAMPAIGN_INSERT_BATCH) {
+      const batch = batchInserts.slice(i, i + CAMPAIGN_INSERT_BATCH);
+      for (const item of batch) {
+        await db.insert(campaigns).values(item as any);
+      }
+    }
+    
+    log.info(`[v754] SP广告活动同步性能优化: 批量更新=${batchUpdates.length}(分${Math.ceil(batchUpdates.length / CAMPAIGN_UPDATE_BATCH)}批并发), 批量插入=${batchInserts.length}`);
+
 
     log.info(`[同步] ========== SP广告活动同步完成 ==========`);
     log.info(`[同步] 结果: 同步 ${synced} 个, 跳过 ${skipped} 个`);
@@ -466,13 +490,16 @@ AmazonSyncService.prototype.syncSpKeywords = async function(this: AmazonSyncServ
       .where(eq(campaigns.accountId, this.accountId));
     const allCampaignIds = allCampaignRows.map(r => r.campaignId);
 
-    // v672: 使用batchApiFetch实现API拉取阶段的分批请求
+    // v754: 使用batchApiFetch实现API拉取阶段的分批请求
+    // v754优化: 将每批campaign数从300降低到150，降低单次API请求超时风险（v753实测90100的SP关键词50分钟超时）
     const fetchResult = await batchApiFetch({
       campaignIds: allCampaignIds,
       fetchBatch: (batchIds) => this.client.listSpKeywords(undefined, { campaignIds: batchIds }),
       fetchAll: () => this.client.listSpKeywords(),
       accountId: this.accountId,
       stepName: 'SP关键词',
+      batchCampaignSize: 150, // v754: 从默认300降低到150，减少单次请求数据量
+      batchDelayMs: 3000, // v754: 从5000降低到3000，补偿批次增加带来的总延迟
     });
     const apiKeywords = fetchResult.data;
     if (fetchResult.usedBatchMode) {

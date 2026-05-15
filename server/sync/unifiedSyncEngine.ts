@@ -2313,9 +2313,9 @@ export async function syncAccount(
         // v660: STEP_TIMEOUT_MAP 大幅放宽 — v659实测发现原超时导致大量步骤失败
         // 核心原则: 稳定性和成功率优先于效率，宁可等待也不要超时失败
         const STEP_TIMEOUT_MAP: Record<string, number> = {
-          // 列表步骤: 10分钟（从3分钟放宽，大账户列表数据量大）
-          'sp_campaigns': 10, 'sb_campaigns': 10, 'sd_campaigns': 10,
-          'sp_ad_groups': 10, 'sb_ad_groups': 10, 'sd_ad_groups': 10,
+          // 列表步骤: v754: SP/SD广告活动从10→20分钟（v753实测90124的SP广告活动和90052的SD广告活动10分钟超时）
+          'sp_campaigns': 20, 'sb_campaigns': 10, 'sd_campaigns': 20,
+          'sp_ad_groups': 15, 'sb_ad_groups': 10, 'sd_ad_groups': 15,
           'sp_keywords': 50, 'sb_keywords': 10, // v666: sp_keywords从10→50分钟（针对90084/90023等8万+关键词账户）
           'sp_product_targets': 20, 'sb_product_targets': 10, 'sd_product_targets': 10, // v678: sp_product_targets从10→20分钟（v677实测90023的SP商品定位步骤10分钟超时）
           'sp_negative_keywords': 90, 'sb_negative_keywords': 30, // v743: sp_negative_keywords从45→90分钟（v742实测90124的23.7万条否词需要更多时间，即使v743已优化为批量模式）

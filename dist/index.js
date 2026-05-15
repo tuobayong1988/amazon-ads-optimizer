@@ -36386,7 +36386,7 @@ function recordAlgorithmDecision(trace) {
     mode: trace.metaSelection.fusionMode,
     conf: trace.finalDecision.confidence.toFixed(2),
     bid: `$${trace.finalDecision.recommendedBid.toFixed(2)}`,
-    change: `${trace.finalDecision.bidChangePercent > 0 ? "+" : ""}${(trace.finalDecision.bidChangePercent * 100).toFixed(1)}%`,
+    change: `${trace.finalDecision.bidChangePercent > 0 ? "+" : ""}${trace.finalDecision.bidChangePercent.toFixed(1)}%`,
     latency: `${trace.durationMs}ms`,
     abTest: trace.abTestDetail ? `test#${trace.abTestDetail.testId}/${trace.abTestDetail.variantType}` : "none",
     exploring: trace.explorationDetail?.isExploring ? "yes" : "no"
@@ -71398,13 +71398,13 @@ async function syncAccount(account, tier, options) {
             }
           }, 60 * 1e3);
           const STEP_TIMEOUT_MAP = {
-            // 列表步骤: 10分钟（从3分钟放宽，大账户列表数据量大）
-            "sp_campaigns": 10,
+            // 列表步骤: v754: SP/SD广告活动从10→20分钟（v753实测90124的SP广告活动和90052的SD广告活动10分钟超时）
+            "sp_campaigns": 20,
             "sb_campaigns": 10,
-            "sd_campaigns": 10,
-            "sp_ad_groups": 10,
+            "sd_campaigns": 20,
+            "sp_ad_groups": 15,
             "sb_ad_groups": 10,
-            "sd_ad_groups": 10,
+            "sd_ad_groups": 15,
             "sp_keywords": 50,
             "sb_keywords": 10,
             // v666: sp_keywords从10→50分钟（针对90084/90023等8万+关键词账户）
@@ -126487,6 +126487,8 @@ var init_syncSp = __esm({
           apiCampaignIds
         );
         const existingCampaignFullMap = new Map(existingCampaignFullRows.map((r) => [r.campaignId, r]));
+        const batchUpdates = [];
+        const batchInserts = [];
         for (const apiCampaign of apiCampaigns) {
           const existing = existingCampaignFullMap.get(String(apiCampaign.campaignId)) || null;
           if (lastSyncTime && existing) {
@@ -126609,18 +126611,33 @@ var init_syncSp = __esm({
               delete campaignData.placementRestBidAdjustment;
               protectionStats.protectedEntities.push(`placement:${existing.campaignName}`);
             }
-            await db.update(campaigns).set(campaignData).where(eq128(campaigns.id, existing.id));
+            batchUpdates.push({ id: existing.id, data: campaignData });
           } else {
-            await db.insert(campaigns).values({
+            batchInserts.push({
               ...campaignData,
               createdAt: (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ")
             });
           }
           synced++;
-          if (synced === 1 || synced % 10 === 0) {
-            log200.info(`[\u540C\u6B65] \u8FDB\u5EA6: \u5DF2\u540C\u6B65 ${synced}/${apiCampaigns.length} \u4E2A\u5E7F\u544A\u6D3B\u52A8`);
+          if (synced === 1 || synced % 100 === 0) {
+            log200.info(`[\u540C\u6B65] \u8FDB\u5EA6: \u5DF2\u5904\u7406 ${synced}/${apiCampaigns.length} \u4E2A\u5E7F\u544A\u6D3B\u52A8`);
           }
         }
+        const CAMPAIGN_UPDATE_BATCH = 100;
+        for (let i = 0; i < batchUpdates.length; i += CAMPAIGN_UPDATE_BATCH) {
+          const batch = batchUpdates.slice(i, i + CAMPAIGN_UPDATE_BATCH);
+          await Promise.all(batch.map(
+            (item) => db.update(campaigns).set(item.data).where(eq128(campaigns.id, item.id))
+          ));
+        }
+        const CAMPAIGN_INSERT_BATCH = 100;
+        for (let i = 0; i < batchInserts.length; i += CAMPAIGN_INSERT_BATCH) {
+          const batch = batchInserts.slice(i, i + CAMPAIGN_INSERT_BATCH);
+          for (const item of batch) {
+            await db.insert(campaigns).values(item);
+          }
+        }
+        log200.info(`[v754] SP\u5E7F\u544A\u6D3B\u52A8\u540C\u6B65\u6027\u80FD\u4F18\u5316: \u6279\u91CF\u66F4\u65B0=${batchUpdates.length}(\u5206${Math.ceil(batchUpdates.length / CAMPAIGN_UPDATE_BATCH)}\u6279\u5E76\u53D1), \u6279\u91CF\u63D2\u5165=${batchInserts.length}`);
         log200.info(`[\u540C\u6B65] ========== SP\u5E7F\u544A\u6D3B\u52A8\u540C\u6B65\u5B8C\u6210 ==========`);
         log200.info(`[\u540C\u6B65] \u7ED3\u679C: \u540C\u6B65 ${synced} \u4E2A, \u8DF3\u8FC7 ${skipped} \u4E2A`);
         logSyncProtectionSummary("syncSpCampaigns", protectionStats);
@@ -126709,7 +126726,11 @@ var init_syncSp = __esm({
           fetchBatch: (batchIds) => this.client.listSpKeywords(void 0, { campaignIds: batchIds }),
           fetchAll: () => this.client.listSpKeywords(),
           accountId: this.accountId,
-          stepName: "SP\u5173\u952E\u8BCD"
+          stepName: "SP\u5173\u952E\u8BCD",
+          batchCampaignSize: 150,
+          // v754: 从默认300降低到150，减少单次请求数据量
+          batchDelayMs: 3e3
+          // v754: 从5000降低到3000，补偿批次增加带来的总延迟
         });
         const apiKeywords = fetchResult.data;
         if (fetchResult.usedBatchMode) {
@@ -129086,6 +129107,8 @@ var init_syncSd = __esm({
         const sdCampaignIds = apiCampaigns.map((c) => String(c.campaignId));
         const existingSdCampaignRows = sdCampaignIds.length > 0 ? await db.select().from(campaigns).where(and112(eq130(campaigns.accountId, this.accountId), inArray30(campaigns.campaignId, sdCampaignIds))) : [];
         const existingSdCampaignMap = new Map(existingSdCampaignRows.map((r) => [r.campaignId, r]));
+        const sdBatchUpdates = [];
+        const sdBatchInserts = [];
         for (const apiCampaign of apiCampaigns) {
           const existing = existingSdCampaignMap.get(String(apiCampaign.campaignId)) || null;
           let dailyBudget = 0;
@@ -129167,15 +129190,32 @@ var init_syncSd = __esm({
             updatedAt: (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ")
           };
           if (existing) {
-            await db.update(campaigns).set(campaignData).where(eq130(campaigns.id, existing.id));
+            sdBatchUpdates.push({ id: existing.id, data: campaignData });
           } else {
-            await db.insert(campaigns).values({
+            sdBatchInserts.push({
               ...campaignData,
               createdAt: (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ")
             });
           }
           synced++;
         }
+        const SD_CAMPAIGN_BATCH = 100;
+        for (let i = 0; i < sdBatchUpdates.length; i += SD_CAMPAIGN_BATCH) {
+          const batch = sdBatchUpdates.slice(i, i + SD_CAMPAIGN_BATCH);
+          await Promise.all(batch.map(
+            (item) => (
+              // @ts-expect-error DB query type inference limitation
+              db.update(campaigns).set(item.data).where(eq130(campaigns.id, item.id))
+            )
+          ));
+        }
+        for (let i = 0; i < sdBatchInserts.length; i += SD_CAMPAIGN_BATCH) {
+          const batch = sdBatchInserts.slice(i, i + SD_CAMPAIGN_BATCH);
+          for (const item of batch) {
+            await db.insert(campaigns).values(item);
+          }
+        }
+        log202.info(`[v754] SD\u5E7F\u544A\u6D3B\u52A8\u540C\u6B65\u6027\u80FD\u4F18\u5316: \u6279\u91CF\u66F4\u65B0=${sdBatchUpdates.length}(\u5206${Math.ceil(sdBatchUpdates.length / SD_CAMPAIGN_BATCH)}\u6279\u5E76\u53D1), \u6279\u91CF\u63D2\u5165=${sdBatchInserts.length}`);
         return { synced, skipped };
       } catch (error) {
         log202.warn(`Error syncing SD campaigns: ${error.message || JSON.stringify(error)}`);

@@ -140,7 +140,7 @@ export function recordAlgorithmDecision(trace: AlgorithmDecisionTrace): void {
     mode: trace.metaSelection.fusionMode,
     conf: trace.finalDecision.confidence.toFixed(2),
     bid: `$${trace.finalDecision.recommendedBid.toFixed(2)}`,
-    change: `${trace.finalDecision.bidChangePercent > 0 ? '+' : ''}${(trace.finalDecision.bidChangePercent * 100).toFixed(1)}%`,
+    change: `${trace.finalDecision.bidChangePercent > 0 ? '+' : ''}${trace.finalDecision.bidChangePercent.toFixed(1)}%`,
     latency: `${trace.durationMs}ms`,
     abTest: trace.abTestDetail ? `test#${trace.abTestDetail.testId}/${trace.abTestDetail.variantType}` : 'none',
     exploring: trace.explorationDetail?.isExploring ? 'yes' : 'no',
