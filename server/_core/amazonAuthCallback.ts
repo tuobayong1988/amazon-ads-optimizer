@@ -36,12 +36,25 @@ export function registerAmazonAuthCallbackRoutes(app: Express) {
     const error = typeof req.query.error === "string" ? req.query.error : undefined;
     const state = typeof req.query.state === "string" ? req.query.state : undefined;
 
+    // v758: 从state参数中提取店铺名称
+    let stateStoreName = '';
+    if (state) {
+      try {
+        const stateData = JSON.parse(decodeURIComponent(state));
+        stateStoreName = stateData.storeName || '';
+      } catch {
+        // state可能不是JSON格式（旧版本），忽略解析错误
+        log.info('[AmazonAuthCallback] v758: state参数非JSON格式，忽略:', state);
+      }
+    }
+
     log.info("[AmazonAuthCallback] v342: Received callback:", {
       hasCode: !!code,
       codeLength: code?.length,
       scope,
       error,
       state,
+      stateStoreName,
     });
 
     // 如果Amazon返回了错误（用户拒绝授权等）
@@ -205,7 +218,61 @@ export function registerAmazonAuthCallbackRoutes(app: Express) {
                 updatedAccountIds.push(matchingAccount.id);
                 credentialsSaved++;
               } else {
-                log.info(`[AmazonAuthCallback] v342: 未找到profileId=${profile.profileId}(${profile.countryCode})对应的账户，跳过（前端将处理新账户创建）`);
+                // v758: 如果state中有店铺名称，尝试查找该店铺的空占位记录并创建账户
+                if (stateStoreName) {
+                  try {
+                    // 查找待授权的空店铺记录
+                    const pendingStore = allAccounts.find(
+                      a => (a as any).storeName === stateStoreName && 
+                           (!(a as any).marketplace || (a as any).marketplace === '') &&
+                           (a as any).connectionStatus === 'pending'
+                    );
+                    
+                    const countryToMarketplace: Record<string, string> = {
+                      'US': '美国', 'CA': '加拿大', 'MX': '墨西哥', 'BR': '巴西',
+                      'UK': '英国', 'DE': '德国', 'FR': '法国', 'IT': '意大利',
+                      'ES': '西班牙', 'JP': '日本', 'AU': '澳大利亚', 'SG': '新加坡',
+                    };
+                    const marketplaceCode = profile.countryCode;
+                    
+                    // 如果找到空占位记录，先删除它，然后创建新的带实际数据的记录
+                    if (pendingStore) {
+                      await db.deleteAdAccount((pendingStore as any).id);
+                      log.info(`[AmazonAuthCallback] v758: 删除店铺"${stateStoreName}"的空占位记录 ${(pendingStore as any).id}`);
+                    }
+                    
+                    // 创建新账户
+                    const newAccountId = await db.createAdAccount({
+                      userId: (pendingStore as any)?.userId || 1,
+                      organizationId: (pendingStore as any)?.organizationId || 1,
+                      accountId: profile.profileId,
+                      accountName: `${stateStoreName} ${marketplaceCode}`,
+                      storeName: stateStoreName,
+                      marketplace: marketplaceCode,
+                      profileId: profile.profileId,
+                      connectionStatus: 'connected',
+                      sellerId: profile.sellerId || undefined,
+                    });
+                    
+                    // 保存凭证
+                    await db.saveAmazonApiCredentials({
+                      accountId: newAccountId,
+                      clientId,
+                      clientSecret,
+                      refreshToken: newRefreshToken,
+                      profileId: profile.profileId,
+                      region: 'NA',
+                    });
+                    
+                    updatedAccountIds.push(newAccountId);
+                    credentialsSaved++;
+                    log.info(`[AmazonAuthCallback] v758: 为店铺"${stateStoreName}"创建新账户 ${newAccountId} (${profile.countryCode}, profileId=${profile.profileId})`);
+                  } catch (createErr: unknown) {
+                    log.warn(`[AmazonAuthCallback] v758: 创建账户失败:`, (createErr as Error).message);
+                  }
+                } else {
+                  log.info(`[AmazonAuthCallback] v342: 未找到profileId=${profile.profileId}(${profile.countryCode})对应的账户，跳过（前端将处理新账户创建）`);
+                }
               }
             } catch (profileSaveError: unknown) {
               log.warn(`[AmazonAuthCallback] v342: 保存profile ${profile.profileId} 凭证失败:`, (profileSaveError as Error).message);
@@ -291,6 +358,8 @@ export function registerAmazonAuthCallbackRoutes(app: Express) {
         // v342: 告知前端后端已直接保存凭证
         backend_saved: String(credentialsSaved),
         backend_updated_accounts: updatedAccountIds.join(','),
+        // v758: 传递state中的店铺名称回前端
+        ...(stateStoreName ? { state_store_name: stateStoreName } : {}),
       });
 
       if (profiles.length > 0) {

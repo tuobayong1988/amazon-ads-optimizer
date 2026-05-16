@@ -242,6 +242,7 @@ export default function AmazonApiSettings() {
     profiles: Array<{ profileId: string; countryCode: string; accountName: string; sellerId: string }>;
     backendSaved: number; // v343: 后端已保存的凭证数量
     backendUpdatedAccounts: string; // v343: 后端已更新的账户ID列表
+    stateStoreName?: string; // v758: 从OAuth state中恢复的店铺名称
   } | null>(null);
   const [lastSuccessfulStep, setLastSuccessfulStep] = useState<'idle' | 'exchanging' | 'saving' | 'syncing'>('idle');
   const [activeTab, setActiveTab] = useState("accounts");
@@ -533,6 +534,8 @@ export default function AmazonApiSettings() {
     // v342: 后端直接保存的结果
     const backendSaved = params.get('backend_saved');
     const backendUpdatedAccounts = params.get('backend_updated_accounts');
+    // v758: 从state中恢复的店铺名称
+    const stateStoreName = params.get('state_store_name');
 
     // 清除URL中的授权参数，避免刷新时重复处理
     if (authSuccess || authErrorParam) {
@@ -559,7 +562,7 @@ export default function AmazonApiSettings() {
 
       // 存储回调数据，待后续处理
       const savedCount = parseInt(backendSaved || '0', 10);
-      setOauthCallbackData({ refreshToken, profiles, backendSaved: savedCount, backendUpdatedAccounts: backendUpdatedAccounts || '' });
+      setOauthCallbackData({ refreshToken, profiles, backendSaved: savedCount, backendUpdatedAccounts: backendUpdatedAccounts || '', stateStoreName: stateStoreName || undefined });
       if (savedCount > 0) {
         toast.success(
           `Amazon授权成功！后端已自动更新 ${savedCount} 个账户的凭证，数据同步已启动。`
@@ -613,8 +616,9 @@ export default function AmazonApiSettings() {
         } else if (profiles.length > 0) {
           // v343: 后端未保存任何凭证，说明是首次授权，需要创建新账户
           // @ts-ignore
+          // v758: 优先使用OAuth state中传递的店铺名称（解决页面重载后丢失上下文的问题）
           // v674: 移除 profiles[0].accountName 回退，防止使用Amazon真实卖家名称作为店铺名（张冠李戴问题）
-          const storeName = selectedAccount?.storeName || formData.storeName || '我的店铺';
+          const storeName = oauthCallbackData.stateStoreName || selectedAccount?.storeName || formData.storeName || '我的店铺';
           
           console.log('[v343 OAuth Callback] 首次授权，调用saveMultipleProfiles创建新账户:', {
             // @ts-ignore
@@ -2453,7 +2457,10 @@ export default function AmazonApiSettings() {
                         className={`h-auto py-4 flex-col gap-2 ${credentials.region === 'NA' ? 'border-primary bg-primary/10' : ''}`}
                         onClick={() => {
                           setCredentials({ ...credentials, region: 'NA' });
-                          window.location.href = `https://www.amazon.com/ap/oa?client_id=${import.meta.env.VITE_AMAZON_ADS_CLIENT_ID || 'amzn1.application-oa2-client.e6536f0b89044ae4a40a9289efc33053'}&scope=advertising::campaign_management&redirect_uri=${encodeURIComponent('https://www.ppcopt.com/api/auth/callback')}&response_type=code`;
+                          // v758: 通过state参数传递当前店铺名称，防止回调后丢失店铺上下文
+                          const currentStoreName = selectedAccount?.storeName || formData.storeName || '';
+                          const stateParam = currentStoreName ? `&state=${encodeURIComponent(JSON.stringify({ storeName: currentStoreName }))}` : '';
+                          window.location.href = `https://www.amazon.com/ap/oa?client_id=${import.meta.env.VITE_AMAZON_ADS_CLIENT_ID || 'amzn1.application-oa2-client.e6536f0b89044ae4a40a9289efc33053'}&scope=advertising::campaign_management&redirect_uri=${encodeURIComponent('https://www.ppcopt.com/api/auth/callback')}&response_type=code${stateParam}`;
                         }}
                       >
                         <Globe className="h-6 w-6" />
@@ -2465,7 +2472,10 @@ export default function AmazonApiSettings() {
                         className={`h-auto py-4 flex-col gap-2 ${credentials.region === 'EU' ? 'border-primary bg-primary/10' : ''}`}
                         onClick={() => {
                           setCredentials({ ...credentials, region: 'EU' });
-                          window.location.href = `https://eu.account.amazon.com/ap/oa?client_id=${import.meta.env.VITE_AMAZON_ADS_CLIENT_ID || 'amzn1.application-oa2-client.e6536f0b89044ae4a40a9289efc33053'}&scope=advertising::campaign_management&redirect_uri=${encodeURIComponent('https://www.ppcopt.com/api/auth/callback')}&response_type=code`;
+                          // v758: 通过state参数传递当前店铺名称
+                          const currentStoreName = selectedAccount?.storeName || formData.storeName || '';
+                          const stateParam = currentStoreName ? `&state=${encodeURIComponent(JSON.stringify({ storeName: currentStoreName }))}` : '';
+                          window.location.href = `https://eu.account.amazon.com/ap/oa?client_id=${import.meta.env.VITE_AMAZON_ADS_CLIENT_ID || 'amzn1.application-oa2-client.e6536f0b89044ae4a40a9289efc33053'}&scope=advertising::campaign_management&redirect_uri=${encodeURIComponent('https://www.ppcopt.com/api/auth/callback')}&response_type=code${stateParam}`;
                         }}
                       >
                         <Globe className="h-6 w-6" />
@@ -2477,7 +2487,10 @@ export default function AmazonApiSettings() {
                         className={`h-auto py-4 flex-col gap-2 ${credentials.region === 'FE' ? 'border-primary bg-primary/10' : ''}`}
                         onClick={() => {
                           setCredentials({ ...credentials, region: 'FE' });
-                          window.location.href = `https://apac.account.amazon.com/ap/oa?client_id=${import.meta.env.VITE_AMAZON_ADS_CLIENT_ID || 'amzn1.application-oa2-client.e6536f0b89044ae4a40a9289efc33053'}&scope=advertising::campaign_management&redirect_uri=${encodeURIComponent('https://www.ppcopt.com/api/auth/callback')}&response_type=code`;
+                          // v758: 通过state参数传递当前店铺名称
+                          const currentStoreName = selectedAccount?.storeName || formData.storeName || '';
+                          const stateParam = currentStoreName ? `&state=${encodeURIComponent(JSON.stringify({ storeName: currentStoreName }))}` : '';
+                          window.location.href = `https://apac.account.amazon.com/ap/oa?client_id=${import.meta.env.VITE_AMAZON_ADS_CLIENT_ID || 'amzn1.application-oa2-client.e6536f0b89044ae4a40a9289efc33053'}&scope=advertising::campaign_management&redirect_uri=${encodeURIComponent('https://www.ppcopt.com/api/auth/callback')}&response_type=code${stateParam}`;
                         }}
                       >
                         <Globe className="h-6 w-6" />
@@ -2567,9 +2580,9 @@ export default function AmazonApiSettings() {
                                 
                                 // 如果检测到多个profiles，自动为所有站点创建账号
                                 if (result.profiles && result.profiles.length > 0) {
-                                  // 优先使用当前选中账号的店铺名称，其次是表单中的名称
+                                  // v758: 优先使用当前选中账号的店铺名称，其次是表单中的名称
                                   // @ts-ignore
-                                  const storeName = selectedAccount?.storeName || formData.storeName || '我的店铺';
+                                  const storeName = selectedAccount?.storeName || formData.storeName || '未命名店铺';
                                   
                                   console.log('[Auth] 保存多站点授权，使用店铺名称:', {
                                     // @ts-ignore
