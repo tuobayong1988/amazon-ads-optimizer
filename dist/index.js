@@ -127194,7 +127194,6 @@ var init_syncSp = __esm({
           const rawStrategy = apiCampaign.dynamicBidding?.strategy || // @ts-expect-error Amazon API response type flexibility
           apiCampaign.bidding?.strategy || "LEGACY_FOR_SALES";
           const strategyMap = {
-            // @ts-expect-error Legacy code type compatibility
             "MANUAL": "manual",
             "LEGACY_FOR_SALES": "legacyForSales",
             "AUTO_FOR_SALES": "autoForSales",
@@ -127210,11 +127209,8 @@ var init_syncSp = __esm({
             accountId: this.accountId,
             campaignId: String(apiCampaign.campaignId),
             campaignName: apiCampaign.name,
-            // @ts-expect-error Legacy code type compatibility
             campaignType,
-            // @ts-expect-error Legacy code type compatibility
             targetingType: normalizedTargetingType,
-            // @ts-expect-error Legacy code type compatibility
             dailyBudget: String(dailyBudgetValue),
             campaignStatus: apiCampaign.state?.toLowerCase() || "enabled",
             state: apiCampaign.state?.toLowerCase() || "enabled",
@@ -127230,7 +127226,6 @@ var init_syncSp = __esm({
             portfolioId,
             costType: "cpc",
             // SP广告都是CPC
-            // @ts-expect-error Legacy code type compatibility
             amazonCreatedDate: startDateValue,
             // 使用广告活动的startDate作为Amazon侧创建日期
             updatedAt: (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ")
@@ -127670,7 +127665,6 @@ var init_syncSp = __esm({
               targetValue,
               targetExpression: JSON.stringify(apiTarget.expression),
               targetMatchType,
-              // @ts-expect-error Legacy code type compatibility
               targetStatus: normalizedState,
               bid: String(typeof apiTarget.bid === "object" && apiTarget.bid !== null ? apiTarget.bid.amount || 0 : apiTarget.bid || 0),
               categoryName,
@@ -127705,7 +127699,6 @@ var init_syncSp = __esm({
               await db.insert(productTargets).values({
                 ...targetData,
                 createdAt: (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ")
-                // @ts-expect-error Complex function parameter types
               }).onDuplicateKeyUpdate({
                 set: {
                   bid: sql145`VALUES(bid)`,
@@ -127984,7 +127977,6 @@ var init_syncSp = __esm({
               campaignId: String(campaign.campaignId),
               internalAdGroupId: adGroup.id,
               negativeLevel: "ad_group",
-              // @ts-expect-error Legacy code type compatibility
               negativeType: "product",
               negativeText,
               negativeMatchType: "negative_exact",
@@ -128310,11 +128302,10 @@ var init_syncSp = __esm({
         const campaignIds = spCampaigns.map((c) => String(c.campaignId));
         if (!this.client.listSpCampaignsBudgetRules) {
           log200.warn(`[v642] SP Budget Rules API\u65B9\u6CD5\u4E0D\u5B58\u5728\uFF0C\u8DF3\u8FC7budget rules\u540C\u6B65`);
-          return { success: true, synced: 0, errors: [], message: "Budget Rules API\u65B9\u6CD5\u4E0D\u53EF\u7528\uFF0C\u5DF2\u8DF3\u8FC7" };
+          return 0;
         }
         const budgetRulesMap = await this.client.listSpCampaignsBudgetRules(
           campaignIds,
-          // @ts-expect-error Legacy code type compatibility
           (completed, total) => {
             if (completed % 50 === 0 || completed === total) {
               log200.info(`[v424] Budget rules\u83B7\u53D6\u8FDB\u5EA6: ${completed}/${total}`);
@@ -128335,7 +128326,6 @@ var init_syncSp = __esm({
               if (!ruleId) continue;
               const ruleData = {
                 accountId: this.accountId,
-                // @ts-expect-error Legacy code type compatibility
                 ruleId: String(ruleId),
                 ruleName: rule.name || rule.ruleName || null,
                 ruleType: rule.ruleType || "SCHEDULE",

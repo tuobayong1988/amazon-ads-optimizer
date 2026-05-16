@@ -172,7 +172,6 @@ AmazonSyncService.prototype.syncSpCampaigns = async function(this: AmazonSyncSer
       // @ts-expect-error Dynamic type assertion
       const budgetField = (apiCampaign as Record<string, unknown>).budget;
       if (budgetField !== undefined && budgetField !== null) {
-        // @ts-expect-error Conditional type narrowing
         if (typeof budgetField === 'number') {
           dailyBudgetValue = budgetField;
         } else if (typeof budgetField === 'object') {
@@ -217,9 +216,7 @@ AmazonSyncService.prototype.syncSpCampaigns = async function(this: AmazonSyncSer
           endDateValue = dateStr;
         } else if (dateStr.length === 8) {
           endDateValue = `${dateStr.slice(0, 4)}-${dateStr.slice(4, 6)}-${dateStr.slice(6, 8)}`;
-        // @ts-expect-error Legacy code type compatibility
         }
-      // @ts-expect-error Legacy code type compatibility
       }
 
       // v423: 获取竞价策略 - API v3返回大写格式，需要映射到数据库枚举值
@@ -229,7 +226,6 @@ AmazonSyncService.prototype.syncSpCampaigns = async function(this: AmazonSyncSer
                          (apiCampaign as Record<string, unknown>).bidding?.strategy || 
                          'LEGACY_FOR_SALES';
       const strategyMap: Record<string, string> = {
-        // @ts-expect-error Legacy code type compatibility
         'MANUAL': 'manual', 'LEGACY_FOR_SALES': 'legacyForSales', 'AUTO_FOR_SALES': 'autoForSales', 'RULE_BASED': 'ruleBasedBidding',
         'manual': 'manual', 'legacyForSales': 'legacyForSales', 'autoForSales': 'autoForSales', 'ruleBasedBidding': 'ruleBasedBidding',
       };
@@ -243,11 +239,8 @@ AmazonSyncService.prototype.syncSpCampaigns = async function(this: AmazonSyncSer
         accountId: this.accountId,
         campaignId: String(apiCampaign.campaignId),
         campaignName: apiCampaign.name,
-        // @ts-expect-error Legacy code type compatibility
         campaignType: campaignType as 'sp_auto' | 'sp_manual' | 'sb' | 'sd',
-        // @ts-expect-error Legacy code type compatibility
         targetingType: normalizedTargetingType,
-        // @ts-expect-error Legacy code type compatibility
         dailyBudget: String(dailyBudgetValue),
         campaignStatus: (apiCampaign.state?.toLowerCase() || 'enabled') as 'enabled' | 'paused' | 'archived',
         state: (apiCampaign.state?.toLowerCase() || 'enabled') as 'enabled' | 'paused' | 'archived' | 'pending' | 'other',
@@ -262,7 +255,6 @@ AmazonSyncService.prototype.syncSpCampaigns = async function(this: AmazonSyncSer
         biddingStrategy: biddingStrategy as 'legacyForSales' | 'autoForSales' | 'manual' | 'ruleBasedBidding',
         portfolioId: portfolioId,
         costType: 'cpc' as 'cpc' | 'vcpm' | 'cpm', // SP广告都是CPC
-        // @ts-expect-error Legacy code type compatibility
         amazonCreatedDate: startDateValue, // 使用广告活动的startDate作为Amazon侧创建日期
         updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
       };
@@ -289,18 +281,15 @@ AmazonSyncService.prototype.syncSpCampaigns = async function(this: AmazonSyncSer
             log.debug(`v150: 预算保护生效 - campaign=${existing.campaignName}, local=$${localBudget}, api=$${apiBudget}, 保留本地优化预算`);
             // @ts-expect-error Dynamic type assertion
             delete (campaignData as Record<string, unknown>[]).dailyBudget;
-            // @ts-expect-error Legacy code type compatibility
             protectionStats.budgetProtected++;
             protectionStats.protectedEntities.push(`camp:${existing.campaignName}`);
           } else {
-            // @ts-expect-error Complex function parameter types
             log.debug(`v150: 预算差异 - campaign=${existing.campaignName}, local=$${localBudget}, api=$${apiBudget}, 以API为准`);
             protectionStats.budgetOverwritten++;
           }
         }
         
         // v165: 位置倾斜比例保护逻辑
-        // @ts-expect-error Type inference limitation
         const localTopPlacement1 = existing.placementTopSearchBidAdjustment || 0;
         // @ts-expect-error Dynamic type assertion
         const apiTopPlacement1 = (campaignData as Record<string, unknown>[]).placementTopSearchBidAdjustment || 0;
@@ -458,7 +447,6 @@ AmazonSyncService.prototype.syncSpAdGroups = async function(this: AmazonSyncServ
         });
       }
       synced++;
-    // @ts-expect-error Legacy code type compatibility
     }
 
     return { synced, skipped };
@@ -800,9 +788,7 @@ AmazonSyncService.prototype.syncSpProductTargets = async function(this: AmazonSy
           targetValue = expr.value || 'AUTO_SUBSTITUTES';
           targetMatchType = 'substitute';
         } else if (et.includes('accessory') || et.includes('complement')) {
-          // @ts-expect-error Legacy code type compatibility
           targetType = 'asin';
-          // @ts-expect-error Legacy code type compatibility
           targetValue = expr.value || 'AUTO_COMPLEMENTS';
           targetMatchType = 'accessory';
         } else if (et.includes('broadrel') || et.includes('broad_rel') || et.includes('loose')) {
@@ -883,7 +869,6 @@ AmazonSyncService.prototype.syncSpProductTargets = async function(this: AmazonSy
         targetValue,
         targetExpression: JSON.stringify(apiTarget.expression),
         targetMatchType,
-        // @ts-expect-error Legacy code type compatibility
         targetStatus: normalizedState,
         bid: String(typeof apiTarget.bid === 'object' && apiTarget.bid !== null ? (apiTarget.bid as Record<string, unknown>).amount || 0 : (apiTarget.bid || 0)),
         categoryName: categoryName,
@@ -931,7 +916,6 @@ AmazonSyncService.prototype.syncSpProductTargets = async function(this: AmazonSy
         await db.insert(productTargets).values({
           ...targetData,
           createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
-        // @ts-expect-error Complex function parameter types
         }).onDuplicateKeyUpdate({
           set: {
             bid: sql`VALUES(bid)`,
@@ -969,7 +953,6 @@ AmazonSyncService.prototype.syncSpProductTargets = async function(this: AmazonSy
 // @ts-expect-error Dynamic property access
 AmazonSyncService.prototype.syncSpNegativeKeywords = async function(this: AmazonSyncService): Promise<{ synced: number; updated: number }> {
   const db = await getDb();
-  // @ts-expect-error Conditional type narrowing
   if (!db) return { synced: 0, updated: 0 };
 
   try {
@@ -1058,7 +1041,6 @@ AmazonSyncService.prototype.syncSpNegativeKeywords = async function(this: Amazon
     const BATCH_SIZE = 500;
     for (let i = 0; i < campaignNegBatchInsert.length; i += BATCH_SIZE) {
       const batch = campaignNegBatchInsert.slice(i, i + BATCH_SIZE);
-      // @ts-expect-error Legacy code type compatibility
       await db.insert(negativeKeywords).values(batch).onDuplicateKeyUpdate({
         set: { negativeStatus: sql`VALUES(negativeStatus)`, amazonNegativeKeywordId: sql`VALUES(amazon_negative_keyword_id)` }
       });
@@ -1136,7 +1118,6 @@ AmazonSyncService.prototype.syncSpNegativeKeywords = async function(this: Amazon
     // v743: 批量插入广告组级否词
     for (let i = 0; i < adGroupNegBatchInsert.length; i += BATCH_SIZE) {
       const batch = adGroupNegBatchInsert.slice(i, i + BATCH_SIZE);
-      // @ts-expect-error Legacy code type compatibility
       await db.insert(negativeKeywords).values(batch).onDuplicateKeyUpdate({
         set: { negativeStatus: sql`VALUES(negativeStatus)`, amazonNegativeKeywordId: sql`VALUES(amazon_negative_keyword_id)` }
       });
@@ -1159,11 +1140,9 @@ AmazonSyncService.prototype.syncSpNegativeKeywords = async function(this: Amazon
     const _cause = (error as Record<string, unknown>)?.cause as Record<string, unknown> | undefined;
     const _mysqlCause = _cause?.cause as Record<string, unknown> | undefined;
     const _mysqlErr = _mysqlCause || _cause;
-    // @ts-expect-error Type inference limitation
     const _mysqlInfo = _mysqlErr ? `code=${_mysqlErr.code||_mysqlErr.errno||'?'}, msg=${String(_mysqlErr.message||_mysqlErr.sqlMessage||'').slice(0,200)}` : 'no-mysql-cause';
     log.warn(`Error syncing SP negative keywords: ${(error as Error).message?.slice(0,200)} | MySQL: ${_mysqlInfo}`);
     }
-    // @ts-expect-error Return type compatibility
     return { synced: 0, updated: 0 };
   }
 };
@@ -1263,7 +1242,6 @@ AmazonSyncService.prototype.syncSpNegativeProductTargets = async function(this: 
     const BATCH_SIZE = 500;
     for (let i = 0; i < campaignNegBatchInsert.length; i += BATCH_SIZE) {
       const batch = campaignNegBatchInsert.slice(i, i + BATCH_SIZE);
-      // @ts-expect-error Legacy code type compatibility
       await db.insert(negativeKeywords).values(batch).onDuplicateKeyUpdate({
         set: { negativeStatus: sql`VALUES(negativeStatus)`, amazonNegativeKeywordId: sql`VALUES(amazon_negative_keyword_id)` }
       });
@@ -1326,7 +1304,6 @@ AmazonSyncService.prototype.syncSpNegativeProductTargets = async function(this: 
           campaignId: String(campaign.campaignId),
           internalAdGroupId: adGroup.id,
           negativeLevel: 'ad_group',
-          // @ts-expect-error Legacy code type compatibility
           negativeType: 'product',
           negativeText: negativeText,
           negativeMatchType: 'negative_exact',
@@ -1341,7 +1318,6 @@ AmazonSyncService.prototype.syncSpNegativeProductTargets = async function(this: 
     // v744: 批量插入广告组级否定商品定向
     for (let i = 0; i < adGroupNegBatchInsert.length; i += BATCH_SIZE) {
       const batch = adGroupNegBatchInsert.slice(i, i + BATCH_SIZE);
-      // @ts-expect-error Legacy code type compatibility
       await db.insert(negativeKeywords).values(batch).onDuplicateKeyUpdate({
         set: { negativeStatus: sql`VALUES(negativeStatus)`, amazonNegativeKeywordId: sql`VALUES(amazon_negative_keyword_id)` }
       });
@@ -1438,7 +1414,6 @@ AmazonSyncService.prototype.syncSpBidRecommendations = async function(this: Amaz
     const internalToAmazonAdGroupId = new Map(adGroupMappingRows.map(r => [r.id, r.adGroupId]));
 
     // 按adGroup批量请求建议竞价
-    // @ts-expect-error Type inference limitation
     let adGroupIndex = 0;
     const totalAdGroups = kwByAdGroup.size;
     // v665: 自适应节流（替代固定5秒间隔），大账户显著缩短总耗时
@@ -1625,9 +1600,7 @@ AmazonSyncService.prototype.syncSpBidRecommendations = async function(this: Amaz
             const tgt = batch[j];
             let expr: Array<{ type: string; value?: string }> = [];
 
-            // @ts-expect-error Conditional type narrowing
             if (tgt.targetExpression) {
-              // @ts-expect-error Legacy code type compatibility
               try {
                 expr = JSON.parse(tgt.targetExpression);
               } catch {
@@ -1699,7 +1672,6 @@ AmazonSyncService.prototype.syncSpBidRecommendations = async function(this: Amaz
         log.warn(`[v414] adGroup ${internalAgId} 商品定位建议竞价获取失败: ${errMsg}`);
         // v457: Amazon API失败时，使用本地历史数据推荐引擎
         try {
-          // @ts-expect-error Type inference limitation
           const localRec = await getLocalTargetBidRecommendation(
             this.accountId, amazonAgId, tgtList[0]?.campaignId || '', 'sponsoredProducts', 0.30
           );
@@ -1728,10 +1700,8 @@ AmazonSyncService.prototype.syncSpBidRecommendations = async function(this: Amaz
     return { synced: keywordBidsUpdated + targetBidsUpdated, skipped: errors };
   } catch (error: any) {
     log.warn(`[v414] Error syncing SP bid recommendations: ${(error as Error).message || JSON.stringify(error)}`);
-    // @ts-expect-error Return type compatibility
     return { synced: keywordBidsUpdated + targetBidsUpdated, skipped: errors };
   }
-// @ts-expect-error Legacy code type compatibility
 };
 
 // ==================== v424: SP Budget Rules 同步 ====================
@@ -1774,41 +1744,31 @@ AmazonSyncService.prototype.syncSpBudgetRules = async function(this: AmazonSyncS
     // 2. 批量获取budget rules
     const campaignIds = spCampaigns.map(c => String(c.campaignId));
     // v642: 修复属性名错误 (this.apiClient → this.client) 并添加方法存在性检查
-    // @ts-expect-error Conditional type narrowing
     if (!this.client.listSpCampaignsBudgetRules) {
       log.warn(`[v642] SP Budget Rules API方法不存在，跳过budget rules同步`);
-      return { success: true, synced: 0, errors: [], message: 'Budget Rules API方法不可用，已跳过' };
+      return 0;
     }
-    // @ts-expect-error Type inference limitation
     const budgetRulesMap = await this.client.listSpCampaignsBudgetRules(
       campaignIds,
-      // @ts-expect-error Legacy code type compatibility
       (completed, total) => {
         if (completed % 50 === 0 || completed === total) {
-          // @ts-expect-error Complex function parameter types
           log.info(`[v424] Budget rules获取进度: ${completed}/${total}`);
-        // @ts-expect-error Legacy code type compatibility
         }
-      // @ts-expect-error Legacy code type compatibility
       }
     );
 
     // 3. 写入budget rules到数据库
     const allRules: Array<{
       campaignId: string;
-      // @ts-expect-error Generic type constraint
       rules: Record<string, unknown>[];
-    // @ts-expect-error Legacy code type compatibility
     }> = [];
 
-    // @ts-expect-error Complex function parameter types
     for (const [campaignId, rules] of budgetRulesMap.entries()) {
       if (rules.length > 0) {
         allRules.push({ campaignId, rules });
       }
     }
 
-    // @ts-expect-error Complex function parameter types
     log.info(`[v424] 共 ${allRules.length} 个campaigns有budget rules`);
 
     // 批量写入budget rules
@@ -1821,7 +1781,6 @@ AmazonSyncService.prototype.syncSpBudgetRules = async function(this: AmazonSyncS
           // 解析规则数据
           const ruleData: Record<string, unknown> = {
             accountId: this.accountId,
-            // @ts-expect-error Legacy code type compatibility
             ruleId: String(ruleId),
             ruleName: rule.name || rule.ruleName || null,
             ruleType: rule.ruleType || 'SCHEDULE',
