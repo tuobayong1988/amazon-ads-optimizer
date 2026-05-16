@@ -417,6 +417,7 @@ export interface SyncStep {
   name: string;
   tier: SyncTier; // 该步骤属于哪个同步层级
   parallelGroup?: string; // v682: 同一parallelGroup的步骤可以并行执行，大幅减少报告等待时间
+  deferrable?: boolean; // v757: 可延迟执行的步骤，不阻塞主同步流程，在其他步骤完成后异步执行
   execute: (service: AmazonSyncService, context: SyncContext) => Promise<StepResult>;
 }
 
@@ -664,6 +665,7 @@ const SYNC_STEPS: SyncStep[] = [
     id: 'sp_keywords',
     name: 'SP关键词',
     tier: 'medium',
+    deferrable: true, // v757: SP关键词同步拆分为异步任务，不阻塞其他步骤
     execute: async (service, ctx) => {
       try {
         // @ts-expect-error - v652: prototype mixin method
@@ -1933,6 +1935,9 @@ export async function syncAccount(
       log.info(`[v684] 步骤重排序: ${apiSteps.length}个API步骤优先 + ${reportSteps.length}个报告步骤后续`);
     }
 
+    // v757: 延迟执行队列 — 收集deferrable步骤，在主同步完成后异步执行
+    const deferredSteps: { step: SyncStep; originalIndex: number }[] = [];
+
     // v682: 将步骤分组 — 同一parallelGroup的步骤合并为一个并行执行单元
     // 效果: 7个串行报告步骤(35-210分钟) → 3个并行组(15-70分钟)
     interface StepGroup {
@@ -2023,6 +2028,9 @@ export async function syncAccount(
             'sp_placement_performance': 30, 'sb_placement_performance': 30,
             'keyword_performance': 30, 'target_performance': 30, 'ad_group_performance': 30,
             'sp_auto_targeting': 30, 'sd_targeting': 30, 'sb_targeting': 30,
+            // v757: SP关键词超时提升到70分钟
+            'sp_keywords': 70, 'sb_keywords': 10,
+            'sp_negative_keywords': 90, 'sp_negative_targets': 90,
           };
           const timeoutMinutes = STEP_TIMEOUT_MAP[step.id] || 30;
           const STEP_TIMEOUT_MS = timeoutMinutes * 60 * 1000;
@@ -2108,6 +2116,16 @@ export async function syncAccount(
       const i = globalStepIndex;
       globalStepIndex++;
       context.currentStep = step.id;
+
+      // v757: 检测可延迟执行的步骤，收集到延迟队列而非立即执行
+      if (step.deferrable) {
+        deferredSteps.push({ step, originalIndex: i });
+        log.info(`[v757] 延迟执行: 步骤${step.name}已加入异步队列，不阻塞主同步流程`);
+        result.stepResults[step.id] = { success: true, synced: 0, errors: [], details: { deferred: true } };
+        result.completedSteps++;
+        context.completedSteps.push(step.id);
+        continue;
+      }
 
       // 更新引擎状态
       const runningEntry = engineStatus.currentlyRunning.find(r => r.accountId === account.accountId);
@@ -2316,7 +2334,7 @@ export async function syncAccount(
           // 列表步骤: v754: SP/SD广告活动从10→20分钟（v753实测90124的SP广告活动和90052的SD广告活动10分钟超时）
           'sp_campaigns': 20, 'sb_campaigns': 10, 'sd_campaigns': 20,
           'sp_ad_groups': 15, 'sb_ad_groups': 10, 'sd_ad_groups': 15,
-          'sp_keywords': 50, 'sb_keywords': 10, // v666: sp_keywords从10→50分钟（针对90084/90023等8万+关键词账户）
+          'sp_keywords': 70, 'sb_keywords': 10, // v757: sp_keywords从50→70分钟（v754实测90100的SP关键词50分钟超时，配合v757增量同步优化）
           'sp_product_targets': 20, 'sb_product_targets': 10, 'sd_product_targets': 10, // v678: sp_product_targets从10→20分钟（v677实测90023的SP商品定位步骤10分钟超时）
           'sp_negative_keywords': 90, 'sb_negative_keywords': 30, // v743: sp_negative_keywords从45→90分钟（v742实测90124的23.7万条否词需要更多时间，即使v743已优化为批量模式）
           'sp_negative_targets': 90, 'sb_negative_targets': 15, 'sd_negative_targets': 15, // v744: sp_negative_targets从50→90分钟（v743-fix2监控发现90052/90124仍100%超时，配合批量优化）
@@ -2553,6 +2571,41 @@ export async function syncAccount(
           }
         } catch { /* 内存检查失败不影响同步 */ }
       }
+    }
+
+    // v757: 主同步完成后，异步执行延迟步骤（不阻塞主流程结果返回）
+    if (deferredSteps.length > 0) {
+      log.info(`[v757] 开始异步执行${deferredSteps.length}个延迟步骤: ${deferredSteps.map(d => d.step.name).join(', ')}`);
+      // 异步执行，不等待完成（fire-and-forget）
+      (async () => {
+        for (const { step: deferredStep } of deferredSteps) {
+          try {
+            log.info(`[v757] 异步执行延迟步骤: ${deferredStep.name} | 账户${account.accountId}`);
+            const DEFERRED_TIMEOUT_MS = 70 * 60 * 1000; // 70分钟超时
+            const deferredTimeoutPromise = new Promise<never>((_, reject) => {
+              setTimeout(() => reject(new Error(`DEFERRED_TIMEOUT: 延迟步骤${deferredStep.name}超时(70分钟)`)), DEFERRED_TIMEOUT_MS);
+            });
+            const deferredResult = await Promise.race([
+              deferredStep.execute(syncService, context),
+              deferredTimeoutPromise,
+            ]);
+            const deferredSynced = typeof deferredResult.synced === 'number' ? deferredResult.synced : 0;
+            if (deferredResult.success) {
+              log.info(`[v757] 延迟步骤完成: ${deferredStep.name} | 同步${deferredSynced}条 | 账户${account.accountId}`);
+            } else {
+              log.warn(`[v757] 延迟步骤失败: ${deferredStep.name} | 错误: ${deferredResult.errors.join(', ')} | 账户${account.accountId}`);
+            }
+            // 更新步骤结果（覆盖之前的占位符）
+            result.stepResults[deferredStep.id] = deferredResult;
+          } catch (deferredErr: unknown) {
+            log.error(`[v757] 延迟步骤异常: ${deferredStep.name} | ${(deferredErr as Error).message} | 账户${account.accountId}`);
+            result.stepResults[deferredStep.id] = { success: false, synced: 0, errors: [(deferredErr as Error).message], details: { deferred: true, timedOut: true } };
+          }
+        }
+        log.info(`[v757] 所有延迟步骤已完成 | 账户${account.accountId}`);
+      })().catch(err => {
+        log.error(`[v757] 延迟步骤执行器异常: ${err.message}`);
+      });
     }
 
     // v689: 同步完成后汇总失败分类统计

@@ -71689,6 +71689,7 @@ async function syncAccount(account, tier, options) {
       steps = [...apiSteps, ...reportSteps];
       log125.info(`[v684] \u6B65\u9AA4\u91CD\u6392\u5E8F: ${apiSteps.length}\u4E2AAPI\u6B65\u9AA4\u4F18\u5148 + ${reportSteps.length}\u4E2A\u62A5\u544A\u6B65\u9AA4\u540E\u7EED`);
     }
+    const deferredSteps = [];
     const stepGroups = [];
     let currentGroupKey = null;
     let currentGroup = null;
@@ -71772,7 +71773,12 @@ async function syncAccount(account, tier, options) {
             "ad_group_performance": 30,
             "sp_auto_targeting": 30,
             "sd_targeting": 30,
-            "sb_targeting": 30
+            "sb_targeting": 30,
+            // v757: SP关键词超时提升到70分钟
+            "sp_keywords": 70,
+            "sb_keywords": 10,
+            "sp_negative_keywords": 90,
+            "sp_negative_targets": 90
           };
           const timeoutMinutes = STEP_TIMEOUT_MAP[step2.id] || 30;
           const STEP_TIMEOUT_MS = timeoutMinutes * 60 * 1e3;
@@ -71846,6 +71852,14 @@ async function syncAccount(account, tier, options) {
       const i = globalStepIndex;
       globalStepIndex++;
       context.currentStep = step.id;
+      if (step.deferrable) {
+        deferredSteps.push({ step, originalIndex: i });
+        log125.info(`[v757] \u5EF6\u8FDF\u6267\u884C: \u6B65\u9AA4${step.name}\u5DF2\u52A0\u5165\u5F02\u6B65\u961F\u5217\uFF0C\u4E0D\u963B\u585E\u4E3B\u540C\u6B65\u6D41\u7A0B`);
+        result.stepResults[step.id] = { success: true, synced: 0, errors: [], details: { deferred: true } };
+        result.completedSteps++;
+        context.completedSteps.push(step.id);
+        continue;
+      }
       const runningEntry = engineStatus.currentlyRunning.find((r) => r.accountId === account.accountId);
       if (runningEntry) {
         runningEntry.step = step.name;
@@ -72007,9 +72021,9 @@ async function syncAccount(account, tier, options) {
             "sp_ad_groups": 15,
             "sb_ad_groups": 10,
             "sd_ad_groups": 15,
-            "sp_keywords": 50,
+            "sp_keywords": 70,
             "sb_keywords": 10,
-            // v666: sp_keywords从10→50分钟（针对90084/90023等8万+关键词账户）
+            // v757: sp_keywords从50→70分钟（v754实测90100的SP关键词50分钟超时，配合v757增量同步优化）
             "sp_product_targets": 20,
             "sb_product_targets": 10,
             "sd_product_targets": 10,
@@ -72213,6 +72227,37 @@ async function syncAccount(account, tier, options) {
         } catch {
         }
       }
+    }
+    if (deferredSteps.length > 0) {
+      log125.info(`[v757] \u5F00\u59CB\u5F02\u6B65\u6267\u884C${deferredSteps.length}\u4E2A\u5EF6\u8FDF\u6B65\u9AA4: ${deferredSteps.map((d) => d.step.name).join(", ")}`);
+      (async () => {
+        for (const { step: deferredStep } of deferredSteps) {
+          try {
+            log125.info(`[v757] \u5F02\u6B65\u6267\u884C\u5EF6\u8FDF\u6B65\u9AA4: ${deferredStep.name} | \u8D26\u6237${account.accountId}`);
+            const DEFERRED_TIMEOUT_MS = 70 * 60 * 1e3;
+            const deferredTimeoutPromise = new Promise((_, reject) => {
+              setTimeout(() => reject(new Error(`DEFERRED_TIMEOUT: \u5EF6\u8FDF\u6B65\u9AA4${deferredStep.name}\u8D85\u65F6(70\u5206\u949F)`)), DEFERRED_TIMEOUT_MS);
+            });
+            const deferredResult = await Promise.race([
+              deferredStep.execute(syncService, context),
+              deferredTimeoutPromise
+            ]);
+            const deferredSynced = typeof deferredResult.synced === "number" ? deferredResult.synced : 0;
+            if (deferredResult.success) {
+              log125.info(`[v757] \u5EF6\u8FDF\u6B65\u9AA4\u5B8C\u6210: ${deferredStep.name} | \u540C\u6B65${deferredSynced}\u6761 | \u8D26\u6237${account.accountId}`);
+            } else {
+              log125.warn(`[v757] \u5EF6\u8FDF\u6B65\u9AA4\u5931\u8D25: ${deferredStep.name} | \u9519\u8BEF: ${deferredResult.errors.join(", ")} | \u8D26\u6237${account.accountId}`);
+            }
+            result.stepResults[deferredStep.id] = deferredResult;
+          } catch (deferredErr) {
+            log125.error(`[v757] \u5EF6\u8FDF\u6B65\u9AA4\u5F02\u5E38: ${deferredStep.name} | ${deferredErr.message} | \u8D26\u6237${account.accountId}`);
+            result.stepResults[deferredStep.id] = { success: false, synced: 0, errors: [deferredErr.message], details: { deferred: true, timedOut: true } };
+          }
+        }
+        log125.info(`[v757] \u6240\u6709\u5EF6\u8FDF\u6B65\u9AA4\u5DF2\u5B8C\u6210 | \u8D26\u6237${account.accountId}`);
+      })().catch((err) => {
+        log125.error(`[v757] \u5EF6\u8FDF\u6B65\u9AA4\u6267\u884C\u5668\u5F02\u5E38: ${err.message}`);
+      });
     }
     if (result.failedSteps > 0) {
       const failureCategoryCounts = {};
@@ -73414,6 +73459,8 @@ var init_unifiedSyncEngine = __esm({
         id: "sp_keywords",
         name: "SP\u5173\u952E\u8BCD",
         tier: "medium",
+        deferrable: true,
+        // v757: SP关键词同步拆分为异步任务，不阻塞其他步骤
         execute: async (service, ctx) => {
           try {
             const result = await service.syncSpKeywords();
@@ -127358,12 +127405,12 @@ var init_syncSp = __esm({
         const adGroupFullMap = new Map(adGroupRows.map((r) => [r.adGroupId, { id: r.id, campaignId: r.campaignId }]));
         const apiKeywordIds = apiKeywords.map((ak) => String(ak.keywordId));
         const existingKeywordRows = await batchInArrayQuery(
-          (ids) => db.select({ id: keywords.id, keywordId: keywords.keywordId, adGroupId: keywords.internalAdGroupId, bid: keywords.bid, keywordText: keywords.keywordText, matchType: keywords.matchType }).from(keywords).where(and110(eq128(keywords.accountId, this.accountId), inArray28(keywords.keywordId, ids))),
+          (ids) => db.select({ id: keywords.id, keywordId: keywords.keywordId, adGroupId: keywords.internalAdGroupId, bid: keywords.bid, keywordText: keywords.keywordText, matchType: keywords.matchType, keywordStatus: keywords.keywordStatus }).from(keywords).where(and110(eq128(keywords.accountId, this.accountId), inArray28(keywords.keywordId, ids))),
           apiKeywordIds
         );
         const existingKeywordMap = new Map(existingKeywordRows.map((r) => [`${r.adGroupId}:${r.keywordId}`, r]));
         const allAccountKeywordRows = await batchInArrayQuery(
-          (ids) => db.select({ id: keywords.id, keywordId: keywords.keywordId, adGroupId: keywords.internalAdGroupId, bid: keywords.bid, keywordText: keywords.keywordText, matchType: keywords.matchType }).from(keywords).where(and110(eq128(keywords.accountId, this.accountId), inArray28(keywords.internalAdGroupId, ids.map(Number).filter((n) => !isNaN(n))))),
+          (ids) => db.select({ id: keywords.id, keywordId: keywords.keywordId, adGroupId: keywords.internalAdGroupId, bid: keywords.bid, keywordText: keywords.keywordText, matchType: keywords.matchType, keywordStatus: keywords.keywordStatus }).from(keywords).where(and110(eq128(keywords.accountId, this.accountId), inArray28(keywords.internalAdGroupId, ids.map(Number).filter((n) => !isNaN(n))))),
           [...new Set(adGroupRows.map((r) => String(r.id)))]
         );
         const textMatchMap = /* @__PURE__ */ new Map();
@@ -127420,23 +127467,35 @@ var init_syncSp = __esm({
               updatedAt: (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ")
             };
             if (existing) {
-              const normalizedApiState = (apiKeyword.state || "enabled").toLowerCase();
+              const apiBid = String(apiKeyword.bid || "0");
+              const apiState = (apiKeyword.state || "enabled").toLowerCase();
+              const apiMatchType = (apiKeyword.matchType || "broad").toLowerCase();
+              const existingBid = existing.bid || "0";
+              const existingMatchType = (existing.matchType || "broad").toLowerCase();
+              const bidUnchanged = Math.abs(parseFloat(apiBid) - parseFloat(existingBid)) < 1e-3;
+              const stateUnchanged = existing.keywordStatus === apiState;
+              const matchTypeUnchanged = existingMatchType === apiMatchType;
+              if (bidUnchanged && stateUnchanged && matchTypeUnchanged) {
+                skipped++;
+                return;
+              }
+              const normalizedApiState = apiState;
               if (existing.keywordStatus === "amazon_deleted" && normalizedApiState !== "archived") {
                 log200.debug(`v523.2: \u4FDD\u62A4SP(syncSp) keyword amazon_deleted\u72B6\u6001 - keyword=${existing.keywordText}(id=${existing.id})`);
                 delete keywordData.keywordStatus;
               }
-              const localBid = parseFloat(existing.bid || "0");
-              const apiBid = parseFloat(String(apiKeyword.bid || "0"));
+              const localBid = parseFloat(existingBid);
+              const apiBidNum = parseFloat(apiBid);
               keywordData.amazonBid = String(apiKeyword.bid);
-              if (Math.abs(localBid - apiBid) > SYNC_PROTECTION_CONFIG.BID_THRESHOLD && localBid > 0) {
+              if (Math.abs(localBid - apiBidNum) > SYNC_PROTECTION_CONFIG.BID_THRESHOLD && localBid > 0) {
                 const hasRecentOpt = protectedKeywordIds.has(existing.id);
                 if (hasRecentOpt) {
-                  log200.debug(`v737: \u51FA\u4EF7\u4FDD\u62A4\u751F\u6548 - keyword=${existing.keywordText}, local=$${localBid}, api=$${apiBid}, \u4FDD\u7559\u672C\u5730\u4F18\u5316\u51FA\u4EF7 (amazonBid=$${apiBid}\u5DF2\u8BB0\u5F55)`);
+                  log200.debug(`v737: \u51FA\u4EF7\u4FDD\u62A4\u751F\u6548 - keyword=${existing.keywordText}, local=$${localBid}, api=$${apiBidNum}, \u4FDD\u7559\u672C\u5730\u4F18\u5316\u51FA\u4EF7 (amazonBid=$${apiBidNum}\u5DF2\u8BB0\u5F55)`);
                   delete keywordData.bid;
                   protectionStats.bidProtected++;
                   protectionStats.protectedEntities.push(`kw:${existing.keywordText}`);
                 } else {
-                  log200.debug(`v737: \u51FA\u4EF7\u5DEE\u5F02 - keyword=${existing.keywordText}, local=$${localBid}, api=$${apiBid}, \u4EE5API\u4E3A\u51C6`);
+                  log200.debug(`v737: \u51FA\u4EF7\u5DEE\u5F02 - keyword=${existing.keywordText}, local=$${localBid}, api=$${apiBidNum}, \u4EE5API\u4E3A\u51C6`);
                   protectionStats.bidOverwritten++;
                 }
               }
@@ -127463,6 +127522,7 @@ var init_syncSp = __esm({
         if (keywordIdRepaired > 0) {
           log200.info(`[v647] SP\u5173\u952E\u8BCD\u540C\u6B65\u5B8C\u6210: \u4FEE\u590D\u4E86${keywordIdRepaired}\u4E2A\u88AB\u6C61\u67D3\u7684keywordId`);
         }
+        log200.info(`[v757] SP\u5173\u952E\u8BCD\u589E\u91CF\u540C\u6B65\u7EDF\u8BA1: \u603B\u8BA1${apiKeywords.length}\u4E2A, \u5199\u5165${synced}\u4E2A, \u8DF3\u8FC7\u65E0\u53D8\u5316${skipped}\u4E2A, \u8282\u7701DB\u64CD\u4F5C${skipped > 0 ? Math.round(skipped / apiKeywords.length * 100) : 0}%`);
         return { synced, skipped };
       } catch (error) {
         const _cause = error?.cause;

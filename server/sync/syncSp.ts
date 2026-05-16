@@ -524,7 +524,7 @@ AmazonSyncService.prototype.syncSpKeywords = async function(this: AmazonSyncServ
     // v529: 分段批量查询所有已存在的keyword
     const apiKeywordIds = apiKeywords.map(ak => String(ak.keywordId));
     const existingKeywordRows = await batchInArrayQuery(
-      (ids) => db.select({ id: keywords.id, keywordId: keywords.keywordId, adGroupId: keywords.internalAdGroupId, bid: keywords.bid, keywordText: keywords.keywordText, matchType: keywords.matchType }).from(keywords)
+      (ids) => db.select({ id: keywords.id, keywordId: keywords.keywordId, adGroupId: keywords.internalAdGroupId, bid: keywords.bid, keywordText: keywords.keywordText, matchType: keywords.matchType, keywordStatus: keywords.keywordStatus }).from(keywords)
         .where(and(eq(keywords.accountId, this.accountId), inArray(keywords.keywordId, ids))),
       apiKeywordIds
     );
@@ -533,7 +533,7 @@ AmazonSyncService.prototype.syncSpKeywords = async function(this: AmazonSyncServ
     // v647: 二次匹配索引 — 通过 adGroupId+keywordText+matchType 匹配已有记录
     // 用于修复已有记录的keywordId字段被污染为text:前缀表达式的情况
     const allAccountKeywordRows = await batchInArrayQuery(
-      (ids) => db.select({ id: keywords.id, keywordId: keywords.keywordId, adGroupId: keywords.internalAdGroupId, bid: keywords.bid, keywordText: keywords.keywordText, matchType: keywords.matchType }).from(keywords)
+      (ids) => db.select({ id: keywords.id, keywordId: keywords.keywordId, adGroupId: keywords.internalAdGroupId, bid: keywords.bid, keywordText: keywords.keywordText, matchType: keywords.matchType, keywordStatus: keywords.keywordStatus }).from(keywords)
         .where(and(eq(keywords.accountId, this.accountId), inArray(keywords.internalAdGroupId, ids.map(Number).filter(n => !isNaN(n))))),
       [...new Set(adGroupRows.map(r => String(r.id)))]
     );
@@ -602,28 +602,42 @@ AmazonSyncService.prototype.syncSpKeywords = async function(this: AmazonSyncServ
         };
 
         if (existing) {
+          // v757: 增量同步优化 — 如果关键字段无变化，跳过DB写入，大幅减少DB压力
+          const apiBid = String(apiKeyword.bid || '0');
+          const apiState = (apiKeyword.state || 'enabled').toLowerCase();
+          const apiMatchType = (apiKeyword.matchType || 'broad').toLowerCase();
+          const existingBid = existing.bid || '0';
+          const existingMatchType = (existing.matchType || 'broad').toLowerCase();
+          const bidUnchanged = Math.abs(parseFloat(apiBid) - parseFloat(existingBid)) < 0.001;
+          const stateUnchanged = existing.keywordStatus === apiState;
+          const matchTypeUnchanged = existingMatchType === apiMatchType;
+          if (bidUnchanged && stateUnchanged && matchTypeUnchanged) {
+            skipped++;
+            return; // v757: 无变化，跳过DB写入
+          }
+
           // v523.2: 保护 amazon_deleted 状态不被同步覆盖
-          const normalizedApiState = (apiKeyword.state || 'enabled').toLowerCase();
+          const normalizedApiState = apiState;
           if (existing.keywordStatus === 'amazon_deleted' && normalizedApiState !== 'archived') {
             log.debug(`v523.2: 保护SP(syncSp) keyword amazon_deleted状态 - keyword=${existing.keywordText}(id=${existing.id})`);
             delete keywordData.keywordStatus;
           }
           // v150: 智能出价保护策略
-          const localBid = parseFloat(existing.bid || '0');
-          const apiBid = parseFloat(String(apiKeyword.bid || '0'));
+          const localBid = parseFloat(existingBid);
+          const apiBidNum = parseFloat(apiBid);
           
           // v737: 始终写入amazonBid（Amazon真实出价），无论bid是否被保护
           keywordData.amazonBid = String(apiKeyword.bid);
           
-          if (Math.abs(localBid - apiBid) > SYNC_PROTECTION_CONFIG.BID_THRESHOLD && localBid > 0) {
+          if (Math.abs(localBid - apiBidNum) > SYNC_PROTECTION_CONFIG.BID_THRESHOLD && localBid > 0) {
             const hasRecentOpt = protectedKeywordIds.has(existing.id);
             if (hasRecentOpt) {
-              log.debug(`v737: 出价保护生效 - keyword=${existing.keywordText}, local=$${localBid}, api=$${apiBid}, 保留本地优化出价 (amazonBid=$${apiBid}已记录)`);
+              log.debug(`v737: 出价保护生效 - keyword=${existing.keywordText}, local=$${localBid}, api=$${apiBidNum}, 保留本地优化出价 (amazonBid=$${apiBidNum}已记录)`);
               delete keywordData.bid;
               protectionStats.bidProtected++;
               protectionStats.protectedEntities.push(`kw:${existing.keywordText}`);
             } else {
-              log.debug(`v737: 出价差异 - keyword=${existing.keywordText}, local=$${localBid}, api=$${apiBid}, 以API为准`);
+              log.debug(`v737: 出价差异 - keyword=${existing.keywordText}, local=$${localBid}, api=$${apiBidNum}, 以API为准`);
               protectionStats.bidOverwritten++;
             }
           }
@@ -656,6 +670,7 @@ AmazonSyncService.prototype.syncSpKeywords = async function(this: AmazonSyncServ
     if (keywordIdRepaired > 0) {
       log.info(`[v647] SP关键词同步完成: 修复了${keywordIdRepaired}个被污染的keywordId`);
     }
+    log.info(`[v757] SP关键词增量同步统计: 总计${apiKeywords.length}个, 写入${synced}个, 跳过无变化${skipped}个, 节省DB操作${skipped > 0 ? Math.round(skipped / apiKeywords.length * 100) : 0}%`);
     return { synced, skipped };
   } catch (error: any) {
     const _cause = (error as Record<string, unknown>)?.cause as Record<string, unknown> | undefined;
