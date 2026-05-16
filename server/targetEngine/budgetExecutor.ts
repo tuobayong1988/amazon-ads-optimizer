@@ -3,6 +3,11 @@
  * 从 optimizationTargetEngine.ts 拆分
  * 
  * 包含函数: executeBudgetAllocation
+ * 
+ * v756: 重构预算执行逻辑
+ * - 优先使用budgetPortfolioOptimizer的ROAS导向独立调整结果
+ * - 仅当portfolioOptimizer失败时才回退到intelligentBudgetAllocationService
+ * - 不再同时调用两个优化器
  */
 
 /**
@@ -48,6 +53,7 @@ import { registerActiveTask, unregisterActiveTask, isShuttingDown } from "../uti
 import { decideTargeting, type SearchTermPerformance, type TargetingDecision } from "../services/targetingAlgorithm";
 import { sanitizeAndValidateKeyword, canAddPositiveKeyword, isAsinSearchTerm, adGroupHasProductTargets, isProductTargetingCampaign } from "../utils/keywordValidator";
 import { createModuleLogger } from '../utils/logger';
+import { isBudgetInCooldown } from '../optimization/gradualOptimizationEngine';
 import { getCampaignAmazonId, getCampaignLocalId } from '../utils/idTypes';
 import { recordAudit, auditBidChange } from '../services/auditLogService';
 import { generateNegativeKeywordSuggestions, executeNegativeKeywords as executeNgramNegativeKeywords } from '../analytics/ngramAnalysis';
@@ -66,146 +72,242 @@ export async function executeBudgetAllocation(
   let adjustmentsCount = 0;
   
   try {
-    // v360: 统一预算分配机制
-    // 优先使用budgetPortfolioOptimizer（基于边际效用的凸优化算法）
-    // 回退到intelligentBudgetAllocationService（多维度评分算法）
+    // v756: 预算优化策略重构
+    // 优先使用budgetPortfolioOptimizer（v756 ROAS导向独立调整）
+    // 仅当portfolioOptimizer失败时才回退到intelligentBudgetAllocationService
+    // 不再同时调用两个优化器
+
+    // v756: 整体冷却期检查 — 如果优化目标下所有campaign均在冷却期内，直接跳过
+    let allInCooldown = true;
+    for (const c of campaigns) {
+      // @ts-expect-error Dynamic property access
+      if (!isBudgetInCooldown(c.lastOptimizedAt)) {
+        allInCooldown = false;
+        break;
+      }
+    }
+    if (allInCooldown && campaigns.length > 0) {
+      log.info(`[BudgetAllocation] v756: 所有${campaigns.length}个campaign均在48小时冷却期内，跳过本次预算优化`);
+      return { executed: true, adjustmentsCount: 0, details: [{ skipped: true, reason: '所有campaign均在48小时冷却期内' }] };
+    }
+
     let portfolioResult: Awaited<ReturnType<typeof optimizeBudgetPortfolio>> = null;
+    let usePortfolio = false;
+
     try {
+      // v756: 不传递totalBudgetOverride，每个campaign独立评估
       portfolioResult = await optimizeBudgetPortfolio(
         config.accountId,
-        config.id,
-        config.dailyBudget || undefined
+        config.id
       );
-      if (portfolioResult) {
-        log.info(`[BudgetAllocation] v360: budgetPortfolioOptimizer成功, ${portfolioResult.allocations.length}条分配, 总预算=$${portfolioResult.totalBudget}`);
+      if (portfolioResult && portfolioResult.allocations.length > 0) {
+        usePortfolio = true;
+        log.info(`[BudgetAllocation] v756: budgetPortfolioOptimizer成功(ROAS导向), ${portfolioResult.allocations.length}条分配, 算法=${portfolioResult.algorithmUsed}`);
       }
     } catch (portfolioErr: unknown) {
-      log.warn(`[BudgetAllocation] v360: budgetPortfolioOptimizer失败，回退到intelligentBudgetAllocationService: ${(portfolioErr as Error).message}`);
+      log.warn(`[BudgetAllocation] v756: budgetPortfolioOptimizer失败，回退到intelligentBudgetAllocationService: ${(portfolioErr as Error).message}`);
     }
-    
-    // 获取预算分配建议（回退路径）
-    const budgetConfig = config.dailyBudget 
-      ? { targetTotalBudget: config.dailyBudget } 
-      : undefined;
-    const budgetResult = await intelligentBudgetAllocationService.generateBudgetAllocationSuggestions(
-      config.id,
-      budgetConfig ? { ...intelligentBudgetAllocationService.getDefaultAllocationConfig(), ...budgetConfig } : undefined
-    );
-    
-    // v353: 预算分配诊断日志
-    log.info(`[BudgetAllocation] v353诊断: 目标${config.id} 生成${budgetResult.suggestions.length}条预算建议, campaigns=${campaigns.length}`);
-    
-    let skippedBelowThreshold = 0;
-    let appliedCount = 0;
-    
-    for (const suggestion of budgetResult.suggestions) {
-      // v354: P0修复 — suggestion.campaignId现在是本地ID，与campaigns.id匹配
-      // @ts-expect-error Dynamic property access
-      const campaign = campaigns.find(c => c.id === suggestion.campaignId);
-      if (!campaign) {
-        // v354: 诊断日志 — 记录未匹配的campaign
-        log.warn(`[BudgetAllocation] v354: suggestion.campaignId=${suggestion.campaignId} (amazonId=${suggestion.amazonCampaignId}) 未在campaigns列表中找到匹配`);
-        continue;
-      }
+
+    if (usePortfolio && portfolioResult) {
+      // ========== v756: 主路径 — 使用budgetPortfolioOptimizer的ROAS导向结果 ==========
+      log.info(`[BudgetAllocation] v756: 使用主路径(ROAS导向独立调整), ${portfolioResult.allocations.length}个campaign`);
       
-      // v163: 应用渐进式预算调整
-      let finalBudget = suggestion.suggestedBudget;
-      const campaignPerf = budgetResult.suggestions.find(s => s.campaignId === suggestion.campaignId);
-      // @ts-expect-error - type assertion
-      const twMetrics = (campaignPerf as unknown)?.timeWeightedMetrics;
-      
-      if (twMetrics && Math.abs(suggestion.suggestedBudget - suggestion.currentBudget) > 0.50) {
-        const gradualResult = gradualEngine.applyGradualBudgetAdjustment(
-          suggestion.currentBudget,
-          twMetrics.weightedDailySpend || suggestion.currentBudget,
-          suggestion.suggestedBudget,
-          twMetrics
-        );
-        // @ts-expect-error Legacy code type compatibility
-        finalBudget = gradualResult.gradualBudget;
-        // @ts-expect-error Amazon API response type flexibility
-        log.debug(`[BudgetAllocation] v163: 渐进式预算 - Campaign ${campaign.campaignName}: $${suggestion.currentBudget.toFixed(0)}→$${finalBudget.toFixed(0)} (算法目标$${suggestion.suggestedBudget.toFixed(0)}, 订单保护=${gradualResult.orderProtectionActive})`);
-      }
-      
-      const adjustment: Record<string, unknown> = {
-        accountId: config.accountId,
-        // @ts-expect-error Legacy code type compatibility
-        campaignId: suggestion.campaignId, // v354: 本地ID
-        amazonCampaignId: suggestion.amazonCampaignId, // v354: Amazon ID
-        // @ts-expect-error Amazon API response type flexibility
-        campaignName: campaign.campaignName,
-        currentBudget: suggestion.currentBudget,
-        suggestedBudget: finalBudget, // v163: 使用渐进式调整后的预算
-        changeAmount: finalBudget - suggestion.currentBudget,
-        changePercent: ((finalBudget - suggestion.currentBudget) / suggestion.currentBudget * 100).toFixed(2),
-        reason: `[v163渐进] ${suggestion.reasons?.join(', ') || ''}`,
-        // @ts-expect-error - dynamic property access
-        expectedImpact: (suggestion as Record<string, unknown>).expectedRoasChange || 0,
-        algorithmUsed: 'budget_allocator', // v335
-        apiSyncStatus: 'pending',
-      };
-      
-      details.push(adjustment);
-      
-      // v168: 当调整金额低于阈值时，标记为not_applicable而非pending
-      // 避免产生大量永远不会被同步的pending记录
-      if (!dryRun && Math.abs(finalBudget - suggestion.currentBudget) <= 0.50) {
-        adjustment.apiSyncStatus = 'not_applicable';
-        adjustment.apiSyncDetail = JSON.stringify({ reason: `调整金额$${Math.abs(finalBudget - suggestion.currentBudget).toFixed(2)}低于$0.50阈值，无需同步` });
-      }
-      
-      if (!dryRun && Math.abs(finalBudget - suggestion.currentBudget) > 0.50) { // v165: 降低API调用阈值从$1到$0.50
-        // v148: 先调Amazon API确认成功，再更新本地数据库（先API后DB原则）
-        try {
-          // v354: 使用suggestion中的amazonCampaignId，确保Amazon API调用使用正确的ID
-          const amazonCampaignId = suggestion.amazonCampaignId || getCampaignAmazonId(campaign);
-          const budgetSyncResult = await amazonApiHelper.syncBudgetAdjustmentToAmazon(
-            config.accountId,
-            amazonCampaignId,
-            finalBudget, // v163: 使用渐进式调整后的预算
-            `v163渐进式预算优化: $${suggestion.currentBudget.toFixed(2)} -> $${finalBudget.toFixed(2)}`
-          );
-          
-          if (budgetSyncResult) {
-            // API成功后才更新本地DB
-            // v166: 同时标记pending状态，等待下次同步确认
-            // v354: suggestion.campaignId现在是本地ID，与db.updateCampaign(id: number)匹配
-            await db.updateCampaign(suggestion.campaignId, { 
-              dailyBudget: finalBudget.toFixed(2),
-              lastOptimizedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
-              pendingBudget: finalBudget.toFixed(2),
-              budgetSyncStatus: 'pending_confirmation',
-            } as Record<string, unknown>);
-            adjustmentsCount++;
-            adjustment.apiSyncStatus = 'synced';
+      for (const allocation of portfolioResult.allocations) {
+        // 查找对应的campaign对象
+        // @ts-expect-error Dynamic property access
+        const campaign = campaigns.find((c: any) => String(c.campaignId) === String(allocation.campaignId) || String(c.id) === String(allocation.campaignId));
+        
+        const currentBudget = allocation.currentBudget;
+        const finalBudget = allocation.optimalBudget;
+        const changeAmount = finalBudget - currentBudget;
+        const changePercent = currentBudget > 0 ? (changeAmount / currentBudget * 100) : 0;
+        
+        const adjustment: Record<string, unknown> = {
+          accountId: config.accountId,
+          campaignId: allocation.campaignId,
+          amazonCampaignId: campaign ? getCampaignAmazonId(campaign) : allocation.campaignId,
+          campaignName: allocation.campaignName,
+          currentBudget,
+          suggestedBudget: finalBudget,
+          changeAmount,
+          changePercent: changePercent.toFixed(2),
+          reason: `[v756-ROAS导向] ${allocation.changePercent > 0 ? '提预算' : allocation.changePercent < 0 ? '降预算' : '保持'}`,
+          algorithmUsed: 'roas_guided_reallocation',
+          apiSyncStatus: 'pending',
+        };
+        
+        details.push(adjustment);
+        
+        // v756: 调整金额低于$0.50时跳过API同步
+        if (!dryRun && Math.abs(changeAmount) <= 0.50) {
+          adjustment.apiSyncStatus = 'not_applicable';
+          adjustment.apiSyncDetail = JSON.stringify({ reason: `调整金额$${Math.abs(changeAmount).toFixed(2)}低于$0.50阈值，无需同步` });
+          continue;
+        }
+        
+        if (!dryRun && Math.abs(changeAmount) > 0.50) {
+          try {
+            const amazonCampaignId = campaign ? getCampaignAmazonId(campaign) : allocation.campaignId;
+            const budgetSyncResult = await amazonApiHelper.syncBudgetAdjustmentToAmazon(
+              config.accountId,
+              amazonCampaignId,
+              finalBudget,
+              `v756-ROAS导向预算优化: $${currentBudget.toFixed(2)} -> $${finalBudget.toFixed(2)} (${changePercent > 0 ? '+' : ''}${changePercent.toFixed(1)}%)`
+            );
             
-            // v166: 注册预算验证任务
-            try {
-              postOptVerifier.scheduleBudgetVerification(
-                config.accountId,
-                [{
-                  localCampaignId: suggestion.campaignId, // v354: 现在正确传入本地ID
-                  amazonCampaignId: suggestion.amazonCampaignId || amazonCampaignId, // v354: 使用Amazon ID
-                  expectedBudget: finalBudget,
-                }]
-              );
-            } catch (verifyErr: unknown) {
-              log.warn(`[BudgetAllocation] v166: 注册验证任务失败(不影响主流程): ${(verifyErr as Error).message}`);
+            if (budgetSyncResult) {
+              // API成功后才更新本地DB
+              const localCampaignId = campaign ? getCampaignLocalId(campaign) : Number(allocation.campaignId);
+              await db.updateCampaign(localCampaignId, { 
+                dailyBudget: finalBudget.toFixed(2),
+                lastOptimizedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+                pendingBudget: finalBudget.toFixed(2),
+                budgetSyncStatus: 'pending_confirmation',
+              } as Record<string, unknown>);
+              adjustmentsCount++;
+              adjustment.apiSyncStatus = 'synced';
+              
+              // 注册预算验证任务
+              try {
+                postOptVerifier.scheduleBudgetVerification(
+                  config.accountId,
+                  [{
+                    localCampaignId,
+                    amazonCampaignId,
+                    expectedBudget: finalBudget,
+                  }]
+                );
+              } catch (verifyErr: unknown) {
+                log.warn(`[BudgetAllocation] v756: 注册验证任务失败(不影响主流程): ${(verifyErr as Error).message}`);
+              }
+            } else {
+              adjustment.apiSyncStatus = 'failed';
+              log.warn(`[BudgetAllocation] v756: API同步失败，跳过DB更新 (Campaign ${allocation.campaignName})`);
             }
-          // @ts-expect-error Conditional type narrowing
-          } else {
-            // API返回false，不更新本地DB
+          } catch (apiError: unknown) {
             adjustment.apiSyncStatus = 'failed';
-            // @ts-expect-error Amazon API response type flexibility
-            log.warn(`[BudgetAllocation] v148: API同步失败，跳过DB更新 (Campaign ${campaign.campaignName})`);
+            adjustment.apiSyncDetail = JSON.stringify({ error: (apiError as Error).message });
+            log.warn(`[BudgetAllocation] v756: API同步失败，跳过DB更新 (Campaign ${allocation.campaignName}):`, (apiError as Error).message);
           }
-        // @ts-expect-error Legacy code type compatibility
-        } catch (apiError: unknown) {
-          // API异常，不更新本地DB，保持数据一致性
-          adjustment.apiSyncStatus = 'failed';
-          adjustment.apiSyncDetail = JSON.stringify({ error: (apiError as Error).message });
+        }
+      }
+    } else {
+      // ========== 回退路径 — 使用intelligentBudgetAllocationService ==========
+      log.warn(`[BudgetAllocation] v756: 使用回退路径(intelligentBudgetAllocationService)`);
+      
+      // v756: 回退路径不再传递config.dailyBudget作为targetTotalBudget
+      // 避免将优化目标的日花费上限误用为分配总池
+      const budgetResult = await intelligentBudgetAllocationService.generateBudgetAllocationSuggestions(
+        config.id
+        // v756: 不传递budgetConfig，使用默认配置，避免totalBudget语义错误
+      );
+      
+      log.info(`[BudgetAllocation] v756回退路径: 目标${config.id} 生成${budgetResult.suggestions.length}条预算建议, campaigns=${campaigns.length}`);
+      
+      for (const suggestion of budgetResult.suggestions) {
+        // @ts-expect-error Dynamic property access
+        const campaign = campaigns.find(c => c.id === suggestion.campaignId);
+        if (!campaign) {
+          log.warn(`[BudgetAllocation] v756: suggestion.campaignId=${suggestion.campaignId} 未在campaigns列表中找到匹配`);
+          continue;
+        }
+        
+        // v756: 应用渐进式预算调整，但增加额外安全约束
+        let finalBudget = suggestion.suggestedBudget;
+        // @ts-expect-error - type assertion
+        const twMetrics = (suggestion as unknown)?.timeWeightedMetrics;
+        
+        if (twMetrics && Math.abs(suggestion.suggestedBudget - suggestion.currentBudget) > 0.50) {
+          const gradualResult = gradualEngine.applyGradualBudgetAdjustment(
+            suggestion.currentBudget,
+            twMetrics.weightedDailySpend || suggestion.currentBudget,
+            suggestion.suggestedBudget,
+            twMetrics
+          );
+          // @ts-expect-error Legacy code type compatibility
+          finalBudget = gradualResult.gradualBudget;
+        }
+        
+        // v756: 回退路径额外安全约束 — 最低预算保护$5
+        const minBudget = Math.max(5.00, suggestion.currentBudget * 0.80);
+        finalBudget = Math.max(finalBudget, minBudget);
+        // v756: 单次最大降幅5%
+        if (finalBudget < suggestion.currentBudget * 0.95) {
+          finalBudget = Math.round(suggestion.currentBudget * 0.95 * 100) / 100;
+        }
+        // v756: 单次最大提幅5%
+        if (finalBudget > suggestion.currentBudget * 1.05) {
+          finalBudget = Math.round(suggestion.currentBudget * 1.05 * 100) / 100;
+        }
+        
+        const changeAmount = finalBudget - suggestion.currentBudget;
+        
+        const adjustment: Record<string, unknown> = {
+          accountId: config.accountId,
+          campaignId: suggestion.campaignId,
+          amazonCampaignId: suggestion.amazonCampaignId,
           // @ts-expect-error Amazon API response type flexibility
-          log.warn(`[BudgetAllocation] v148: API同步失败，跳过DB更新 (Campaign ${campaign.campaignName}):`, (apiError as Error).message);
+          campaignName: campaign.campaignName,
+          currentBudget: suggestion.currentBudget,
+          suggestedBudget: finalBudget,
+          changeAmount,
+          changePercent: ((changeAmount) / suggestion.currentBudget * 100).toFixed(2),
+          reason: `[v756回退+安全约束] ${suggestion.reasons?.join(', ') || ''}`,
+          algorithmUsed: 'budget_allocator_fallback',
+          apiSyncStatus: 'pending',
+        };
+        
+        details.push(adjustment);
+        
+        if (!dryRun && Math.abs(changeAmount) <= 0.50) {
+          adjustment.apiSyncStatus = 'not_applicable';
+          adjustment.apiSyncDetail = JSON.stringify({ reason: `调整金额$${Math.abs(changeAmount).toFixed(2)}低于$0.50阈值，无需同步` });
+          continue;
+        }
+        
+        if (!dryRun && Math.abs(changeAmount) > 0.50) {
+          try {
+            const amazonCampaignId = suggestion.amazonCampaignId || getCampaignAmazonId(campaign);
+            const budgetSyncResult = await amazonApiHelper.syncBudgetAdjustmentToAmazon(
+              config.accountId,
+              amazonCampaignId,
+              finalBudget,
+              `v756回退路径预算优化: $${suggestion.currentBudget.toFixed(2)} -> $${finalBudget.toFixed(2)}`
+            );
+            
+            if (budgetSyncResult) {
+              await db.updateCampaign(suggestion.campaignId, { 
+                dailyBudget: finalBudget.toFixed(2),
+                lastOptimizedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+                pendingBudget: finalBudget.toFixed(2),
+                budgetSyncStatus: 'pending_confirmation',
+              } as Record<string, unknown>);
+              adjustmentsCount++;
+              adjustment.apiSyncStatus = 'synced';
+              
+              try {
+                postOptVerifier.scheduleBudgetVerification(
+                  config.accountId,
+                  [{
+                    localCampaignId: suggestion.campaignId,
+                    amazonCampaignId: suggestion.amazonCampaignId || amazonCampaignId,
+                    expectedBudget: finalBudget,
+                  }]
+                );
+              } catch (verifyErr: unknown) {
+                log.warn(`[BudgetAllocation] v756: 注册验证任务失败(不影响主流程): ${(verifyErr as Error).message}`);
+              }
+            } else {
+              adjustment.apiSyncStatus = 'failed';
+              // @ts-expect-error Amazon API response type flexibility
+              log.warn(`[BudgetAllocation] v756: API同步失败，跳过DB更新 (Campaign ${campaign.campaignName})`);
+            }
+          } catch (apiError: unknown) {
+            adjustment.apiSyncStatus = 'failed';
+            adjustment.apiSyncDetail = JSON.stringify({ error: (apiError as Error).message });
+            // @ts-expect-error Amazon API response type flexibility
+            log.warn(`[BudgetAllocation] v756: API同步失败，跳过DB更新 (Campaign ${campaign.campaignName}):`, (apiError as Error).message);
+          }
         }
       }
     }
@@ -213,11 +315,12 @@ export async function executeBudgetAllocation(
     details.push({ error: (error as Error).message });
   }
   
-  // v353: 预算分配汇总诊断日志
+  // v756: 预算分配汇总诊断日志
   const budgetApplied = details.filter(d => d.apiSyncStatus === 'synced').length;
   const budgetNotApplicable = details.filter(d => d.apiSyncStatus === 'not_applicable').length;
   const budgetFailed = details.filter(d => d.apiSyncStatus === 'failed').length;
-  log.info(`[BudgetAllocation] v353诊断汇总: 共${details.length}条建议, 已应用=${budgetApplied}, 低于阈值=${budgetNotApplicable}, 失败=${budgetFailed}`);
+  const budgetHold = details.filter(d => Math.abs(Number(d.changeAmount) || 0) < 0.01).length;
+  log.info(`[BudgetAllocation] v756诊断汇总: 共${details.length}条, 已应用=${budgetApplied}, 保持不变=${budgetHold}, 低于阈值=${budgetNotApplicable}, 失败=${budgetFailed}`);
   
   return { executed: true, adjustmentsCount: dryRun ? details.length : adjustmentsCount, details };
 }

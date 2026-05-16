@@ -8,6 +8,11 @@
  *   - 连接最大持有时间 120s→180s，适配长耗时同步步骤
  *   - 新增连接池压力自适应：高利用率时自动延长获取超时
  *   - 新增获取连接重试机制：首次超时后自动重试一次
+ * v755: 数据库连接韧性增强
+ *   - ECONNREFUSED指数退避自动重连（5s/15s/30s/60s/120s）
+ *   - 全局数据库可用性状态管理，上层模块可查询优雅降级
+ *   - 数据库恢复后自动通知日志
+ *   - 健康检查失败错误分类（ECONNREFUSED vs ETIMEDOUT vs 其他）
  */
 
 import { drizzle } from 'drizzle-orm/mysql2';
@@ -33,6 +38,169 @@ let _poolStats = { created: 0, healthChecksFailed: 0, rebuilds: 0, directConnBor
 const HEALTH_CHECK_INTERVAL = 30_000; // v350: 30秒检查一次连接健康（从60秒缩短）
 const POOL_REBUILD_COOLDOWN = 5_000; // v350: 连接池重建冷却期5秒，防止频繁重建
 let _lastPoolRebuild = 0;
+
+/**
+ * v755: 数据库连接韧性增强
+ * 
+ * 设计原则:
+ * - ECONNREFUSED时启动指数退避自动重连，而非让上层模块崩溃
+ * - 全局状态标记让上层模块可以查询数据库可用性，优雅降级
+ * - 数据库恢复后输出明确的恢复日志，便于运维监控
+ */
+interface DbAvailabilityState {
+  available: boolean;
+  lastError: string | null;
+  lastErrorTime: number;
+  lastRecoveryTime: number;
+  consecutiveFailures: number;
+  reconnectAttempts: number;
+  totalDowntimeMs: number;
+  downtimeStartedAt: number | null;
+}
+
+const _dbAvailability: DbAvailabilityState = {
+  available: true,
+  lastError: null,
+  lastErrorTime: 0,
+  lastRecoveryTime: 0,
+  consecutiveFailures: 0,
+  reconnectAttempts: 0,
+  totalDowntimeMs: 0,
+  downtimeStartedAt: null,
+};
+
+// v755: 指数退避重连配置
+const RECONNECT_BACKOFF_SCHEDULE = [5_000, 15_000, 30_000, 60_000, 120_000]; // 5s, 15s, 30s, 60s, 120s
+let _reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let _isReconnecting = false;
+
+/**
+ * v755: 获取数据库可用性状态（供上层模块查询，优雅降级）
+ */
+export function getDbAvailability(): Readonly<DbAvailabilityState> {
+  return { ..._dbAvailability };
+}
+
+/**
+ * v755: 检查数据库是否可用
+ */
+export function isDbAvailable(): boolean {
+  return _dbAvailability.available;
+}
+
+/**
+ * v755: 错误分类 — 区分ECONNREFUSED、ETIMEDOUT和其他错误
+ */
+function classifyDbError(error: Error): 'ECONNREFUSED' | 'ETIMEDOUT' | 'PROTOCOL' | 'UNKNOWN' {
+  const msg = error.message || '';
+  const code = (error as any).code || '';
+  if (code === 'ECONNREFUSED' || msg.includes('ECONNREFUSED')) return 'ECONNREFUSED';
+  if (code === 'ETIMEDOUT' || msg.includes('ETIMEDOUT') || msg.includes('timeout')) return 'ETIMEDOUT';
+  if (code === 'PROTOCOL_CONNECTION_LOST' || msg.includes('PROTOCOL')) return 'PROTOCOL';
+  return 'UNKNOWN';
+}
+
+/**
+ * v755: 标记数据库不可用并启动自动重连
+ */
+function markDbUnavailable(error: Error): void {
+  const errorType = classifyDbError(error);
+  const wasAvailable = _dbAvailability.available;
+  
+  _dbAvailability.available = false;
+  _dbAvailability.lastError = `[${errorType}] ${error.message}`;
+  _dbAvailability.lastErrorTime = Date.now();
+  _dbAvailability.consecutiveFailures++;
+  
+  if (wasAvailable) {
+    _dbAvailability.downtimeStartedAt = Date.now();
+    log.warn(`[Database] v755: 数据库不可用 [${errorType}]，连续失败${_dbAvailability.consecutiveFailures}次，启动自动重连`);
+  }
+  
+  // 启动指数退避重连
+  if (!_isReconnecting) {
+    scheduleReconnect();
+  }
+}
+
+/**
+ * v755: 标记数据库已恢复
+ */
+function markDbRecovered(): void {
+  if (!_dbAvailability.available) {
+    const downtimeDuration = _dbAvailability.downtimeStartedAt 
+      ? Date.now() - _dbAvailability.downtimeStartedAt 
+      : 0;
+    _dbAvailability.totalDowntimeMs += downtimeDuration;
+    
+    log.info(`[Database] v755: ★ 数据库已恢复 ★ 中断时长=${Math.round(downtimeDuration / 1000)}秒，重连尝试=${_dbAvailability.reconnectAttempts}次，累计中断=${Math.round(_dbAvailability.totalDowntimeMs / 1000)}秒`);
+  }
+  
+  _dbAvailability.available = true;
+  _dbAvailability.lastError = null;
+  _dbAvailability.consecutiveFailures = 0;
+  _dbAvailability.lastRecoveryTime = Date.now();
+  _dbAvailability.downtimeStartedAt = null;
+  _isReconnecting = false;
+  
+  if (_reconnectTimer) {
+    clearTimeout(_reconnectTimer);
+    _reconnectTimer = null;
+  }
+}
+
+/**
+ * v755: 指数退避自动重连调度
+ */
+function scheduleReconnect(): void {
+  if (_isReconnecting) return;
+  _isReconnecting = true;
+  
+  const attemptReconnect = async (attempt: number) => {
+    if (_dbAvailability.available) {
+      _isReconnecting = false;
+      return; // 已恢复，停止重连
+    }
+    
+    _dbAvailability.reconnectAttempts++;
+    const backoffIndex = Math.min(attempt, RECONNECT_BACKOFF_SCHEDULE.length - 1);
+    const delay = RECONNECT_BACKOFF_SCHEDULE[backoffIndex];
+    
+    log.info(`[Database] v755: 自动重连尝试 #${_dbAvailability.reconnectAttempts}，${delay / 1000}秒后执行...`);
+    
+    _reconnectTimer = setTimeout(async () => {
+      try {
+        // 销毁旧连接池
+        if (_pool) {
+          try { await _pool.end(); } catch (e) { /* ignore */ }
+          _pool = null;
+          _db = null;
+        }
+        
+        // 尝试重建连接
+        const db = await getDb();
+        if (db) {
+          markDbRecovered();
+          return;
+        }
+      } catch (err) {
+        const errorType = classifyDbError(err as Error);
+        log.warn(`[Database] v755: 重连尝试 #${_dbAvailability.reconnectAttempts} 失败 [${errorType}]: ${(err as Error).message}`);
+      }
+      
+      // 继续下一次重连尝试
+      if (!_dbAvailability.available) {
+        attemptReconnect(attempt + 1);
+      }
+    }, delay);
+    
+    if (_reconnectTimer && (_reconnectTimer as any).unref) {
+      (_reconnectTimer as any).unref();
+    }
+  };
+  
+  attemptReconnect(0);
+}
 
 /**
  * v394: 连接泄露追踪器
@@ -107,7 +275,11 @@ export async function getDb() {
       _lastHealthCheck = now;
     } catch (error: unknown) {
       _poolStats.healthChecksFailed++;
-      log.warn(`[Database] v350: 连接健康检查失败(#${_poolStats.healthChecksFailed}):`, (error as Error).message);
+      const errorType = classifyDbError(error as Error);
+      log.warn(`[Database] v755: 连接健康检查失败(#${_poolStats.healthChecksFailed}) [类型:${errorType}]:`, (error as Error).message);
+      
+      // v755: 标记数据库不可用，启动自动重连
+      markDbUnavailable(error as Error);
       
       // 冷却期保护：防止频繁重建连接池
       if (now - _lastPoolRebuild > POOL_REBUILD_COOLDOWN) {
@@ -116,7 +288,7 @@ export async function getDb() {
         _pool = null;
         _lastPoolRebuild = now;
         _poolStats.rebuilds++;
-        log.info(`[Database] v350: 连接池已销毁，将在下次getDb()时重建 (重建次数: ${_poolStats.rebuilds})`);
+        log.info(`[Database] v755: 连接池已销毁，将在下次getDb()时重建 (重建次数: ${_poolStats.rebuilds}, 错误类型: ${errorType})`);
       } else {
         log.info(`[Database] v350: 跳过连接池重建（冷却期内，距上次重建${now - _lastPoolRebuild}ms）`);
       }
@@ -156,7 +328,10 @@ export async function getDb() {
       // v394: 启动连接泄露检查器
       startLeakChecker();
       
-      log.info(`[Database] v752: 连接池已建立 (limit=${poolSize}, idle=${Math.floor(poolSize*0.6)}, connectTimeout=30s, keepAlive=10s, queueLimit=${poolSize*6}, leakCheck=30s, maxHold=180s)`);
+      log.info(`[Database] v755: 连接池已建立 (limit=${poolSize}, idle=${Math.floor(poolSize*0.6)}, connectTimeout=30s, keepAlive=10s, queueLimit=${poolSize*6}, leakCheck=30s, maxHold=180s)`);
+      
+      // v755: 连接池成功创建，标记数据库已恢复
+      markDbRecovered();
       
       // v752: 连接池预热 — 预创建最小连接数，避免冷启动延迟
       const warmupSize = Math.min(Math.floor(poolSize * 0.3), 15); // 预热30%连接，最多15个
@@ -174,9 +349,11 @@ export async function getDb() {
         log.warn(`[Database] v752: 连接池预热部分失败（不影响正常使用）: ${(warmupErr as Error).message}`);
       }
     } catch (error) {
-      log.warn("[Database] v350: 连接池创建失败:", error);
+      log.warn("[Database] v755: 连接池创建失败:", error);
       _db = null;
       _pool = null;
+      // v755: 标记不可用并启动自动重连
+      markDbUnavailable(error as Error);
     }
   }
   return _db;

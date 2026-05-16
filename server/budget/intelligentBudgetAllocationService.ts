@@ -168,7 +168,7 @@ const DEFAULT_CONFIG: AllocationConfig = {
   growthPotentialWeight: 0.20,
   stabilityWeight: 0.15,
   trendWeight: 0.15,
-  maxAdjustmentPercent: 15,
+  maxAdjustmentPercent: 5,  // v756: 从15%收紧至5%，统一单次调整上限
   minDailyBudget: 5,
   cooldownDays: 3,
   newCampaignProtectionDays: 7,
@@ -906,6 +906,28 @@ export async function generateBudgetAllocationSuggestions(
     }
   }
   
+  // v756: 最终安全约束 — 确保所有建议的单次调整幅度不超过5%
+  for (const suggestion of (suggestions as unknown[])) {
+    // @ts-expect-error Dynamic property access
+    const currentBudget = suggestion.currentBudget;
+    // @ts-expect-error Dynamic property access
+    let sugBudget = suggestion.suggestedBudget;
+    if (currentBudget > 0) {
+      // 单次降幅不超过5%
+      sugBudget = Math.max(sugBudget, currentBudget * 0.95);
+      // 单次增幅不超过5%
+      sugBudget = Math.min(sugBudget, currentBudget * 1.05);
+      // 最低预算保护$5
+      sugBudget = Math.max(sugBudget, config.minDailyBudget);
+      // @ts-expect-error Dynamic property access
+      suggestion.suggestedBudget = Math.round(sugBudget * 100) / 100;
+      // @ts-expect-error Dynamic property access
+      suggestion.adjustmentAmount = suggestion.suggestedBudget - currentBudget;
+      // @ts-expect-error Dynamic property access
+      suggestion.adjustmentPercent = (suggestion.adjustmentAmount / currentBudget) * 100;
+    }
+  }
+
   // 5. 生成汇总
   const groupSummary = {
     totalCurrentBudget,

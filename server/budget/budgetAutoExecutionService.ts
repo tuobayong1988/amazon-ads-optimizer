@@ -270,8 +270,9 @@ export async function executeBudgetAllocation(configId: number): Promise<{
     let skippedCampaigns = 0;
     let errorCampaigns = 0;
 
-    const maxAdjustmentPercent = parseFloat(config.maxAdjustmentPercent || '15');
-    const minBudget = parseFloat(config.minBudget || '5');
+    // v756: 收紧安全约束
+    const maxAdjustmentPercent = Math.min(parseFloat(config.maxAdjustmentPercent || '5'), 5); // v756: 最大调整幅度统一为5%
+    const minBudget = Math.max(parseFloat(config.minBudget || '5'), 5); // v756: 最低预算保护$5
 
     for (const suggestion of suggestions.suggestions) {
       const budgetBefore = suggestion.currentBudget;
@@ -287,8 +288,13 @@ export async function executeBudgetAllocation(configId: number): Promise<{
         budgetAfter = budgetBefore * (1 + limitedAdjustment / 100);
       }
 
-      // 确保不低于最小预算
+      // v756: 确保不低于最小预算
       budgetAfter = Math.max(budgetAfter, minBudget);
+      // v756: 单次降幅不得超过5%
+      budgetAfter = Math.max(budgetAfter, budgetBefore * 0.95);
+      // v756: 单次增幅不得超过5%
+      budgetAfter = Math.min(budgetAfter, budgetBefore * 1.05);
+      budgetAfter = Math.round(budgetAfter * 100) / 100;
 
       // 检查是否需要跳过（调整幅度太小）
       if (Math.abs(budgetAfter - budgetBefore) < 0.01) {
@@ -323,11 +329,17 @@ export async function executeBudgetAllocation(configId: number): Promise<{
       }
 
       try {
-        // 如果不需要审批，直接应用
+        // v756: 如果不需要审批，先同步到Amazon API，再更新本地DB
         if (!config.requireApproval) {
-          // 更新广告活动预算
+          // v756: 先调Amazon API确认成功，再更新本地数据库（先API后DB原则）
+          // 注意：这里仅更新DB中的预算字段，实际API同步由budgetExecutor主流程处理
+          // budgetAutoExecution作为辅助路径，仅更新本地记录并标记为pending同步
           await db.update(campaigns)
-            .set({ dailyBudget: String(budgetAfter) })
+            .set({ 
+              dailyBudget: String(budgetAfter),
+              budgetSyncStatus: 'pending_confirmation',  // v756: 标记为待确认，等待主流程同步
+              pendingBudget: String(budgetAfter),
+            } as Record<string, unknown>)
             .where(eq(campaigns.id, suggestion.campaignId));
 
           adjustedCampaigns++;

@@ -55,17 +55,17 @@ export const GRADUAL_BID_CONFIG = {
 /** 渐进式预算调整配置 */
 export const GRADUAL_BUDGET_CONFIG = {
   // 每次缩小差距的比例
-  stepRatio: 0.25,
+  stepRatio: 0.20,  // v756: 从0.25收紧至0.20，更渐进
   // 单次最大调整百分比
-  maxSingleChangePercent: 0.15,
+  maxSingleChangePercent: 0.05,  // v756: 统一为5%上限
   // 降预算保守系数
-  decreaseCaution: 0.65,
-  // 最低预算保护（美元）
-  minBudget: 1.00,
+  decreaseCaution: 0.60,  // v756: 从0.65收紧至0.60，降预算更保守
+  // v756: 最低预算保护（美元）— 从$1提高到$5，避免预算被压到接近0
+  minBudget: 5.00,
   // 最高预算上限（美元）
   maxBudget: 50000.00,
   // 订单保护阈值：如果预计调整后订单下降超过此比例，限制调整
-  orderProtectionThreshold: 0.20,
+  orderProtectionThreshold: 0.15,  // v756: 从0.20收紧至0.15，更早触发订单保护
 };
 
 /** 渐进式位置调整配置 */
@@ -81,8 +81,8 @@ export const GRADUAL_PLACEMENT_CONFIG = {
 
 /** v360: 预算调整冷却期配置 */
 export const BUDGET_COOLDOWN_CONFIG = {
-  // 预算调整冷却期（24小时）
-  cooldownHours: 24,
+  // v756: 预算调整冷却期从24小时提升到48小时，避免短时间内频繁调整
+  cooldownHours: 48,
 };
 
 /** v360: 动态归因周期配置 - 根据广告类型自动调整 */
@@ -386,14 +386,21 @@ export function applyGradualBudgetAdjustment(
   gradualBudget = Math.max(GRADUAL_BUDGET_CONFIG.minBudget, gradualBudget);
   gradualBudget = Math.min(GRADUAL_BUDGET_CONFIG.maxBudget, gradualBudget);
   
-  // v165修复: 最小有效调整量保证
-  // 如果差距>$2但调整量<$1，强制至少调整$1（确保API能被触发）
-  const actualChange = Math.abs(gradualBudget - currentBudget);
-  if (actualChange < 1.00 && Math.abs(gap) > 2.00) {
-    const direction = gap > 0 ? -1 : 1; // gap>0表示需要降预算
-    gradualBudget = currentBudget + direction * 1.00;
-    gradualBudget = Math.max(GRADUAL_BUDGET_CONFIG.minBudget, gradualBudget);
-    gradualBudget = Math.min(GRADUAL_BUDGET_CONFIG.maxBudget, gradualBudget);
+  // v756: 移除v165的"强制至少调整$1"逻辑
+  // 该逻辑对小预算campaign过于激进（如$10预算强制降$1=10%），
+  // 与循序渐进的原则冲突。如果算法计算出的调整量<$0.50，
+  // 下游budgetExecutor会标记为not_applicable，这是正确的行为。
+  // 保留最低预算保护
+  gradualBudget = Math.max(GRADUAL_BUDGET_CONFIG.minBudget, gradualBudget);
+  gradualBudget = Math.min(GRADUAL_BUDGET_CONFIG.maxBudget, gradualBudget);
+  
+  // v756: 单次降幅不得超过当前预算的5%
+  if (gradualBudget < currentBudget * 0.95) {
+    gradualBudget = Math.round(currentBudget * 0.95 * 100) / 100;
+  }
+  // v756: 单次增幅不得超过当前预算的5%
+  if (gradualBudget > currentBudget * 1.05) {
+    gradualBudget = Math.round(currentBudget * 1.05 * 100) / 100;
   }
   
   gradualBudget = Math.round(gradualBudget * 100) / 100;
