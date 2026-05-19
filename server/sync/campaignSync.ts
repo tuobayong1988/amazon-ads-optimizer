@@ -6,6 +6,7 @@ import { eq, and, sql, gte, inArray } from 'drizzle-orm';
 import { getDb } from '../db';
 import {
   campaigns,
+  adAccounts,
   adGroups,
   keywords,
   productTargets,
@@ -30,6 +31,49 @@ export interface SyncContext {
 
 const log = createModuleLogger('campaignSync');
 
+
+interface CampaignDimensionContext {
+  profileId: string | null;
+  marketplaceId: string | null;
+  storeId: string | null;
+  countryCode: string | null;
+}
+
+function toNullableDimension(value: unknown): string | null {
+  if (value === undefined || value === null) return null;
+  const normalized = String(value).trim();
+  return normalized.length > 0 ? normalized : null;
+}
+
+async function loadCampaignDimensionContext(service: SyncContext, db: Awaited<ReturnType<typeof getDb>>): Promise<CampaignDimensionContext> {
+  const [account] = db
+    ? await db
+        .select({
+          accountId: adAccounts.accountId,
+          storeId: adAccounts.storeId,
+          profileId: adAccounts.profileId,
+          marketplace: adAccounts.marketplace,
+          marketplaceId: adAccounts.marketplaceId,
+        })
+        .from(adAccounts)
+        .where(eq(adAccounts.id, service.accountId))
+        .limit(1)
+    : [];
+
+  const clientProfileId = typeof service.client.getProfileId === 'function'
+    ? service.client.getProfileId()
+    : null;
+  const accountMarketplace = toNullableDimension(account?.marketplace);
+
+  return {
+    profileId: toNullableDimension(clientProfileId) || toNullableDimension(account?.profileId),
+    marketplaceId: toNullableDimension(account?.marketplaceId),
+    // 优先使用生产库既有 ad_accounts.store_id；为空时回退到项目既有 accountId 店铺/广告主标识语义。
+    storeId: toNullableDimension(account?.storeId) || toNullableDimension(account?.accountId),
+    countryCode: (accountMarketplace || toNullableDimension(service.marketplace))?.toUpperCase() || null,
+  };
+}
+
 /**
  * 同步SB品牌广告活动
  * @param lastSyncTime 上次同步时间，用于增量同步
@@ -37,6 +81,7 @@ const log = createModuleLogger('campaignSync');
 export async function syncSbCampaigns(service: SyncContext,lastSyncTime?: string | null): Promise<number | { synced: number; skipped: number }> {
   const db = await getDb();
   if (!db) return { synced: 0, skipped: 0 };
+  const campaignDimensions = await loadCampaignDimensionContext(service, db);
 
   try {
     const apiCampaigns = await service.client.listSbCampaigns();
@@ -158,6 +203,7 @@ export async function syncSbCampaigns(service: SyncContext,lastSyncTime?: string
 
       const campaignData = {
         accountId: service.accountId,
+        ...campaignDimensions,
         campaignId: String(apiCampaign.campaignId),
         campaignName: apiCampaign.name,
         campaignType: 'sb' as const,
@@ -215,6 +261,7 @@ export async function syncSbCampaigns(service: SyncContext,lastSyncTime?: string
 export async function syncSdCampaigns(service: SyncContext,lastSyncTime?: string | null): Promise<number | { synced: number; skipped: number }> {
   const db = await getDb();
   if (!db) return { synced: 0, skipped: 0 };
+  const campaignDimensions = await loadCampaignDimensionContext(service, db);
 
   try {
     const apiCampaigns = await service.client.listSdCampaigns();
@@ -330,6 +377,7 @@ export async function syncSdCampaigns(service: SyncContext,lastSyncTime?: string
 
       const campaignData = {
         accountId: service.accountId,
+        ...campaignDimensions,
         campaignId: String(apiCampaign.campaignId),
         campaignName: apiCampaign.name,
         campaignType: 'sd' as const,
@@ -384,6 +432,7 @@ export async function syncSpCampaigns(service: SyncContext,lastSyncTime?: string
     return { synced: 0, skipped: 0 };
   }
   log.info('[同步] ✅ 数据库连接成功');
+  const campaignDimensions = await loadCampaignDimensionContext(service, db);
 
   try {
     log.info('[同步] 正在调用Amazon API: listSpCampaigns()...');
@@ -514,6 +563,7 @@ export async function syncSpCampaigns(service: SyncContext,lastSyncTime?: string
 
       const campaignData = {
         accountId: service.accountId,
+        ...campaignDimensions,
         campaignId: String(apiCampaign.campaignId),
         campaignName: apiCampaign.name,
         campaignType: campaignType as 'sp_auto' | 'sp_manual' | 'sb' | 'sd',

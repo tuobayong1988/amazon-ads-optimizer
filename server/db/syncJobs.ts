@@ -18,7 +18,7 @@ export async function createSyncJob(data: {
   syncType?: 'campaigns' | 'keywords' | 'performance' | 'all';
   isIncremental?: boolean;
   maxRetries?: number;
-  triggerSource?: 'auto' | 'manual' | 'scheduled';  // v445: 区分同步触发来源
+  triggerSource?: 'auto' | 'manual' | 'scheduled' | 'checkpoint_resume';  // v776: 区分同步触发来源，checkpoint_resume 与手动full同步分离
 }) {
   const db = await getDb();
   if (!db) return null;
@@ -77,14 +77,44 @@ export async function updateSyncJob(jobId: number, data: {
 }) {
   const db = await getDb();
   if (!db) return;
-  
+
+  // v776: 任务状态收口规范化。
+  // data_sync_jobs.status 只能进入 pending/running/completed/failed/cancelled 之一；
+  // 终态任务必须具备明确 completedAt，且 failed/cancelled 不允许与 progressPercent=100 并存，
+  // 避免出现“status 为空、current_step=失败、progress=100”的不可判定状态。
   const updateData: Record<string, unknown> = { ...data };
-  if (data.status === 'completed' || data.status === 'failed') {
+  const terminalStatuses = new Set(['completed', 'failed', 'cancelled']);
+
+  if (data.status && !['pending', 'running', 'completed', 'failed', 'cancelled'].includes(data.status)) {
+    updateData.status = 'failed';
+    updateData.errorMessage = data.errorMessage || `Invalid sync job status normalized: ${data.status}`;
+  }
+
+  if (data.status === 'completed') {
+    updateData.currentStep = data.currentStep || '完成';
+    updateData.progressPercent = 100;
+    if (typeof data.totalSteps === 'number') {
+      updateData.currentStepIndex = data.totalSteps;
+    }
+  } else if (data.status === 'failed' || data.status === 'cancelled') {
+    updateData.currentStep = data.currentStep || (data.status === 'failed' ? '失败' : '已取消');
+    const requestedProgress = typeof data.progressPercent === 'number' ? data.progressPercent : undefined;
+    if (requestedProgress === undefined || requestedProgress >= 100) {
+      updateData.progressPercent = 99;
+    }
+  } else if (data.status === 'running') {
+    const requestedProgress = typeof data.progressPercent === 'number' ? data.progressPercent : undefined;
+    if (requestedProgress !== undefined) {
+      updateData.progressPercent = Math.max(0, Math.min(99, requestedProgress));
+    }
+  }
+
+  if (data.status && terminalStatuses.has(String(updateData.status || data.status))) {
     updateData.completedAt = sql`NOW()`;
   }
   // 更新时间戳
   updateData.updatedAt = sql`NOW()`;
-  
+
   await db.update(dataSyncJobs)
     .set(updateData)
     .where(eq(dataSyncJobs.id, jobId));

@@ -1583,6 +1583,7 @@ export async function syncAccount(
     /** v775: 仅在步骤成功完成并已更新 context.completedSteps 后触发，用于安全保存断点 */
     onStepComplete?: (step: { stepId: string; stepName: string; stepIndex: number; totalSteps: number; synced: number; totalSynced: number; completedStepIds: string[] }) => void | Promise<void>;
     isManual?: boolean;        // v406: 手动同步标记，拥有最高优先级
+    checkpointResume?: boolean; // v779: 生产断点续跑专用语义，允许报告步骤拆分为异步小任务
   }
 ): Promise<AccountSyncResult> {
   const startTime = new Date();
@@ -1730,10 +1731,15 @@ export async function syncAccount(
     const hasNightlySteps = options?.specificSteps?.some(s => 
       ['performance_95d', 'keyword_performance', 'ad_group_performance', 'target_performance', 'placement_performance'].includes(s)
     );
+    const checkpointResumeAsyncReports = options?.checkpointResume === true;
     if (options?.isManual && (hasNightlySteps || tier === 'full')) {
       syncService._forceSync = true;
       syncService._reportWaitTimeoutMs = 1800000; // 30分钟
       log.info(`[v676-fix] syncAccount: 手动全量同步模式, _forceSync=true, 报告等待超时=1800秒`);
+    } else if (checkpointResumeAsyncReports && (tier === 'full' || tier === 'nightly')) {
+      // v779: 断点续跑不同于重新full同步。报告型剩余步骤移交P5异步report_jobs小任务，避免单个resume任务长时间阻塞。
+      syncService._forceSync = false;
+      log.info(`[v779] syncAccount: checkpoint_resume模式, _forceSync=false, 报告步骤拆分为可独立重试的异步小任务`);
     } else if (tier === 'full' || tier === 'nightly') {
       // v742: full/nightly 层自动同步也使用同步等待模式
       // 修复搜索词停滞问题：P5异步队列对搜索词报告的提交存在静默失败
@@ -1955,7 +1961,7 @@ export async function syncAccount(
     // 然后集中轮询所有报告状态，哪个好了就立即下载处理
     let prefetchSession: import('./prefetchReportScheduler').PrefetchSession | null = null;
     const isFullSync = tier === 'full' || (options?.specificSteps && options.specificSteps.length > 20);
-    if (isFullSync && steps.length > 10) {
+    if (isFullSync && steps.length > 10 && !checkpointResumeAsyncReports) {
       try {
         const { submitAllReports, pollAndDownloadAllReports, cleanupPrefetchSession } = await import('./prefetchReportScheduler');
         log.info(`[v684] 先发后收: 开始阶段A — 一次性提交所有报告请求`);
@@ -3884,7 +3890,7 @@ export async function triggerManualFullSync(
       const { updateSyncJob } = await import('../db/syncJobs');
       const safeNum = (v: unknown) => (typeof v === 'number' && !isNaN(v) ? v : 0);
       await updateSyncJob(options.jobId, {
-        status: result.success ? 'completed' : (result.partialSuccess ? 'partial_success' : 'failed'),
+        status: result.success || result.partialSuccess ? 'completed' : 'failed',
         errorMessage: result.errors.length > 0 ? result.errors.slice(0, 3).join('; ') : undefined,
         durationMs: result.durationMs,
         recordsSynced: result.totalSynced,
@@ -3941,3 +3947,156 @@ function sleep(ms: number): Promise<void> {
 
 // ==================== 导出 ====================
 export { SYNC_STEPS, TIER_HIERARCHY, MAX_CONCURRENT_ACCOUNTS };
+
+/**
+ * v776: 生产运维断点续跑入口。
+ *
+ * 与 triggerManualFullSync 明确分离：该方法只用于从 sync_checkpoints_v2 中恢复 full 层断点，
+ * 不设置 isManual=true，确保 syncAccount 能加载 checkpoint 并跳过已完成步骤。
+ */
+export async function triggerCheckpointResumeSync(
+  accountId: number,
+  options?: {
+    jobId?: number;
+    onProgress?: (step: string, index: number, total: number) => void | Promise<void>;
+  }
+): Promise<{ resumed: boolean; checkpoint: SyncCheckpointData | null; result: AccountSyncResult | null; error?: string }> {
+  const startTime = Date.now();
+  const checkpoint = await loadSyncCheckpoint(accountId, 'full');
+
+  if (!checkpoint) {
+    log.warn(`[UnifiedSync] v776: checkpoint resume 未找到有效断点，账户 ${accountId}`);
+    if (options?.jobId) {
+      try {
+        const { updateSyncJob } = await import('../db/syncJobs');
+        await updateSyncJob(options.jobId, {
+          status: 'failed',
+          currentStep: '未找到有效断点',
+          progressPercent: 0,
+          durationMs: Date.now() - startTime,
+          errorMessage: 'no_checkpoint',
+        });
+      } catch (e: unknown) {
+        log.warn(`[UnifiedSync] v776: checkpoint resume 更新无断点任务失败: ${(e as Error).message}`);
+      }
+    }
+    return { resumed: false, checkpoint: null, result: null, error: 'no_checkpoint' };
+  }
+
+  const accounts = await discoverSyncableAccounts();
+  const account = accounts.find(a => a.accountId === accountId);
+  if (!account) {
+    log.warn(`[UnifiedSync] v776: checkpoint resume 账户不可用，账户 ${accountId}`);
+    if (options?.jobId) {
+      try {
+        const { updateSyncJob } = await import('../db/syncJobs');
+        await updateSyncJob(options.jobId, {
+          status: 'failed',
+          currentStep: '账户不可用',
+          progressPercent: 0,
+          durationMs: Date.now() - startTime,
+          errorMessage: 'account_not_found_or_unavailable',
+        });
+      } catch (e: unknown) {
+        log.warn(`[UnifiedSync] v776: checkpoint resume 更新账户不可用任务失败: ${(e as Error).message}`);
+      }
+    }
+    return { resumed: false, checkpoint, result: null, error: 'account_not_found_or_unavailable' };
+  }
+
+  const wrappedOnProgress = async (step: string, index: number, total: number) => {
+    if (options?.onProgress) {
+      await options.onProgress(step, index, total);
+    }
+    if (options?.jobId) {
+      const progressPercent = Math.round(((index + 1) / Math.max(total, 1)) * 100);
+      try {
+        const { cacheUpdateSyncProgress } = await import('./syncStatusCache');
+        cacheUpdateSyncProgress(options.jobId, {
+          status: 'running',
+          currentStep: step,
+          totalSteps: total,
+          currentStepIndex: index,
+          progressPercent,
+        });
+      } catch (_e) { /* 缓存更新失败不影响续跑 */ }
+      try {
+        const { updateSyncJob } = await import('../db/syncJobs');
+        await updateSyncJob(options.jobId, {
+          status: 'running',
+          currentStep: step,
+          totalSteps: total,
+          currentStepIndex: index,
+          progressPercent,
+        });
+      } catch (e: unknown) {
+        log.debug(`[UnifiedSync] v776: checkpoint resume 更新进度失败: ${(e as Error).message}`);
+      }
+    }
+  };
+
+  const recovery = buildRecoveryStrategy(checkpoint);
+  log.info(`[UnifiedSync] v776: checkpoint resume 开始，账户 ${accountId}，${recovery.resumeInfo}`);
+
+  let result: AccountSyncResult | null = null;
+  try {
+    result = await syncAccount(account, 'full', {
+      onProgress: wrappedOnProgress,
+      isManual: false,
+      checkpointResume: true,
+    });
+
+    if (result.success || result.partialSuccess) {
+      await clearSyncCheckpoint(accountId, 'full');
+    }
+
+    if (options?.jobId) {
+      const { updateSyncJob } = await import('../db/syncJobs');
+      const safeNum = (v: unknown) => (typeof v === 'number' && !isNaN(v) ? v : 0);
+      await updateSyncJob(options.jobId, {
+        status: result.success || result.partialSuccess ? 'completed' : 'failed',
+        errorMessage: result.errors.length > 0 ? result.errors.slice(0, 3).join('; ') : undefined,
+        durationMs: result.durationMs || (Date.now() - startTime),
+        recordsSynced: result.totalSynced,
+        spCampaigns: safeNum(result.stepResults?.['sp_campaigns']?.synced),
+        sbCampaigns: safeNum(result.stepResults?.['sb_campaigns']?.synced),
+        sdCampaigns: safeNum(result.stepResults?.['sd_campaigns']?.synced),
+        adGroupsSynced: safeNum(result.stepResults?.['sp_ad_groups']?.synced) +
+          safeNum(result.stepResults?.['sb_ad_groups']?.synced) +
+          safeNum(result.stepResults?.['sd_ad_groups']?.synced),
+        keywordsSynced: safeNum(result.stepResults?.['sp_keywords']?.synced) +
+          safeNum(result.stepResults?.['sb_keywords']?.synced),
+        targetsSynced: safeNum(result.stepResults?.['sp_product_targets']?.synced) +
+          safeNum(result.stepResults?.['sb_product_targets']?.synced) +
+          safeNum(result.stepResults?.['sd_product_targets']?.synced),
+        totalSteps: result.totalSteps,
+        currentStepIndex: result.totalSteps,
+        currentStep: result.success || result.partialSuccess ? '完成' : '失败',
+        progressPercent: result.success || result.partialSuccess ? 100 : Math.round(
+          (result.completedSteps / Math.max(result.totalSteps, 1)) * 100
+        ),
+      });
+    }
+
+    log.info(`[UnifiedSync] v776: checkpoint resume 完成，账户 ${accountId}，成功=${result.success}，部分成功=${result.partialSuccess}，记录=${result.totalSynced}`);
+    return { resumed: true, checkpoint, result };
+  } catch (error: unknown) {
+    const message = (error as Error).message;
+    log.error(`[UnifiedSync] v776: checkpoint resume 异常，账户 ${accountId}: ${message}`);
+    if (options?.jobId) {
+      try {
+        const { updateSyncJob } = await import('../db/syncJobs');
+        await updateSyncJob(options.jobId, {
+          status: 'failed',
+          currentStep: '断点续跑异常',
+          durationMs: Date.now() - startTime,
+          errorMessage: message,
+        });
+      } catch (updateErr: unknown) {
+        log.warn(`[UnifiedSync] v776: checkpoint resume 异常后更新任务失败: ${(updateErr as Error).message}`);
+      }
+    }
+    return { resumed: true, checkpoint, result, error: message };
+  }
+}
+

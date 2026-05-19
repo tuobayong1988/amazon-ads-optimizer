@@ -109,6 +109,7 @@ export const accountPermissions = mysqlTable("account_permissions", {
 export const adAccounts = mysqlTable("ad_accounts", {
 	id: int().autoincrement().notNull(),
 	organizationId: int("organization_id").default(1),
+	storeId: int("store_id"),
 	userId: int().notNull(),
 	accountId: varchar({ length: 64 }).notNull(),
 	accountName: varchar({ length: 255 }).notNull(),
@@ -1352,6 +1353,9 @@ export const campaignPerformanceSnapshots = mysqlTable("campaign_performance_sna
 export const campaigns = mysqlTable("campaigns", {
 	id: int().autoincrement().notNull(),
 	accountId: int().notNull(),
+	profileId: varchar({ length: 50 }),
+	marketplaceId: varchar({ length: 50 }),
+	storeId: varchar({ length: 100 }),
 	performanceGroupId: int(),
 	campaignId: varchar({ length: 64 }).notNull(),
 	campaignName: varchar({ length: 500 }).notNull(),
@@ -1512,6 +1516,9 @@ export const campaigns = mysqlTable("campaigns", {
 	idx_campaigns_account_type: index('idx_campaigns_account_type').on(table.accountId, table.campaignType),
 	idx_campaigns_campaignId: index('idx_campaigns_campaignId').on(table.campaignId),
 	idx_campaigns_pgId: index('idx_campaigns_pgId').on(table.performanceGroupId),
+	idx_campaigns_account_profile: index('idx_campaigns_account_profile').on(table.accountId, table.profileId),
+	idx_campaigns_account_marketplace: index('idx_campaigns_account_marketplace').on(table.accountId, table.marketplaceId),
+	idx_campaigns_account_store: index('idx_campaigns_account_store').on(table.accountId, table.storeId),
 }));
 
 export const collaborationNotificationRules = mysqlTable("collaboration_notification_rules", {

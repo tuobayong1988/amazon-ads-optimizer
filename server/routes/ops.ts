@@ -1414,6 +1414,123 @@ router.post('/force-sync', async (req: Request, res: Response) => {
   }
 });
 
+
+/**
+ * POST /api/ops/checkpoint-resume
+ * v776: 生产运维断点续跑入口。
+ *
+ * 安全约束：沿用 opsAuth/OPS_API_KEY；与 force-sync 分离，只恢复 sync_checkpoints_v2 中的 full 断点。
+ */
+router.post('/checkpoint-resume', opsAuth, async (req: Request, res: Response) => {
+  const syncStartTime = new Date();
+  try {
+    const accountId = Number(req.body?.accountId || req.query?.accountId);
+    const suppliedJobId = req.body?.jobId || req.query?.jobId;
+    let jobId: number | null = suppliedJobId ? Number(suppliedJobId) : null;
+
+    if (!accountId || Number.isNaN(accountId)) {
+      return res.status(400).json({ error: 'accountId is required' });
+    }
+    if (jobId !== null && (!Number.isFinite(jobId) || jobId <= 0)) {
+      return res.status(400).json({ error: 'jobId must be a positive number when supplied' });
+    }
+
+    const { discoverSyncableAccounts } = await import('../sync/unifiedSyncEngine');
+    const accounts = await discoverSyncableAccounts();
+    const targetAccount = accounts.find(a => a.accountId === accountId);
+    if (!targetAccount) {
+      return res.status(404).json({
+        error: `账户${accountId}不可用或未授权`,
+        availableAccounts: accounts.map(a => ({ id: a.accountId, name: a.accountName, marketplace: a.marketplace }))
+      });
+    }
+
+    // v780: 新 checkpoint resume 任务会取代同账户旧 running checkpoint_resume 任务。
+    // 生产部署、进程重启或人工二次续跑可能导致旧任务心跳停滞但仍处于 running；
+    // 在创建新任务前进行终态收口，避免同一账户长期保留多个非终态续跑任务。
+    try {
+      const db = await getDb();
+      if (!db) {
+        throw new Error('database unavailable');
+      }
+      const excludedJobPredicate = jobId ? sql`AND id <> ${jobId}` : sql``;
+      const supersededResult = await db.execute(sql`
+        UPDATE data_sync_jobs
+        SET status = 'cancelled',
+            completedAt = NOW(),
+            current_step = '已被新的checkpoint resume续跑取代',
+            progress_percent = CASE WHEN COALESCE(progress_percent, 0) >= 100 THEN 99 ELSE COALESCE(progress_percent, 0) END,
+            errorMessage = CONCAT(COALESCE(errorMessage, ''), CASE WHEN errorMessage IS NULL OR errorMessage = '' THEN '' ELSE '\n' END, '[v780] superseded by a newer checkpoint_resume job'),
+            updated_at = NOW()
+        WHERE accountId = ${accountId}
+          AND status = 'running'
+          AND trigger_source = 'checkpoint_resume'
+          ${excludedJobPredicate}
+      `);
+      const affectedRows = Number((supersededResult as unknown as { affectedRows?: number })?.affectedRows || (Array.isArray(supersededResult) ? (supersededResult[0] as { affectedRows?: number })?.affectedRows : 0) || 0);
+      if (affectedRows > 0) {
+        logger.warn('OPS', `checkpoint-resume已取消账户${accountId}的${affectedRows}个旧running续跑任务，防止非终态残留`);
+      }
+    } catch (supersedeErr: unknown) {
+      logger.warn('OPS', `checkpoint-resume取消旧running续跑任务失败: ${(supersedeErr as Error).message}`);
+    }
+
+    if (!jobId) {
+      try {
+        const { createSyncJob } = await import('../db/syncJobs');
+        jobId = await createSyncJob({
+          userId: targetAccount.userId || 390001,
+          accountId,
+          syncType: 'all',
+          isIncremental: false,
+          triggerSource: 'checkpoint_resume',
+        }) as number | null;
+      } catch (jobErr: unknown) {
+        logger.warn('OPS', `checkpoint-resume创建data_sync_jobs记录失败: ${(jobErr as Error).message}`);
+      }
+    }
+
+    logger.info('OPS', `触发账户${accountId} checkpoint resume，jobId=${jobId || 'none'}`);
+
+    const { triggerCheckpointResumeSync } = await import('../sync/unifiedSyncEngine');
+    triggerCheckpointResumeSync(accountId, { jobId: jobId || undefined }).then((resumeResult) => {
+      if (resumeResult.error) {
+        logger.warn('OPS', `账户${accountId} checkpoint resume结束并返回错误: ${resumeResult.error}`);
+      } else {
+        logger.info('OPS', `账户${accountId} checkpoint resume完成: resumed=${resumeResult.resumed}, 记录=${resumeResult.result?.totalSynced || 0}`);
+      }
+    }).catch(async (err) => {
+      logger.error('OPS', `账户${accountId} checkpoint resume后台异常: ${(err as Error).message}`);
+      if (jobId) {
+        try {
+          const { updateSyncJob } = await import('../db/syncJobs');
+          await updateSyncJob(jobId, {
+            status: 'failed',
+            durationMs: Date.now() - syncStartTime.getTime(),
+            errorMessage: (err as Error).message,
+            currentStep: '断点续跑异常',
+          });
+        } catch (updateErr: unknown) {
+          logger.warn('OPS', `checkpoint-resume异常更新data_sync_jobs失败: ${(updateErr as Error).message}`);
+        }
+      }
+    });
+
+    res.json({
+      queued: true,
+      message: `已触发账户${accountId}的断点续跑，后台执行中`,
+      accountId: targetAccount.accountId,
+      accountName: targetAccount.accountName,
+      marketplace: targetAccount.marketplace,
+      jobId,
+      triggeredAt: syncStartTime.toISOString(),
+      note: '该接口只从sync_checkpoints_v2恢复full断点，不会重新发起手动full同步',
+    });
+  } catch (e: unknown) {
+    res.status(500).json({ error: (e as Error).message });
+  }
+});
+
 // ============================================================
 // v443: 僵尸账户检测与管理
 // ============================================================

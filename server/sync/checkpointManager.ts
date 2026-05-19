@@ -16,6 +16,7 @@
 
 import * as db from '../db';
 import { sql } from 'drizzle-orm';
+import { typedQueryOne } from '../db/types';
 import { createModuleLogger } from '../utils/logger';
 
 const log = createModuleLogger('CheckpointManager');
@@ -117,7 +118,7 @@ export async function loadSyncCheckpoint(
   const database = await db.getDb();
   if (!database) return null;
   try {
-    const result = await database.execute(sql`
+    const row = await typedQueryOne<{ checkpoint_data: string | SyncCheckpointData; saved_at: string | Date }>(database, sql`
       SELECT checkpoint_data, saved_at
       FROM sync_checkpoints_v2
       WHERE account_id = ${accountId} 
@@ -126,10 +127,10 @@ export async function loadSyncCheckpoint(
       ORDER BY saved_at DESC
       LIMIT 1
     `);
-    const rows = (result as unknown[][])[0] || [];
-    if (!rows || rows.length === 0) return null;
-    const row = rows[0] as { checkpoint_data: string; saved_at: string };
-    const checkpoint: SyncCheckpointData = JSON.parse(row.checkpoint_data);
+    if (!row) return null;
+    const checkpoint: SyncCheckpointData = typeof row.checkpoint_data === 'string'
+      ? JSON.parse(row.checkpoint_data)
+      : row.checkpoint_data;
     log.info(`[v663] 检查点已加载 - 账户${accountId} ${tier}层, 已完成${checkpoint.completedSteps.length}步, 中断原因: ${checkpoint.interruptReason}`);
     return checkpoint;
   } catch (error: unknown) {

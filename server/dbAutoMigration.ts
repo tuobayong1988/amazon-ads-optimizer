@@ -79,7 +79,7 @@ export async function runAutoDbMigration(): Promise<{ success: boolean; results:
       return { success: false, results: ['数据库不可用'] };
     }
 
-    log.info('v347: 开始数据库自动迁移检查...');
+    log.info('v781: 开始数据库自动迁移检查...');
 
     // ============================================================
     // 1. anomaly_alert_logs 表
@@ -109,6 +109,46 @@ export async function runAutoDbMigration(): Promise<{ success: boolean; results:
     `, 'anomaly_alert_logs', results);
 
     // v369.6: 不再尝试ALTER TABLE修改不存在的message列
+
+    // ============================================================
+    // v781: campaigns 表补齐店铺/站点维度列
+    // ============================================================
+    await safeDDL(database, sql`
+      ALTER TABLE ad_accounts ADD COLUMN store_id INT NULL AFTER organization_id
+    `, 'ad_accounts.store_id', results);
+
+    await safeDDL(database, sql`
+      ALTER TABLE campaigns ADD COLUMN profileId VARCHAR(50) NULL AFTER accountId
+    `, 'campaigns.profileId', results);
+
+    await safeDDL(database, sql`
+      ALTER TABLE campaigns ADD COLUMN marketplaceId VARCHAR(50) NULL AFTER profileId
+    `, 'campaigns.marketplaceId', results);
+
+    await safeDDL(database, sql`
+      ALTER TABLE campaigns ADD COLUMN storeId VARCHAR(100) NULL AFTER marketplaceId
+    `, 'campaigns.storeId', results);
+
+    try {
+      await database.execute(sql`
+        UPDATE campaigns c
+        JOIN ad_accounts a ON c.accountId = a.id
+        SET
+          c.profileId = COALESCE(NULLIF(c.profileId, ''), a.profileId),
+          c.marketplaceId = COALESCE(NULLIF(c.marketplaceId, ''), a.marketplaceId),
+          c.storeId = COALESCE(NULLIF(c.storeId, ''), CAST(COALESCE(a.store_id, a.accountId) AS CHAR)),
+          c.countryCode = COALESCE(NULLIF(c.countryCode, ''), UPPER(a.marketplace))
+        WHERE c.profileId IS NULL OR c.profileId = ''
+           OR c.marketplaceId IS NULL OR c.marketplaceId = ''
+           OR c.storeId IS NULL OR c.storeId = ''
+           OR c.countryCode IS NULL OR c.countryCode = ''
+      `);
+      results.push('campaigns.dimensions_backfill: 已就绪');
+      log.info('v781: campaigns 店铺/站点维度回填完成');
+    } catch (err: unknown) {
+      results.push(`campaigns.dimensions_backfill: 跳过/失败 - ${(err as Error).message}`);
+      log.warn(`v781: campaigns 店铺/站点维度回填失败（不阻断启动）: ${(err as Error).message}`);
+    }
 
     // ============================================================
     // 2. emergency_optimization_queue 表（v245 riskActionEngine 使用 camelCase 列名）
@@ -710,6 +750,9 @@ export async function runAutoDbMigration(): Promise<{ success: boolean; results:
       ['campaigns', 'idx_campaigns_account_status', 'accountId, campaignStatus'],
       ['campaigns', 'idx_campaigns_account_type', 'accountId, campaignType'],
       ['campaigns', 'idx_campaigns_perfGroupId', 'performanceGroupId'],
+      ['campaigns', 'idx_campaigns_account_profile', 'accountId, profileId'],
+      ['campaigns', 'idx_campaigns_account_marketplace', 'accountId, marketplaceId'],
+      ['campaigns', 'idx_campaigns_account_store', 'accountId, storeId'],
       // ad_groups 表
       ['ad_groups', 'idx_adGroups_accountId', 'accountId'],
       ['ad_groups', 'idx_adGroups_campaignId', 'campaignId'],

@@ -13,4 +13,4 @@
  * 每次发版时，只需修改此文件中的版本号，并在 postDeployOptimizer.ts 的
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
-export const SYSTEM_VERSION = 775;  // v775: 同步任务步骤级断点续跑、checkpoint持久化与失败恢复锁释放修复
+export const SYSTEM_VERSION = 781;  // v781: campaigns 补齐 profileId/marketplaceId/storeId/countryCode 店铺站点维度映射

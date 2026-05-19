@@ -106,6 +106,42 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 781,
+    description: 'v781: [campaigns店铺/站点维度映射热修] — (1)P0-campaigns表自动补齐profileId/marketplaceId/storeId三列并增加账户+维度索引,保留既有countryCode列 (2)P0-SP/SB/SD广告活动同步写入时强制填充profileId、marketplaceId、storeId、countryCode,避免跨店铺/跨站点广告活动无法一致归因 (3)P1-storeId按项目既有语义从ad_accounts.accountId回填,marketplaceId/profileId优先使用广告账户维度与当前Amazon Ads client上下文。',
+    affectedModules: ['sync', 'db', 'migration'],
+    correctionActions: [],
+  },
+  {
+    version: 780,
+    description: 'v780: [checkpoint resume旧任务收口热修] — (1)P0-/api/ops/checkpoint-resume在创建新续跑任务前自动取消同账户旧running checkpoint_resume任务,避免部署中断或二次续跑后残留多个非终态任务 (2)P0-被取代任务统一收口为cancelled并写入completedAt/current_step/errorMessage,防止status=running但心跳停滞的状态污染运维判断 (3)P1-保留新任务checkpoint_resume非手动语义和sync_checkpoints_v2剩余步骤恢复策略,不影响已完成任务与无断点账户。',
+    affectedModules: ['sync', 'ops'],
+    correctionActions: [],
+  },
+  {
+    version: 779,
+    description: 'v779: [checkpoint resume绩效小任务拆分热修] — (1)P0-checkpoint_resume模式显式保持isManual=false且设置_forceSync=false,将剩余报告型绩效步骤移交P5 report_jobs异步小任务而非在单个resume任务中同步等待 (2)P0-禁用checkpoint resume下的full预取阻塞路径,确保只围绕sync_checkpoints_v2恢复后的剩余步骤入队处理 (3)P1-复用report_jobs retryCount/maxRetries/updatedAt/30分钟超时恢复策略,使当日绩效、7天/95天绩效、关键词、投放、商品定位和广告组绩效具备独立重试与可观测收口。',
+    affectedModules: ['sync', 'scheduler'],
+    correctionActions: [],
+  },
+  {
+    version: 778,
+    description: 'v778: [checkpoint resume断点加载热修] — (1)P0-checkpointManager.loadSyncCheckpoint改用项目标准typedQueryOne解析drizzle/mysql2 execute结果,避免生产环境因返回结构差异误判sync_checkpoints_v2中不存在full断点 (2)P0-兼容JSON列返回string或object两种形态,确保/api/ops/checkpoint-resume能正确加载断点并进入剩余步骤执行 (3)P1-保留4小时有效期与account_id+tier=full筛选策略,不改变断点语义。',
+    affectedModules: ['sync', 'ops'],
+    correctionActions: [],
+  },
+  {
+    version: 777,
+    description: 'v777: [checkpoint resume非手动语义热修] — (1)P0-data_sync_jobs.trigger_source允许并写入checkpoint_resume,避免断点续跑任务在任务表中继续被标记为manual (2)P0-/api/ops/checkpoint-resume创建任务时使用checkpoint_resume来源,与force-sync手动full同步彻底分离 (3)P1-保留syncAccount isManual=false与sync_checkpoints_v2 full断点恢复策略,确保只执行剩余步骤。',
+    affectedModules: ['sync', 'ops'],
+    correctionActions: [],
+  },
+  {
+    version: 776,
+    description: 'v776: [checkpoint resume生产运维与任务状态收口修复] — (1)P0-新增受opsAuth/OPS_API_KEY保护的/api/ops/checkpoint-resume接口,将重新full同步与从sync_checkpoints_v2断点续跑明确分离 (2)P0-triggerCheckpointResumeSync以非手动语义调用syncAccount,加载full断点并仅执行剩余步骤,成功或部分成功后清理checkpoint (3)P0-data_sync_jobs终态规范化,消除partial_success非法状态、空status和失败步骤progress=100并存问题 (4)P1-triggerManualFullSync不再写入partial_success非法枚举,统一收口为completed或failed。',
+    affectedModules: ['sync', 'ops'],
+    correctionActions: [],
+  },
+  {
     version: 775,
     description: 'v775: [同步任务断点续跑与失败恢复修复] — (1)P0-统一同步引擎在步骤成功完成后立即持久化账户级MySQL checkpoint,避免超时或心跳掉线后从零全量重跑 (2)P0-队列消费者新增安全的onStepComplete任务级Redis checkpoint追加,不再把步骤开始/心跳误判为完成 (3)P0-续跑上下文继承历史completedSteps与totalSynced,防止后续checkpoint覆盖丢失既有进度 (4)P1-失败重试、中断恢复和卡住任务清理后释放原账户锁,避免恢复任务被旧锁反复重新入队。',
     affectedModules: ['sync'],
