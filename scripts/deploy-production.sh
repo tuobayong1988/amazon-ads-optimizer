@@ -163,8 +163,16 @@ build_app() {
   fi
   
   # 安装依赖
-  log_info "安装依赖..."
-  pnpm install --frozen-lockfile 2>/dev/null || pnpm install
+  log_info "检查依赖..."
+  if [ -d "node_modules" ]; then
+    log_info "node_modules/已存在，复用当前已验证依赖"
+  elif [ -f "package-lock.json" ]; then
+    log_info "node_modules/不存在，使用npm ci安装依赖"
+    npm ci
+  else
+    log_info "node_modules/不存在且未找到package-lock.json，使用npm install安装依赖"
+    npm install
+  fi
   
   # 构建
   log_info "构建前端+后端..."
