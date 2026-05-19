@@ -21,6 +21,11 @@ import { createModuleLogger } from '../utils/logger';
 
 const log = createModuleLogger('SystemHealth');
 
+// v786: 健康指标属于非关键监控模块，生产全局账号下可能覆盖大量历史优化事件。
+// 对算法识别和提价场景这类趋势性指标采用最近事件上限采样，避免营销首页/仪表盘被历史全量扫描拖慢。
+const MAX_HEALTH_EVENT_SAMPLE_ROWS = 5000;
+const MAX_BID_INCREASE_SAMPLE_ROWS = 1000;
+
 // ==================== 类型定义 ====================
 
 export interface SystemHealthMetrics {
@@ -124,74 +129,61 @@ async function calculateRollbackRate(
   }
 
   try {
-    // 当前周期: 最近N天
-    // v266: 精细化回滚率计算
-    // 1. 总调整数: 只计算真正的出价调整(bid_increase/bid_decrease)，排除纠错器自身的调整
-    // 2. 被动回滚: status='rolled_back' 且调整幅度>=15%(排除纠错器微调)
-    // 3. 排除纠错器自身产生的事件，避免重复计数
-    const currentPeriodQuery = sql`
-      SELECT 
-        COUNT(CASE WHEN change_reason NOT LIKE '%AutoCorrector%' THEN 1 END) as total_original,
-        COUNT(*) as total_all,
-        SUM(CASE 
-          WHEN status = 'rolled_back' 
+    // v786: 将当前周期与上一周期合并为一次索引范围扫描，避免同一数据窗口重复扫描。
+    const rollbackQuery = sql`
+      SELECT
+        COUNT(CASE
+          WHEN created_at > DATE_SUB(NOW(), INTERVAL ${sql.raw(String(days))} DAY)
+            AND change_reason NOT LIKE '%AutoCorrector%'
+          THEN 1
+        END) as current_total_original,
+        SUM(CASE
+          WHEN created_at > DATE_SUB(NOW(), INTERVAL ${sql.raw(String(days))} DAY)
+            AND status = 'rolled_back'
             AND change_reason NOT LIKE '%AutoCorrector%'
             AND ABS(CAST(new_value AS DECIMAL(10,4)) - CAST(previous_value AS DECIMAL(10,4))) / NULLIF(CAST(previous_value AS DECIMAL(10,4)), 0) >= 0.15
-          THEN 1 
-          ELSE 0 
-        END) as hard_rollback,
-        SUM(CASE 
-          WHEN (status = 'rolled_back' OR (change_reason LIKE '%AutoCorrector%' AND change_reason LIKE '%纠正%'))
+          THEN 1 ELSE 0
+        END) as current_hard_rollback,
+        SUM(CASE
+          WHEN created_at > DATE_SUB(NOW(), INTERVAL ${sql.raw(String(days))} DAY)
+            AND (status = 'rolled_back' OR (change_reason LIKE '%AutoCorrector%' AND change_reason LIKE '%纠正%'))
             AND change_reason NOT LIKE '%AutoCorrector%'
-          THEN 1 
-          ELSE 0 
-        END) as soft_rollback
+          THEN 1 ELSE 0
+        END) as current_soft_rollback,
+        COUNT(CASE
+          WHEN created_at <= DATE_SUB(NOW(), INTERVAL ${sql.raw(String(days))} DAY)
+            AND change_reason NOT LIKE '%AutoCorrector%'
+          THEN 1
+        END) as previous_total_original,
+        SUM(CASE
+          WHEN created_at <= DATE_SUB(NOW(), INTERVAL ${sql.raw(String(days))} DAY)
+            AND status = 'rolled_back'
+            AND change_reason NOT LIKE '%AutoCorrector%'
+            AND ABS(CAST(new_value AS DECIMAL(10,4)) - CAST(previous_value AS DECIMAL(10,4))) / NULLIF(CAST(previous_value AS DECIMAL(10,4)), 0) >= 0.15
+          THEN 1 ELSE 0
+        END) as previous_hard_rollback
       FROM optimization_events
       WHERE ${accountFilter(accountId)}
         AND event_category = 'bid_adjustment'
         AND action_type IN ('bid_increase', 'bid_decrease')
-        AND created_at > DATE_SUB(NOW(), INTERVAL ${sql.raw(String(days))} DAY)
+        AND created_at > DATE_SUB(NOW(), INTERVAL ${sql.raw(String(days * 2))} DAY)
     `;
-    const currentResult = await db.execute(currentPeriodQuery);
+    const rollbackResult = await db.execute(rollbackQuery);
     // @ts-ignore Dynamic type assertion
-    const currentRows = (currentResult as Record<string, unknown>[])[0] || currentResult;
+    const rollbackRows = (rollbackResult as Record<string, unknown>[])[0] || rollbackResult;
     // @ts-ignore Type inference limitation
-    const totalOriginal = Number(currentRows?.[0]?.total_original) || 0;
+    const totalOriginal = Number(rollbackRows?.[0]?.current_total_original) || 0;
     // @ts-ignore Type inference limitation
-    const hardRollback = Number(currentRows?.[0]?.hard_rollback) || 0;
+    const hardRollback = Number(rollbackRows?.[0]?.current_hard_rollback) || 0;
     // @ts-ignore Type inference limitation
-    const softRollback = Number(currentRows?.[0]?.soft_rollback) || 0;
-    
-    // v266: 使用“真正回滚率”作为主指标，排除纠错器正常微调
+    const softRollback = Number(rollbackRows?.[0]?.current_soft_rollback) || 0;
+    // @ts-ignore Type inference limitation
+    const prevTotal = Number(rollbackRows?.[0]?.previous_total_original) || 0;
+    // @ts-ignore Type inference limitation
+    const prevRolledBack = Number(rollbackRows?.[0]?.previous_hard_rollback) || 0;
     const total = totalOriginal;
     const rolledBack = hardRollback;
     const rate = total > 0 ? (rolledBack / total) * 100 : 0;
-
-    // 前一周期: N天前到2N天前
-    const previousPeriodQuery = sql`
- SELECT 
- COUNT(CASE WHEN change_reason NOT LIKE '%AutoCorrector%' THEN 1 END) as total_original,
- SUM(CASE 
- WHEN status = 'rolled_back' 
- AND change_reason NOT LIKE '%AutoCorrector%'
- AND ABS(CAST(new_value AS DECIMAL(10,4)) - CAST(previous_value AS DECIMAL(10,4))) / NULLIF(CAST(previous_value AS DECIMAL(10,4)), 0) >= 0.15
- THEN 1 
- ELSE 0 
- END) as hard_rollback
- FROM optimization_events
- WHERE ${accountFilter(accountId)}
- AND event_category = 'bid_adjustment'
- AND action_type IN ('bid_increase', 'bid_decrease')
- AND created_at > DATE_SUB(NOW(), INTERVAL ${sql.raw(String(days * 2))} DAY)
- AND created_at <= DATE_SUB(NOW(), INTERVAL ${sql.raw(String(days))} DAY)
- `;
-    const previousResult = await db.execute(previousPeriodQuery);
-    // @ts-ignore Dynamic type assertion
-    const previousRows = (previousResult as Record<string, unknown>[])[0] || previousResult;
-    // @ts-ignore Type inference limitation
-    const prevTotal = Number(previousRows?.[0]?.total_original) || 0;
-    // @ts-ignore Type inference limitation
-    const prevRolledBack = Number(previousRows?.[0]?.hard_rollback) || 0;
     const previousRate = prevTotal > 0 ? (prevRolledBack / prevTotal) * 100 : 0;
 
     // 判断趋势
@@ -225,18 +217,18 @@ async function calculateAlgorithmActivation(
   }
 
   try {
+    // v786: 避免在 TEXT 字段(change_reason/action_detail)上做全量 GROUP BY。
+    // 该指标用于健康趋势展示，采样最近事件即可稳定反映算法激活方向。
     const query = sql`
- SELECT 
- change_reason,
- action_detail,
- COUNT(*) as cnt
- FROM optimization_events
- WHERE ${accountFilter(accountId)}
- AND event_category = 'bid_adjustment'
- AND status = 'success'
- AND created_at > DATE_SUB(NOW(), INTERVAL ${sql.raw(String(days))} DAY)
- GROUP BY change_reason, action_detail
- `;
+      SELECT change_reason, action_detail
+      FROM optimization_events
+      WHERE ${accountFilter(accountId)}
+        AND event_category = 'bid_adjustment'
+        AND status = 'success'
+        AND created_at > DATE_SUB(NOW(), INTERVAL ${sql.raw(String(days))} DAY)
+      ORDER BY created_at DESC
+      LIMIT ${sql.raw(String(MAX_HEALTH_EVENT_SAMPLE_ROWS))}
+    `;
     const result = await db.execute(query);
     // @ts-ignore Dynamic type assertion
     const rows = (result as Record<string, unknown>[][])[0] || result;
@@ -247,12 +239,14 @@ async function calculateAlgorithmActivation(
     if (Array.isArray(rows)) {
       for (const row of (rows as unknown[])) {
         // @ts-ignore Type inference limitation
-        const count = Number(row.cnt) || 0;
-        // @ts-ignore Type inference limitation
         const algorithm = parseAlgorithmName(row.change_reason, row.action_detail);
-        algorithmCounts[algorithm] = (algorithmCounts[algorithm] || 0) + count;
-        totalDecisions += count;
+        algorithmCounts[algorithm] = (algorithmCounts[algorithm] || 0) + 1;
+        totalDecisions += 1;
       }
+    }
+
+    if (totalDecisions >= MAX_HEALTH_EVENT_SAMPLE_ROWS) {
+      log.info(`[AlgorithmActivation] 账户${accountId}使用最近${MAX_HEALTH_EVENT_SAMPLE_ROWS}条事件采样计算，避免监控接口全表分组扫描`);
     }
 
     // 计算高级算法比例
@@ -296,62 +290,36 @@ async function calculateAcosTrend(
   }
 
   try {
-    // 最近3天ACoS
-    // @ts-ignore DB query type inference limitation
-    const recentQuery = sql`
- SELECT 
- SUM(spend) as total_spend,
- SUM(sales) as total_sales
- FROM daily_performance
- WHERE ${accountFilterCamel(accountId)}
- AND date >= DATE_SUB(CURDATE(), INTERVAL 3 DAY)
- `;
-    const recentResult = await db.execute(recentQuery);
-    // @ts-ignore Dynamic type assertion
-    const recentRows = (recentResult as Record<string, unknown>[])[0] || recentResult;
-    // @ts-ignore Type inference limitation
-    const recentSpend = Number(recentRows?.[0]?.total_spend) || 0;
-    // @ts-ignore Type inference limitation
-    const recentSales = Number(recentRows?.[0]?.total_sales) || 0;
-    // @ts-ignore Type inference limitation
-    const currentAcos = recentSales > 0 ? (recentSpend / recentSales) * 100 : 0;
-
-    // 7天前的3天ACoS
-    const week1Query = sql`
-      SELECT 
-        SUM(spend) as total_spend,
-        SUM(sales) as total_sales
-      FROM daily_performance
-      WHERE ${accountFilterCamel(accountId)}
-        AND date >= DATE_SUB(CURDATE(), INTERVAL 10 DAY)
-        AND date < DATE_SUB(CURDATE(), INTERVAL 7 DAY)
-    `;
-    const week1Result = await db.execute(week1Query);
-    // @ts-ignore Dynamic type assertion
-    const week1Rows = (week1Result as Record<string, unknown>[])[0] || week1Result;
-    // @ts-ignore Type inference limitation
-    const week1Spend = Number(week1Rows?.[0]?.total_spend) || 0;
-    // @ts-ignore Type inference limitation
-    const week1Sales = Number(week1Rows?.[0]?.total_sales) || 0;
-    const acos7dAgo = week1Sales > 0 ? (week1Spend / week1Sales) * 100 : 0;
-
-    // 14天前的3天ACoS
-    const week2Query = sql`
-      SELECT 
-        SUM(spend) as total_spend,
-        SUM(sales) as total_sales
+    // v786: 三段ACoS窗口合并为一次日期范围扫描，降低健康指标接口查询次数。
+    const trendQuery = sql`
+      SELECT
+        SUM(CASE WHEN date >= DATE_SUB(CURDATE(), INTERVAL 3 DAY) THEN spend ELSE 0 END) as recent_spend,
+        SUM(CASE WHEN date >= DATE_SUB(CURDATE(), INTERVAL 3 DAY) THEN sales ELSE 0 END) as recent_sales,
+        SUM(CASE WHEN date >= DATE_SUB(CURDATE(), INTERVAL 10 DAY) AND date < DATE_SUB(CURDATE(), INTERVAL 7 DAY) THEN spend ELSE 0 END) as week1_spend,
+        SUM(CASE WHEN date >= DATE_SUB(CURDATE(), INTERVAL 10 DAY) AND date < DATE_SUB(CURDATE(), INTERVAL 7 DAY) THEN sales ELSE 0 END) as week1_sales,
+        SUM(CASE WHEN date >= DATE_SUB(CURDATE(), INTERVAL 17 DAY) AND date < DATE_SUB(CURDATE(), INTERVAL 14 DAY) THEN spend ELSE 0 END) as week2_spend,
+        SUM(CASE WHEN date >= DATE_SUB(CURDATE(), INTERVAL 17 DAY) AND date < DATE_SUB(CURDATE(), INTERVAL 14 DAY) THEN sales ELSE 0 END) as week2_sales
       FROM daily_performance
       WHERE ${accountFilterCamel(accountId)}
         AND date >= DATE_SUB(CURDATE(), INTERVAL 17 DAY)
-        AND date < DATE_SUB(CURDATE(), INTERVAL 14 DAY)
     `;
-    const week2Result = await db.execute(week2Query);
+    const trendResult = await db.execute(trendQuery);
     // @ts-ignore Dynamic type assertion
-    const week2Rows = (week2Result as Record<string, unknown>[])[0] || week2Result;
+    const trendRows = (trendResult as Record<string, unknown>[])[0] || trendResult;
     // @ts-ignore Type inference limitation
-    const week2Spend = Number(week2Rows?.[0]?.total_spend) || 0;
+    const recentSpend = Number(trendRows?.[0]?.recent_spend) || 0;
     // @ts-ignore Type inference limitation
-    const week2Sales = Number(week2Rows?.[0]?.total_sales) || 0;
+    const recentSales = Number(trendRows?.[0]?.recent_sales) || 0;
+    const currentAcos = recentSales > 0 ? (recentSpend / recentSales) * 100 : 0;
+    // @ts-ignore Type inference limitation
+    const week1Spend = Number(trendRows?.[0]?.week1_spend) || 0;
+    // @ts-ignore Type inference limitation
+    const week1Sales = Number(trendRows?.[0]?.week1_sales) || 0;
+    const acos7dAgo = week1Sales > 0 ? (week1Spend / week1Sales) * 100 : 0;
+    // @ts-ignore Type inference limitation
+    const week2Spend = Number(trendRows?.[0]?.week2_spend) || 0;
+    // @ts-ignore Type inference limitation
+    const week2Sales = Number(trendRows?.[0]?.week2_sales) || 0;
     const acos14dAgo = week2Sales > 0 ? (week2Spend / week2Sales) * 100 : 0;
 
     // 判断趋势
@@ -403,7 +371,7 @@ async function calculateBidIncreaseAnalysis(
  AND status = 'success'
  AND created_at > DATE_SUB(NOW(), INTERVAL ${sql.raw(String(days))} DAY)
  ORDER BY created_at DESC
- LIMIT 1000
+ LIMIT ${sql.raw(String(MAX_BID_INCREASE_SAMPLE_ROWS))}
  `;
     const result = await db.execute(query);
     // @ts-ignore Dynamic type assertion

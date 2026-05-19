@@ -3795,6 +3795,10 @@ export const optimizationEvents = mysqlTable("optimization_events", {
   index("idx_oe_api_sync_status").on(table.apiSyncStatus),
   index("idx_oe_created_at").on(table.createdAt),
   index("idx_oe_pg_category_created").on(table.performanceGroupId, table.eventCategory, table.createdAt),
+  index("idx_oe_health_account_cat_action_created").on(table.accountId, table.eventCategory, table.actionType, table.createdAt),
+  index("idx_oe_health_account_cat_status_created").on(table.accountId, table.eventCategory, table.status, table.createdAt),
+  index("idx_oe_health_cat_action_created").on(table.eventCategory, table.actionType, table.createdAt),
+  index("idx_oe_health_cat_status_created").on(table.eventCategory, table.status, table.createdAt),
 ]);
 export type OptimizationEvent = InferSelectModel<typeof optimizationEvents>;
 export type InsertOptimizationEvent = InferInsertModel<typeof optimizationEvents>;

@@ -109,8 +109,11 @@ export const monitoringRouter = router({
     }))
     // @ts-ignore Complex function parameter types
     .query(async ({ ctx, input }: unknown) => {
-      // v268 性能优化: 健康指标缓存（TTL 5分钟）
-      const cacheKey = `monitoring.healthMetrics:${input.accountId}:${input.days}`;
+      // v786: 健康指标缓存加入用户维度，避免 accountId=0 全局视角在不同用户之间共享缓存。
+      const cacheKey = apiCache.generateKey('monitoring.healthMetrics', ctx.user.id, {
+        accountId: input.accountId,
+        days: input.days,
+      });
       const cached = apiCache.get<unknown>(cacheKey);
       if (cached) return cached;
 

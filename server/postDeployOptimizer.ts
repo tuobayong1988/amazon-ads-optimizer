@@ -106,6 +106,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 786,
+    description: 'v786: [生产回归健康指标慢查询热修] — (1)P0-修复 monitoring.getHealthMetrics 在生产首页触发约19秒慢响应的问题,将多段健康指标聚合改为并行执行并降低无界扫描 (2)P0-健康指标缓存键加入用户维度,避免 accountId=0 全局视角跨用户共享缓存 (3)P1-对高成本 ACoS 趋势与提价样本计算增加采样边界,保持监控诊断价值同时降低生产数据库压力 (4)P1-补充 optimization_events 健康指标查询复合索引迁移,支撑回滚率、算法激活率与熔断指标过滤。',
+    affectedModules: ['dashboard', 'api', 'db'],
+    correctionActions: [],
+  },
+  {
     version: 785,
     description: 'v785: [性能巡检查询链路优化] — (1)P0-Dashboard关键KPI/趋势查询从tRPC批处理链路拆分,并将performance日期过滤改为索引友好的半开区间,降低首屏慢批处理耦合 (2)P0-Amazon API设置页同步任务轮询改为仅活跃任务期间高频轮询,避免无任务时持续请求 (3)P1-SyncLogs改为服务端分页、状态/关键词/日期过滤,并补充同步历史复合索引迁移 (4)P1-修复A/B测试旧路径兼容与canonical不一致 (5)P2-增强Dashboard错误诊断、KPI骨架屏和图表日期范围文案。',
     affectedModules: ['analytics', 'sync', 'db'],
