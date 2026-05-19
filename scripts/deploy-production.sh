@@ -34,9 +34,9 @@ set -euo pipefail
 # AWS/EB配置
 AWS_REGION="${AWS_DEFAULT_REGION:-us-east-1}"
 EB_APP_NAME="amazon-ads-optimizer"
-EB_ENV_NAME="amazon-ads-env-prod"
+EB_ENV_NAME="amazon-ads-env-prod-v2"
 S3_BUCKET="elasticbeanstalk-us-east-1-696154297094"
-PROD_URL="http://ppcopt-prod.us-east-1.elasticbeanstalk.com"
+PROD_URL="http://amazon-ads-env-prod-v2.eba-uhm6tipg.us-east-1.elasticbeanstalk.com"
 
 # OPS API配置
 OPS_API_KEY="${OPS_API_KEY:-9adYxHBc8XTE9uwuje3-cegKy6rbzbwfS36Ld3duZ-o}"
@@ -131,7 +131,7 @@ pre_check() {
   log_info "当前生产版本: $CURRENT_VERSION"
   
   # 获取代码中的SYSTEM_VERSION
-  SYSTEM_VERSION=$(grep -oP 'SYSTEM_VERSION\s*=\s*\K\d+' server/postDeployOptimizer.ts 2>/dev/null || echo "unknown")
+  SYSTEM_VERSION=$(grep -oP 'SYSTEM_VERSION\s*=\s*\K\d+' server/utils/systemVersion.ts 2>/dev/null || echo "unknown")
   log_info "代码SYSTEM_VERSION: $SYSTEM_VERSION"
   
   # 获取git commit
