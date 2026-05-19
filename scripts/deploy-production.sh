@@ -35,7 +35,7 @@ set -euo pipefail
 AWS_REGION="${AWS_DEFAULT_REGION:-us-east-1}"
 EB_APP_NAME="amazon-ads-optimizer"
 EB_ENV_NAME="amazon-ads-env-prod-v2"
-S3_BUCKET="elasticbeanstalk-us-east-1-696154297094"
+S3_BUCKET="elasticbeanstalk-us-east-1-408336117167"
 PROD_URL="http://amazon-ads-env-prod-v2.eba-uhm6tipg.us-east-1.elasticbeanstalk.com"
 
 # OPS API配置
