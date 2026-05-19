@@ -106,6 +106,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 784,
+    description: 'v784: [campaigns storeId回退热修] — (1)P0-修复共享campaign维度上下文storeId仅读取ad_accounts.store_id的问题,当store_id为空时统一回退到ad_accounts.accountId (2)P0-覆盖独立SP/SB/SD同步、带tracking同步与performance报告自动创建campaigns路径,避免后续同步再次把storeId写空 (3)P1-配合生产回填将历史campaigns.storeId补齐,确保店铺/站点维度筛选和归因稳定。',
+    affectedModules: ['sync', 'reports', 'db'],
+    correctionActions: [],
+  },
+  {
     version: 783,
     description: 'v783: [campaigns全写入路径维度修复] — (1)P0-新增共享campaign维度上下文,统一profileId/marketplaceId/storeId/countryCode回退规则 (2)P0-补齐独立SP/SB/SD同步、带tracking同步与performance报告自动创建campaigns的维度写入,避免绕过campaignSync导致新记录缺维度 (3)P1-storeId回退到ad_accounts.store_id或accountId,countryCode统一大写,提升跨店铺/跨站点归因稳定性。',
     affectedModules: ['sync', 'reports', 'db'],

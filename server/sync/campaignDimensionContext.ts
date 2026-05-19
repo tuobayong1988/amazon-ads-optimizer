@@ -4,7 +4,7 @@ import { adAccounts } from '../../drizzle/schema';
 export interface CampaignDimensionContext {
   profileId: string | null;
   marketplaceId: string | null;
-  storeId: number | null;
+  storeId: string | null;
   countryCode: string | null;
 }
 
@@ -22,13 +22,13 @@ function normalizeDimensionString(value: unknown): string | null {
   return str.length > 0 ? str : null;
 }
 
-function normalizeStoreId(value: unknown): number | null {
-  if (value === null || value === undefined || value === '') return null;
-  const numeric = Number(value);
-  return Number.isFinite(numeric) ? numeric : null;
+function normalizeStoreId(value: unknown): string | null {
+  if (value === null || value === undefined) return null;
+  const str = String(value).trim();
+  return str.length > 0 ? str : null;
 }
 
-export function dimensionsForCampaignUpsert(context: CampaignDimensionContext): Record<string, string | number | null> {
+export function dimensionsForCampaignUpsert(context: CampaignDimensionContext): Record<string, string | null> {
   return {
     profileId: context.profileId,
     marketplaceId: context.marketplaceId,
@@ -41,7 +41,7 @@ export async function loadCampaignDimensionContext(db: any, source: CampaignDime
   const marketplace = normalizeDimensionString(source.marketplace);
   let accountRow: {
     accountId: string | null;
-    storeId: number | null;
+    storeId: string | null;
     profileId: string | null;
     marketplace: string | null;
     marketplaceId: string | null;
@@ -77,7 +77,7 @@ export async function loadCampaignDimensionContext(db: any, source: CampaignDime
     || normalizeDimensionString(accountRow?.marketplace)
     || marketplace;
   const countryCode = normalizeDimensionString(accountRow?.marketplace) || marketplace;
-  const storeId = normalizeStoreId(accountRow?.storeId);
+  const storeId = normalizeStoreId(accountRow?.storeId) || normalizeStoreId(accountRow?.accountId);
 
   return {
     profileId,
