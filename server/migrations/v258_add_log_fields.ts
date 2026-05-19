@@ -23,7 +23,7 @@ export async function runV258Migration(): Promise<void> {
     log.info('v258迁移: 开始添加优化日志增强字段...');
 
     // 检查字段是否已存在
-    // @ts-expect-error - Drizzle raw SQL execution
+    // @ts-ignore - Drizzle raw SQL execution
     const [columns] = await (db as Record<string, Function>).execute(`
       SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS 
       WHERE TABLE_NAME = 'optimization_events' 
@@ -35,7 +35,7 @@ export async function runV258Migration(): Promise<void> {
     );
 
     if (!existingColumns.has('reason_details')) {
-      // @ts-expect-error - Drizzle raw SQL execution
+      // @ts-ignore - Drizzle raw SQL execution
       await (db as Record<string, Function>).execute(`
         ALTER TABLE optimization_events 
         ADD COLUMN reason_details JSON DEFAULT NULL 
@@ -45,7 +45,7 @@ export async function runV258Migration(): Promise<void> {
     }
 
     if (!existingColumns.has('guardrail_info')) {
-      // @ts-expect-error - Drizzle raw SQL execution
+      // @ts-ignore - Drizzle raw SQL execution
       await (db as Record<string, Function>).execute(`
         ALTER TABLE optimization_events 
         ADD COLUMN guardrail_info JSON DEFAULT NULL 
@@ -55,14 +55,14 @@ export async function runV258Migration(): Promise<void> {
     }
 
     if (!existingColumns.has('related_event_id')) {
-      // @ts-expect-error - Drizzle raw SQL execution
+      // @ts-ignore - Drizzle raw SQL execution
       await (db as Record<string, Function>).execute(`
         ALTER TABLE optimization_events 
         ADD COLUMN related_event_id INT DEFAULT NULL 
         COMMENT 'v258: 关联的原始优化事件ID'
       `);
       // 添加索引以加速关联查询
-      // @ts-expect-error - Drizzle raw SQL execution
+      // @ts-ignore - Drizzle raw SQL execution
       await (db as Record<string, Function>).execute(`
         ALTER TABLE optimization_events 
         ADD INDEX idx_oe_related_event (related_event_id)

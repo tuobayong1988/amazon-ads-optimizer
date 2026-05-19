@@ -169,7 +169,7 @@ export async function scanAndRecoverDataCliffs(accountId: number): Promise<Cliff
     log.info(`[DataCliffRecovery] 汇总: 扫描${totalScanned}个, 检测${allCliffs.length}个断崖, 修复${repaired}个`);
     
     if (allCliffs.length > 0) {
-      // @ts-expect-error Complex function parameter types
+      // @ts-ignore Complex function parameter types
       logOptimizationWarn(`[DataCliffRecovery] 账户${accountId}: 检测到${allCliffs.length}个数据断崖, 已修复${repaired}个`);
     }
     
@@ -566,19 +566,19 @@ async function executeCliffRepair(cliff: CliffDetectionResult): Promise<boolean>
     `);
     
     // 3. 记录审计日志
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     recordAudit({
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       action: `${cliff.entityType}.cliff_recovery`,
       accountId: cliff.accountId,
       entityType: cliff.entityType,
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       entityId: cliff.entityId,
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       entityName: cliff.entityName,
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       previousValue: cliff.currentBid,
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       newValue: cliff.actualRecoveryBid,
       reason: `[v510断崖修复] 订单↓${cliff.orderDropPercent.toFixed(0)}% 流量↓${cliff.trafficDropPercent.toFixed(0)}% | $${cliff.currentBid.toFixed(2)}→$${cliff.actualRecoveryBid.toFixed(2)} (步骤${cliff.recoveryStep}/${CLIFF_RECOVERY_CONFIG.recovery.steps.length}, 历史CPC=$${cliff.historicalCpc.toFixed(2)})`,
     });
@@ -588,7 +588,7 @@ async function executeCliffRepair(cliff: CliffDetectionResult): Promise<boolean>
     try {
       const { syncBidAdjustmentsToAmazon } = await import('./amazonApiHelper');
       const entityId = cliff.entityId;
-      // @ts-expect-error Complex function parameter types
+      // @ts-ignore Complex function parameter types
       const syncResult = await syncBidAdjustmentsToAmazon(cliff.accountId, [{
         keywordId: cliff.entityType === 'keyword' ? entityId : undefined,
         targetId: cliff.entityType === 'product_target' ? entityId : undefined,
@@ -601,12 +601,12 @@ async function executeCliffRepair(cliff: CliffDetectionResult): Promise<boolean>
       if (itemResult?.status !== 'synced') {
         log.warn(`[DataCliffRecovery] v737: API同步未确认(${cliff.entityType}=${entityId}): ${itemResult?.error || 'API返回无结果'}`); 
       }
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     } catch (syncErr: unknown) {
       log.warn(`[DataCliffRecovery] API同步失败(${cliff.entityType}=${cliff.entityId}): ${(syncErr as Error).message}`);
       // API同步失败不影响本地修复记录
     }
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     logOptimization(`[DataCliffRecovery] 修复成功: ${cliff.entityType}="${cliff.entityName}" $${cliff.currentBid.toFixed(2)}→$${cliff.actualRecoveryBid.toFixed(2)} (${cliff.severity})`);
     
     return true;

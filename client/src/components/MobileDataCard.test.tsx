@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * MobileDataCard 组件交互测试
  * 

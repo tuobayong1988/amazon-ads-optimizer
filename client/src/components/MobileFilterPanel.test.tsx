@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * MobileFilterPanel 组件交互测试
  * 

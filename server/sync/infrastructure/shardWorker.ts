@@ -194,14 +194,13 @@ export function stopShardWorker(): void {
 async function cleanupExpiredLocks(): Promise<void> {
   try {
     const { getDb } = await import('../../db');
-    const { syncLocks } = await import('../../../drizzle/schema');
-    const { lte } = await import('drizzle-orm');
+    const { sql } = await import('drizzle-orm');
     
     const database = await getDb();
     if (!database) return;
 
-    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
-    await database.delete(syncLocks).where(lte(syncLocks.expiresAt, now));
+    // v772: 使用数据库本地时间判断锁过期，避免 Node.js UTC 字符串与 MySQL 会话时区混用。
+    await database.execute(sql`DELETE FROM sync_locks WHERE expires_at <= NOW()`);
   } catch (error: unknown) {
     log.warn(`[v358] 清理过期锁失败: ${(error as Error).message}`);
   }

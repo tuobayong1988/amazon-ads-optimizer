@@ -1,6 +1,6 @@
 {
   "include": ["client/src/**/*", "shared/**/*", "server/**/*", "drizzle/**/*"],
-  "exclude": ["node_modules", "build", "dist", "**/*.test.ts", "server/_archived/**/*", "server/_archived_v149/**/*", "server/sync/**/*"],
+  "exclude": ["node_modules", "build", "dist", "**/*.test.ts", "**/*.test.tsx", "server/_debug/**/*", "server/_archived/**/*", "server/_archived_v149/**/*", "server/sync/**/*"],
   "compilerOptions": {
     "incremental": true,
     "tsBuildInfoFile": "./node_modules/typescript/tsbuildinfo",

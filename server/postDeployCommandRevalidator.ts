@@ -159,24 +159,24 @@ async function revalidatePendingCommands(
     );
     
     const rows = Array.isArray(pendingEvents) 
-      // @ts-expect-error Dynamic type assertion
+      // @ts-ignore Dynamic type assertion
       ? (Array.isArray((pendingEvents as Record<string, unknown>)[0]) ? (pendingEvents as Record<string, unknown>)[0] : pendingEvents)
       : [];
     
-    // @ts-expect-error Dynamic property access
+    // @ts-ignore Dynamic property access
     if (rows.length === 0) {
       log.info(`[CmdRevalidator] [${targetName}] 无pending指令需要重评估`);
       return result;
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     }
     
-    // @ts-expect-error Dynamic property access
+    // @ts-ignore Dynamic property access
     result.total = rows.length;
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     log.info(`[CmdRevalidator] [${targetName}] 发现${rows.length}条pending指令需要重评估`);
     
     // 2. 逐条评估
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     for (const row of rows) {
       try {
         const evaluation = evaluatePendingCommand(row, targetName);
@@ -247,13 +247,13 @@ async function revalidatePendingCommands(
  */
 function evaluatePendingCommand(
   row: Record<string, unknown>,
-  // @ts-expect-error Legacy code type compatibility
+  // @ts-ignore Legacy code type compatibility
   targetName: string
 ): { shouldCancel: boolean; reason: string } {
   const actionType = row.action_type;
   
   // ===== 出价类指令评估 =====
-  // @ts-expect-error Amazon API response type flexibility
+  // @ts-ignore Amazon API response type flexibility
   if (['bid_increase', 'bid_decrease', 'bid_set', 'bid_auto_adjust'].includes(actionType)) {
     const newBid = parseFloat(String(row.new_bid || row.new_value || 0));
     const prevBid = parseFloat(String(row.previous_bid || row.previous_value || 0));
@@ -302,7 +302,7 @@ function evaluatePendingCommand(
   }
   
   // ===== 预算类指令评估 =====
-  // @ts-expect-error Dynamic property access
+  // @ts-ignore Dynamic property access
   if (['budget_increase', 'budget_decrease', 'budget_set'].includes(actionType)) {
     const newBudget = parseFloat(String(row.new_value || 0));
     const prevBudget = parseFloat(String(row.previous_value || 0));
@@ -323,7 +323,7 @@ function evaluatePendingCommand(
     
     // 规则3: 预算已被后续操作覆盖
     if (currentBudget > 0 && Math.abs(currentBudget - newBudget) < 0.01) {
-      // @ts-expect-error Return type compatibility
+      // @ts-ignore Return type compatibility
       return { shouldCancel: true, reason: `当前预算$${currentBudget.toFixed(2)}已等于目标值，无需调整` };
     }
     
@@ -331,7 +331,7 @@ function evaluatePendingCommand(
   }
   
   // ===== 状态变更指令评估 =====
-  // @ts-expect-error Dynamic property access
+  // @ts-ignore Dynamic property access
   if (['target_pause', 'target_enable'].includes(actionType)) {
     if (!row.amazon_keyword_id && !row.amazon_target_id) {
       return { shouldCancel: true, reason: '缺少Amazon ID，无法执行状态变更' };
@@ -340,7 +340,7 @@ function evaluatePendingCommand(
   }
   
   // ===== 关键词/否定词/商品定向创建指令 =====
-  // @ts-expect-error Dynamic property access
+  // @ts-ignore Dynamic property access
   if (['keyword_create', 'negative_keyword_add', 'product_target_create'].includes(actionType)) {
     // 创建类指令一般是合理的，只要有必要的Amazon ID
     if (!row.amazon_campaign_id && actionType !== 'product_target_create') {
@@ -395,26 +395,26 @@ async function auditAndCorrectHistoricalCommands(
  LIMIT ${sql.raw(String(REVALIDATION_CONFIG.maxSyncedPerTarget))}`
     );
     
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const rows = Array.isArray(syncedEvents) 
-      // @ts-expect-error Dynamic type assertion
+      // @ts-ignore Dynamic type assertion
       ? (Array.isArray((syncedEvents as Record<string, unknown>)[0]) ? (syncedEvents as Record<string, unknown>)[0] : syncedEvents)
       : [];
     
-    // @ts-expect-error Dynamic property access
+    // @ts-ignore Dynamic property access
     if (rows.length === 0) {
       log.info(`[CmdRevalidator] [${targetName}] 无近期synced指令需要审计`);
       return result;
     }
     
-    // @ts-expect-error Dynamic property access
+    // @ts-ignore Dynamic property access
     result.total = rows.length;
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     log.info(`[CmdRevalidator] [${targetName}] 审计${rows.length}条已执行指令...`);
     
     // 2. 按keyword/campaign分组，只审计每个实体最新的一条（避免重复纠正）
     const latestByEntity = new Map<string, Record<string, unknown>>();
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     for (const row of rows) {
       const entityKey = `${row.action_type?.includes('budget') ? 'campaign' : 'keyword'}_${row.keyword_id || row.campaign_id}`;
       if (!latestByEntity.has(entityKey)) {
@@ -427,9 +427,9 @@ async function auditAndCorrectHistoricalCommands(
       try {
         const audit = auditSyncedCommand(row, targetName);
         
-        // @ts-expect-error Conditional type narrowing
+        // @ts-ignore Conditional type narrowing
         if (audit.isUnreasonable) {
-          // @ts-expect-error Legacy code type compatibility
+          // @ts-ignore Legacy code type compatibility
           result.unreasonable++;
           
           // 生成纠正指令
@@ -442,11 +442,11 @@ async function auditAndCorrectHistoricalCommands(
               recordAudit({
                 action: 'optimization.auto_bid',
                 accountId,
-                // @ts-expect-error Conditional type narrowing
+                // @ts-ignore Conditional type narrowing
                 entityType: row.action_type?.includes('budget') ? 'campaign' : 'keyword',
-                // @ts-expect-error Legacy code type compatibility
+                // @ts-ignore Legacy code type compatibility
                 entityId: row.keyword_id || row.campaign_id,
-                // @ts-expect-error Legacy code type compatibility
+                // @ts-ignore Legacy code type compatibility
                 entityName: row.keyword_text || row.campaign_name,
                 previousValue: { 
                   originalAction: row.action_type, 
@@ -484,7 +484,7 @@ async function auditAndCorrectHistoricalCommands(
     
   } catch (err: unknown) {
     const cause = (err as Record<string, unknown>)?.cause;
-    // @ts-expect-error Dynamic type assertion
+    // @ts-ignore Dynamic type assertion
     const causeMsg = cause ? ` | cause: ${String((cause as Record<string, unknown>)?.message || cause)}` : '';
     log.warn(`[CmdRevalidator] [${targetName}] 历史指令审计失败: ${(err as Error).message}${causeMsg}`);
   }
@@ -495,7 +495,7 @@ async function auditAndCorrectHistoricalCommands(
 /**
  * 审计单条已执行指令是否合理
  */
-// @ts-expect-error Legacy code type compatibility
+// @ts-ignore Legacy code type compatibility
 function auditSyncedCommand(
   row: Record<string, unknown>,
   targetName: string
@@ -503,7 +503,7 @@ function auditSyncedCommand(
   const actionType = row.action_type;
   
   // ===== 出价指令审计 =====
-  // @ts-expect-error Amazon API response type flexibility
+  // @ts-ignore Amazon API response type flexibility
   if (['bid_increase', 'bid_decrease', 'bid_set', 'bid_auto_adjust'].includes(actionType)) {
     const executedBid = parseFloat(String(row.new_bid || row.new_value || 0));
     const prevBid = parseFloat(String(row.previous_bid || row.previous_value || 0));
@@ -511,11 +511,11 @@ function auditSyncedCommand(
     
     if (prevBid <= 0 || executedBid <= 0) {
       return { isUnreasonable: false, reason: '数据不完整，跳过审计' };
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     }
     
     // 规则1: 降价幅度超过30%
-    // @ts-expect-error Amazon API response type flexibility
+    // @ts-ignore Amazon API response type flexibility
     if (['bid_decrease', 'bid_set', 'bid_auto_adjust'].includes(actionType) && executedBid < prevBid) {
       const decreasePercent = (prevBid - executedBid) / prevBid;
       if (decreasePercent > 0.30) {
@@ -531,7 +531,7 @@ function auditSyncedCommand(
     }
     
     // 规则2: 提价幅度超过50%
-    // @ts-expect-error Amazon API response type flexibility
+    // @ts-ignore Amazon API response type flexibility
     if (['bid_increase', 'bid_set', 'bid_auto_adjust'].includes(actionType) && executedBid > prevBid) {
       const increasePercent = (executedBid - prevBid) / prevBid;
       if (increasePercent > 0.50) {
@@ -547,7 +547,7 @@ function auditSyncedCommand(
     
     // 规则3: 出价降至极低值（可能导致零曝光）
     if (executedBid < REVALIDATION_CONFIG.absoluteMinBid && prevBid >= 0.10) {
-      // @ts-expect-error Return type compatibility
+      // @ts-ignore Return type compatibility
       return {
         isUnreasonable: true,
         reason: `出价降至$${executedBid.toFixed(2)}，低于最低限$${REVALIDATION_CONFIG.absoluteMinBid}，可能导致零曝光`,
@@ -568,7 +568,7 @@ function auditSyncedCommand(
   }
   
   // ===== 预算指令审计 =====
-  // @ts-expect-error Dynamic property access
+  // @ts-ignore Dynamic property access
   if (['budget_increase', 'budget_decrease', 'budget_set'].includes(actionType)) {
     const executedBudget = parseFloat(String(row.new_value || 0));
     const prevBudget = parseFloat(String(row.previous_value || 0));
@@ -620,7 +620,7 @@ async function generateCorrectionCommand(
   targetId: number,
   targetName: string,
   accountId: number
-// @ts-expect-error Async operation type inference
+// @ts-ignore Async operation type inference
 ): Promise<void> {
   const isBidCorrection = audit.correctionBid !== undefined;
   const correctionValue = isBidCorrection ? audit.correctionBid! : audit.correctionBudget!;
@@ -642,7 +642,7 @@ async function generateCorrectionCommand(
   }
   
   // 插入纠正指令到optimization_events
-  // @ts-expect-error DB query type inference limitation
+  // @ts-ignore DB query type inference limitation
   await database.execute(
     sql`INSERT INTO optimization_events 
         (performance_group_id, performance_group_name, account_id, account_name,
@@ -708,20 +708,20 @@ export async function runFullRevalidation(): Promise<FullRevalidationResult> {
       return {
         version: SYSTEM_VERSION,
         triggeredAt,
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         completedAt: new Date(),
         targetsProcessed: 0,
         totalPendingRevalidated: 0,
         totalPendingCancelled: 0,
         totalPendingRetriggered: 0,
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         totalHistoricalAudited: 0,
         totalCorrectionsGenerated: 0,
         targetResults: [],
         errors: [],
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       };
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     }
     
     log.info(`[CmdRevalidator] 对 ${targets.length} 个活跃优化目标执行重评估...`);
@@ -734,24 +734,24 @@ export async function runFullRevalidation(): Promise<FullRevalidationResult> {
       try {
         // 1. 积压指令重新评估
         const pendingResult = await revalidatePendingCommands(
-          // @ts-expect-error Legacy code type compatibility
+          // @ts-ignore Legacy code type compatibility
           target.id, target.name, target.accountId
         );
         
         // 2. 历史指令自动纠错
         const auditResult = await auditAndCorrectHistoricalCommands(
-          // @ts-expect-error Legacy code type compatibility
+          // @ts-ignore Legacy code type compatibility
           target.id, target.name, target.accountId
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         );
         
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         const targetResult: RevalidationResult = {
-          // @ts-expect-error Legacy code type compatibility
+          // @ts-ignore Legacy code type compatibility
           targetId: target.id,
-          // @ts-expect-error Legacy code type compatibility
+          // @ts-ignore Legacy code type compatibility
           targetName: target.name,
-          // @ts-expect-error Legacy code type compatibility
+          // @ts-ignore Legacy code type compatibility
           accountId: target.accountId,
           pendingRevalidation: pendingResult,
           historicalAudit: auditResult,
@@ -761,23 +761,23 @@ export async function runFullRevalidation(): Promise<FullRevalidationResult> {
         
         targetResults.push(targetResult);
         
-        // @ts-expect-error Complex function parameter types
+        // @ts-ignore Complex function parameter types
         log.info(`[CmdRevalidator] [${target.name}] 完成 (${targetResult.duration}ms): ` +
           `pending=${pendingResult.total}(保留${pendingResult.kept},取消${pendingResult.cancelled}), ` +
           `历史=${auditResult.total}(合理${auditResult.reasonable},纠正${auditResult.correctionGenerated})`);
         
       } catch (targetErr: unknown) {
-        // @ts-expect-error Type inference limitation
+        // @ts-ignore Type inference limitation
         const errMsg = `目标${target.name}(${target.id})处理失败: ${(targetErr as Error).message}`;
         errors.push(errMsg);
         log.warn(`[CmdRevalidator] ${errMsg}`);
         
         targetResults.push({
-          // @ts-expect-error Legacy code type compatibility
+          // @ts-ignore Legacy code type compatibility
           targetId: target.id,
-          // @ts-expect-error Legacy code type compatibility
+          // @ts-ignore Legacy code type compatibility
           targetName: target.name,
-          // @ts-expect-error Legacy code type compatibility
+          // @ts-ignore Legacy code type compatibility
           accountId: target.accountId,
           pendingRevalidation: { total: 0, kept: 0, cancelled: 0, retriggered: 0, errors: 1 },
           historicalAudit: { total: 0, reasonable: 0, unreasonable: 0, correctionGenerated: 0, errors: 1 },

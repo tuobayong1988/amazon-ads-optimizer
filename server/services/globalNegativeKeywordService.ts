@@ -10,7 +10,7 @@
 import { getDb } from '../db';
 import { accountNegativeKeywords, InsertAccountNegativeKeyword } from '../../drizzle/schema';
 import { eq, and, sql } from 'drizzle-orm';
-// @ts-expect-error - runtime type mismatch
+// @ts-ignore - runtime type mismatch
 import { log } from '../utils/logger';
 
 /**
@@ -143,7 +143,7 @@ export async function addGlobalNegativeKeyword(
       set: { status: 'active', sourceReason, updatedAt: sql`NOW()` },
     });
 
-    // @ts-expect-error Dynamic type assertion
+    // @ts-ignore Dynamic type assertion
     const insertId = (result as Record<string, unknown>[])[0]?.insertId as unknown as number;
     log.info(`[GlobalNegative] 添加全局否定词: "${negativeText}" (${matchType}), accountId=${accountId}, source=${source}`);
     

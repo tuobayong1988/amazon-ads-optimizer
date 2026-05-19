@@ -97,7 +97,7 @@ export async function safeCampaignIdForInsert(ctx: CampaignIdContext): Promise<s
         return str; // 已经是有效的 Amazon ID
       }
       // 如果是 'ambiguous'（如5-9位数字），也接受（可能是较短的 Amazon ID）
-      // @ts-expect-error - Amazon ID type assertion
+      // @ts-ignore - Amazon ID type assertion
       if (classification === 'ambiguous' && isValidAmazonId(str)) {
         return str;
       }
@@ -164,7 +164,7 @@ async function resolveCampaignIdFromAdGroup(adGroupId: number): Promise<string |
     const adGroup = await queryAdGroupById(adGroupId);
     if (adGroup && adGroup.campaignId) {
       const campaignId = String(adGroup.campaignId).trim();
-      // @ts-expect-error - Amazon ID type assertion
+      // @ts-ignore - Amazon ID type assertion
       if (isValidAmazonId(campaignId) && classifyCampaignId(campaignId) !== 'local') {
         setCachedCampaignId(adGroupId, campaignId);
         return campaignId;
@@ -218,17 +218,17 @@ export async function preloadCampaignIdCache(adGroupIds: number[]): Promise<void
     const { adGroups } = await import('../../drizzle/schema');
     const { inArray } = await import('drizzle-orm');
 
-    // @ts-expect-error DB query type inference limitation
+    // @ts-ignore DB query type inference limitation
     const results = await db.select({
       id: adGroups.id,
       campaignId: adGroups.campaignId,
     }).from(adGroups).where(inArray(adGroups.id, uncachedIds));
 
-    // @ts-expect-error Dynamic type assertion
+    // @ts-ignore Dynamic type assertion
     for (const row of (results as unknown[])) {
-      // @ts-expect-error Complex function parameter types
+      // @ts-ignore Complex function parameter types
       if (row.campaignId && isValidAmazonId(row.campaignId)) {
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         setCachedCampaignId(row.id, row.campaignId);
       }
     }

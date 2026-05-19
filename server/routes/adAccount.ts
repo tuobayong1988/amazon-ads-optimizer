@@ -13,7 +13,7 @@ import { eq, and, gte, lte, desc } from 'drizzle-orm';
 
 // v452.8: 系统管理员判断 - 只有内部组织(orgId=1)的admin才是系统管理员
 function isSystemAdmin(user: unknown): boolean {
-  // @ts-expect-error Dynamic property access
+  // @ts-ignore Dynamic property access
   return user.role === 'admin' && user.organizationId === 1;
 }
 
@@ -30,7 +30,7 @@ async function getUserVisibleAccounts(user: Record<string, unknown>) {
 // ==================== Ad Account Router ====================
 export const adAccountRouter = router({
   // v667: 数据隔离修复 — 所有用户（包括管理员）只能看到自己组织内的账户
-  // @ts-expect-error Complex function parameter types
+  // @ts-ignore Complex function parameter types
   list: protectedProcedure.query(async ({ ctx }: unknown) => {
     return getUserVisibleAccounts(ctx.user);
   }),
@@ -55,10 +55,10 @@ export const adAccountRouter = router({
     }),
   
   // v359: 安全修复 — 获取默认账号（需认证，按用户隔离）
-  // @ts-expect-error Legacy code type compatibility
+  // @ts-ignore Legacy code type compatibility
   getDefault: protectedProcedure
     .input(z.object({ userId: z.number().optional() }).optional())
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ ctx }: unknown) => {
       // v667: 数据隔离修复 — 使用组织级隔离
       const accounts = await getUserVisibleAccounts(ctx.user);
@@ -146,11 +146,11 @@ export const adAccountRouter = router({
       conversionValueType: z.enum(["sales", "units", "custom"]).optional(),
       conversionValueSource: z.enum(["platform", "custom"]).optional(),
       intradayBiddingEnabled: z.boolean().optional(),
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       defaultMaxBid: z.string().optional(),
       status: z.enum(["active", "paused", "archived"]).optional(),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .mutation(async ({ ctx, input }: unknown) => {
       const { id, intradayBiddingEnabled, ...rest } = input;
       const data = {
@@ -403,12 +403,12 @@ export const adAccountRouter = router({
     
     // v689: 缓存TTL从2分钟提升到5分钟（数据概览不需要实时性）
     apiCache.set(cacheKey, accountsWithPerformance, 5 * 60 * 1000);
-    // @ts-expect-error Return type compatibility
+    // @ts-ignore Return type compatibility
     return accountsWithPerformance;
   }),
 
   // 获取账号统计信息
-  // @ts-expect-error Complex function parameter types
+  // @ts-ignore Complex function parameter types
   getStats: protectedProcedure.query(async ({ ctx }: unknown) => {
     // v667: 数据隔离修复 — 使用组织级隔离
     const accounts = await getUserVisibleAccounts(ctx.user as Record<string, unknown>);
@@ -431,14 +431,14 @@ export const adAccountRouter = router({
       // 市场覆盖（去重后的国家数量）
       marketplaceCount: new Set(actualSites.map(a => a.marketplace)).size,
       // 按市场分组统计
-      // @ts-expect-error Generic type constraint
+      // @ts-ignore Generic type constraint
       byMarketplace: {} as Record<string, number>,
     };
     
     for (const account of (actualSites as unknown[])) {
-      // @ts-expect-error Conditional type narrowing
+      // @ts-ignore Conditional type narrowing
       if (account.marketplace) {
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         stats.byMarketplace[account.marketplace] = (stats.byMarketplace[account.marketplace] || 0) + 1;
       }
     }
@@ -501,7 +501,7 @@ export const adAccountRouter = router({
       }
       
       // 获取每日绩效数据
-      // @ts-expect-error DB query type inference limitation
+      // @ts-ignore DB query type inference limitation
       const trendData = await db.getDailyTrendData(accountIds, input.days, 'custom', startDate, endDate);
       // v268: 缓存结果
       // v689: 缓存TTL从2分钟提升到5分钟（趋势图数据不需要实时性）
@@ -510,7 +510,7 @@ export const adAccountRouter = router({
     }),
   
   // 获取数据可用日期范围（用于自定义日期选择器的限制）
-  // @ts-expect-error Complex function parameter types
+  // @ts-ignore Complex function parameter types
   getDataDateRange: protectedProcedure.query(async ({ ctx }: unknown) => {
     // v667: 数据隔离修复 — 使用组织级隔离
     const accounts = await getUserVisibleAccounts(ctx.user as Record<string, unknown>);

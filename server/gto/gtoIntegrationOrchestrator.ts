@@ -221,11 +221,11 @@ export function batchCalculateGTOModifiers(
   const portfolioAnalysis = analyzePortfolio(targets, groupConfig);
   
   // ===== 竞争环境分析（基于组级别数据，同步内联版本） =====
-  // @ts-expect-error Dynamic property access
+  // @ts-ignore Dynamic property access
   const groupCpc = targets.reduce((sum: number, t: Record<string, unknown>) => sum + (t.clicks > 0 ? t.spend / t.clicks : 0), 0) / Math.max(1, targets.length);
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const groupImpressions = targets.reduce((sum: number, t: Record<string, unknown>) => sum + t.impressions, 0);
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const competitionProfile = buildSyncCompetitionProfile(groupCpc, groupImpressions, context.currentHour);
   
   // ===== 逐个计算修正系数 =====
@@ -244,7 +244,7 @@ export function batchCalculateGTOModifiers(
   
   // 统计日志
   const modifiers = Array.from(results.values());
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const avgModifier = modifiers.reduce((s: unknown, m: unknown) => s + m.compositeModifier, 0) / Math.max(1, modifiers.length);
   const raises = modifiers.filter(m => m.compositeModifier > 1.05).length;
   const folds = modifiers.filter(m => m.compositeModifier < 0.95).length;

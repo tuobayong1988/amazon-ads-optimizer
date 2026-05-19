@@ -202,7 +202,9 @@ export async function failTask(taskId, error48, task) {
           };
           const retryQueueKey = QUEUE_KEYS.low;
           await redis.lpush(retryQueueKey, JSON.stringify(retryTask));
-          log79.info(`[v580] \u4EFB\u52A1\u91CD\u8BD5\u5165\u961F: id=${taskId}, retry=${retryCount}/${maxRetries}`);
+          // v775: 失败重试已重新入队，必须释放本次处理持有的账户锁，否则断点续跑任务会被旧锁阻塞直到 TTL 过期。
+          await redis.del(ACCOUNT_LOCK_PREFIX + task.accountId);
+          log79.info(`[v775] \u4EFB\u52A1\u91CD\u8BD5\u5165\u961F\u5E76\u91CA\u653E\u8D26\u6237\u9501: id=${taskId}, retry=${retryCount}/${maxRetries}`);
         } else {
           await redis.srem(QUEUE_KEYS.dedup, `${task.accountId}:${task.tier}`);
           await redis.hdel(QUEUE_KEYS.checkpoints, taskId);
@@ -333,6 +335,12 @@ export async function recoverInterruptedTasks(maxAgeMs = 3 * 60 * 1e3) {  // v61
         };
         await redis.lpush(QUEUE_KEYS.high, JSON.stringify(recoveryTask));
         await redis.hdel(QUEUE_KEYS.processing, taskId);
+        // v775: 中断任务恢复后释放原 worker 遗留的账户锁，避免恢复任务反复被旧锁重新入队。
+        const lockKey = ACCOUNT_LOCK_PREFIX + task.accountId;
+        const lockHolder = await redis.get(lockKey);
+        if (!lockHolder || lockHolder === task.workerId || lockHolder === WORKER_ID) {
+          await redis.del(lockKey);
+        }
         result.recovered++;
         if (hasCheckpoint) {
           result.withCheckpoint++;
@@ -383,6 +391,12 @@ export async function cleanupStuckTasks(maxAgeMs = 20 * 60 * 1e3) {  // v619: re
             await redis.hdel(QUEUE_KEYS.checkpoints, taskId);
           }
           await redis.hdel(QUEUE_KEYS.processing, taskId);
+          // v775: 清理卡住任务时释放原 worker 遗留锁；仅释放本任务对应 worker/当前 worker 持有的锁，避免误删新任务锁。
+          const lockKey = ACCOUNT_LOCK_PREFIX + task.accountId;
+          const lockHolder = await redis.get(lockKey);
+          if (!lockHolder || lockHolder === task.workerId || lockHolder === WORKER_ID) {
+            await redis.del(lockKey);
+          }
           cleaned++;
         }
       } catch {

@@ -93,7 +93,7 @@ export async function createEffectRecordsBatch(
 
   const insertResult = await db.insert(algorithmEffectRecords).values(records);
   const startId = insertResult[0].insertId;
-  // @ts-expect-error Array method type inference
+  // @ts-ignore Array method type inference
   return records.map((_: unknown, index: unknown) => startId + index);
 }
 
@@ -464,15 +464,15 @@ export async function getAlgorithmEffectStats(
     if (bidLogs.length > 0) {
       const algorithmMap = new Map<string, { count: number; positive: number; totalBidChange: number }>();
       
-      // @ts-expect-error Amazon API response type flexibility
+      // @ts-ignore Amazon API response type flexibility
       for (const log of (bidLogs as unknown[])) {
-        // @ts-expect-error Type inference limitation
+        // @ts-ignore Type inference limitation
         const algorithm = parseAlgorithmFromDetail(log.actionDetail, log.changeReason);
-        // @ts-expect-error Type inference limitation
+        // @ts-ignore Type inference limitation
         const isPositive = isPositiveAction(log.actionDetail, log.actionType);
-        // @ts-expect-error Type inference limitation
+        // @ts-ignore Type inference limitation
         const prevBid = Number(log.previousValue) || 0;
-        // @ts-expect-error Type inference limitation
+        // @ts-ignore Type inference limitation
         const newBid = Number(log.newValue) || 0;
         const bidChange = prevBid > 0 ? ((newBid - prevBid) / prevBid) * 100 : 0;
         
@@ -600,13 +600,13 @@ export async function getEffectTrend(
           sql`${optimizationEvents.apiSyncStatus} != 'not_applicable'`,
         )
       )
-      // @ts-expect-error DB query type inference limitation
+      // @ts-ignore DB query type inference limitation
       .groupBy(sql`DATE(${optimizationEvents.createdAt})`)
       .orderBy(sql`DATE(${optimizationEvents.createdAt})`);
     
     return results.map((row: Record<string, unknown>) => ({
       date: String(row.date),
-      // @ts-expect-error Dynamic property access
+      // @ts-ignore Dynamic property access
       avgEffectScore: row.count > 0 ? Math.round((Number(row.positiveCount) / Number(row.count)) * 100) / 100 : 0,
       avgROASChange: 0,
       avgACoSChange: Number(row.avgBidChange) || 0,

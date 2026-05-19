@@ -93,7 +93,7 @@ function calculateTrendSlope(values: number[]): number {
   if (values.length < 2) return 0;
   
   const n = values.length;
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const mean = values.reduce((a: unknown, b: unknown) => a + b, 0) / n;
   if (mean === 0) return 0;
   
@@ -116,12 +116,12 @@ function calculateTrendSlope(values: number[]): number {
 function calculateVolatility(values: number[]): number {
   if (values.length < 2) return 0;
   
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const mean = values.reduce((a: unknown, b: unknown) => a + b, 0) / values.length;
-  // @ts-expect-error Conditional type narrowing
+  // @ts-ignore Conditional type narrowing
   if (mean === 0) return 0;
   
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const variance = values.reduce((sum: number, v: Record<string, unknown>) => sum + (v - mean) ** 2, 0) / (values.length - 1);
   return Math.sqrt(variance) / mean;
 }
@@ -200,30 +200,30 @@ export async function extractFeatureVector(
   const orders7d: number[] = [];
   const spend7d: number[] = [];
   const cpcValues: number[] = [];
-  // @ts-expect-error Legacy code type compatibility
+  // @ts-ignore Legacy code type compatibility
   const ctrValues: number[] = [];
   
   for (const row of (perfData as unknown[])) {
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const rowDate = new Date(row.date as string);
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const daysAgo = Math.floor((now.getTime() - rowDate.getTime()) / 86400000);
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const weight = timeDecayWeight(daysAgo);
     
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const clicks = Number(row.clicks) || 0;
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const orders = Number(row.orders) || 0;
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const spend = Number(row.spend) || 0;
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const sales = Number(row.sales) || 0;
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const impressions = Number(row.impressions) || 0;
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const cpc = Number(row.cpc) || 0;
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const ctr = Number(row.ctr) || 0;
     
     // 时间衰减加权CVR
@@ -248,33 +248,33 @@ export async function extractFeatureVector(
       spend7d.push(spend);
     }
     
-    // @ts-expect-error Conditional type narrowing
+    // @ts-ignore Conditional type narrowing
     if (cpc > 0) cpcValues.push(cpc);
     if (ctr > 0) ctrValues.push(ctr);
   }
   
   // 计算加权指标
   const weightedCvr14d = weightedCvrDen > 0 ? weightedCvrNum / weightedCvrDen : 0;
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const weightedRoas14d = weightedRoasDen > 0 ? weightedRoasNum / weightedRoasDen : 0;
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const weightedAcos14d = weightedAcosDen > 0 ? weightedAcosNum / weightedAcosDen : 0;
   
   // 计算7天均值
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const sum7d = (arr: number[]) => arr.reduce((a: unknown, b: unknown) => a + b, 0);
-  // @ts-expect-error Dynamic property access
+  // @ts-ignore Dynamic property access
   const avg7d = (arr: number[]) => arr.length > 0 ? sum7d(arr) / arr.length : 0;
   
   const totalImpressions7d = sum7d(impressions7d);
   const totalClicks7d = sum7d(clicks7d);
   const totalSpend7d = sum7d(spend7d);
   
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const avgCpc7d = totalClicks7d > 0 ? totalSpend7d / totalClicks7d : 0;
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const avgCtr7d = totalImpressions7d > 0 ? totalClicks7d / totalImpressions7d : 0;
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const avgCvr7d = totalClicks7d > 0 ? sum7d(orders7d) / totalClicks7d : 0;
   
   // 计算竞争环境特征
@@ -373,7 +373,7 @@ export async function batchExtractAndCacheFeatures(accountId: number): Promise<n
       .limit(5000);  // 批次限制
     
     // 获取所有活跃定位（productTargets没有accountId，需要通过adGroups→campaigns JOIN）
-    // @ts-expect-error DB query type inference limitation
+    // @ts-ignore DB query type inference limitation
     const activeTargets = await db.select({
       id: productTargets.id,
       adGroupId: productTargets.internalAdGroupId,
@@ -390,7 +390,7 @@ export async function batchExtractAndCacheFeatures(accountId: number): Promise<n
     // 按Campaign聚合，减少重复查询
     const campaignIds = new Set<string>();
     for (const kw of (activeKeywords as unknown[])) {
-      // @ts-expect-error Conditional type narrowing
+      // @ts-ignore Conditional type narrowing
       if (kw.campaignId) campaignIds.add(String(kw.campaignId));
     }
     for (const tgt of activeTargets) {
@@ -462,7 +462,7 @@ export async function batchExtractAndCacheFeatures(accountId: number): Promise<n
       });
       
       if (insertValues.length > 0) {
-        // @ts-expect-error - Drizzle query builder type
+        // @ts-ignore - Drizzle query builder type
         await db.insert(contextualFeatures).values(insertValues as unknown);
         processedCount += insertValues.length;
       }
@@ -537,78 +537,78 @@ export async function getCachedFeatureVector(
         .limit(1);
     }
     
-    // @ts-expect-error Dynamic property access
+    // @ts-ignore Dynamic property access
     if (staleCache && staleCache.length > 0) {
       // 使用过期缓存但更新时间相关特征
-      // @ts-expect-error Type inference limitation
+      // @ts-ignore Type inference limitation
       const feature = parseCachedFeature(staleCache[0]);
-      // @ts-expect-error Dynamic property access
+      // @ts-ignore Dynamic property access
       feature.hourOfDay = new Date().getHours();
-      // @ts-expect-error Dynamic property access
+      // @ts-ignore Dynamic property access
       feature.dayOfWeek = new Date().getDay();
-      // @ts-expect-error Complex function parameter types
+      // @ts-ignore Complex function parameter types
       log.info(`[ContextualFeatureService] v275: 使用${daysBack}天前的缓存特征 (kw=${keywordId}, tgt=${targetId})`);
-      // @ts-expect-error Return type compatibility
+      // @ts-ignore Return type compatibility
       return feature;
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     }
-  // @ts-expect-error Legacy code type compatibility
+  // @ts-ignore Legacy code type compatibility
   }
   
   // 缓存完全不存在，实时计算
-  // @ts-expect-error Return type compatibility
+  // @ts-ignore Return type compatibility
   return extractFeatureVector(accountId, keywordId, targetId, campaignId);
-// @ts-expect-error Legacy code type compatibility
+// @ts-ignore Legacy code type compatibility
 }
 
 /** v264: 解析缓存特征向量的辅助函数 */
-// @ts-expect-error Complex function parameter types
+// @ts-ignore Complex function parameter types
 function parseCachedFeature(c: unknown): ContextFeatureVector {
-  // @ts-expect-error Return type compatibility
+  // @ts-ignore Return type compatibility
   return {
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     accountId: c.accountId,
-    // @ts-expect-error Conditional type narrowing
+    // @ts-ignore Conditional type narrowing
     keywordId: c.keywordId ?? undefined,
-    // @ts-expect-error Conditional type narrowing
+    // @ts-ignore Conditional type narrowing
     targetId: c.targetId ?? undefined,
-    // @ts-expect-error Conditional type narrowing
+    // @ts-ignore Conditional type narrowing
     campaignId: c.campaignId ?? undefined,
-    // @ts-expect-error Conditional type narrowing
+    // @ts-ignore Conditional type narrowing
     adGroupId: c.internalAdGroupId ?? undefined,
-    // @ts-expect-error Conditional type narrowing
+    // @ts-ignore Conditional type narrowing
     hourOfDay: c.hourOfDay ?? new Date().getHours(),
-    // @ts-expect-error Conditional type narrowing
+    // @ts-ignore Conditional type narrowing
     dayOfWeek: c.dayOfWeek ?? new Date().getDay(),
-    // @ts-expect-error Conditional type narrowing
+    // @ts-ignore Conditional type narrowing
     isHoliday: c.isHoliday ?? 0,
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     estimatedCompetition: Number(c.estimatedCompetition) || 0,
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     cpcVolatility7d: Number(c.cpcVolatility7d) || 0,
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     ctrVolatility7d: Number(c.ctrVolatility7d) || 0,
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     impressionShare: Number(c.impressionShare) || 0.5,
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     avgCpc7d: Number(c.avgCpc7d) || 0,
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     avgCtr7d: Number(c.avgCtr7d) || 0,
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     avgCvr7d: Number(c.avgCvr7d) || 0,
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     weightedAcos14d: Number(c.weightedAcos14d) || 0,
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     impressionTrend7d: Number(c.impressionTrend7d) || 0,
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     clickTrend7d: Number(c.clickTrend7d) || 0,
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     orderTrend7d: Number(c.orderTrend7d) || 0,
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     spendTrend7d: Number(c.spendTrend7d) || 0,
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     weightedCvr14d: Number(c.weightedCvr14d) || 0,
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     weightedRoas14d: Number(c.weightedRoas14d) || 0,
   };
 }

@@ -36,7 +36,7 @@ import {
   getModuleLockGroup as _lmGetModuleLockGroup,
 } from '../utils/lockManager';
 import {
-  // @ts-expect-error - legacy type assertion
+  // @ts-ignore - legacy type assertion
   isAccountInManualOverride,
   acquireGlobalMutex,
   releaseGlobalMutex,
@@ -200,6 +200,15 @@ export async function startDataSyncScheduler(defaultIntervalMs: number = 60 * 60
   
   // 启动数据同步调度任务
   startSchedulerTasks(defaultIntervalMs);
+
+  // v745: 启动分片 Worker，支撑 full 层分片执行后的失败分片自动重试与历史状态清理
+  try {
+    const { startShardWorker } = await import('./infrastructure/shardWorker');
+    startShardWorker();
+    log.info('[DataSyncScheduler] v745: 分片Worker已启动');
+  } catch (workerErr: unknown) {
+    log.warn(`[DataSyncScheduler] v745: 分片Worker启动失败: ${(workerErr as Error).message}`);
+  }
   
   // 启动优化调度器
   startOptimizationScheduler();
@@ -285,15 +294,15 @@ async function startSchedulerTasks(defaultIntervalMs: number): Promise<void> {
     return nextFullSync.getTime() - now.getTime();
   })();
   setTimeout(() => {
-    // @ts-expect-error - legacy type assertion
+    // @ts-ignore - legacy type assertion
     log.info('[DataSyncScheduler] v659: 全量同步首次执行（PST凌晨3点 = UTC 11:00，每24小时一次）...');
-    // @ts-expect-error - legacy type assertion
+    // @ts-ignore - legacy type assertion
     executeUnifiedSync('full' as unknown);
     // 启动每24小时循环
-    // @ts-expect-error - legacy type assertion
+    // @ts-ignore - legacy type assertion
     schedulerIntervals.full = setInterval(async () => {
       log.info('[DataSyncScheduler] v659: 全量同步定时执行（PST凌晨3点，每24小时）...');
-      // @ts-expect-error - legacy type assertion
+      // @ts-ignore - legacy type assertion
       await executeUnifiedSync('full' as unknown);
     }, 24 * 60 * 60 * 1000); // 24小时
   }, fullSyncDelayMs);
@@ -313,15 +322,15 @@ async function startSchedulerTasks(defaultIntervalMs: number): Promise<void> {
     return nextNightly.getTime() - now.getTime();
   })();
   setTimeout(() => {
-    // @ts-expect-error - legacy type assertion
+    // @ts-ignore - legacy type assertion
     log.info('[DataSyncScheduler] v406: 夜间同步首次执行（PST凌晨2点 = UTC 10:00）...');
-    // @ts-expect-error - legacy type assertion
+    // @ts-ignore - legacy type assertion
     executeUnifiedSync('nightly' as unknown);
     // 启动每24小时循环
-    // @ts-expect-error - legacy type assertion
+    // @ts-ignore - legacy type assertion
     schedulerIntervals.nightly = setInterval(async () => {
       log.info('[DataSyncScheduler] v406: 夜间同步定时执行（PST凌晨2点）...');
-      // @ts-expect-error - legacy type assertion
+      // @ts-ignore - legacy type assertion
       await executeUnifiedSync('nightly' as unknown);
     }, 24 * 60 * 60 * 1000);
   }, nightlyDelayMs);
@@ -384,21 +393,21 @@ async function startSchedulerTasks(defaultIntervalMs: number): Promise<void> {
         if (job.totalSteps >= 10 && job.currentStepIndex > 3) {
           log.info(`[DataSyncScheduler] v411: 接管Job${job.id}(账户${job.accountId}) - 从步骤${job.currentStepIndex}/${job.totalSteps}恢复执行（跳过已完成的前${job.currentStepIndex}步）`);
           
-          // @ts-expect-error - legacy type assertion
+          // @ts-ignore - legacy type assertion
           try {
             const { syncAllAccounts, SYNC_STEPS } = await import('./unifiedSyncEngine');
             // 获取从断点开始的步骤ID列表
-            // @ts-expect-error - legacy type assertion
+            // @ts-ignore - legacy type assertion
             const allStepIds = SYNC_STEPS.map((s: unknown) => s.id);
             const remainingStepIds = allStepIds.slice(job.currentStepIndex);
             
             if (remainingStepIds.length > 0) {
-              // @ts-expect-error - legacy type assertion
+              // @ts-ignore - legacy type assertion
               log.info(`[DataSyncScheduler] v411: 为账户${job.accountId}恢复执行剩余${remainingStepIds.length}个步骤`);
               // 使用syncAllAccounts触发full同步，它会为所有账户执行完整同步
               // 这比仅恢复单个账户更安全，因为其他账户也可能需要同步
               const syncResult: unknown = await syncAllAccounts('full');
-              // @ts-expect-error - legacy type assertion
+              // @ts-ignore - legacy type assertion
               log.info(`[DataSyncScheduler] v411: 任务接管同步完成 - 成功: ${syncResult.successfulAccounts}/${syncResult.totalAccounts}, 失败: ${syncResult.failedAccounts}, 耗时: ${syncResult.durationMs}ms`);
             }
           } catch (resumeErr: unknown) {
@@ -492,42 +501,34 @@ async function startSchedulerTasks(defaultIntervalMs: number): Promise<void> {
   }, 10 * 60 * 1000));
   log.info('[DataSyncScheduler] v358.1: SLO监控已启动，间隔: 10分钟');
 
-  // v361: 数据完整性检查器 - 每4小时全量检查
+  // v746: 数据完整性检查器 - 每4小时执行全量检查与自动修复
   monitoringIntervals.push(setInterval(async () => {
     try {
-      const { checkAllAccountsIntegrity, executeAutoRepair } = await import('../services/sync/dataIntegrityChecker');
-      log.info('[DataSyncScheduler] v358.1: 开始数据完整性定期检查...');
-      const checkResult = await checkAllAccountsIntegrity(14);
-      log.info(`[DataSyncScheduler] v358.1: 完整性检查完成 - 总计=${checkResult.totalAccounts}, ` +
-        `健康=${checkResult.healthyAccounts}, 需修复=${checkResult.unhealthyAccounts}`);
-      
-      // 自动修复需要修复的账户
-      const unhealthyResults = checkResult.results.filter(r => r.needsRepair);
-      for (const result of unhealthyResults) {
-        try {
-          const repairResult = await executeAutoRepair(result);
-          log.info(`[DataSyncScheduler] v358.1: 账户${result.accountId}自动修复: ` +
-            `成功=${repairResult.repaired}, 动作=${repairResult.actionsExecuted}, 错误=${repairResult.errors.length}`);
-        } catch (repairErr: unknown) {
-          log.warn(`[DataSyncScheduler] v358.1: 账户${result.accountId}自动修复失败: ${(repairErr as Error).message}`);
-        }
-      }
+      const { runIntegrityCheckAndAutoRepair } = await import('../services/sync/dataIntegrityChecker');
+      log.info('[DataSyncScheduler] v746: 开始数据完整性定期检查与自动修复...');
+      const sweepResult = await runIntegrityCheckAndAutoRepair(14);
+      log.info(`[DataSyncScheduler] v746: 完整性检查与自动修复完成 - 总计=${sweepResult.totalAccounts}, ` +
+        `健康=${sweepResult.healthyAccounts}, 需修复=${sweepResult.unhealthyAccounts}, ` +
+        `尝试修复=${sweepResult.repairSummary.attemptedAccounts}, 修复成功=${sweepResult.repairSummary.repairedAccounts}, ` +
+        `修复失败=${sweepResult.repairSummary.failedAccounts}, 动作=${sweepResult.repairSummary.actionsExecuted}`);
     } catch (err: unknown) {
-      log.warn(`[DataSyncScheduler] v358.1: 数据完整性检查失败: ${(err as Error).message}`);
+      log.warn(`[DataSyncScheduler] v746: 数据完整性检查与自动修复失败: ${(err as Error).message}`);
     }
   }, 4 * 60 * 60 * 1000));
-  log.info('[DataSyncScheduler] v358.1: 数据完整性检查器已启动，间隔: 4小时');
+  log.info('[DataSyncScheduler] v746: 数据完整性检查与自动修复已启动，间隔: 4小时');
 
-  // v358.1: 启动后延迟5分钟执行一次完整性检查（确保部署后立即检查）
+  // v746: 启动后延迟5分钟执行一次完整性检查与限流自动修复，确保部署后冷启动缺口可被主动收敛
   setTimeout(async () => {
     try {
-      const { checkAllAccountsIntegrity } = await import('../services/sync/dataIntegrityChecker');
-      log.info('[DataSyncScheduler] v358.1: 部署后首次完整性检查...');
-      const checkResult = await checkAllAccountsIntegrity(14);
-      log.info(`[DataSyncScheduler] v358.1: 部署后首次检查完成 - 总计=${checkResult.totalAccounts}, ` +
-        `健康=${checkResult.healthyAccounts}, 需修复=${checkResult.unhealthyAccounts}`);
+      const { runIntegrityCheckAndAutoRepair } = await import('../services/sync/dataIntegrityChecker');
+      log.info('[DataSyncScheduler] v746: 部署后首次完整性检查与自动修复...');
+      const sweepResult = await runIntegrityCheckAndAutoRepair(14, { maxRepairAccounts: 5 });
+      log.info(`[DataSyncScheduler] v746: 部署后首次检查与自动修复完成 - 总计=${sweepResult.totalAccounts}, ` +
+        `健康=${sweepResult.healthyAccounts}, 需修复=${sweepResult.unhealthyAccounts}, ` +
+        `尝试修复=${sweepResult.repairSummary.attemptedAccounts}, 修复成功=${sweepResult.repairSummary.repairedAccounts}, ` +
+        `修复失败=${sweepResult.repairSummary.failedAccounts}, 动作=${sweepResult.repairSummary.actionsExecuted}`);
     } catch (err: unknown) {
-      log.warn(`[DataSyncScheduler] v358.1: 部署后首次完整性检查失败: ${(err as Error).message}`);
+      log.warn(`[DataSyncScheduler] v746: 部署后首次完整性检查与自动修复失败: ${(err as Error).message}`);
     }
   }, 5 * 60 * 1000);
   
@@ -536,8 +537,8 @@ async function startSchedulerTasks(defaultIntervalMs: number): Promise<void> {
   // v488: SyncCoordinator 过期状态清理定时器（每10分钟）
   monitoringIntervals.push(setInterval(async () => {
     try {
-      const cleaned = await cleanupExpiredOverrides();
-      if (cleaned && (cleaned as any) > 0) {
+      const cleaned = (await cleanupExpiredOverrides()) as unknown as number | undefined;
+      if (typeof cleaned === 'number' && cleaned > 0) {
         log.warn(`[DataSyncScheduler] v488: SyncCoordinator清理了 ${cleaned} 个过期的手动接管状态`);
       }
       // 输出协调器状态快照
@@ -597,6 +598,9 @@ export function stopDataSyncScheduler(): void {
   // v384: 单实例模式，无需停止Leader选举
   // 停止所有层级的调度器
   stopSchedulerTasks();
+  void import('./infrastructure/shardWorker')
+    .then(({ stopShardWorker }) => stopShardWorker())
+    .catch((workerErr: unknown) => log.warn(`[DataSyncScheduler] v745: 分片Worker停止失败: ${(workerErr as Error).message}`));
   log.info(`[DataSyncScheduler] v371: 已清理所有监控定时器`);
   schedulerStatus.isRunning = false;
   schedulerStatus.nextRunTime = null;
@@ -623,6 +627,108 @@ const schedulerSkipCount: Record<string, number> = {
   full: 0,
   nightly: 0,
 };
+
+interface SchedulerAccountResult {
+  accountId: number;
+  success: boolean;
+}
+
+interface SchedulerBatchResult {
+  totalAccounts: number;
+  successfulAccounts: number;
+  failedAccounts: number;
+  skippedAccounts: number;
+  durationMs: number;
+  accountResults: SchedulerAccountResult[];
+  executionMode: 'unified_engine' | 'shard_engine';
+  taskId?: string | null;
+  totalShards?: number;
+  completedShards?: number;
+  failedShards?: number;
+  totalRecordsSynced?: number;
+}
+
+function shouldUseShardEngine(tier: SyncTier): boolean {
+  // v745: full 层默认启用现有分片引擎；如生产需要灰度回退，可设置 SYNC_SHARD_FULL_ENABLED=false。
+  // nightly 当前未接入分片表枚举，继续走统一引擎，避免无迁移条件下写入非法 tier。
+  return tier === 'full' && process.env.SYNC_SHARD_FULL_ENABLED !== 'false';
+}
+
+async function getShardAccountResults(taskId: string): Promise<SchedulerAccountResult[]> {
+  try {
+    const database = await db.getDb();
+    if (!database) return [];
+
+    const rowsResult = await database.execute(sql`
+      SELECT
+        account_id as accountId,
+        SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completedCount,
+        SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failedCount,
+        SUM(CASE WHEN status = 'skipped' THEN 1 ELSE 0 END) as skippedCount,
+        COUNT(*) as totalCount
+      FROM sync_shards
+      WHERE task_id = ${taskId}
+      GROUP BY account_id
+    `);
+
+    const rawRowsResult = rowsResult as unknown;
+    const rows = Array.isArray(rawRowsResult)
+      ? (Array.isArray(rawRowsResult[0]) ? rawRowsResult[0] : rawRowsResult)
+      : ((rawRowsResult as { rows?: unknown[] })?.rows || []);
+    if (!Array.isArray(rows)) return [];
+
+    return rows.map((row: unknown) => row as Record<string, unknown>).map((row: Record<string, unknown>) => {
+      const completedCount = Number(row.completedCount || 0);
+      const failedCount = Number(row.failedCount || 0);
+      const totalCount = Number(row.totalCount || 0);
+      return {
+        accountId: Number(row.accountId),
+        success: totalCount > 0 && completedCount > 0 && failedCount === 0,
+      };
+    }).filter(result => Number.isFinite(result.accountId));
+  } catch (error: unknown) {
+    log.warn(`[DataSyncScheduler] v745: 查询分片账户结果失败: ${(error as Error).message}`);
+    return [];
+  }
+}
+
+async function executeSchedulerBatchSync(tier: SyncTier): Promise<SchedulerBatchResult> {
+  if (shouldUseShardEngine(tier)) {
+    const { executeShardSync } = await import('./infrastructure/shardWorker');
+    const shardResult = await executeShardSync('full', 'scheduler_full');
+    const accountResults = shardResult.taskId ? await getShardAccountResults(shardResult.taskId) : [];
+    const successfulAccounts = accountResults.filter(result => result.success).length;
+    const failedAccounts = Math.max(0, accountResults.length - successfulAccounts);
+
+    return {
+      totalAccounts: accountResults.length,
+      successfulAccounts,
+      failedAccounts,
+      skippedAccounts: 0,
+      durationMs: shardResult.durationMs,
+      accountResults,
+      executionMode: 'shard_engine',
+      taskId: shardResult.taskId,
+      totalShards: shardResult.totalShards,
+      completedShards: shardResult.completedShards,
+      failedShards: shardResult.failedShards,
+      totalRecordsSynced: shardResult.totalRecordsSynced,
+    };
+  }
+
+  const { syncAllAccounts } = await import('./unifiedSyncEngine');
+  type UnifiedSyncTier = import('./unifiedSyncEngine').SyncTier;
+  const batchResult = await syncAllAccounts(tier as UnifiedSyncTier);
+  return {
+    totalAccounts: batchResult.totalAccounts,
+    successfulAccounts: batchResult.successfulAccounts,
+    failedAccounts: batchResult.failedAccounts,
+    skippedAccounts: batchResult.skippedAccounts,
+    durationMs: batchResult.durationMs,
+    accountResults: batchResult.accountResults,
+    executionMode: 'unified_engine',
+  };
+}
 
 /**
  * v222: 基于统一同步引擎的分层同步执行（含智能协调）
@@ -659,7 +765,7 @@ async function executeUnifiedSync(tier: SyncTier): Promise<void> {
     let acquired = false;
     while (Date.now() - waitStart < MUTEX_MAX_WAIT_MS) {
       await new Promise(resolve => setTimeout(resolve, MUTEX_POLL_INTERVAL_MS));
-      // @ts-expect-error - legacy type assertion
+      // @ts-ignore - legacy type assertion
       acquired = acquireGlobalMutex(tier);
       if (acquired) break;
     }
@@ -700,18 +806,18 @@ async function executeUnifiedSync(tier: SyncTier): Promise<void> {
  ORDER BY id`
       );
       // Drizzle mysql2返回 [rows, fields]，取第一个元素
-      // @ts-expect-error - legacy type assertion
+      // @ts-ignore - legacy type assertion
       const runningRows = Array.isArray(runningJobs) ? (runningJobs as Record<string, unknown>[])[0] : ((runningJobs as Record<string, unknown>).rows || runningJobs);
-      // @ts-expect-error - legacy type assertion
+      // @ts-ignore - legacy type assertion
       if (runningRows && runningRows.length > 0) {
         // v411: 增强日志 - 添加心跳时间、进度百分比、预计完成时间
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         const jobSummary = runningRows.map((j: unknown) => {
-          // @ts-expect-error - legacy type assertion
+          // @ts-ignore - legacy type assertion
           const progress = j.total_steps > 0 ? Math.round((j.current_step_index / j.total_steps) * 100) : 0;
-          // @ts-expect-error - legacy type assertion
+          // @ts-ignore - legacy type assertion
           const heartbeatAge = j.seconds_since_heartbeat || 0;
-          // @ts-expect-error - legacy type assertion
+          // @ts-ignore - legacy type assertion
           return `Job${j.id}(账户${j.accountId},${j.current_step}[${j.current_step_index}/${j.total_steps}]=${progress}%,运行${j.running_minutes}分钟,心跳${heartbeatAge}秒前)`;
         }).join(', ');
         
@@ -719,12 +825,12 @@ async function executeUnifiedSync(tier: SyncTier): Promise<void> {
         schedulerSkipCount[tier] = (schedulerSkipCount[tier] || 0) + 1;
         const skipCount = schedulerSkipCount[tier];
         
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         log.info(`[DataSyncScheduler] v411: ${tier}层跳过(第${skipCount}次) - 数据库中有${runningRows.length}个running任务: ${jobSummary}`);
         logSync('DataSyncScheduler', `v411: ${tier}层跳过`, { 
           tier, 
           skipCount,
-          // @ts-expect-error - legacy type assertion
+          // @ts-ignore - legacy type assertion
           runningCount: runningRows.length, 
           runningJobs: jobSummary 
         });
@@ -793,9 +899,7 @@ async function executeUnifiedSync(tier: SyncTier): Promise<void> {
   }
 
   try {
-    const { syncAllAccounts } = await import('./unifiedSyncEngine');
-    // @ts-expect-error - type assertion
-    const batchResult = await syncAllAccounts(tier as unknown);
+    const batchResult = await executeSchedulerBatchSync(tier);
 
     schedulerStatus.tierLastRun[tier] = new Date();
     schedulerStatus.lastRunTime = new Date();
@@ -803,10 +907,11 @@ async function executeUnifiedSync(tier: SyncTier): Promise<void> {
     schedulerStatus.failedSyncs += batchResult.failedAccounts;
     schedulerStatus.totalSyncs += batchResult.totalAccounts;
 
-    log.info(`[DataSyncScheduler] v219: ${SYNC_TIER_CONFIG[tier].description}完成: ` +
+    log.info(`[DataSyncScheduler] v745: ${SYNC_TIER_CONFIG[tier].description}完成: ` +
       `${batchResult.successfulAccounts}/${batchResult.totalAccounts} 成功, ` +
       `${batchResult.failedAccounts} 失败, ${batchResult.skippedAccounts} 跳过, ` +
-      `耗时 ${batchResult.durationMs}ms`);
+      `耗时 ${batchResult.durationMs}ms, 执行模式=${batchResult.executionMode}` +
+      (batchResult.taskId ? `, taskId=${batchResult.taskId}, shards=${batchResult.completedShards}/${batchResult.totalShards}, shardFailed=${batchResult.failedShards}` : ''));
 
     // v655: 优化触发扩展到所有层级（high/medium/full/low），彻底解决medium被full阻塞导致优化无法触发的问题
     // v652原始修复将触发扩展到medium层，但medium层因v222互斥被full层阻塞（full运行2-3小时）
@@ -1089,7 +1194,7 @@ async function executeTieredSyncForAccount(request: QueuedRequest): Promise<void
       {
         clientId: credentials.clientId || '',
         clientSecret: credentials.clientSecret || '',
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         refreshToken: credentials.refreshToken || '',
         profileId: account.profileId || '',
         region: (credentials.region as 'NA' | 'EU' | 'FE') || 'NA'
@@ -1116,7 +1221,7 @@ async function executeTieredSyncForAccount(request: QueuedRequest): Promise<void
     {
       clientId: credentials.clientId || '',
       clientSecret: credentials.clientSecret || '',
-      // @ts-expect-error - legacy type assertion
+      // @ts-ignore - legacy type assertion
       refreshToken: credentials.refreshToken || '',
       profileId: account.profileId || '',
       region: (credentials.region as 'NA' | 'EU' | 'FE') || 'NA'
@@ -1128,14 +1233,14 @@ async function executeTieredSyncForAccount(request: QueuedRequest): Promise<void
 
   // 根据层级执行不同的同步
   let result;
-  // @ts-expect-error - legacy type assertion
+  // @ts-ignore - legacy type assertion
   switch (tier) {
     case 'high':
       // 高频同步：同步广告活动状态（SP/SB/SD全覆盖）
       result = await syncService.syncCampaignsOnly();
       // 同时同步当日绩效数据（T-1归因回溯）
       try {
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         await syncService.syncPerformanceOnly(1);
       } catch (e: unknown) {
         log.warn(`[DataSyncScheduler] 账号 ${accountId} 高频绩效同步失败:`, (e as Error).message);
@@ -1147,7 +1252,7 @@ async function executeTieredSyncForAccount(request: QueuedRequest): Promise<void
       result = await syncService.syncAdGroupsAndTargeting();
       // 同时同步7天绩效数据（归因窗口期数据更新）
       try {
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         await syncService.syncPerformanceOnly(7);
       } catch (e: unknown) {
         log.warn(`[DataSyncScheduler] 账号 ${accountId} 中频绩效同步失败:`, (e as Error).message);
@@ -1162,15 +1267,15 @@ async function executeTieredSyncForAccount(request: QueuedRequest): Promise<void
       // 归因期过后数据基本不变，无需每次都同步90天全量数据
       result = await syncService.syncAll({ syncMode: 'daily' });
       break;
-  // @ts-expect-error - legacy type assertion
+  // @ts-ignore - legacy type assertion
   }
 
   // v196: 同步完成后记录数据新鲜度日志
-  // @ts-expect-error - legacy type assertion
+  // @ts-ignore - legacy type assertion
   const syncEndTime = new Date();
-  // @ts-expect-error - legacy type assertion
+  // @ts-ignore - legacy type assertion
   log.info(`[DataSyncScheduler] v196: 账号 ${accountId} ${tier}层同步完成:`, result);
-  // @ts-expect-error - legacy type assertion
+  // @ts-ignore - legacy type assertion
   logSync('DataSyncScheduler', `账号${accountId} ${tier}层同步完成`, { accountId, tier, result });
   
   // 记录同步完成时间到data_sync_jobs表 (v200: 使用Drizzle ORM替代原始SQL，避免列名不一致)
@@ -1185,19 +1290,19 @@ async function executeTieredSyncForAccount(request: QueuedRequest): Promise<void
         status: 'completed',
         startedAt: syncEndTime.toISOString().slice(0, 19).replace('T', ' '),
         completedAt: syncEndTime.toISOString().slice(0, 19).replace('T', ' '),
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         spCampaigns: (result as unknown)?.spCampaigns || (result as unknown)?.campaigns || 0,
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         sbCampaigns: (result as unknown)?.sbCampaigns || 0,
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         sdCampaigns: (result as unknown)?.sdCampaigns || 0,
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         adGroupsSynced: (result as unknown)?.adGroups || 0,
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         keywordsSynced: (result as unknown)?.keywords || 0,
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         targetsSynced: (result as unknown)?.targets || 0,
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         performanceSynced: (result as unknown)?.performance || 0,
         // v364: 修复同步任务步骤计数缺失
         totalSteps: 7,
@@ -1208,7 +1313,7 @@ async function executeTieredSyncForAccount(request: QueuedRequest): Promise<void
     }
   } catch (logErr: unknown) {
     // 日志记录失败不影响主流程，但输出完整错误信息便于排查
-    // @ts-expect-error - error message access
+    // @ts-ignore - error message access
     log.warn(`[DataSyncScheduler] v200: 同步日志记录失败: ${(logErr as Error).message}`, logErr.cause || '');
     logSyncWarn('DataSyncScheduler', `同步日志记录失败`, { accountId, error: (logErr as Error).message });
   }
@@ -1492,96 +1597,96 @@ async function executeSyncForAccount(schedule: db.DataSyncSchedule): Promise<voi
   if (result.campaigns > 0 || result.adGroups > 0) {
     try {
       await notifyOwner({
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         title: `定时同步完成 - ${account.accountName || account.sellerId}`,
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         content: `同步结果: ${result.campaigns} 个广告活动, ${result.adGroups} 个广告组, ${result.keywords} 个关键词, ${result.targets} 个商品定位`
-      // @ts-expect-error - legacy type assertion
+      // @ts-ignore - legacy type assertion
       });
-    // @ts-expect-error - legacy type assertion
+    // @ts-ignore - legacy type assertion
     } catch (e: any) {
       log.warn('[DataSyncScheduler] 发送通知失败:', e);
-    // @ts-expect-error - legacy type assertion
+    // @ts-ignore - legacy type assertion
     }
-  // @ts-expect-error - legacy type assertion
+  // @ts-ignore - legacy type assertion
   }
-// @ts-expect-error - legacy type assertion
+// @ts-ignore - legacy type assertion
 }
 
 /**
  * v219: 手动触发同步（使用统一同步引擎）
  */
-// @ts-expect-error - legacy type assertion
+// @ts-ignore - legacy type assertion
 export async function triggerManualSync(userId: number, accountId: number): Promise<{
-  // @ts-expect-error - legacy type assertion
+  // @ts-ignore - legacy type assertion
   success: boolean;
-  // @ts-expect-error - legacy type assertion
+  // @ts-ignore - legacy type assertion
   message: string;
-  // @ts-expect-error - legacy type assertion
+  // @ts-ignore - legacy type assertion
   result?: unknown;
-// @ts-expect-error - legacy type assertion
+// @ts-ignore - legacy type assertion
 }> {
-  // @ts-expect-error - legacy type assertion
+  // @ts-ignore - legacy type assertion
   try {
-    // @ts-expect-error - legacy type assertion
+    // @ts-ignore - legacy type assertion
     const { triggerManualFullSync } = await import('./unifiedSyncEngine');
-    // @ts-expect-error - legacy type assertion
+    // @ts-ignore - legacy type assertion
     const syncResult: unknown = await triggerManualFullSync(accountId);
 
-    // @ts-expect-error - legacy type assertion
+    // @ts-ignore - legacy type assertion
     if (!syncResult) {
-      // @ts-expect-error - legacy type assertion
+      // @ts-ignore - legacy type assertion
       return { success: false, message: '账号不存在或未配置API凭证' };
-    // @ts-expect-error - legacy type assertion
+    // @ts-ignore - legacy type assertion
     }
 
     return {
-      // @ts-expect-error - legacy type assertion
+      // @ts-ignore - legacy type assertion
       success: syncResult.success,
-      // @ts-expect-error - legacy type assertion
+      // @ts-ignore - legacy type assertion
       message: syncResult.success ? 
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         `同步完成: ${syncResult.completedSteps}/${syncResult.totalSteps}步成功, 同步${syncResult.totalSynced}条数据, 耗时${syncResult.durationMs}ms` :
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         `同步部分完成: ${syncResult.completedSteps}/${syncResult.totalSteps}步成功, 错误: ${syncResult.errors.slice(0, 3).join('; ')}`,
       result: {
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         campaigns: (syncResult.stepResults['sp_campaigns']?.synced || 0) +
-          // @ts-expect-error - legacy type assertion
+          // @ts-ignore - legacy type assertion
           (syncResult.stepResults['sb_campaigns']?.synced || 0) +
-          // @ts-expect-error - legacy type assertion
+          // @ts-ignore - legacy type assertion
           (syncResult.stepResults['sd_campaigns']?.synced || 0),
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         adGroups: (syncResult.stepResults['sp_ad_groups']?.synced || 0) +
-          // @ts-expect-error - legacy type assertion
+          // @ts-ignore - legacy type assertion
           (syncResult.stepResults['sb_ad_groups']?.synced || 0) +
-          // @ts-expect-error - legacy type assertion
+          // @ts-ignore - legacy type assertion
           (syncResult.stepResults['sd_ad_groups']?.synced || 0),
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         keywords: (syncResult.stepResults['sp_keywords']?.synced || 0) +
-          // @ts-expect-error - legacy type assertion
+          // @ts-ignore - legacy type assertion
           (syncResult.stepResults['sb_keywords']?.synced || 0),
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         targets: (syncResult.stepResults['sp_product_targets']?.synced || 0) +
-          // @ts-expect-error - legacy type assertion
+          // @ts-ignore - legacy type assertion
           (syncResult.stepResults['sb_product_targets']?.synced || 0) +
-          // @ts-expect-error - legacy type assertion
+          // @ts-ignore - legacy type assertion
           (syncResult.stepResults['sd_product_targets']?.synced || 0),
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         performance: (syncResult.stepResults['performance_95d']?.synced || 0),
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         spCampaigns: syncResult.stepResults['sp_campaigns']?.synced || 0,
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         sbCampaigns: syncResult.stepResults['sb_campaigns']?.synced || 0,
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         sdCampaigns: syncResult.stepResults['sd_campaigns']?.synced || 0,
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         durationMs: syncResult.durationMs,
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         completedSteps: syncResult.completedSteps,
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         totalSteps: syncResult.totalSteps,
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         failedSteps: syncResult.failedSteps,
       }
     };
@@ -1643,7 +1748,7 @@ export async function upsertSyncSchedule(params: {
     return {
       id,
       userId: params.userId,
-      // @ts-expect-error - legacy type assertion
+      // @ts-ignore - legacy type assertion
       accountId: params.accountId,
       syncType: params.syncType || 'full_sync',
       frequency: params.frequency,
@@ -1693,11 +1798,11 @@ export async function withExponentialBackoff<T>(
     try {
       return await fn();
     } catch (error: unknown) {
-      // @ts-expect-error - legacy type assertion
+      // @ts-ignore - legacy type assertion
       lastError = error;
       
       // 如果是429错误，使用指数退避
-      // @ts-expect-error - error message access
+      // @ts-ignore - error message access
       if (error.response?.status === 429 || (error as Error).message?.includes('429')) {
         const delay = baseDelayMs * Math.pow(2, attempt);
         log.info(`[DataSyncScheduler] 遇到速率限制，等待 ${delay}ms 后重试 (尝试 ${attempt + 1}/${maxRetries})`);
@@ -1948,7 +2053,7 @@ export async function recordModuleExecution(targetId: number, moduleName: string
       // 先读取当前的模块执行时间JSON，然后更新对应模块
       const rows = await dbInstance.execute(sql`SELECT module_execution_times FROM performance_groups WHERE id = ${targetId}`);
       let executionTimes: Record<string, string> = {};
-      // @ts-expect-error - type assertion
+      // @ts-ignore - type assertion
       const rowData = Array.isArray(rows) ? rows[0] : (rows as unknown)?.rows?.[0];
       if (rowData) {
         const rawArr = Array.isArray(rowData) ? rowData : [rowData];
@@ -1956,7 +2061,7 @@ export async function recordModuleExecution(targetId: number, moduleName: string
           const met = (r as Record<string, unknown>).module_execution_times;
           if (met) {
             try {
-              // @ts-expect-error - legacy type assertion
+              // @ts-ignore - legacy type assertion
               executionTimes = JSON.parse(met);
             } catch (e: any) {
               executionTimes = {};
@@ -2039,7 +2144,7 @@ export async function startOptimizationScheduler(): Promise<void> {
           const resultRows = Array.isArray(rows) ? rows[0] : rows;
           const dataArr = Array.isArray(resultRows) ? resultRows : [resultRows];
           for (const row of (dataArr as unknown[])) {
-            // @ts-expect-error - type assertion
+            // @ts-ignore - type assertion
             const met = (row as unknown)?.module_execution_times;
             if (met) {
               const executionTimes = JSON.parse(met);
@@ -2251,7 +2356,7 @@ export async function startOptimizationScheduler(): Promise<void> {
         // 获取所有活跃账户
         const accounts = await db.getAdAccounts();
         for (const account of (accounts as unknown[])) {
-          // @ts-expect-error - legacy type assertion
+          // @ts-ignore - legacy type assertion
           const tests = await abTestService.getABTests(account.id);
           const activeTests = tests.filter((t: Record<string, unknown>) => t.status === 'running');
           for (const test of activeTests) {
@@ -2311,7 +2416,7 @@ export async function startOptimizationScheduler(): Promise<void> {
           const [r4] = await conn.execute(
             `DELETE FROM optimization_tasks WHERE status IN ('synced', 'permanently_failed') AND created_at < DATE_SUB(NOW(), INTERVAL ${sql.raw(String(RETENTION_DAYS))} DAY)`
           ) as unknown[];
-          // @ts-expect-error - legacy type assertion
+          // @ts-ignore - legacy type assertion
           log.warn(`[DataCleanup] v350: 自动清理完成 - sync_conflicts:${r1.affectedRows}, sync_change_records:${r2.affectedRows}, system_logs:${r3.affectedRows}, optimization_tasks:${r4.affectedRows}`);
         } finally {
           conn.release();
@@ -2369,7 +2474,7 @@ export async function startOptimizationScheduler(): Promise<void> {
   }
 
   // v504: 系统防线全量扫描
-  // @ts-expect-error - legacy type assertion
+  // @ts-ignore - legacy type assertion
   try {
     const { runSystemDefenseScan } = await import('../system/systemDefenseService');
     
@@ -2418,13 +2523,13 @@ export async function startOptimizationScheduler(): Promise<void> {
           }
         }
       } catch (err: unknown) {
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         log.warn(`[DataCliffRecovery] 首次断崖扫描失败: ${(err as Error).message}`);
       }
     }, 15 * 60 * 1000);
     
     // 定时扫描 - 每6小时
-    // @ts-expect-error - legacy type assertion
+    // @ts-ignore - legacy type assertion
     optimizationIntervals.data_cliff_recovery = setInterval(async () => {
       try {
         const accounts = await getCliffAccounts();
@@ -2473,7 +2578,7 @@ export async function startOptimizationScheduler(): Promise<void> {
     }, 30 * 60 * 1000);
     
     // 定时扫描 - 每7天（168小时）
-    // @ts-expect-error - legacy type assertion
+    // @ts-ignore - legacy type assertion
     optimizationIntervals.historical_recovery = setInterval(async () => {
       try {
         const accounts = await getRecoveryAccounts();
@@ -2588,12 +2693,12 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
     // 直接导入优化目标引擎
     const { executeAllEnabledTargets, getEnabledOptimizationTargets } = await import('../optimization/optimizationTargetEngine');
     
-    // @ts-expect-error - legacy type assertion
+    // @ts-ignore - legacy type assertion
     switch (taskType) {
       // ==================== 日内节奏监控（每30分钟）====================
       case 'intraday_pacing': {
         log.info(`[OptimizationScheduler] 执行日内节奏监控`);
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         try {
           const { checkAllCampaignsPacing, applyIntradayAdjustment } = await import('../services/intradayPacingService');
           const targets = await getEnabledOptimizationTargets();
@@ -2645,12 +2750,12 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
               const enabledCampaigns = riskCampaigns.filter((c: Record<string, unknown>) => c.campaignStatus === 'enabled');
               let totalRisks = 0;
               for (const campaign of (enabledCampaigns as unknown[])) {
-                // @ts-expect-error - legacy type assertion
+                // @ts-ignore - legacy type assertion
                 const riskResult = await detectRiskSignals(target.accountId, campaign.campaignId);
                 if (riskResult.hasRisk) {
                   totalRisks += riskResult.risks.length;
                   for (const risk of riskResult.risks) {
-                    // @ts-expect-error - legacy type assertion
+                    // @ts-ignore - legacy type assertion
                     log.warn(`[RiskScan] Campaign ${campaign.campaignName}: ` +
                       `[${risk.severity}] ${risk.description}`);
                   }
@@ -2971,11 +3076,11 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
       // ==================== v197: NextGen预算优化+关键词图谱 ====================
       case 'nextgen_budget_optimization': {
         log.info(`[OptimizationScheduler] v197: NextGen预算优化+关键词图谱触发...`);
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         try {
-          // @ts-expect-error - legacy type assertion
+          // @ts-ignore - legacy type assertion
           const targets = await getEnabledOptimizationTargets();
-          // @ts-expect-error - legacy type assertion
+          // @ts-ignore - legacy type assertion
           for (const target of targets) {
             try {
               await nextGenOrchestrator.executeBudgetOptimization(target.accountId);
@@ -3001,12 +3106,12 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
     
   } catch (error: unknown) {
     log.warn(`[OptimizationScheduler] ${taskType} 执行失败:`, (error as Error).message);
-  // @ts-expect-error - legacy type assertion
+  // @ts-ignore - legacy type assertion
   } finally {
     // 确保释放执行锁
     releaseLock(taskType);
   }
-// @ts-expect-error - legacy type assertion
+// @ts-ignore - legacy type assertion
 }
 
 // ==================== v336: 同步健康监控 ====================
@@ -3033,11 +3138,11 @@ async function verifySyncHealth(): Promise<void> {
       LIMIT 20
     `);
     
-    // @ts-expect-error - legacy type assertion
+    // @ts-ignore - legacy type assertion
     const jobs = (recentJobs as Record<string, unknown>[])?.[0] || [];
-    // @ts-expect-error - legacy type assertion
+    // @ts-ignore - legacy type assertion
     const successCount = jobs.filter((j: Record<string, unknown>) => j.status === 'completed').length;
-    // @ts-expect-error - legacy type assertion
+    // @ts-ignore - legacy type assertion
     const failCount = jobs.filter((j: Record<string, unknown>) => j.status === 'failed').length;
     
     if (jobs.length === 0) {
@@ -3063,12 +3168,12 @@ async function verifySyncHealth(): Promise<void> {
         type: 'sync_health_alert',
         systemVersion: SYSTEM_VERSION,
         consecutiveFailures,
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         recentJobs: jobs.slice(0, 5).map((j: Record<string, unknown>) => ({
           accountId: j.account_id,
           status: j.status,
           syncType: j.sync_type,
-          // @ts-expect-error - legacy type assertion
+          // @ts-ignore - legacy type assertion
           error: j.error_message?.substring(0, 200),
         })),
         alertTime: new Date().toISOString(),

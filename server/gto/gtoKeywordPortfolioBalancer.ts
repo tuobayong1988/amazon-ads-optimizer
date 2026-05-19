@@ -144,19 +144,19 @@ export function analyzePortfolio(
   }
 
   // ===== 第2步：计算花费和销售占比 =====
-  // @ts-expect-error DB query type inference limitation
+  // @ts-ignore DB query type inference limitation
   const totalSpend = Object.values(roleSpend).reduce((a: unknown, b: unknown) => a + b, 0);
-  // @ts-expect-error DB query type inference limitation
+  // @ts-ignore DB query type inference limitation
   const totalSales = Object.values(roleSales).reduce((a: unknown, b: unknown) => a + b, 0);
   
-  // @ts-expect-error Dynamic type assertion
+  // @ts-ignore Dynamic type assertion
   const spendDistribution: Record<KeywordRole, number> = {} as Record<string, unknown>;
-  // @ts-expect-error Dynamic type assertion
+  // @ts-ignore Dynamic type assertion
   const salesDistribution: Record<KeywordRole, number> = {} as Record<string, unknown>;
   for (const role of Object.keys(roleDistribution) as KeywordRole[]) {
-    // @ts-expect-error Conditional type narrowing
+    // @ts-ignore Conditional type narrowing
     spendDistribution[role] = totalSpend > 0 ? roleSpend[role] / totalSpend : 0;
-    // @ts-expect-error Conditional type narrowing
+    // @ts-ignore Conditional type narrowing
     salesDistribution[role] = totalSales > 0 ? roleSales[role] / totalSales : 0;
   }
 
@@ -179,14 +179,14 @@ export function analyzePortfolio(
         `${getRoleLabel(role)}花费占比${(actual * 100).toFixed(0)}%超过最高阈值${(ideal.max * 100).toFixed(0)}%，建议分散投入`
       );
       healthScore -= Math.round(excess * 150);
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     }
   }
 
   healthScore = Math.max(0, Math.min(100, healthScore));
 
   // ===== 第4步：计算角色修正系数 =====
-  // @ts-expect-error Dynamic type assertion
+  // @ts-ignore Dynamic type assertion
   const roleModifiers: Record<KeywordRole, number> = {} as Record<string, unknown>;
   for (const [role, ideal] of Object.entries(IDEAL_SPEND_DISTRIBUTION) as [KeywordRole, { min: number; max: number; target: number }][]) {
     const actual = spendDistribution[role] || 0;

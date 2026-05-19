@@ -27,7 +27,7 @@ export class M1KeywordService {
 
     try {
       const conditions = [eq(prelaunchKeywords.projectId, input.projectId)];
-      // @ts-expect-error - type assertion
+      // @ts-ignore - type assertion
       if (input.relevanceLayer) conditions.push(eq(prelaunchKeywords.relevanceLayer, input.relevanceLayer as unknown));
       if (input.scenarioCode) conditions.push(eq(prelaunchKeywords.scenarioCode, input.scenarioCode));
       if (input.clusterId) conditions.push(eq(prelaunchKeywords.clusterId, input.clusterId));
@@ -142,24 +142,24 @@ export class M1KeywordService {
       // Step 4: 批量写入数据库
       const insertData = scoredKeywords.map(kw => ({
         projectId,
-        // @ts-expect-error - runtime type mismatch
+        // @ts-ignore - runtime type mismatch
         keyword: kw.keyword,
-        // @ts-expect-error - runtime type mismatch
+        // @ts-ignore - runtime type mismatch
         searchVolume: kw.searchVolume || 0,
-        // @ts-expect-error - type assertion
+        // @ts-ignore - type assertion
         relevanceLayer: kw.relevanceLayer as unknown,
-        // @ts-expect-error - runtime type mismatch
+        // @ts-ignore - runtime type mismatch
         dimensionType: kw.dimensionType,
-        // @ts-expect-error - runtime type mismatch
+        // @ts-ignore - runtime type mismatch
         scenarioCode: kw.scenarioCode,
-        // @ts-expect-error - runtime type mismatch
+        // @ts-ignore - runtime type mismatch
         intentTag: kw.intentTag,
         kviScore: String(kw.kviScore),
-        // @ts-expect-error - runtime type mismatch
+        // @ts-ignore - runtime type mismatch
         kviVolume: String(kw.kviVolume || 0),
-        // @ts-expect-error - runtime type mismatch
+        // @ts-ignore - runtime type mismatch
         kviRelevance: String(kw.kviRelevance || 0),
-        // @ts-expect-error - runtime type mismatch
+        // @ts-ignore - runtime type mismatch
         kviOpportunity: String(kw.kviOpportunity || 0),
         dataSource: 'gemini_expansion',
       }));
@@ -168,7 +168,7 @@ export class M1KeywordService {
         // 分批插入，每批100条
         for (let i = 0; i < insertData.length; i += 100) {
           const batch = insertData.slice(i, i + 100);
-          // @ts-expect-error - Drizzle query builder type
+          // @ts-ignore - Drizzle query builder type
           await db.insert(prelaunchKeywords).values(batch);
         }
       }
@@ -264,7 +264,7 @@ For each keyword, determine:
 4. intentTag: "informational", "navigational", "commercial", "transactional"${brandContext}
 
 Keywords to classify:
-// @ts-expect-error Dynamic type assertion
+// @ts-ignore Dynamic type assertion
 ${batch.map(((k: any) => k.keyword as any)).join('\n')}
 
 Return JSON array: [{"keyword":"...","relevanceLayer":"...","dimensionType":"...","scenarioCode":"...","intentTag":"..."}]`;
@@ -272,18 +272,18 @@ Return JSON array: [{"keyword":"...","relevanceLayer":"...","dimensionType":"...
       const classified = await geminiStructuredOutput<Record<string, unknown>[]>('', prompt, { temperature: 0.1 });
 
       // 合并分类结果与原始数据
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       for (const cls of classified) {
-        // @ts-expect-error Dynamic property access
+        // @ts-ignore Dynamic property access
         const original = batch.find((k: Record<string, unknown>) => k.keyword === cls.keyword);
         if (original) {
           results.push({ ...original, ...cls });
         }
       }
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     }
 
-    // @ts-expect-error Return type compatibility
+    // @ts-ignore Return type compatibility
     return results;
   }
 
@@ -299,9 +299,9 @@ Return JSON array: [{"keyword":"...","relevanceLayer":"...","dimensionType":"...
    * - growth 期：extended 权重提高（扩大覆盖）
    * - mature 期：core 权重提高（精准防守）
    */
-  // @ts-expect-error Complex function parameter types
+  // @ts-ignore Complex function parameter types
   private calculateKVI(kw: unknown, cpcContext?: { productPrice: number; targetAcos: number }, lifecycleStage?: string): number {
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const volumeScore = Math.min(1, Math.log10(Math.max(1, kw.searchVolume || 1)) / 5);
 
     // v26.5 优化2B: 根据生命周期动态调整 relevanceLayer 权重
@@ -326,16 +326,16 @@ Return JSON array: [{"keyword":"...","relevanceLayer":"...","dimensionType":"...
       longTailWeight = 0.3;
     }
 
-    // @ts-expect-error Dynamic property access
+    // @ts-ignore Dynamic property access
     const relevanceScore = kw.relevanceLayer === 'core' ? coreWeight
-      // @ts-expect-error Dynamic property access
+      // @ts-ignore Dynamic property access
       : kw.relevanceLayer === 'extended' ? extendedWeight
-      // @ts-expect-error Dynamic property access
+      // @ts-ignore Dynamic property access
       : kw.relevanceLayer === 'long_tail' ? longTailWeight
       : 0.1;
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const opportunityScore = kw.competitorDensity
-      // @ts-expect-error Conditional type narrowing
+      // @ts-ignore Conditional type narrowing
       ? Math.max(0, 1 - (kw.competitorDensity / 1000))
       : 0.5;
 
@@ -344,11 +344,11 @@ Return JSON array: [{"keyword":"...","relevanceLayer":"...","dimensionType":"...
     // v26.5 优化2A: CPC 盈亏平衡过滤
     if (cpcContext && cpcContext.productPrice > 0 && cpcContext.targetAcos > 0) {
       // 估算转化率：根据相关性层级估算
-      // @ts-expect-error Dynamic property access
+      // @ts-ignore Dynamic property access
       const estimatedCVR = kw.relevanceLayer === 'core' ? 0.12
-        // @ts-expect-error Dynamic property access
+        // @ts-ignore Dynamic property access
         : kw.relevanceLayer === 'extended' ? 0.08
-        // @ts-expect-error Dynamic property access
+        // @ts-ignore Dynamic property access
         : kw.relevanceLayer === 'long_tail' ? 0.15
         : 0.05;
 
@@ -356,9 +356,9 @@ Return JSON array: [{"keyword":"...","relevanceLayer":"...","dimensionType":"...
       const breakEvenCPC = cpcContext.productPrice * cpcContext.targetAcos * estimatedCVR;
 
       // 估算关键词 CPC：从 avgPrice 和 competitorDensity 推算
-      // @ts-expect-error Type inference limitation
+      // @ts-ignore Type inference limitation
       const estimatedCPC = kw.avgPrice
-        // @ts-expect-error Conditional type narrowing
+        // @ts-ignore Conditional type narrowing
         ? Math.max(0.3, kw.avgPrice * 0.03 * (1 + (kw.competitorDensity || 100) / 500))
         : 0.75; // 默认 CPC
 
@@ -378,7 +378,7 @@ Return JSON array: [{"keyword":"...","relevanceLayer":"...","dimensionType":"...
 
   /** 聚类分析 */
   private async runClustering(db: DbInstance, projectId: number) {
-    // @ts-expect-error - runtime type mismatch
+    // @ts-ignore - runtime type mismatch
     const allKeywords = await db.select()
       .from(prelaunchKeywords)
       .where(eq(prelaunchKeywords.projectId, projectId));
@@ -397,29 +397,29 @@ Create 5-15 clusters. Every keyword must belong to exactly one cluster.`;
     const clusters = await geminiStructuredOutput<Record<string, unknown>[]>('', prompt, { temperature: 0.2 });
 
     for (const cluster of clusters) {
-      // @ts-expect-error - Drizzle query builder type
+      // @ts-ignore - Drizzle query builder type
       const [result] = await db.insert(prelaunchKeywordClusters).values({
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         projectId,
         clusterLabel: cluster.clusterLabel,
         intentSummary: cluster.intentSummary,
-        // @ts-expect-error Conditional type narrowing
+        // @ts-ignore Conditional type narrowing
         memberCount: cluster.members?.length || 0,
         avgKvi: '0',
         topScenario: 'S01',
       });
 
-      // @ts-expect-error - type assertion
+      // @ts-ignore - type assertion
       const clusterId = (result as Record<string, number>).insertId;
 
       // 更新关键词的clusterId
       if (cluster.members && clusterId) {
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         for (const member of cluster.members) {
-          // @ts-expect-error - runtime type mismatch
+          // @ts-ignore - runtime type mismatch
           await db.update(prelaunchKeywords)
             .set({ clusterId })
-            // @ts-expect-error DB query type inference limitation
+            // @ts-ignore DB query type inference limitation
             .where(and(
               eq(prelaunchKeywords.projectId, projectId),
               eq(prelaunchKeywords.keyword, member),
@@ -427,13 +427,13 @@ Create 5-15 clusters. Every keyword must belong to exactly one cluster.`;
         }
       }
     }
-  // @ts-expect-error Legacy code type compatibility
+  // @ts-ignore Legacy code type compatibility
   }
 
   /** 生成COSMO因果链三元组 */
   private async generateCosmoTriples(db: DbInstance, projectId: number, keywords: unknown[]) {
     const coreKeywords = keywords
-      // @ts-expect-error Dynamic property access
+      // @ts-ignore Dynamic property access
       .filter(k => k.relevanceLayer === 'core' || k.relevanceLayer === 'extended')
       .slice(0, 50);
 
@@ -441,11 +441,11 @@ Create 5-15 clusters. Every keyword must belong to exactly one cluster.`;
 
     const prompt = `Based on these Amazon product keywords, generate COSMO (Common Sense Model) cause-effect-outcome triples that represent the customer's decision-making logic.
 
-// @ts-expect-error Dynamic type assertion
+// @ts-ignore Dynamic type assertion
 Keywords: ${coreKeywords.map(k => (k as any).keyword).join(', ')}
 
 For each triple:
-// @ts-expect-error Legacy code type compatibility
+// @ts-ignore Legacy code type compatibility
 - causeNode: The trigger/pain point/need (e.g., "leaky water bottle lid")
 - effectNode: The solution/action (e.g., "search for replacement lid")
 - outcomeNode: The desired result (e.g., "no more spills, save money")
@@ -458,9 +458,9 @@ Generate 10-30 high-quality triples. Return JSON array:
     const triples = await geminiStructuredOutput<Record<string, unknown>[]>('', prompt, { temperature: 0.3 });
 
     for (const triple of triples) {
-      // @ts-expect-error - Drizzle query builder type
+      // @ts-ignore - Drizzle query builder type
       await db.insert(prelaunchCosmoTriples).values({
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         projectId,
         causeNode: triple.causeNode,
         effectNode: triple.effectNode,

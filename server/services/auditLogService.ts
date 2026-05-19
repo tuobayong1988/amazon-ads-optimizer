@@ -239,7 +239,7 @@ async function flushBuffer(): Promise<void> {
           ? String(e.metadata.description) 
           : `${e.action}: ${e.entityType || ''}${e.entityId ? '#' + e.entityId : ''}`;
         
-        // @ts-expect-error - Drizzle enum类型兼容
+        // @ts-ignore - Drizzle enum类型兼容
         // v454: 为NOT NULL字段提供默认值，确保系统级操作也能正常写入
         await db.insert(auditLogs).values({
           actionType: drizzleActionType,

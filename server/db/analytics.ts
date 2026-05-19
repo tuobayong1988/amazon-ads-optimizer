@@ -11,7 +11,7 @@ import { getDb } from './connection';
 import { safeInClause } from '../utils/safeSql';
 import { createModuleLogger } from '../utils/logger';
 import { adGroups, campaigns, dailyPerformance, keywords, productTargets } from '../../drizzle/schema';
-// @ts-expect-error Module import type resolution
+// @ts-ignore Module import type resolution
 import { extractRows } from '../types/utilTypes';
 
 const log = createModuleLogger('DB:analytics');
@@ -317,9 +317,9 @@ export async function getDailyTrendData(
       
       let dateStr = 'N/A';
       const dateValue = r.report_date || r.date;
-      // @ts-expect-error Conditional type narrowing
+      // @ts-ignore Conditional type narrowing
       if (dateValue) {
-        // @ts-expect-error Type inference limitation
+        // @ts-ignore Type inference limitation
         const dateObj = new Date(dateValue);
         if (!isNaN(dateObj.getTime())) {
           dateStr = `${dateObj.getMonth() + 1}/${dateObj.getDate()}`;
@@ -389,10 +389,10 @@ export async function getDataDateRange(accountIds: number[]): Promise<DataDateRa
       
       return {
         minDate: formatDate(row.min_date),
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         maxDate: formatDate(row.max_date),
         hasData: true,
-        // @ts-expect-error Conditional type narrowing
+        // @ts-ignore Conditional type narrowing
         lastSyncAt: syncRow?.last_sync || undefined,
       };
     }

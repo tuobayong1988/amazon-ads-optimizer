@@ -103,7 +103,7 @@ export async function createAuditLog(data: Omit<InsertAuditLog, "id" | "createdA
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   const result = await db.insert(auditLogs).values(data);
-  // @ts-expect-error DB query type inference limitation
+  // @ts-ignore DB query type inference limitation
   const [log] = await db.select().from(auditLogs).where(eq(auditLogs.id, (result as Record<string, unknown>[][])[0]?.insertId || 0));
   return log;
 }
@@ -134,7 +134,7 @@ export async function logAudit(params: {
   // 如果没有提供描述，使用默认描述
   const description = params.description || ACTION_DESCRIPTIONS[params.actionType] || "未知操作";
   
-  // @ts-expect-error Complex function parameter types
+  // @ts-ignore Complex function parameter types
   return createAuditLog({
     ...params,
     description,
@@ -176,12 +176,12 @@ export async function getAuditLogs(params: {
   }
 
   if (actionTypes && actionTypes.length > 0) {
-    // @ts-expect-error - type assertion
+    // @ts-ignore - type assertion
     conditions.push(inArray(auditLogs.actionType, actionTypes as unknown));
   }
 
   if (targetTypes && targetTypes.length > 0) {
-    // @ts-expect-error - type assertion
+    // @ts-ignore - type assertion
     conditions.push(inArray(auditLogs.targetType, targetTypes as unknown));
   }
 
@@ -190,7 +190,7 @@ export async function getAuditLogs(params: {
   }
 
   if (status) {
-    // @ts-expect-error - string type assertion
+    // @ts-ignore - string type assertion
     conditions.push(eq(auditLogs.status, status as string));
   }
 
@@ -301,10 +301,10 @@ export async function getUserAuditStats(userId: number | undefined, days: number
   } catch (error: any) {
     log.warn("Failed to get audit logs by day:", error);
     dayStats = [];
-  // @ts-expect-error Legacy code type compatibility
+  // @ts-ignore Legacy code type compatibility
   }
 
-  // @ts-expect-error Complex function parameter types
+  // @ts-ignore Complex function parameter types
   const actionsByDay = dayStats.map((stat: { date: string; count: number }) => ({
     date: stat.date,
     count: stat.count,
@@ -375,7 +375,7 @@ export async function getAccountAuditStats(accountId: number, days: number = 30)
     .where(and(eq(auditLogs.accountId, accountId), gte(auditLogs.createdAt, startDateStr)))
     .groupBy(auditLogs.userId, auditLogs.userName) as unknown;
 
-  // @ts-expect-error - array method type inference
+  // @ts-ignore - array method type inference
   const actionsByUser = userStats.map((stat: Record<string, unknown>) => ({
     userId: stat.userId || 0,
     userName: stat.userName || (stat.userId === 0 || !stat.userId ? '系统自动优化' : '未知用户'), // v375: 修复系统自动操作显示为"未知用户"的问题
@@ -417,38 +417,38 @@ export async function exportAuditLogsToCSV(params: {
     "关联账号",
     "状态",
     "IP地址",
-  // @ts-expect-error Legacy code type compatibility
+  // @ts-ignore Legacy code type compatibility
   ];
 
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const rows = logs.map((log: unknown) => [
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     log.id,
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     String(log.createdAt),
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     log.userName || "",
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     log.userEmail || "",
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     ACTION_DESCRIPTIONS[log.actionType] || log.actionType,
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     log.description || "",
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     TARGET_TYPE_DESCRIPTIONS[log.targetType || ""] || log.targetType || "",
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     log.targetName || "",
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     log.accountName || "",
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     log.status,
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     log.ipAddress || "",
   ]);
 
   const csvContent = [
     headers.join(","),
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     ...rows.map((row: unknown) => row.map((cell: unknown) => `"${String(cell).replace(/"/g, '""')}"`).join(",")),
   ].join("\n");
 
@@ -465,6 +465,6 @@ export async function cleanupOldAuditLogs(retentionDays: number = 365): Promise<
   cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
 
   const result = await db.delete(auditLogs).where(lte(auditLogs.createdAt, cutoffDate.toISOString()));
-  // @ts-expect-error - MySQL affectedRows
+  // @ts-ignore - MySQL affectedRows
   return (result as Record<string, number>).affectedRows || 0;
 }

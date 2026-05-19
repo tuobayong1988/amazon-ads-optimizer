@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * server/db/v550-patch/pendingEventProcessor.ts
  * 

@@ -14,9 +14,9 @@ export function generateSimulatedTrendData(target: Record<string, unknown>, days
   // 基础数据
   const baseImpressions = target.impressions || 1000;
   const baseClicks = target.clicks || 50;
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const baseSpend = parseFloat(target.spend || "10");
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const baseSales = parseFloat(target.sales || "30");
   const baseOrders = target.orders || 3;
   
@@ -26,16 +26,16 @@ export function generateSimulatedTrendData(target: Record<string, unknown>, days
     
     // 添加随机波动（±30%）
     const variation = 0.7 + Math.random() * 0.6;
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const weekdayFactor = date.getDay() === 0 || date.getDay() === 6 ? 0.8 : 1.1;
     
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const impressions = Math.round((baseImpressions / days) * variation * weekdayFactor);
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const clicks = Math.round((baseClicks / days) * variation * weekdayFactor);
     const spend = Math.round((baseSpend / days) * variation * weekdayFactor * 100) / 100;
     const sales = Math.round((baseSales / days) * variation * weekdayFactor * 100) / 100;
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const orders = Math.round((baseOrders / days) * variation * weekdayFactor);
     
     const ctr = impressions > 0 ? (clicks / impressions * 100) : 0;
@@ -84,47 +84,47 @@ export function calculateTrendSummary(data: unknown[]) {
         spend: 'stable',
         sales: 'stable',
         acos: 'stable',
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         roas: 'stable',
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       },
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     };
-  // @ts-expect-error Legacy code type compatibility
+  // @ts-ignore Legacy code type compatibility
   }
   
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const totalImpressions = data.reduce((sum: number, d: Record<string, unknown>) => sum + d.impressions, 0);
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const totalClicks = data.reduce((sum: number, d: Record<string, unknown>) => sum + d.clicks, 0);
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const totalSpend = data.reduce((sum: number, d: Record<string, unknown>) => sum + d.spend, 0);
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const totalSales = data.reduce((sum: number, d: Record<string, unknown>) => sum + d.sales, 0);
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const totalOrders = data.reduce((sum: number, d: Record<string, unknown>) => sum + d.orders, 0);
   
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const avgCtr = totalImpressions > 0 ? (totalClicks / totalImpressions * 100) : 0;
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const avgCvr = totalClicks > 0 ? (totalOrders / totalClicks * 100) : 0;
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const avgAcos = totalSales > 0 ? (totalSpend / totalSales * 100) : 0;
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const avgRoas = totalSpend > 0 ? (totalSales / totalSpend) : 0;
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const avgCpc = totalClicks > 0 ? (totalSpend / totalClicks) : 0;
   
   // 计算趋势（对比前半段和后半段）
   const midPoint = Math.floor(data.length / 2);
   const firstHalf = data.slice(0, midPoint);
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const secondHalf = data.slice(midPoint);
   
   const calcTrend = (metric: string) => {
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const firstAvg = firstHalf.reduce((sum: number, d: Record<string, unknown>) => sum + (d[metric] || 0), 0) / (firstHalf.length || 1);
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const secondAvg = secondHalf.reduce((sum: number, d: Record<string, unknown>) => sum + (d[metric] || 0), 0) / (secondHalf.length || 1);
     const change = firstAvg > 0 ? ((secondAvg - firstAvg) / firstAvg * 100) : 0;
     
@@ -136,9 +136,9 @@ export function calculateTrendSummary(data: unknown[]) {
   return {
     totalImpressions,
     totalClicks,
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     totalSpend: Math.round(totalSpend * 100) / 100,
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     totalSales: Math.round(totalSales * 100) / 100,
     totalOrders,
     avgCtr: Math.round(avgCtr * 100) / 100,

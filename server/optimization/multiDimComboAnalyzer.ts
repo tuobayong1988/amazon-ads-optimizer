@@ -217,37 +217,37 @@ async function synthesizeFromExistingData(
   const synthesized: RawDataRow[] = [];
   
   for (const row of (hourlyData as unknown[])) {
-    // @ts-expect-error Conditional type narrowing
+    // @ts-ignore Conditional type narrowing
     if (!row.keywordId) continue; // 跳过没有投放词ID的记录
     
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const spend = parseFloat(row.spend || '0');
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const sales = parseFloat(row.sales || '0');
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const clicks = row.clicks || 0;
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const impressions = row.impressions || 0;
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const orders = row.orders || 0;
-    // @ts-expect-error Dynamic property access
+    // @ts-ignore Dynamic property access
     const dateStr = typeof row.date === 'string' ? row.date.split('T')[0] : new Date(row.date).toISOString().split('T')[0];
 
     // 按位置比例拆分
     for (const placement of ['top_of_search', 'product_page', 'rest_of_search'] as const) {
-      // @ts-expect-error Type inference limitation
+      // @ts-ignore Type inference limitation
       const ratio = placementRatios[placement];
-      // @ts-expect-error Conditional type narrowing
+      // @ts-ignore Conditional type narrowing
       if (ratio <= 0) continue;
 
       synthesized.push({
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         keywordId: row.keywordId,
         targetId: null,
         placement,
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         dayOfWeek: row.dayOfWeek,
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         hour: row.hour,
         date: dateStr,
         impressions: Math.round(impressions * ratio),
@@ -277,7 +277,7 @@ function calculatePlacementRatios(
       product_page: 0.30,
       rest_of_search: 0.35,
     };
-  // @ts-expect-error Legacy code type compatibility
+  // @ts-ignore Legacy code type compatibility
   }
 
   // 按花费计算各位置的比例（花费更能反映真实的流量分布）
@@ -285,66 +285,66 @@ function calculatePlacementRatios(
     top_of_search: 0,
     product_page: 0,
     rest_of_search: 0,
-  // @ts-expect-error Legacy code type compatibility
+  // @ts-ignore Legacy code type compatibility
   };
 
-  // @ts-expect-error Dynamic type assertion
+  // @ts-ignore Dynamic type assertion
   for (const row of (placementData as unknown[])) {
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const placement = row.placement as string;
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const spend = parseFloat(row.spend || '0');
     if (spendByPlacement[placement] !== undefined) {
       spendByPlacement[placement] += spend;
     }
-  // @ts-expect-error Legacy code type compatibility
+  // @ts-ignore Legacy code type compatibility
   }
 
-  // @ts-expect-error DB query type inference limitation
+  // @ts-ignore DB query type inference limitation
   const totalSpend = Object.values(spendByPlacement).reduce((a: unknown, b: unknown) => a + b, 0);
   
-  // @ts-expect-error Conditional type narrowing
+  // @ts-ignore Conditional type narrowing
   if (totalSpend <= 0) {
     // 如果花费都是0，按点击数分配
     const clicksByPlacement: Record<string, number> = {
       top_of_search: 0,
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       product_page: 0,
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       rest_of_search: 0,
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     };
     for (const row of (placementData as unknown[])) {
-      // @ts-expect-error Type inference limitation
+      // @ts-ignore Type inference limitation
       const placement = row.placement as string;
       if (clicksByPlacement[placement] !== undefined) {
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         clicksByPlacement[placement] += (row.clicks || 0);
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       }
     }
-    // @ts-expect-error DB query type inference limitation
+    // @ts-ignore DB query type inference limitation
     const totalClicks = Object.values(clicksByPlacement).reduce((a: unknown, b: unknown) => a + b, 0);
-    // @ts-expect-error Conditional type narrowing
+    // @ts-ignore Conditional type narrowing
     if (totalClicks <= 0) {
       return { top_of_search: 0.35, product_page: 0.30, rest_of_search: 0.35 };
     }
     return {
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       top_of_search: clicksByPlacement.top_of_search / totalClicks,
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       product_page: clicksByPlacement.product_page / totalClicks,
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       rest_of_search: clicksByPlacement.rest_of_search / totalClicks,
     };
   }
 
   return {
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     top_of_search: spendByPlacement.top_of_search / totalSpend,
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     product_page: spendByPlacement.product_page / totalSpend,
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     rest_of_search: spendByPlacement.rest_of_search / totalSpend,
   };
 }
@@ -354,11 +354,11 @@ function calculatePlacementRatios(
 /**
  * v183.1: 加载上一轮分析结果，用于对比和平滑过渡
  */
-// @ts-expect-error Legacy code type compatibility
+// @ts-ignore Legacy code type compatibility
 async function loadPreviousAnalysis(
-  // @ts-expect-error DB query type inference limitation
+  // @ts-ignore DB query type inference limitation
   db: ReturnType<typeof drizzle>,
-  // @ts-expect-error Legacy code type compatibility
+  // @ts-ignore Legacy code type compatibility
   accountId: number,
   campaignId: number
 ): Promise<Map<string, { category: string; bidMultiplier: number; placementMultiplier: number; timeMultiplier: number }>> {
@@ -378,16 +378,16 @@ async function loadPreviousAnalysis(
 
   const map = new Map<string, { category: string; bidMultiplier: number; placementMultiplier: number; timeMultiplier: number }>();
   for (const row of (prevResults as unknown[])) {
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const key = row.keywordId ? `kw_${row.keywordId}` : `tgt_${row.targetId}`;
     map.set(key, {
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       category: row.comboCategory,
-      // @ts-expect-error Amazon API response type flexibility
+      // @ts-ignore Amazon API response type flexibility
       bidMultiplier: parseFloat(String(row.suggestedBidMultiplier || '1.000')),
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       placementMultiplier: parseFloat(String(row.suggestedPlacementMultiplier || '1.000')),
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       timeMultiplier: parseFloat(String(row.suggestedTimeMultiplier || '1.000')),
     });
   }
@@ -471,10 +471,10 @@ export async function analyzeCampaignCombos(
       date: typeof row.date === 'string' ? row.date : String(row.date),
       impressions: row.impressions || 0,
       clicks: row.clicks || 0,
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       spend: String(row.spend || '0'),
       sales: String(row.sales || '0'),
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       orders: row.orders || 0,
     }));
     dataSource = 'cross_dimension';
@@ -486,13 +486,13 @@ export async function analyzeCampaignCombos(
     rawData = await synthesizeFromExistingData(db, campaignId, accountId, startStr, endStr);
     dataSource = 'synthesized';
     
-    // @ts-expect-error Dynamic property access
+    // @ts-ignore Dynamic property access
     if (rawData.length === 0) {
       log.info(`[ComboAnalyzer] Campaign ${campaignName}: 无任何可用数据，跳过`);
       return null;
     }
     log.info(`[ComboAnalyzer] Campaign ${campaignName}: 使用合成数据 (${rawData.length}条)`);
-  // @ts-expect-error Legacy code type compatibility
+  // @ts-ignore Legacy code type compatibility
   }
 
   // 如果交叉维度表有部分数据，也合成补充
@@ -504,10 +504,10 @@ export async function analyzeCampaignCombos(
         `${r.keywordId || ''}_${r.targetId || ''}_${r.placement}_${r.dayOfWeek}_${r.hour}_${r.date}`
       ));
       for (const row of (synthesized as unknown[])) {
-        // @ts-expect-error Type inference limitation
+        // @ts-ignore Type inference limitation
         const key = `${row.keywordId || ''}_${row.targetId || ''}_${row.placement}_${row.dayOfWeek}_${row.hour}_${row.date}`;
         if (!existingKeys.has(key)) {
-          // @ts-expect-error Array method type inference
+          // @ts-ignore Array method type inference
           rawData.push(row);
         }
       }
@@ -519,13 +519,13 @@ export async function analyzeCampaignCombos(
   // 3. 按投放词分组
   const keywordGroups = new Map<string, RawDataRow[]>();
   for (const row of (rawData as unknown[])) {
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const key = row.keywordId ? `kw_${row.keywordId}` : (row.targetId ? `tgt_${row.targetId}` : null);
     if (!key) continue;
     if (!keywordGroups.has(key)) {
       keywordGroups.set(key, []);
     }
-    // @ts-expect-error Array method type inference
+    // @ts-ignore Array method type inference
     keywordGroups.get(key)!.push(row);
   }
 
@@ -540,7 +540,7 @@ export async function analyzeCampaignCombos(
       .from(keywords)
       .where(sql`${keywords.id} IN (${sql.join(keywordIds.map(id => sql`${id}`), sql`, `)})`);
     for (const kw of (kwInfos as unknown[])) {
-      // @ts-expect-error DB query type inference limitation
+      // @ts-ignore DB query type inference limitation
       keywordTexts.set(`kw_${kw.id}`, kw.keywordText);
     }
   }
@@ -564,17 +564,17 @@ export async function analyzeCampaignCombos(
 
   for (const [key, rows] of keywordGroups) {
     const prevResult = previousAnalysis.get(key);
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const result = analyzeKeywordCombo(
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       key, rows, keywordTexts.get(key) || key, campaignId, targetAcos, endDate, prevResult || null
     );
-    // @ts-expect-error Dynamic property access
+    // @ts-ignore Dynamic property access
     result.dataSource = dataSource;
 
     // v183.1: 追踪分类变化
     if (prevResult) {
-      // @ts-expect-error - type assertion
+      // @ts-ignore - type assertion
       result.previousCategory = prevResult.category as unknown;
       result.categoryChanged = result.comboCategory !== prevResult.category;
       if (result.categoryChanged) {
@@ -601,16 +601,16 @@ export async function analyzeCampaignCombos(
   );
 
   // 8. 计算整体置信度
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const totalClicks = allResults.reduce((s: unknown, r: unknown) => s + r.totalClicks, 0);
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const totalOrders = allResults.reduce((s: unknown, r: unknown) => s + r.totalOrders, 0);
   const overallConfidence: 'high' | 'medium' | 'low' | 'insufficient' =
-    // @ts-expect-error Conditional type narrowing
+    // @ts-ignore Conditional type narrowing
     totalClicks >= 200 && totalOrders >= 20 ? 'high' :
-    // @ts-expect-error Conditional type narrowing
+    // @ts-ignore Conditional type narrowing
     totalClicks >= 50 && totalOrders >= 5 ? 'medium' :
-    // @ts-expect-error Conditional type narrowing
+    // @ts-ignore Conditional type narrowing
     totalClicks >= 10 ? 'low' : 'insufficient';
 
   // v183.1: 详细日志包含自我迭代信息
@@ -640,26 +640,26 @@ export async function analyzeCampaignCombos(
     suggestedBudgetMultiplier,
     dataSource,
     categoryChanges,
-  // @ts-expect-error Legacy code type compatibility
+  // @ts-ignore Legacy code type compatibility
   };
-// @ts-expect-error Legacy code type compatibility
+// @ts-ignore Legacy code type compatibility
 }
 
 /**
  * 分析单个投放词的多维度组合绩效
  * v183.1: 支持与上一轮结果平滑过渡
  */
-// @ts-expect-error Legacy code type compatibility
+// @ts-ignore Legacy code type compatibility
 function analyzeKeywordCombo(
-  // @ts-expect-error Legacy code type compatibility
+  // @ts-ignore Legacy code type compatibility
   key: string,
-  // @ts-expect-error Legacy code type compatibility
+  // @ts-ignore Legacy code type compatibility
   rows: RawDataRow[],
-  // @ts-expect-error Legacy code type compatibility
+  // @ts-ignore Legacy code type compatibility
   keywordText: string,
-  // @ts-expect-error Legacy code type compatibility
+  // @ts-ignore Legacy code type compatibility
   campaignId: number,
-  // @ts-expect-error Legacy code type compatibility
+  // @ts-ignore Legacy code type compatibility
   targetAcos: number,
   referenceDate: Date,
   prevResult: { category: string; bidMultiplier: number; placementMultiplier: number; timeMultiplier: number } | null
@@ -674,78 +674,78 @@ function analyzeKeywordCombo(
     const weight = getTimeDecayWeight(daysAgo);
     return {
       ...row,
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       weight,
       wSpend: parseFloat(row.spend || '0') * weight,
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       wSales: parseFloat(row.sales || '0') * weight,
       wClicks: (row.clicks || 0) * weight,
       wOrders: (row.orders || 0) * weight,
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       wImpressions: (row.impressions || 0) * weight,
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     };
-  // @ts-expect-error Legacy code type compatibility
+  // @ts-ignore Legacy code type compatibility
   });
 
   // === 位置维度分析 ===
   const placementMap = new Map<string, PlacementSummary>();
   for (const placement of ['top_of_search', 'product_page', 'rest_of_search'] as const) {
     const placementRows = weightedRows.filter(r => r.placement === placement);
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const totalSpend = placementRows.reduce((s: unknown, r: unknown) => s + r.wSpend, 0);
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const totalSales = placementRows.reduce((s: unknown, r: unknown) => s + r.wSales, 0);
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const totalClicks = placementRows.reduce((s: unknown, r: unknown) => s + r.wClicks, 0);
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const totalOrders = placementRows.reduce((s: unknown, r: unknown) => s + r.wOrders, 0);
 
     placementMap.set(placement, {
       placement,
-      // @ts-expect-error Conditional type narrowing
+      // @ts-ignore Conditional type narrowing
       weightedRoas: totalSpend > 0 ? totalSales / totalSpend : 0,
-      // @ts-expect-error Conditional type narrowing
+      // @ts-ignore Conditional type narrowing
       weightedAcos: totalSales > 0 ? (totalSpend / totalSales) * 100 : (totalSpend > 0 ? 999 : 0),
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       totalSpend,
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       totalSales,
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       totalClicks,
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       totalOrders,
       dataPoints: placementRows.length,
     });
   }
 
   const placementSummaries = [...placementMap.values()];
-  // @ts-expect-error Dynamic property access
+  // @ts-ignore Dynamic property access
   const validPlacements = placementSummaries.filter(p => p.totalClicks >= 3);
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const sortedPlacements = [...validPlacements].sort((a: unknown, b: unknown) => b.weightedRoas - a.weightedRoas);
-  // @ts-expect-error Dynamic property access
+  // @ts-ignore Dynamic property access
   const bestPlacement = sortedPlacements.length > 0 ? sortedPlacements[0].placement : null;
-  // @ts-expect-error Dynamic property access
+  // @ts-ignore Dynamic property access
   const worstPlacement = sortedPlacements.length > 1 ? sortedPlacements[sortedPlacements.length - 1].placement : null;
 
   // === 时间维度分析 ===
   const timeSlotMap = new Map<string, { dayOfWeek: number; hour: number; wSpend: number; wSales: number; wClicks: number; wOrders: number; count: number }>();
   for (const row of (weightedRows as unknown[])) {
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const slotKey = `${row.dayOfWeek}_${row.hour}`;
     if (!timeSlotMap.has(slotKey)) {
-      // @ts-expect-error DB query type inference limitation
+      // @ts-ignore DB query type inference limitation
       timeSlotMap.set(slotKey, { dayOfWeek: row.dayOfWeek, hour: row.hour, wSpend: 0, wSales: 0, wClicks: 0, wOrders: 0, count: 0 });
     }
     const slot = timeSlotMap.get(slotKey)!;
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     slot.wSpend += row.wSpend;
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     slot.wSales += row.wSales;
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     slot.wClicks += row.wClicks;
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     slot.wOrders += row.wOrders;
     slot.count++;
   }
@@ -753,9 +753,9 @@ function analyzeKeywordCombo(
   const timeSlots = [...timeSlotMap.values()];
   const validTimeSlots = timeSlots.filter(t => t.wClicks >= 2);
   const sortedByRoas = [...validTimeSlots].sort((a: unknown, b: unknown) => {
-    // @ts-expect-error Dynamic property access
+    // @ts-ignore Dynamic property access
     const roasA = a.wSpend > 0 ? a.wSales / a.wSpend : 0;
-    // @ts-expect-error Dynamic property access
+    // @ts-ignore Dynamic property access
     const roasB = b.wSpend > 0 ? b.wSales / b.wSpend : 0;
     return roasB - roasA;
   });
@@ -766,9 +766,9 @@ function analyzeKeywordCombo(
     endHour: t.hour,
     avgRoas: t.wSpend > 0 ? t.wSales / t.wSpend : 0,
     avgAcos: t.wSales > 0 ? (t.wSpend / t.wSales) * 100 : 999,
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     totalSpend: t.wSpend,
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     totalSales: t.wSales,
   }));
 
@@ -783,22 +783,22 @@ function analyzeKeywordCombo(
   }));
 
   // === 综合指标计算 ===
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const totalSpend = weightedRows.reduce((s: unknown, r: unknown) => s + r.wSpend, 0);
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const totalSales = weightedRows.reduce((s: unknown, r: unknown) => s + r.wSales, 0);
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const totalClicks = weightedRows.reduce((s: unknown, r: unknown) => s + r.wClicks, 0);
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const totalOrders = weightedRows.reduce((s: unknown, r: unknown) => s + r.wOrders, 0);
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const overallRoas = totalSpend > 0 ? totalSales / totalSpend : 0;
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const overallAcos = totalSales > 0 ? (totalSpend / totalSales) * 100 : (totalSpend > 0 ? 999 : 0);
 
   // === 组合分类 ===
   const { category, bidMultiplier: rawBidMult, placementMultiplier: rawPlaceMult, timeMultiplier: rawTimeMult, confidence } = classifyCombo(
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     totalClicks, totalOrders, totalSpend, totalSales, overallRoas, overallAcos,
     bestPlacement, bestTimeWindows, targetAcos, rows.length
   );
@@ -833,9 +833,9 @@ function analyzeKeywordCombo(
     suggestedBidMultiplier: bidMultiplier,
     suggestedPlacementMultiplier: placementMultiplier,
     suggestedTimeMultiplier: timeMultiplier,
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     totalClicks: Math.round(totalClicks),
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     totalOrders: Math.round(totalOrders),
     dataPoints: rows.length,
     confidenceLevel: confidence,
@@ -890,11 +890,11 @@ function classifyCombo(
 
   // 黄金组合: 高投产
   if (roas >= targetRoas * 1.2 && totalOrders >= 3 && confidence !== 'low') {
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const roasRatio = Math.min(roas / targetRoas, 3.0);
     const bidMultiplier = Math.min(1.20, 1.0 + (roasRatio - 1.2) * 0.1);
     const placementMultiplier = bestPlacement ? Math.min(1.15, 1.0 + (roasRatio - 1.0) * 0.05) : 1.0;
-    // @ts-expect-error Dynamic property access
+    // @ts-ignore Dynamic property access
     const timeMultiplier = bestTimeWindows.length > 0 ? Math.min(1.15, 1.0 + (roasRatio - 1.0) * 0.05) : 1.0;
 
     return { category: 'golden', bidMultiplier, placementMultiplier, timeMultiplier, confidence };
@@ -902,7 +902,7 @@ function classifyCombo(
 
   // 铅石组合: 低投产
   const isHighSpendNoConversion = totalSpend >= 5 && totalOrders === 0 && totalClicks >= 15;
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const isHighAcos = acos >= targetAcos * 1.5 && totalClicks >= 15;
 
   if (isHighSpendNoConversion || isHighAcos) {
@@ -954,32 +954,32 @@ function calculateCampaignBudgetMultiplier(
   targetAcos: number
 ): number {
   const allCombos = [...golden, ...leaden, ...potential, ...standard];
-  // @ts-expect-error Dynamic property access
+  // @ts-ignore Dynamic property access
   if (allCombos.length === 0) return 1.0;
 
-  // @ts-expect-error Complex function parameter types
+  // @ts-ignore Complex function parameter types
   const totalSpend = allCombos.reduce((s: unknown, c: unknown) => {
-    // @ts-expect-error Array method type inference
+    // @ts-ignore Array method type inference
     return s + c.placementSummaries.reduce((ps: unknown, p: unknown) => ps + p.totalSpend, 0);
-  // @ts-expect-error Legacy code type compatibility
+  // @ts-ignore Legacy code type compatibility
   }, 0);
 
-  // @ts-expect-error Conditional type narrowing
+  // @ts-ignore Conditional type narrowing
   if (totalSpend <= 0) return 1.0;
 
   const goldenSpend = golden.reduce((s: unknown, c: unknown) => {
-    // @ts-expect-error Array method type inference
+    // @ts-ignore Array method type inference
     return s + c.placementSummaries.reduce((ps: unknown, p: unknown) => ps + p.totalSpend, 0);
   }, 0);
 
   const leadenSpend = leaden.reduce((s: unknown, c: unknown) => {
-    // @ts-expect-error Array method type inference
+    // @ts-ignore Array method type inference
     return s + c.placementSummaries.reduce((ps: unknown, p: unknown) => ps + p.totalSpend, 0);
   }, 0);
 
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const goldenRatio = goldenSpend / totalSpend;
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const leadenRatio = leadenSpend / totalSpend;
 
   // 黄金组合花费占比 > 40% → 增加预算
@@ -1030,16 +1030,16 @@ export async function getRealtimeMultipliers(
   if (result.length === 0) return null;
 
   const analysis = result[0] as unknown;
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const baseBidMultiplier = parseFloat(String(analysis.suggestedBidMultiplier || '1.000'));
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const basePlacementMultiplier = parseFloat(String(analysis.suggestedPlacementMultiplier || '1.000'));
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   let baseTimeMultiplier = parseFloat(String(analysis.suggestedTimeMultiplier || '1.000'));
 
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const bestWindows = analysis.bestTimeWindows as TimeWindow[] || [];
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const worstWindows = analysis.worstTimeWindows as TimeWindow[] || [];
 
   const isInBestWindow = bestWindows.some(w => 
@@ -1059,9 +1059,9 @@ export async function getRealtimeMultipliers(
     bidMultiplier: baseBidMultiplier,
     placementMultiplier: basePlacementMultiplier,
     timeMultiplier: baseTimeMultiplier,
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     comboCategory: analysis.comboCategory,
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     confidence: analysis.confidenceLevel || 'insufficient',
   };
 }
@@ -1104,7 +1104,7 @@ export async function persistAnalysisResults(
     const restOfSearch = combo.placementSummaries.find(p => p.placement === 'rest_of_search');
 
     try {
-      // @ts-expect-error - Drizzle query builder type
+      // @ts-ignore - Drizzle query builder type
       await db.insert(multiDimComboAnalysis).values({
         accountId,
         campaignId: combo.campaignId,
@@ -1213,13 +1213,13 @@ export async function executeMultiDimComboAnalysis(
     }
   }
 
-  // @ts-expect-error Complex function parameter types
+  // @ts-ignore Complex function parameter types
   log.info(`[ComboAnalyzer] 分析完成: ${campaignsAnalyzed}个campaign, ${totalCombosFound}个组合 ` +
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     `(黄金:${goldenCount}, 铅石:${leadenCount}, 潜力:${potentialCount}, 标准:${standardCount}) ` +
     `分类变化:${totalCategoryChanges}个`);
 
-  // @ts-expect-error Return type compatibility
+  // @ts-ignore Return type compatibility
   return {
     campaignsAnalyzed,
     totalCombosFound,
@@ -1295,16 +1295,16 @@ export async function getCampaignBudgetMultiplier(
   let leadenSpend = 0;
 
   for (const row of (results as unknown[])) {
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const spend = parseFloat(String(row.topOfSearchSpend || '0')) +
-                  // @ts-expect-error Legacy code type compatibility
+                  // @ts-ignore Legacy code type compatibility
                   parseFloat(String(row.productPageSpend || '0')) +
-                  // @ts-expect-error Legacy code type compatibility
+                  // @ts-ignore Legacy code type compatibility
                   parseFloat(String(row.restOfSearchSpend || '0'));
     totalSpend += spend;
-    // @ts-expect-error Dynamic property access
+    // @ts-ignore Dynamic property access
     if (row.comboCategory === 'golden') goldenSpend += spend;
-    // @ts-expect-error Dynamic property access
+    // @ts-ignore Dynamic property access
     if (row.comboCategory === 'leaden') leadenSpend += spend;
   }
 

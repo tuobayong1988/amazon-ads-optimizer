@@ -27,7 +27,7 @@ export const placementRouter = router({
       accountId: z.number(),
       days: z.number().default(7),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       return placementService.getCampaignPlacementPerformance(
@@ -42,9 +42,9 @@ export const placementRouter = router({
     .input(z.object({
       campaignId: z.string(),
       accountId: z.number(),
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       return placementService.getCampaignPlacementSettings(
@@ -58,10 +58,10 @@ export const placementRouter = router({
     .input(z.object({
       campaignId: z.string(),
       accountId: z.number(),
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       days: z.number().default(7),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .mutation(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       // 获取位置表现数据
@@ -104,7 +104,7 @@ export const placementRouter = router({
         
         // 计算最优流量分配
         const optimizationResult = marginalBenefitService.optimizeTrafficAllocationSimple(
-          // @ts-expect-error Legacy code type compatibility
+          // @ts-ignore Legacy code type compatibility
           marginalBenefits,
           {
             top_of_search: currentSettings?.top_of_search || 0,
@@ -147,12 +147,12 @@ export const placementRouter = router({
         cooldownStatus: z.object({
           inCooldown: z.boolean(),
           lastAdjustmentDate: z.date().optional(),
-          // @ts-expect-error Legacy code type compatibility
+          // @ts-ignore Legacy code type compatibility
           daysRemaining: z.number().optional(),
         }).optional(), // V2新增：冷却期状态
       })),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .mutation(async ({ ctx, input }: unknown) => {
       await placementService.updatePlacementSettings(
         input.campaignId,
@@ -163,13 +163,13 @@ export const placementRouter = router({
     }),
 
   // 执行单个广告活动的位置优化
-  // @ts-expect-error Legacy code type compatibility
+  // @ts-ignore Legacy code type compatibility
   optimizeCampaign: protectedProcedure
     .input(z.object({
       campaignId: z.string(),
       accountId: z.number(),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .mutation(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       return placementService.executeAutomaticPlacementOptimization(
@@ -184,7 +184,7 @@ export const placementRouter = router({
       accountId: z.number(),
       campaignIds: z.array(z.string()).optional(),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .mutation(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       return placementService.batchExecutePlacementOptimization(
@@ -200,7 +200,7 @@ export const placementRouter = router({
       accountId: z.number(),
       limit: z.number().default(50),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       // TODO: 实现历史记录查询
@@ -215,7 +215,7 @@ export const placementRouter = router({
       campaignId: z.string(),
       accountId: z.number(),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       return advancedPlacementService.analyzeCampaignPlacementProfit(
@@ -227,7 +227,7 @@ export const placementRouter = router({
   // 分析单个竞价对象的利润
   analyzeBidObjectProfit: protectedProcedure
     .input(z.object({
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       accountId: z.number(),
       campaignId: z.string(),
       bidObjectType: z.enum(['keyword', 'asin']),
@@ -237,7 +237,7 @@ export const placementRouter = router({
       currentTopAdjustment: z.number().default(0),
       currentProductAdjustment: z.number().default(0),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       return advancedPlacementService.analyzeBidObjectProfit(
@@ -248,7 +248,7 @@ export const placementRouter = router({
         input.bidObjectText,
         input.currentBaseBid,
         input.currentTopAdjustment,
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         input.currentProductAdjustment
       );
     }),
@@ -259,10 +259,10 @@ export const placementRouter = router({
       accountId: z.number(),
       campaignId: z.string().optional(),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
-      // @ts-expect-error Return type compatibility
+      // @ts-ignore Return type compatibility
       return advancedPlacementService.getPendingRecommendations(
         input.accountId,
         input.campaignId
@@ -274,10 +274,10 @@ export const placementRouter = router({
     .input(z.object({
       recommendationId: z.number(),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .mutation(async ({ input, ctx }: unknown) => {
       return advancedPlacementService.applyOptimizationRecommendation(
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         input.recommendationId,
         ctx.user.id
       );
@@ -290,14 +290,14 @@ export const placementRouter = router({
       bidObjectType: z.enum(['keyword', 'asin']),
       bidObjectId: z.string(),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       return advancedPlacementService.generateProfitVisualizationData(
         input.accountId,
         input.bidObjectType,
         input.bidObjectId
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       );
     }),
 
@@ -311,12 +311,12 @@ export const placementRouter = router({
       keywordId: z.number(),
       daysBack: z.number().default(30),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .mutation(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       const model = await marketCurveService.buildMarketCurveForKeyword(
         input.accountId,
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         input.campaignId,
         input.keywordId,
         input.daysBack
@@ -331,7 +331,7 @@ export const placementRouter = router({
       bidObjectType: z.enum(['keyword', 'asin', 'audience']),
       bidObjectId: z.string(),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       return marketCurveService.getMarketCurveModel(
@@ -344,10 +344,10 @@ export const placementRouter = router({
   // 批量更新市场曲线模型
   updateAllMarketCurves: protectedProcedure
     .input(z.object({
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       accountId: z.number(),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .mutation(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       return marketCurveService.updateAllMarketCurveModels(input.accountId);
@@ -361,7 +361,7 @@ export const placementRouter = router({
       accountId: z.number(),
       modelType: z.enum(['cr_prediction', 'cv_prediction']),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .mutation(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       const result = await decisionTreeService.trainDecisionTreeModel(
@@ -378,7 +378,7 @@ export const placementRouter = router({
       
       return {
         modelId,
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         depth: result.depth,
         leafCount: result.leafCount,
         trainingR2: result.trainingR2,
@@ -396,7 +396,7 @@ export const placementRouter = router({
       keywordType: z.enum(['brand', 'competitor', 'generic', 'product']),
       avgBid: z.number(),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       return decisionTreeService.predictKeywordPerformance(
@@ -407,7 +407,7 @@ export const placementRouter = router({
           keywordType: input.keywordType,
           avgBid: input.avgBid,
         }
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       );
     }),
 
@@ -416,7 +416,7 @@ export const placementRouter = router({
     .input(z.object({
       accountId: z.number(),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .mutation(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       return decisionTreeService.batchPredictAndSaveKeywords(input.accountId);
@@ -427,7 +427,7 @@ export const placementRouter = router({
     .input(z.object({
       accountId: z.number(),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       return decisionTreeService.getKeywordPredictionSummary(input.accountId);
@@ -441,7 +441,7 @@ export const placementRouter = router({
       campaignId: z.string(),
       accountId: z.number(),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       // 获取广告活动下的所有关键词
@@ -459,17 +459,17 @@ export const placementRouter = router({
         if (marketCurve) {
           // 计算最优出价点
           const optimalBid = marketCurveService.calculateOptimalBid(
-            // @ts-expect-error - type assertion
+            // @ts-ignore - type assertion
             marketCurve.impressionCurve as unknown,
             marketCurve.ctrCurve as unknown,
             marketCurve.conversion as unknown
           );
           
-          // @ts-expect-error Complex function parameter types
+          // @ts-ignore Complex function parameter types
           results.push({
-            // @ts-expect-error Amazon API response type flexibility
+            // @ts-ignore Amazon API response type flexibility
             keywordId: keyword.id,
-            // @ts-expect-error Amazon API response type flexibility
+            // @ts-ignore Amazon API response type flexibility
             keywordText: keyword.keywordText,
             matchType: keyword.matchType,
             currentBid: Number(keyword.bid) || 0,
@@ -488,13 +488,13 @@ export const placementRouter = router({
       // 计算汇总统计
       const summary = {
         totalKeywords: campaignKeywords.length,
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         analyzedKeywords: results.length,
-        // @ts-expect-error Dynamic property access
+        // @ts-ignore Dynamic property access
         avgOptimalBid: results.length > 0 ? results.reduce((sum: number, r: Record<string, unknown>) => sum + r.optimalBid, 0) / results.length : 0,
-        // @ts-expect-error Dynamic property access
+        // @ts-ignore Dynamic property access
         avgCurrentBid: results.length > 0 ? results.reduce((sum: number, r: Record<string, unknown>) => sum + r.currentBid, 0) / results.length : 0,
-        // @ts-expect-error Array method type inference
+        // @ts-ignore Array method type inference
         totalMaxProfit: results.reduce((sum: number, r: Record<string, unknown>) => sum + r.maxProfit, 0),
         keywordsNeedIncrease: results.filter(r => r.recommendation === 'increase').length,
         keywordsNeedDecrease: results.filter(r => r.recommendation === 'decrease').length,
@@ -513,7 +513,7 @@ export const placementRouter = router({
       groupId: z.number(),
       accountId: z.number(),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       // 获取绩效组信息
@@ -554,7 +554,7 @@ export const placementRouter = router({
           
           if (marketCurve) {
             const optimalBid = marketCurveService.calculateOptimalBid(
-              // @ts-expect-error - type assertion
+              // @ts-ignore - type assertion
               marketCurve.impressionCurve as unknown,
               marketCurve.ctrCurve as unknown,
               marketCurve.conversion as unknown
@@ -575,7 +575,7 @@ export const placementRouter = router({
             campaignId: gc.campaignId,
             campaignName: campaign.campaignName,
             totalKeywords: campaignKeywords.length,
-            // @ts-expect-error Legacy code type compatibility
+            // @ts-ignore Legacy code type compatibility
             analyzedKeywords: analyzedCount,
             avgOptimalBid: campaignOptimalBidSum / analyzedCount,
             avgCurrentBid: campaignCurrentBidSum / analyzedCount,
@@ -598,11 +598,11 @@ export const placementRouter = router({
         groupName: group.name,
         totalCampaigns: groupCampaigns.length,
         analyzedCampaigns: campaignResults.length,
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         totalAnalyzedKeywords,
         totalMaxProfit: Math.round(totalMaxProfit * 100) / 100,
         avgOptimizationScore: campaignResults.length > 0 
-          // @ts-expect-error Conditional type narrowing
+          // @ts-ignore Conditional type narrowing
           ? Math.round(campaignResults.reduce((sum: number, c: Record<string, unknown>) => sum + c.optimizationScore, 0) / campaignResults.length)
           : 0,
         keywordsNeedIncrease: totalKeywordsNeedIncrease,
@@ -625,7 +625,7 @@ export const placementRouter = router({
       keywordIds: z.array(z.number()).optional(), // 可选，指定要应用的关键词，不指定则应用所有
       minBidDifferencePercent: z.number().default(5), // 最小差距百分比，低于此值不调整
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .mutation(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       // 获取广告活动下的所有关键词
@@ -680,7 +680,7 @@ export const placementRouter = router({
           
           // 计算最优出价点
           const optimalBid = marketCurveService.calculateOptimalBid(
-            // @ts-expect-error - type assertion
+            // @ts-ignore - type assertion
             marketCurve.impressionCurve as unknown,
             marketCurve.ctrCurve as unknown,
             marketCurve.conversion as unknown
@@ -758,7 +758,7 @@ export const placementRouter = router({
             expectedProfitIncrease: 0,
             status: 'error',
             reason: error instanceof Error ? (error as Error).message : '未知错误',
-          // @ts-expect-error Legacy code type compatibility
+          // @ts-ignore Legacy code type compatibility
           });
           errorCount++;
         }
@@ -786,7 +786,7 @@ export const placementRouter = router({
       accountId: z.number(),
       minBidDifferencePercent: z.number().default(5),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .mutation(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       // 获取绩效组信息
@@ -838,7 +838,7 @@ export const placementRouter = router({
             }
             
             const optimalBid = marketCurveService.calculateOptimalBid(
-              // @ts-expect-error - type assertion
+              // @ts-ignore - type assertion
               marketCurve.impressionCurve as unknown,
               marketCurve.ctrCurve as unknown,
               marketCurve.conversion as unknown
@@ -901,7 +901,7 @@ export const placementRouter = router({
       
       return {
         success: true,
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         groupId: input.groupId,
         groupName: group.name,
         summary: {
@@ -930,14 +930,14 @@ export const placementRouter = router({
       page: z.number().default(1),
       pageSize: z.number().default(50),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       // v146: 重定向到统一事件表查询
       const result = await db.getOptimizationEvents({
         accountId: input.accountId,
         performanceGroupId: input.performanceGroupId,
-        // @ts-expect-error Amazon API response type flexibility
+        // @ts-ignore Amazon API response type flexibility
         eventCategory: 'bid_adjustment',
         campaignId: input.campaignId,
         startDate: input.startDate,
@@ -955,7 +955,7 @@ export const placementRouter = router({
           status: e.status === 'success' ? 'applied' : e.status,
         })),
         total: result.total,
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         page: input.page,
         pageSize: input.pageSize,
         totalPages: Math.ceil(result.total / input.pageSize),
@@ -968,7 +968,7 @@ export const placementRouter = router({
       accountId: z.number(),
       days: z.number().default(30),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       return db.getOptimizationEventStats({
@@ -986,7 +986,7 @@ export const placementRouter = router({
       cvr: z.number().optional(),
       aov: z.number().optional(),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       // 尝试获取市场曲线模型
@@ -998,13 +998,13 @@ export const placementRouter = router({
       
       if (marketCurve) {
         const optimalBid = marketCurveService.calculateOptimalBid(
-          // @ts-expect-error - type assertion
+          // @ts-ignore - type assertion
           marketCurve.impressionCurve as unknown,
           marketCurve.ctrCurve as unknown,
           marketCurve.conversion as unknown
         );
         return {
-          // @ts-expect-error Legacy code type compatibility
+          // @ts-ignore Legacy code type compatibility
           hasModel: true,
           ...optimalBid,
         };
@@ -1015,7 +1015,7 @@ export const placementRouter = router({
       const aov = input.aov || 30;
       
       const defaultImpressionCurve = { a: 1000, b: 0.5, c: 500, r2: 0.8 };
-      // @ts-expect-error Type inference limitation
+      // @ts-ignore Type inference limitation
       const defaultCtrCurve = { baseCtr: 0.01, positionBonus: 0.5, topSearchCtrBonus: 0.3 };
       const defaultConversion = { cvr, aov, conversionDelayDays: 7 };
       
@@ -1027,7 +1027,7 @@ export const placementRouter = router({
       
       return {
         hasModel: false,
-        // @ts-expect-error Spread operator type compatibility
+        // @ts-ignore Spread operator type compatibility
         ...optimalBid,
         note: '使用默认参数计算，建议构建市场曲线模型以获取更精确的结果',
       };
@@ -1038,7 +1038,7 @@ export const placementRouter = router({
     .input(z.object({
       adjustmentId: z.number(),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .mutation(async ({ input, ctx }: unknown) => {
       // v146: 重定向到统一事件表回滚
       return db.rollbackOptimizationEvent(input.adjustmentId, ctx.user.name || ctx.user.openId);
@@ -1049,7 +1049,7 @@ export const placementRouter = router({
     .input(z.object({
       adjustmentId: z.number(),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ ctx, input }: unknown) => {
       const result = await db.getOptimizationEvents({ limit: 1, offset: 0 });
       return result.events.find((e: Record<string, unknown>) => e.id === input.adjustmentId) || null;
@@ -1058,11 +1058,11 @@ export const placementRouter = router({
   // 获取效果追踪统计 - v146: 重定向到统一事件表
   getBidAdjustmentTrackingStats: protectedProcedure
     .input(z.object({
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       accountId: z.number(),
       days: z.number().default(30),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       return db.getOptimizationEventStats({
@@ -1074,7 +1074,7 @@ export const placementRouter = router({
   // 批量导入出价调整历史
   importBidAdjustmentHistory: protectedProcedure
     .input(z.object({
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       accountId: z.number(),
       records: z.array(z.object({
         campaignId: z.number().optional(),
@@ -1094,16 +1094,16 @@ export const placementRouter = router({
         status: z.enum(['applied', 'pending', 'failed', 'rolled_back']).default('applied'),
       })),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .mutation(async ({ input, ctx }: unknown) => {
-      // @ts-expect-error - array method type inference
+      // @ts-ignore - array method type inference
       const recordsWithAccount = input.records.map(r => ({
         ...r,
         accountId: input.accountId,
         appliedBy: r.appliedBy || ctx.user.name || ctx.user.openId,
       }));
       return db.importBidAdjustmentHistory(recordsWithAccount);
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     }),
 
   // 获取需要效果追踪的调整记录
@@ -1111,7 +1111,7 @@ export const placementRouter = router({
     .input(z.object({
       daysAgo: z.number().default(7),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ ctx, input }: unknown) => {
       return db.getAdjustmentsNeedingTracking(input.daysAgo);
     }),
@@ -1131,7 +1131,7 @@ export const placementRouter = router({
         actualRevenue7D: z.number().optional(),
       }),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .mutation(async ({ ctx, input }: unknown) => {
       return db.updateBidAdjustmentTracking(input.adjustmentId, input.trackingData);
     }),
@@ -1141,7 +1141,7 @@ export const placementRouter = router({
     .input(z.object({
       period: z.number().default(7), // 7, 14, 或 30 天
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .mutation(async ({ ctx, input }: unknown) => {
       const { runEffectTrackingTask } = await import('../scheduler/effectTrackingScheduler');
       return runEffectTrackingTask(input.period);
@@ -1169,7 +1169,7 @@ export const placementRouter = router({
       campaignId: z.number().optional(),
       performanceGroupId: z.number().optional(),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ input, ctx }: unknown) => {
       // 使用输入参数或默认账号ID
       const accountId = 1; // TODO: 从输入参数或用户会话中获取
@@ -1188,12 +1188,12 @@ export const placementRouter = router({
       if (input.campaignId) {
         conditions.push(eq(bidAdjustmentHistory.campaignId, String(input.campaignId)));
       }
-      // @ts-expect-error Conditional type narrowing
+      // @ts-ignore Conditional type narrowing
       if (input.performanceGroupId) {
         conditions.push(eq(bidAdjustmentHistory.performanceGroupId, input.performanceGroupId));
       }
       
-      // @ts-expect-error DB query type inference limitation
+      // @ts-ignore DB query type inference limitation
       const dbInstance = await db.getDb();
       if (!dbInstance) {
         return {
@@ -1202,7 +1202,7 @@ export const placementRouter = router({
           totalEstimatedProfit: 0,
           totalActualProfit7d: 0,
           totalActualProfit14d: 0,
-          // @ts-expect-error Legacy code type compatibility
+          // @ts-ignore Legacy code type compatibility
           totalActualProfit30d: 0,
           byAdjustmentType: {},
           byCampaign: {},
@@ -1213,7 +1213,7 @@ export const placementRouter = router({
       const records = await dbInstance
         .select()
         .from(bidAdjustmentHistory)
-        // @ts-expect-error - Drizzle dynamic where conditions
+        // @ts-ignore - Drizzle dynamic where conditions
         .where(and(...conditions))
         .orderBy(desc(bidAdjustmentHistory.appliedAt));
       
@@ -1229,15 +1229,15 @@ export const placementRouter = router({
       const byAdjustmentType: Record<string, { count: number; estimated: number; actual: number }> = {};
       const byCampaign: Record<number, { name: string; count: number; estimated: number; actual: number }> = {};
       
-      // @ts-expect-error Dynamic type assertion
+      // @ts-ignore Dynamic type assertion
       for (const record of (records as unknown[])) {
-        // @ts-expect-error Type inference limitation
+        // @ts-ignore Type inference limitation
         const estimated = parseFloat(record.expectedProfitIncrease || '0');
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         totalEstimatedProfit += estimated;
         
         // 按调整类型分组
-        // @ts-expect-error Type inference limitation
+        // @ts-ignore Type inference limitation
         const type = record.adjustmentType || 'unknown';
         if (!byAdjustmentType[type]) {
           byAdjustmentType[type] = { count: 0, estimated: 0, actual: 0 };
@@ -1246,43 +1246,43 @@ export const placementRouter = router({
         byAdjustmentType[type].estimated += estimated;
         
         // 按广告活动分组
-        // @ts-expect-error Conditional type narrowing
+        // @ts-ignore Conditional type narrowing
         if (record.campaignId) {
-          // @ts-expect-error - type assertion
+          // @ts-ignore - type assertion
           if (!(byCampaign as Record<string, unknown>)[record.campaignId]) {
-            // @ts-expect-error - type assertion
+            // @ts-ignore - type assertion
             (byCampaign as Record<string, unknown>)[record.campaignId] = { name: record.campaignName || '', count: 0, estimated: 0, actual: 0 };
           }
-          // @ts-expect-error - type assertion
+          // @ts-ignore - type assertion
           (byCampaign as Record<string, unknown>)[record.campaignId].count++;
-          // @ts-expect-error - type assertion
+          // @ts-ignore - type assertion
           (byCampaign as Record<string, unknown>)[record.campaignId].estimated += estimated;
         }
         
         // 统计已追踪的记录
-        // @ts-expect-error Dynamic property access
+        // @ts-ignore Dynamic property access
         if (record.actualProfit7D !== null) {
-          // @ts-expect-error Type inference limitation
+          // @ts-ignore Type inference limitation
           const actual = parseFloat(record.actualProfit7D);
           totalActualProfit7d += actual;
           count7d++;
           trackedRecords++;
           byAdjustmentType[type].actual += actual;
-          // @ts-expect-error - type assertion
+          // @ts-ignore - type assertion
           if (record.campaignId && (byCampaign as Record<string, unknown>)[record.campaignId]) {
-            // @ts-expect-error - type assertion
+            // @ts-ignore - type assertion
             (byCampaign as Record<string, unknown>)[record.campaignId].actual += actual;
           }
         }
-        // @ts-expect-error Dynamic property access
+        // @ts-ignore Dynamic property access
         if (record.actualProfit14D !== null) {
-          // @ts-expect-error Legacy code type compatibility
+          // @ts-ignore Legacy code type compatibility
           totalActualProfit14d += parseFloat(record.actualProfit14D);
           count14d++;
         }
-        // @ts-expect-error Dynamic property access
+        // @ts-ignore Dynamic property access
         if (record.actualProfit30D !== null) {
-          // @ts-expect-error Legacy code type compatibility
+          // @ts-ignore Legacy code type compatibility
           totalActualProfit30d += parseFloat(record.actualProfit30D);
           count30d++;
         }
@@ -1290,7 +1290,7 @@ export const placementRouter = router({
       
       // 计算准确率
       const calculateAccuracy = (estimated: number, actual: number) => {
-        // @ts-expect-error Conditional type narrowing
+        // @ts-ignore Conditional type narrowing
         if (estimated === 0) return actual >= 0 ? 100 : 0;
         return Math.min(100, Math.max(0, (1 - Math.abs(actual - estimated) / Math.abs(estimated)) * 100));
       };
@@ -1339,7 +1339,7 @@ export const placementRouter = router({
     .input(z.object({
       adjustmentIds: z.array(z.number()),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .mutation(async ({ input, ctx }: unknown) => {
       const results: { id: number; success: boolean; error?: string }[] = [];
       
@@ -1365,7 +1365,7 @@ export const placementRouter = router({
       return {
         success: failCount === 0,
         message: `批量回滚完成: ${successCount} 成功, ${failCount} 失败`,
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         results,
         successCount,
         failCount,
@@ -1383,9 +1383,9 @@ export const placementRouter = router({
       currentAdjustment: z.number().default(0),
       days: z.number().default(30),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ input, ctx }: unknown) => {
-      // @ts-expect-error Express request/response type assertion
+      // @ts-ignore Express request/response type assertion
       await verifyAccountAccess(ctx.user.id, input.accountId);
       const { calculateMarginalBenefit } = await import('../optimization/marginalBenefitAnalysisService');
       return calculateMarginalBenefit(
@@ -1415,17 +1415,17 @@ export const placementRouter = router({
         maxSpendIncrease: z.number().optional(),
         targetACoS: z.number().optional(),
         targetROAS: z.number().optional(),
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       }).optional(),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .mutation(async ({ ctx, input }: unknown) => {
       const { optimizeTrafficAllocation } = await import('../optimization/marginalBenefitAnalysisService');
       return optimizeTrafficAllocation(
         input.campaignId,
         input.accountId,
         input.currentAdjustments,
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         input.goal,
         input.constraints
       );
@@ -1439,13 +1439,13 @@ export const placementRouter = router({
       optimizationGoal: z.enum(['maximize_roas', 'minimize_acos', 'maximize_sales', 'balanced']).default('balanced'),
       analysisName: z.string().optional(),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .mutation(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       const { createBatchAnalysis, executeBatchAnalysis } = await import('../optimization/marginalBenefitBatchService');
       
       const analysisId = await createBatchAnalysis({
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         accountId: input.accountId,
         userId: ctx.user.id,
         campaignIds: input.campaignIds,
@@ -1469,9 +1469,9 @@ export const placementRouter = router({
     .input(z.object({
       accountId: z.number(),
       limit: z.number().default(10),
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       const { getBatchAnalysisHistory } = await import('../optimization/marginalBenefitBatchService');
@@ -1481,7 +1481,7 @@ export const placementRouter = router({
   // 获取批量分析详情
   getBatchAnalysisDetail: protectedProcedure
     .input(z.object({ analysisId: z.number() }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ ctx, input }: unknown) => {
       const { getBatchAnalysisDetail } = await import('../optimization/marginalBenefitBatchService');
       return getBatchAnalysisDetail(input.analysisId);
@@ -1490,7 +1490,7 @@ export const placementRouter = router({
   // 一键应用优化建议
   applyOptimization: protectedProcedure
     .input(z.object({
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       accountId: z.number(),
       campaignId: z.string(),
       optimizationGoal: z.enum(['maximize_roas', 'minimize_acos', 'maximize_sales', 'balanced']),
@@ -1502,10 +1502,10 @@ export const placementRouter = router({
       expectedACoSChange: z.number(),
       note: z.string().optional(),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .mutation(async ({ input, ctx }: unknown) => {
       const { applyOptimization } = await import('../optimization/marginalBenefitBatchService');
-      // @ts-expect-error Complex function parameter types
+      // @ts-ignore Complex function parameter types
       return applyOptimization({
         ...input,
         userId: ctx.user.id,
@@ -1519,7 +1519,7 @@ export const placementRouter = router({
       applications: z.array(z.object({
         campaignId: z.string(),
         optimizationGoal: z.enum(['maximize_roas', 'minimize_acos', 'maximize_sales', 'balanced']),
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         suggestedTopOfSearch: z.number(),
         suggestedProductPage: z.number(),
         expectedSalesChange: z.number(),
@@ -1528,7 +1528,7 @@ export const placementRouter = router({
         expectedACoSChange: z.number(),
       })),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .mutation(async ({ input, ctx }: unknown) => {
       const { batchApplyOptimization } = await import('../optimization/marginalBenefitBatchService');
       return batchApplyOptimization(input.accountId, ctx.user.id, input.applications);
@@ -1536,9 +1536,9 @@ export const placementRouter = router({
 
   // 回滚优化应用
   rollbackApplication: protectedProcedure
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .input(z.object({ applicationId: z.number() }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .mutation(async ({ ctx, input }: unknown) => {
       const { rollbackApplication } = await import('../optimization/marginalBenefitBatchService');
       return rollbackApplication(input.applicationId);
@@ -1551,7 +1551,7 @@ export const placementRouter = router({
       campaignId: z.string().optional(),
       limit: z.number().default(20),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       const { getApplicationHistory } = await import('../optimization/marginalBenefitBatchService');
@@ -1566,7 +1566,7 @@ export const placementRouter = router({
       placementType: z.enum(['top_of_search', 'product_page', 'rest_of_search']),
       days: z.number().default(30),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       const { getHistoryTrend } = await import('../optimization/marginalBenefitHistoryService');
@@ -1580,7 +1580,7 @@ export const placementRouter = router({
       campaignId: z.string(),
       period: z.enum(['weekly', 'monthly']).default('weekly'),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       const { analyzeSeasonalPatterns } = await import('../optimization/marginalBenefitHistoryService');
@@ -1597,7 +1597,7 @@ export const placementRouter = router({
       period2Start: z.string(),
       period2End: z.string(),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       const { comparePeriods } = await import('../optimization/marginalBenefitHistoryService');
@@ -1618,7 +1618,7 @@ export const placementRouter = router({
       accountId: z.number(),
       goal: z.enum(['maximize_roas', 'minimize_acos', 'maximize_sales', 'balanced']).default('balanced'),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       const { 
@@ -1663,7 +1663,7 @@ export const placementRouter = router({
       
       // 生成报告
       const report = generateMarginalBenefitReport(
-        // @ts-expect-error - type assertion
+        // @ts-ignore - type assertion
         marginalBenefits as unknown,
         allocationResult
       );

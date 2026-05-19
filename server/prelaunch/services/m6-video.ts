@@ -36,7 +36,7 @@ export class M6VideoService {
         .from(prelaunchVisualBriefs)
         .where(eq(prelaunchVisualBriefs.projectId, projectId));
       
-      // @ts-expect-error Dynamic type assertion
+      // @ts-ignore Dynamic type assertion
       const banners = (data as unknown[]).filter((d: Record<string, unknown>) => d.slotRole?.startsWith('SB_Banner'));
       return { success: true, data: banners };
     } catch (error: unknown) {
@@ -66,9 +66,9 @@ export class M6VideoService {
       for (const duration of durations) {
         const prompt = `Create an Amazon Sponsored Brand Video script using the PAS (Problem-Agitate-Solution) framework.
 
-// @ts-expect-error Legacy code type compatibility
+// @ts-ignore Legacy code type compatibility
 DURATION: ${duration} seconds
-// @ts-expect-error Dynamic type assertion
+// @ts-ignore Dynamic type assertion
 TARGET PERSONA: ${(topPersona as any)?.personaName || 'General consumer'}
 CORE KEYWORDS: ${coreKws.map((k: Record<string, unknown>) => k.keyword).join(', ')}
 
@@ -95,7 +95,7 @@ Return JSON with all fields above.`;
 
         // 适配prelaunchVideoScripts表的实际字段：videoType, scriptFramework, hook, body, cta, duration, storyboard, generatedFrameUrls
         await db.insert(prelaunchVideoScripts).values({
-          // @ts-expect-error - runtime type mismatch
+          // @ts-ignore - runtime type mismatch
           projectId,
           videoType: `PAS_${duration}s`,
           scriptFramework: 'PAS',
@@ -121,10 +121,10 @@ Return JSON with all fields above.`;
         const prompt = `Create a creative brief for an Amazon Sponsored Brands banner ad.
 
 BANNER TYPE: ${banner.name}
-// @ts-expect-error Legacy code type compatibility
+// @ts-ignore Legacy code type compatibility
 DIMENSIONS: ${banner.width}x${banner.height}px
 PRODUCT KEYWORDS: ${coreKws.slice(0, 5).map((k: Record<string, unknown>) => k.keyword).join(', ')}
-// @ts-expect-error Dynamic type assertion
+// @ts-ignore Dynamic type assertion
 TARGET PERSONA: ${(topPersona as any)?.personaName || 'General consumer'}
 
 Generate:
@@ -138,7 +138,7 @@ Return JSON: {"headline":"...","visualDescription":"...","keyElements":["..."],"
         const brief = await geminiStructuredOutput<Record<string, unknown>>('', prompt, { temperature: 0.4 });
 
         await db.insert(prelaunchVisualBriefs).values({
-          // @ts-expect-error - runtime type mismatch
+          // @ts-ignore - runtime type mismatch
           projectId,
           slotPosition: 100 + bannerSizes.indexOf(banner),
           slotRole: banner.name,
@@ -187,26 +187,26 @@ Return JSON: {"headline":"...","visualDescription":"...","keyElements":["..."],"
           curiosity: 'warm golden light, soft focus background',
           relief: 'bright, airy, natural daylight',
           joy: 'vibrant colors, warm tones, natural smile',
-          // @ts-expect-error Legacy code type compatibility
+          // @ts-ignore Legacy code type compatibility
           trust: 'clean, professional, blue-white palette',
         };
 
-        // @ts-expect-error Type inference limitation
+        // @ts-ignore Type inference limitation
         const styleGuide = emotionColorMap[frame.emotionalTone] || 'clean, professional lighting';
 
         const imagePrompt = `Amazon product video storyboard frame:
-// @ts-expect-error Dynamic type assertion
+// @ts-ignore Dynamic type assertion
 Shot type: ${(frame as any).shotType}
-// @ts-expect-error Dynamic type assertion
+// @ts-ignore Dynamic type assertion
 Scene: ${(frame as any).visualDescription}
-// @ts-expect-error Dynamic type assertion
+// @ts-ignore Dynamic type assertion
 Text overlay: ${(frame as any).textOverlay || 'none'}
 Style: ${styleGuide}
 Aspect ratio: 16:9, cinematic, high quality, product photography style`;
 
         const result = await geminiGenerateImage(imagePrompt);
         if (result) {
-          // @ts-expect-error Complex function parameter types
+          // @ts-ignore Complex function parameter types
           generatedFrames.push(`frame_${frame.frameNumber}_generated`);
         }
       }

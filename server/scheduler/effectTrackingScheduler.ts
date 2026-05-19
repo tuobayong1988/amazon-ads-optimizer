@@ -110,35 +110,35 @@ export async function collectKeywordPerformance(
   const metrics: unknown[] = [];
   
   // 汇总数据
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const totalClicks = metrics.reduce((sum: number, m: Record<string, unknown>) => sum + (m.clicks || 0), 0);
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const totalImpressions = metrics.reduce((sum: number, m: Record<string, unknown>) => sum + (m.impressions || 0), 0);
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const totalSpend = metrics.reduce((sum: number, m: Record<string, unknown>) => sum + parseFloat(String(m.spend || 0)), 0);
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const totalSales = metrics.reduce((sum: number, m: Record<string, unknown>) => sum + parseFloat(String(m.sales || 0)), 0);
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const totalOrders = metrics.reduce((sum: number, m: Record<string, unknown>) => sum + (m.orders || 0), 0);
   
   // 计算衍生指标
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const acos = totalSales > 0 ? (totalSpend / totalSales) * 100 : 0;
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const roas = totalSpend > 0 ? totalSales / totalSpend : 0;
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const profit = totalSales - totalSpend;
   
   return {
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     clicks: totalClicks,
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     impressions: totalImpressions,
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     spend: totalSpend,
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     sales: totalSales,
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     orders: totalOrders,
     acos: Math.round(acos * 100) / 100,
     roas: Math.round(roas * 100) / 100,
@@ -198,30 +198,30 @@ export async function runEffectTrackingTask(period: number): Promise<TrackingRes
   for (const record of (records as unknown[])) {
     try {
       // 计算追踪时间范围
-      // @ts-expect-error Type inference limitation
+      // @ts-ignore Type inference limitation
       const adjustedAt = new Date(record.adjustedAt);
-      // @ts-expect-error Type inference limitation
+      // @ts-ignore Type inference limitation
       const startDate = adjustedAt;
       const endDate = new Date(adjustedAt.getTime() + period * 24 * 60 * 60 * 1000);
       
       // 收集实际表现数据
       const trackingData = await collectKeywordPerformance(
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         record.keywordId,
         startDate,
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         endDate
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       );
       
       // 更新历史记录
-      // @ts-expect-error Async operation type inference
+      // @ts-ignore Async operation type inference
       await updateTrackingData(record.id, period, trackingData);
       
       // 计算准确率
-      // @ts-expect-error Type inference limitation
+      // @ts-ignore Type inference limitation
       const estimatedProfit = parseFloat(record.estimatedProfitChange || '0');
-      // @ts-expect-error Type inference limitation
+      // @ts-ignore Type inference limitation
       const actualProfit = trackingData.profit;
       const profitDifference = actualProfit - estimatedProfit;
       const accuracyRate = estimatedProfit !== 0 
@@ -229,9 +229,9 @@ export async function runEffectTrackingTask(period: number): Promise<TrackingRes
         : (actualProfit >= 0 ? 100 : 0);
       
       results.push({
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         historyId: record.id,
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         keywordId: record.keywordId,
         period,
         estimatedProfit,
@@ -241,7 +241,7 @@ export async function runEffectTrackingTask(period: number): Promise<TrackingRes
         trackingData,
       });
     } catch (error: any) {
-      // @ts-expect-error Complex function parameter types
+      // @ts-ignore Complex function parameter types
       log.warn(`Failed to track record ${record.id}:`, error);
     }
   }
@@ -274,11 +274,11 @@ export async function getTrackingStatsSummary(): Promise<{
   avgAccuracy30d: number;
   totalEstimatedProfit: number;
   totalActualProfit: number;
-  // @ts-expect-error Legacy code type compatibility
+  // @ts-ignore Legacy code type compatibility
   overallAccuracy: number;
 }> {
   const db = await getDb();
-  // @ts-expect-error Conditional type narrowing
+  // @ts-ignore Conditional type narrowing
   if (!db) return { totalTracked: 0, avgAccuracy7d: 0, avgAccuracy14d: 0, avgAccuracy30d: 0, totalEstimatedProfit: 0, totalActualProfit: 0, overallAccuracy: 0 };
   
   // 查询所有已追踪的记录 - 使用status字段而不是isRolledBack
@@ -289,23 +289,23 @@ export async function getTrackingStatsSummary(): Promise<{
   
   // 计算统计数据
   let totalTracked = 0;
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   let sum7d = 0, count7d = 0;
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   let sum14d = 0, count14d = 0;
   let sum30d = 0, count30d = 0;
   let totalEstimated = 0;
   let totalActual = 0;
   
   for (const record of (records as unknown[])) {
-    // @ts-expect-error Dynamic type assertion
+    // @ts-ignore Dynamic type assertion
     const estimated = parseFloat((record as Record<string, unknown>).estimatedProfitChange || '0');
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     totalEstimated += estimated;
     
-    // @ts-expect-error Dynamic property access
+    // @ts-ignore Dynamic property access
     if (record.actualProfit7D !== null) {
-      // @ts-expect-error Type inference limitation
+      // @ts-ignore Type inference limitation
       const actual = parseFloat(record.actualProfit7D);
       const accuracy = estimated !== 0 
         ? Math.min(100, Math.max(0, (1 - Math.abs(actual - estimated) / Math.abs(estimated)) * 100))
@@ -315,9 +315,9 @@ export async function getTrackingStatsSummary(): Promise<{
       totalTracked++;
     }
     
-    // @ts-expect-error Dynamic property access
+    // @ts-ignore Dynamic property access
     if (record.actualProfit14D !== null) {
-      // @ts-expect-error Type inference limitation
+      // @ts-ignore Type inference limitation
       const actual = parseFloat(record.actualProfit14D);
       const accuracy = estimated !== 0 
         ? Math.min(100, Math.max(0, (1 - Math.abs(actual - estimated) / Math.abs(estimated)) * 100))
@@ -326,9 +326,9 @@ export async function getTrackingStatsSummary(): Promise<{
       count14d++;
     }
     
-    // @ts-expect-error Dynamic property access
+    // @ts-ignore Dynamic property access
     if (record.actualProfit30D !== null) {
-      // @ts-expect-error Type inference limitation
+      // @ts-ignore Type inference limitation
       const actual = parseFloat(record.actualProfit30D);
       totalActual += actual;
       const accuracy = estimated !== 0 

@@ -69,7 +69,7 @@ export async function ensureAmazonIdsReady(accountId: number): Promise<IdResolut
     await resolveProductTargetIds(accountId, directConn, result);
 
     // ========== 阶段3: 统计最终缺失数 ==========
-    // @ts-expect-error - v652: mysql2/dynamic type
+    // @ts-ignore - v652: mysql2/dynamic type
     const [remainingKws] = await directConn.execute(
       `SELECT COUNT(*) AS cnt FROM keywords k
        INNER JOIN ad_groups ag ON k.internal_ad_group_id = ag.id
@@ -77,7 +77,7 @@ export async function ensureAmazonIdsReady(accountId: number): Promise<IdResolut
        WHERE c.accountId = ? AND k.keywordId IS NULL`,
       [accountId]
     );
-    // @ts-expect-error - v652: mysql2/dynamic type
+    // @ts-ignore - v652: mysql2/dynamic type
     const [remainingPts] = await directConn.execute(
       `SELECT COUNT(*) AS cnt FROM product_targets pt
        INNER JOIN ad_groups ag ON pt.internal_ad_group_id = ag.id
@@ -97,7 +97,7 @@ export async function ensureAmazonIdsReady(accountId: number): Promise<IdResolut
     log.warn(`异常: ${(err as Error).message}`);
   } finally {
     if (directConn) {
-      // @ts-expect-error - v652: mysql2/dynamic type
+      // @ts-ignore - v652: mysql2/dynamic type
       try { directConn.release(); } catch (_: any) {} // v350: 归还连接到池
     }
   }
@@ -117,7 +117,7 @@ export async function ensureAmazonIdsReady(accountId: number): Promise<IdResolut
  */
 async function resolveKeywordIds(
   accountId: number,
-  // @ts-expect-error - runtime type mismatch
+  // @ts-ignore - runtime type mismatch
   conn: DbInstance,
   result: IdResolutionResult
 ): Promise<void> {
@@ -143,11 +143,11 @@ async function resolveKeywordIds(
   const groupedByAdGroup = new Map<number, Record<string, unknown>[]>();
   for (const kw of (missingKws as unknown[])) {
     // v429: 修复字段名bug — SQL返回的是internal_ad_group_id而非adGroupId
-    // @ts-expect-error - v652: mysql2/dynamic type
+    // @ts-ignore - v652: mysql2/dynamic type
     const group = groupedByAdGroup.get(kw.internal_ad_group_id) || [];
-    // @ts-expect-error - v652: mysql2/dynamic type
+    // @ts-ignore - v652: mysql2/dynamic type
     group.push(kw);
-    // @ts-expect-error - v652: mysql2/dynamic type
+    // @ts-ignore - v652: mysql2/dynamic type
     groupedByAdGroup.set(kw.internal_ad_group_id, group);
   }
 
@@ -193,9 +193,9 @@ async function resolveKeywordIds(
 
       // v224: 通过Amazon API查询该adGroup下的所有keywords - 根据campaign类型选择API
       const amazonKeywords = isAdGroupSb
-        // @ts-expect-error - v652: mysql2/dynamic type
+        // @ts-ignore - v652: mysql2/dynamic type
         ? await (syncService as Record<string, unknown>).client.listSbKeywords(String(amazonAdGroupId))
-        // @ts-expect-error - v652: mysql2/dynamic type
+        // @ts-ignore - v652: mysql2/dynamic type
         : await (syncService as Record<string, unknown>).client.listSpKeywords(amazonAdGroupId);
       if (isAdGroupSb) {
         log.info(`[IdResolver] v224: SB广告组 adGroup=${adGroupLocalId}(Amazon:${amazonAdGroupId}): 使用SB API查找关键词, 找到${amazonKeywords.length}个`);
@@ -205,7 +205,7 @@ async function resolveKeywordIds(
       // 构建匹配索引: "keywordText|matchType" -> keywordId
       const amazonKwMap = new Map<string, string>();
       for (const ak of amazonKeywords) {
-        // @ts-expect-error - dynamic property access
+        // @ts-ignore - dynamic property access
         const key = `${(ak as Record<string, unknown>).keywordText?.toLowerCase()}|${(ak as Record<string, unknown>).matchType?.toLowerCase()}`;
         amazonKwMap.set(key, String((ak as Record<string, unknown>).keywordId));
       }
@@ -215,7 +215,7 @@ async function resolveKeywordIds(
       if (hasProductTargets) {
         log.info(`⚠️ adGroup=${adGroupLocalId}: 广告组已有product targets，清理${kwsInGroup.length}个无效keyword记录`);
         for (const kw of (kwsInGroup as unknown[])) {
-          // @ts-expect-error - v652: mysql2/dynamic type
+          // @ts-ignore - v652: mysql2/dynamic type
           await conn.execute('DELETE FROM keywords WHERE id = ? AND keywordId IS NULL', [kw.id]);
           result.keywordsCleanedUp++;
         }
@@ -227,17 +227,17 @@ async function resolveKeywordIds(
 
       for (const kw of (kwsInGroup as unknown[])) {
         // v194: ASIN格式的搜索词不应该作为keyword，清理
-        // @ts-expect-error - v652: mysql2/dynamic type
+        // @ts-ignore - v652: mysql2/dynamic type
         if (isAsinSearchTerm(kw.keywordText || '')) {
-          // @ts-expect-error - v652: mysql2/dynamic type
+          // @ts-ignore - v652: mysql2/dynamic type
           log.debug(`⚠️ 清理ASIN格式关键词 id=${kw.id} "${kw.keywordText}"`);
-          // @ts-expect-error - v652: mysql2/dynamic type
+          // @ts-ignore - v652: mysql2/dynamic type
           await conn.execute('DELETE FROM keywords WHERE id = ? AND keywordId IS NULL', [kw.id]);
           result.keywordsCleanedUp++;
           continue;
         }
 
-        // @ts-expect-error - v652: mysql2/dynamic type
+        // @ts-ignore - v652: mysql2/dynamic type
         const key = `${kw.keywordText?.toLowerCase()}|${kw.matchType?.toLowerCase()}`;
         const amazonKeywordId = amazonKwMap.get(key);
 
@@ -258,24 +258,24 @@ async function resolveKeywordIds(
                accountId = COALESCE(accountId, ?),
                campaignId = COALESCE(campaignId, ?)
                WHERE id = ? AND keywordId IS NULL`,
-              // @ts-expect-error - v652: mysql2/dynamic type
+              // @ts-ignore - v652: mysql2/dynamic type
               [amazonKeywordId, accountId, resolvedCampaignId || null, kw.id]
             );
             result.keywordsResolved++;
-            // @ts-expect-error - v652: mysql2/dynamic type
+            // @ts-ignore - v652: mysql2/dynamic type
             log.debug(`✅ v357: 回填keyword id=${kw.id} "${kw.keywordText?.substring(0, 25)}" → keywordId=${amazonKeywordId}, accountId=${accountId}`);
           } catch (updateErr: unknown) {
-            // @ts-expect-error - MySQL error code check
+            // @ts-ignore - MySQL error code check
             if ((updateErr as Error & { code?: string }).code === 'ER_DUP_ENTRY' || updateErr.errno === 1062) {
               // 唯一约束冲突 → 说明是重复记录，删除
-              // @ts-expect-error - v652: mysql2/dynamic type
+              // @ts-ignore - v652: mysql2/dynamic type
               await conn.execute('DELETE FROM keywords WHERE id = ? AND keywordId IS NULL', [kw.id]);
               result.keywordsCleanedUp++;
-              // @ts-expect-error - v652: mysql2/dynamic type
+              // @ts-ignore - v652: mysql2/dynamic type
               log.debug(`🧹 清理重复keyword id=${kw.id} (keywordId=${amazonKeywordId}已存在)`);
             } else {
               result.keywordsFailed++;
-              // @ts-expect-error - v652: mysql2/dynamic type
+              // @ts-ignore - v652: mysql2/dynamic type
               log.warn(`❌ 回填keyword id=${kw.id}失败: ${(updateErr as Error).message}`);
             }
           }
@@ -308,7 +308,7 @@ async function resolveKeywordIds(
           log.info(`⚠️ adGroup=${adGroupLocalId} 属于auto-targeting广告活动，跳过${toCreate.length}个正面关键词创建（自动广告只能添加否定关键词）`);
           // 清理这些不应该存在的关键词记录
           for (const kw of (toCreate as unknown[])) {
-            // @ts-expect-error - v652: mysql2/dynamic type
+            // @ts-ignore - v652: mysql2/dynamic type
             await conn.execute('DELETE FROM keywords WHERE id = ? AND keywordId IS NULL', [kw.id]);
             result.keywordsCleanedUp++;
           }
@@ -316,16 +316,16 @@ async function resolveKeywordIds(
           // v192: 批量校验关键词数据质量
           const validatedBatch: unknown[] = [];
           for (const kw of (toCreate as unknown[])) {
-            // @ts-expect-error - v652: mysql2/dynamic type
+            // @ts-ignore - v652: mysql2/dynamic type
             const validation = sanitizeAndValidateKeyword(kw.keywordText || '', 'positive');
             if (validation.isValid) {
-              // @ts-expect-error - v652: mysql2/dynamic type
+              // @ts-ignore - v652: mysql2/dynamic type
               kw.keywordText = validation.sanitizedText; // 使用清洗后的文本
               validatedBatch.push(kw);
             } else {
-              // @ts-expect-error - v652: mysql2/dynamic type
+              // @ts-ignore - v652: mysql2/dynamic type
               log.debug(`⚠️ 关键词校验不通过 id=${kw.id} "${kw.keywordText?.substring(0, 30)}": ${validation.reasonMessage}`);
-              // @ts-expect-error - v652: mysql2/dynamic type
+              // @ts-ignore - v652: mysql2/dynamic type
               await conn.execute('DELETE FROM keywords WHERE id = ? AND keywordId IS NULL', [kw.id]);
               result.keywordsCleanedUp++;
             }
@@ -340,15 +340,15 @@ async function resolveKeywordIds(
           for (let i = 0; i < validatedBatch.length; i += batchSize) {
             const batch = validatedBatch.slice(i, i + batchSize);
             try {
-              // @ts-expect-error - v652: mysql2/dynamic type
+              // @ts-ignore - v652: mysql2/dynamic type
               const createResults = await (syncService as Record<string, unknown>).client.createSpKeywords(
-                // @ts-expect-error - v652: mysql2/dynamic type
+                // @ts-ignore - v652: mysql2/dynamic type
                 batch.map((kw: Record<string, unknown>) => ({
                   campaignId: amazonCampaignId,
                   adGroupId: amazonAdGroupId,
                   keywordText: kw.keywordText,
                   matchType: kw.matchType || 'broad',
-                  // @ts-expect-error - v652: mysql2/dynamic type
+                  // @ts-ignore - v652: mysql2/dynamic type
                   bid: parseFloat(kw.bid || '1.00'),
                   state: kw.keywordStatus === 'paused' ? 'paused' : 'enabled',
                 }))
@@ -366,16 +366,16 @@ async function resolveKeywordIds(
                        accountId = COALESCE(accountId, ?),
                        campaignId = COALESCE(campaignId, ?)
                        WHERE id = ? AND keywordId IS NULL`,
-                      // @ts-expect-error - v652: mysql2/dynamic type
+                      // @ts-ignore - v652: mysql2/dynamic type
                       [String(created.keywordId), accountId, String(amazonCampaignId), original.id]
                     );
                     result.keywordsCreated++;
-                    // @ts-expect-error - v652: mysql2/dynamic type
+                    // @ts-ignore - v652: mysql2/dynamic type
                     log.info(`✅ v357: 创建keyword id=${original.id} "${original.keywordText?.substring(0, 25)}" → keywordId=${created.keywordId}, accountId=${accountId}, campaignId=${amazonCampaignId}`);
                   } catch (upErr: unknown) {
-                    // @ts-expect-error - MySQL error code check
+                    // @ts-ignore - MySQL error code check
                     if ((upErr as Error & { code?: string }).code === 'ER_DUP_ENTRY' || upErr.errno === 1062) {
-                      // @ts-expect-error - v652: mysql2/dynamic type
+                      // @ts-ignore - v652: mysql2/dynamic type
                       await conn.execute('DELETE FROM keywords WHERE id = ? AND keywordId IS NULL', [original.id]);
                       result.keywordsCleanedUp++;
                     } else {
@@ -389,14 +389,14 @@ async function resolveKeywordIds(
                   // 先检查本地是否已有有效记录
                   const [existing] = await conn.execute(
                     `SELECT id, keywordId FROM keywords WHERE internal_ad_group_id = ? AND keywordText = ? AND matchType = ? AND keywordId IS NOT NULL LIMIT 1`,
-                    // @ts-expect-error - v652: mysql2/dynamic type
+                    // @ts-ignore - v652: mysql2/dynamic type
                     [original.internal_ad_group_id, original.keywordText, original.matchType]
                   );
                   if (existing.length > 0) {
-                    // @ts-expect-error - v652: mysql2/dynamic type
+                    // @ts-ignore - v652: mysql2/dynamic type
                     await conn.execute('DELETE FROM keywords WHERE id = ? AND keywordId IS NULL', [original.id]);
                     result.keywordsCleanedUp++;
-                    // @ts-expect-error - v652: mysql2/dynamic type
+                    // @ts-ignore - v652: mysql2/dynamic type
                     log.debug(`🧹 清理重复keyword id=${original.id} (已有有效记录id=${existing[0].id})`);
                     resolved = true;
                   }
@@ -406,14 +406,14 @@ async function resolveKeywordIds(
                     try {
                       // v224: 根据campaign类型选择正确的API
                       const amazonKeywords = isAdGroupSb
-                        // @ts-expect-error - v652: mysql2/dynamic type
+                        // @ts-ignore - v652: mysql2/dynamic type
                         ? await (syncService as Record<string, unknown>).client.listSbKeywords(String(amazonAdGroupId))
-                        // @ts-expect-error - v652: mysql2/dynamic type
+                        // @ts-ignore - v652: mysql2/dynamic type
                         : await (syncService as Record<string, unknown>).client.listSpKeywords(Number(amazonAdGroupId));
                       const matchedKw = amazonKeywords.find((ak: Record<string, unknown>) => 
-                        // @ts-expect-error - v652: mysql2/dynamic type
+                        // @ts-ignore - v652: mysql2/dynamic type
                         ak.keywordText?.toLowerCase() === original.keywordText?.toLowerCase() && 
-                        // @ts-expect-error - v652: mysql2/dynamic type
+                        // @ts-ignore - v652: mysql2/dynamic type
                         ak.matchType?.toUpperCase() === (original.matchType || 'broad').toUpperCase()
                       );
                       if (matchedKw && matchedKw.keywordId) {
@@ -423,11 +423,11 @@ async function resolveKeywordIds(
                            accountId = COALESCE(accountId, ?),
                            campaignId = COALESCE(campaignId, ?)
                            WHERE id = ? AND keywordId IS NULL`,
-                          // @ts-expect-error - v652: mysql2/dynamic type
+                          // @ts-ignore - v652: mysql2/dynamic type
                           [String(matchedKw.keywordId), accountId, String(amazonCampaignId), original.id]
                         );
                         result.keywordsCreated++;
-                        // @ts-expect-error - v652: mysql2/dynamic type
+                        // @ts-ignore - v652: mysql2/dynamic type
                         log.debug(`✅ v357: 从Amazon回填keyword id=${original.id} "${original.keywordText?.substring(0, 25)}" → keywordId=${matchedKw.keywordId}, accountId=${accountId}`);
                         resolved = true;
                       }
@@ -439,7 +439,7 @@ async function resolveKeywordIds(
                   if (!resolved) {
                     result.keywordsFailed++;
                     const errDetail = (created as Record<string, unknown>).details || created.code || 'Unknown';
-                    // @ts-expect-error - v652: mysql2/dynamic type
+                    // @ts-ignore - v652: mysql2/dynamic type
                     log.warn(`❌ 创建keyword失败 id=${original.id} "${original.keywordText?.substring(0, 25)}": ${errDetail}`);
                   }
                 }
@@ -477,7 +477,7 @@ async function resolveKeywordIds(
  */
 async function resolveProductTargetIds(
   accountId: number,
-  // @ts-expect-error - runtime type mismatch
+  // @ts-ignore - runtime type mismatch
   conn: DbInstance,
   result: IdResolutionResult
 ): Promise<void> {
@@ -529,7 +529,7 @@ async function resolveProductTargetIds(
       const amazonAdGroupId = Number(agRows[0].adGroupId);
 
       // 通过Amazon API查询该adGroup下的所有product targets
-      // @ts-expect-error - v652: mysql2/dynamic type
+      // @ts-ignore - v652: mysql2/dynamic type
       const amazonTargets = await (syncService as Record<string, unknown>).client.listSpProductTargets(amazonAdGroupId);
       log.debug(`adGroup=${adGroupLocalId}(Amazon:${amazonAdGroupId}): Amazon返回${amazonTargets.length}个targets, 本地缺失${ptsInGroup.length}个`);
 
@@ -538,13 +538,13 @@ async function resolveProductTargetIds(
       for (const at of amazonTargets) {
         const atAny = at as unknown;
         // 用expression作为匹配键
-        // @ts-expect-error - runtime type mismatch
+        // @ts-ignore - runtime type mismatch
         const expr = JSON.stringify(atAny.expression || atAny.targetingClause?.expression || []);
         amazonPtMap.set(expr, String(at.targetId));
         // 也用resolvedExpression匹配
-        // @ts-expect-error - runtime type mismatch
+        // @ts-ignore - runtime type mismatch
         if (atAny.resolvedExpression) {
-          // @ts-expect-error - Drizzle query builder type
+          // @ts-ignore - Drizzle query builder type
           amazonPtMap.set(JSON.stringify(atAny.resolvedExpression), String(at.targetId));
         }
       }
@@ -554,7 +554,7 @@ async function resolveProductTargetIds(
 
         // 方式1: 通过targetExpression匹配
         if (pt.targetExpression) {
-          // @ts-expect-error - v652: mysql2/dynamic type
+          // @ts-ignore - v652: mysql2/dynamic type
           amazonTargetId = amazonPtMap.get(pt.targetExpression);
         }
 
@@ -562,9 +562,9 @@ async function resolveProductTargetIds(
         if (!amazonTargetId && pt.targetValue) {
           for (const at of amazonTargets) {
             const atAny2 = at as unknown;
-            // @ts-expect-error - runtime type mismatch
+            // @ts-ignore - runtime type mismatch
             const exprStr = JSON.stringify(atAny2.expression || atAny2.targetingClause?.expression || []);
-            // @ts-expect-error - v652: mysql2/dynamic type
+            // @ts-ignore - v652: mysql2/dynamic type
             if (exprStr.includes(pt.targetValue)) {
               amazonTargetId = String(at.targetId);
               break;
@@ -581,7 +581,7 @@ async function resolveProductTargetIds(
             result.productTargetsResolved++;
             log.debug(`✅ 回填product_target id=${pt.id} → targetId=${amazonTargetId}`);
           } catch (updateErr: unknown) {
-            // @ts-expect-error - MySQL error code check
+            // @ts-ignore - MySQL error code check
             if ((updateErr as Error & { code?: string }).code === 'ER_DUP_ENTRY' || updateErr.errno === 1062) {
               await conn.execute('DELETE FROM product_targets WHERE id = ? AND targetId IS NULL', [pt.id]);
               result.productTargetsResolved++;
@@ -619,7 +619,7 @@ export async function resolveKeywordIdOnDemand(
   accountId: number,
   keywordLocalId: number
 ): Promise<string | null> {
-  // @ts-expect-error - runtime type mismatch
+  // @ts-ignore - runtime type mismatch
   let conn: DbInstance = null;
   try {
     // v350: 使用连接池获取直接连接
@@ -638,13 +638,13 @@ export async function resolveKeywordIdOnDemand(
 
     if (kwRows.length === 0) return null;
     const kw = kwRows[0] as unknown;
-    // @ts-expect-error - v652: mysql2/dynamic type
+    // @ts-ignore - v652: mysql2/dynamic type
     if (!kw.amazonAdGroupId) return null;
 
     // v194: ASIN格式的关键词不应该存在于keywords表
-    // @ts-expect-error - v652: mysql2/dynamic type
+    // @ts-ignore - v652: mysql2/dynamic type
     if (isAsinSearchTerm(kw.keywordText || '')) {
-      // @ts-expect-error - v652: mysql2/dynamic type
+      // @ts-ignore - v652: mysql2/dynamic type
       log.debug(`⚠️ 即时清理ASIN格式关键词 id=${keywordLocalId} "${kw.keywordText}"`);
       await conn.execute('DELETE FROM keywords WHERE id = ? AND keywordId IS NULL', [keywordLocalId]);
       return null;
@@ -652,7 +652,7 @@ export async function resolveKeywordIdOnDemand(
 
     // v194: 检查广告组是否已有product targets
     // v429: 修复字段名bug — SQL结果中字段名是internal_ad_group_id
-    // @ts-expect-error - v652: mysql2/dynamic type
+    // @ts-ignore - v652: mysql2/dynamic type
     const hasProductTargets = await adGroupHasProductTargets(kw.internal_ad_group_id, conn);
     if (hasProductTargets) {
       log.debug(`⚠️ 即时清理: keyword id=${keywordLocalId} 广告组已有product targets`);
@@ -668,7 +668,7 @@ export async function resolveKeywordIdOnDemand(
     try {
       const [campTypeRows] = await conn.execute(
         'SELECT campaignType FROM campaigns WHERE campaignId = ? LIMIT 1',
-        // @ts-expect-error - v652: mysql2/dynamic type
+        // @ts-ignore - v652: mysql2/dynamic type
         [String(kw.amazonCampaignId)]
       );
       if (campTypeRows.length > 0 && campTypeRows[0].campaignType) {
@@ -677,12 +677,12 @@ export async function resolveKeywordIdOnDemand(
     } catch (_: any) {}
     const isSbCampaign = campaignType === 'sb';
 
-    // @ts-expect-error - v652: mysql2/dynamic type
+    // @ts-ignore - v652: mysql2/dynamic type
     const amazonAdGroupId = Number(kw.amazonAdGroupId);
     const amazonKeywords = isSbCampaign
-      // @ts-expect-error - v652: mysql2/dynamic type
+      // @ts-ignore - v652: mysql2/dynamic type
       ? await (syncService as Record<string, unknown>).client.listSbKeywords(String(amazonAdGroupId))
-      // @ts-expect-error - v652: mysql2/dynamic type
+      // @ts-ignore - v652: mysql2/dynamic type
       : await (syncService as Record<string, unknown>).client.listSpKeywords(amazonAdGroupId);
     
     if (isSbCampaign) {
@@ -690,10 +690,10 @@ export async function resolveKeywordIdOnDemand(
     }
 
     // 按 keywordText + matchType 匹配
-    // @ts-expect-error - v652: mysql2/dynamic type
+    // @ts-ignore - v652: mysql2/dynamic type
     const key = `${kw.keywordText?.toLowerCase()}|${kw.matchType?.toLowerCase()}`;
     for (const ak of amazonKeywords) {
-      // @ts-expect-error - dynamic property access
+      // @ts-ignore - dynamic property access
       const akKey = `${(ak as Record<string, unknown>).keywordText?.toLowerCase()}|${(ak as Record<string, unknown>).matchType?.toLowerCase()}`;
       if (akKey === key) {
         const amazonKeywordId = String((ak as Record<string, unknown>).keywordId);
@@ -705,7 +705,7 @@ export async function resolveKeywordIdOnDemand(
           log.debug(`✅ 即时回填keyword id=${keywordLocalId} → keywordId=${amazonKeywordId}`);
           return amazonKeywordId;
         } catch (upErr: unknown) {
-          // @ts-expect-error - MySQL error code check
+          // @ts-ignore - MySQL error code check
           if ((upErr as Error & { code?: string }).code === 'ER_DUP_ENTRY' || upErr.errno === 1062) {
             await conn.execute('DELETE FROM keywords WHERE id = ? AND keywordId IS NULL', [keywordLocalId]);
           }
@@ -715,13 +715,13 @@ export async function resolveKeywordIdOnDemand(
     }
 
     // Amazon上不存在 → 尝试创建
-    // @ts-expect-error - v652: mysql2/dynamic type
+    // @ts-ignore - v652: mysql2/dynamic type
     const amazonCampaignId = Number(kw.amazonCampaignId);
     if (amazonCampaignId) {
       // v192: 查询campaign的targetingType，拦截auto-targeting
       const [campTypeRows] = await conn.execute(
         'SELECT targetingType FROM campaigns WHERE campaignId = ? LIMIT 1',
-        // @ts-expect-error - v652: mysql2/dynamic type
+        // @ts-ignore - v652: mysql2/dynamic type
         [String(kw.amazonCampaignId)]
       );
       const campTargetingType = campTypeRows[0]?.targetingType || 'manual';
@@ -733,10 +733,10 @@ export async function resolveKeywordIdOnDemand(
       }
       
       // v192: 校验关键词数据质量
-      // @ts-expect-error - v652: mysql2/dynamic type
+      // @ts-ignore - v652: mysql2/dynamic type
       const kwValidation = sanitizeAndValidateKeyword(kw.keywordText || '', 'positive');
       if (!kwValidation.isValid) {
-        // @ts-expect-error - v652: mysql2/dynamic type
+        // @ts-ignore - v652: mysql2/dynamic type
         log.info(`⚠️ 即时创建拦截: keyword id=${keywordLocalId} "${kw.keywordText?.substring(0, 30)}" 校验不通过: ${kwValidation.reasonMessage}`);
         await conn.execute('DELETE FROM keywords WHERE id = ? AND keywordId IS NULL', [keywordLocalId]);
         return null;
@@ -749,16 +749,16 @@ export async function resolveKeywordIdOnDemand(
       }
       
       try {
-        // @ts-expect-error - v652: mysql2/dynamic type
+        // @ts-ignore - v652: mysql2/dynamic type
         const createResults = await (syncService as Record<string, unknown>).client.createSpKeywords([{
           campaignId: amazonCampaignId,
           adGroupId: amazonAdGroupId,
           keywordText: kwValidation.sanitizedText,
-          // @ts-expect-error - v652: mysql2/dynamic type
+          // @ts-ignore - v652: mysql2/dynamic type
           matchType: kw.matchType || 'broad',
-          // @ts-expect-error - v652: mysql2/dynamic type
+          // @ts-ignore - v652: mysql2/dynamic type
           bid: parseFloat(kw.bid || '1.00'),
-          // @ts-expect-error - v652: mysql2/dynamic type
+          // @ts-ignore - v652: mysql2/dynamic type
           state: kw.keywordStatus === 'paused' ? 'paused' : 'enabled',
         }]);
 
@@ -800,7 +800,7 @@ export async function resolveProductTargetIdOnDemand(
   accountId: number,
   ptLocalId: number
 ): Promise<string | null> {
-  // @ts-expect-error - runtime type mismatch
+  // @ts-ignore - runtime type mismatch
   let conn: DbInstance = null;
   try {
     // v350: 使用连接池获取直接连接
@@ -818,27 +818,27 @@ export async function resolveProductTargetIdOnDemand(
 
     if (ptRows.length === 0) return null;
     const pt = ptRows[0] as unknown;
-    // @ts-expect-error - v652: mysql2/dynamic type
+    // @ts-ignore - v652: mysql2/dynamic type
     if (!pt.amazonAdGroupId) return null;
 
     const syncService = await getAmazonSyncService(accountId);
     if (!syncService) return null;
 
-    // @ts-expect-error - v652: mysql2/dynamic type
+    // @ts-ignore - v652: mysql2/dynamic type
     const amazonAdGroupId = Number(pt.amazonAdGroupId);
-    // @ts-expect-error - v652: mysql2/dynamic type
+    // @ts-ignore - v652: mysql2/dynamic type
     const amazonTargets = await (syncService as Record<string, unknown>).client.listSpProductTargets(amazonAdGroupId);
 
     for (const at of amazonTargets) {
       const atAny = at as unknown;
-      // @ts-expect-error - runtime type mismatch
+      // @ts-ignore - runtime type mismatch
       const exprStr = JSON.stringify(atAny.expression || atAny.targetingClause?.expression || []);
 
       let matched = false;
-      // @ts-expect-error - v652: mysql2/dynamic type
+      // @ts-ignore - v652: mysql2/dynamic type
       if (pt.targetExpression && exprStr === pt.targetExpression) {
         matched = true;
-      // @ts-expect-error - v652: mysql2/dynamic type
+      // @ts-ignore - v652: mysql2/dynamic type
       } else if (pt.targetValue && exprStr.includes(pt.targetValue)) {
         matched = true;
       }
@@ -853,7 +853,7 @@ export async function resolveProductTargetIdOnDemand(
           log.debug(`✅ 即时回填product_target id=${ptLocalId} → targetId=${amazonTargetId}`);
           return amazonTargetId;
         } catch (upErr: unknown) {
-          // @ts-expect-error - MySQL error code check
+          // @ts-ignore - MySQL error code check
           if ((upErr as Error & { code?: string }).code === 'ER_DUP_ENTRY' || upErr.errno === 1062) {
             await conn.execute('DELETE FROM product_targets WHERE id = ? AND targetId IS NULL', [ptLocalId]);
           }

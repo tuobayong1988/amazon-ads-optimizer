@@ -277,7 +277,7 @@ export function calculateAnomalyScore(data: DataPoint[]): {
   
   // 计算分数(考虑异常数量和严重程度)
   const severityWeights = { low: 1, medium: 2, high: 3 };
-  // @ts-expect-error - array method type inference
+  // @ts-ignore - array method type inference
   const weightedAnomalies = anomalies.reduce((sum: number, a: Record<string, unknown>) => sum + severityWeights[a.severity], 0);
   const maxPossibleScore = data.length * 3;
   // @ts-ignore

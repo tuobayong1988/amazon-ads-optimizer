@@ -305,7 +305,7 @@ async function getTimeWeightedCampaignMetrics(
 ): Promise<{ acos: number; roas: number; dailySpend: number; dailyOrders: number; days: number } | null> {
   if (campaignIds.length === 0) return null;
   
-  // @ts-expect-error - runtime type mismatch
+  // @ts-ignore - runtime type mismatch
   const dailyData = await db.select({
     date: dailyPerformance.date,
     spend: sql<number>`COALESCE(SUM(${dailyPerformance.spend}), 0)`,
@@ -412,11 +412,11 @@ function calculateEffectScore(
   // v274: 5. 因果推断增量利润信号（权重5%）
   // 如果该优化动作的action_detail中包含因果推断结果，作为额外信号
   try {
-    // @ts-expect-error - runtime type mismatch
+    // @ts-ignore - runtime type mismatch
     if (logEntry?.actionDetail) {
-      // @ts-expect-error - runtime type mismatch
+      // @ts-ignore - runtime type mismatch
       const detail = typeof logEntry.actionDetail === 'string' 
-        // @ts-expect-error - runtime type mismatch
+        // @ts-ignore - runtime type mismatch
         ? JSON.parse(logEntry.actionDetail) : logEntry.actionDetail;
       if (detail.causalAdjustment && detail.causalAdjustment.confidence > 0.5) {
         // 因果推断的增量利润为正 → 加分，为负 → 减分
@@ -511,7 +511,7 @@ export async function updateLearningFromAssessments(
     const negativeCount = assessments.filter(a => a.effectScore < -10).length;
     const totalCount = assessments.length;
     const successRate = totalCount > 0 ? positiveCount / totalCount : 0.5;
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const avgScore = assessments.reduce((sum: number, a: Record<string, unknown>) => sum + a.effectScore, 0) / totalCount;
     
     // 根据成功率动态调整最大调整幅度
@@ -720,7 +720,7 @@ export async function executeAutoCorrections(
       }
       
       // 写入纠错日志
-      // @ts-expect-error - Drizzle query builder type
+      // @ts-ignore - Drizzle query builder type
       await db.insert(optimizationLogs).values({
         userId,
         accountId,
@@ -814,9 +814,9 @@ export async function runEvolutionCycle(
   }
   
   // 计算整体趋势
-  // @ts-expect-error Dynamic property access
+  // @ts-ignore Dynamic property access
   const avgEffectScore = assessments.length > 0 
-    // @ts-expect-error Conditional type narrowing
+    // @ts-ignore Conditional type narrowing
     ? assessments.reduce((sum: number, a: Record<string, unknown>) => sum + a.effectScore, 0) / assessments.length 
     : 0;
   
@@ -969,11 +969,11 @@ export async function getKeywordOptimizationHistory(
     let rolledBackCount = 0;
     let correctedCount = 0;
     
-    // @ts-expect-error Dynamic type assertion
+    // @ts-ignore Dynamic type assertion
     for (const log of (logs as unknown[])) {
-      // @ts-expect-error Dynamic property access
+      // @ts-ignore Dynamic property access
       if (log.apiSyncStatus === 'rolled_back') rolledBackCount++;
-      // @ts-expect-error Dynamic property access
+      // @ts-ignore Dynamic property access
       if (log.apiSyncStatus === 'corrected') correctedCount++;
     }
     

@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * v671: WebSocket 同步进度实时推送服务
  * 

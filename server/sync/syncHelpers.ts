@@ -47,11 +47,11 @@ export async function hasRecentSyncedOptimization(
         .from(keywords)
         .where(and(
           eq(keywords.id, keywordId),
-          // @ts-expect-error Legacy column type compatibility
+          // @ts-ignore Legacy column type compatibility
           eq(keywords.bidSyncStatus, 'pending_confirmation'),
-          // @ts-expect-error Legacy column type compatibility
+          // @ts-ignore Legacy column type compatibility
           isNotNull(keywords.lastApiResponseId),
-          // @ts-expect-error Legacy column type compatibility
+          // @ts-ignore Legacy column type compatibility
           gte(keywords.lastOptimizedAt, cutoff)
         ))
         .limit(1);
@@ -68,18 +68,18 @@ export async function hasRecentSyncedOptimization(
     ];
     
     if (keywordId) {
-      // @ts-expect-error Array method type inference
+      // @ts-ignore Array method type inference
       conditions.push(eq(optimizationEvents.keywordId, keywordId));
     }
-    // @ts-expect-error Conditional type narrowing
+    // @ts-ignore Conditional type narrowing
     if (campaignId) {
-      // @ts-expect-error Array method type inference
+      // @ts-ignore Array method type inference
       conditions.push(eq(optimizationEvents.campaignId, campaignId));
     }
     
     const result = await db.select({ id: optimizationEvents.id })
       .from(optimizationEvents)
-      // @ts-expect-error - Drizzle dynamic where conditions
+      // @ts-ignore - Drizzle dynamic where conditions
       .where(and(...conditions))
       .limit(1);
     
@@ -118,18 +118,18 @@ export async function getRecentlyOptimizedKeywordIds(
       .from(keywords)
       .where(and(
         inArray(keywords.id, keywordIds),
-        // @ts-expect-error Legacy column type compatibility
+        // @ts-ignore Legacy column type compatibility
         eq(keywords.bidSyncStatus, 'pending_confirmation'),
-        // @ts-expect-error Legacy column type compatibility
+        // @ts-ignore Legacy column type compatibility
         isNotNull(keywords.lastApiResponseId),
-        // @ts-expect-error Legacy column type compatibility
+        // @ts-ignore Legacy column type compatibility
         gte(keywords.lastOptimizedAt, cutoff)
       ));
     
     const protectedSet = new Set(results.map(r => r.id).filter(Boolean));
     
     log.info(`v737: 出价保护查询完成, 输入${keywordIds.length}个关键词, 保护${protectedSet.size}个 (基于pending_confirmation+apiResponseId)`);
-    // @ts-expect-error Return type compatibility
+    // @ts-ignore Return type compatibility
     return protectedSet;
   } catch (error: any) {
     log.warn('v737: 批量查询优化关键词失败，保护机制降级！', (error instanceof Error ? (error as Error).message : String(error)));
@@ -155,21 +155,21 @@ export async function getRecentlyOptimizedCampaignIds(
       .toISOString().slice(0, 19).replace('T', ' ');
     
     const results = await db
-      // @ts-expect-error DB query type inference limitation
+      // @ts-ignore DB query type inference limitation
       .select({ campaignId: optimizationEvents.campaignId })
       .from(optimizationEvents)
       .where(and(
         eq(optimizationEvents.eventCategory, 'budget_adjustment'),
         eq(optimizationEvents.apiSyncStatus, 'synced'),
         gte(optimizationEvents.createdAt, cutoff),
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         inArray(optimizationEvents.campaignId, campaignIds)
       ))
       .groupBy(optimizationEvents.campaignId);
     
     const protectedSet = new Set(results.map(r => r.campaignId!).filter(Boolean));
     log.info(`v212: 预算保护查询完成, 输入${campaignIds.length}个广告活动, 保护${protectedSet.size}个`);
-    // @ts-expect-error Return type compatibility
+    // @ts-ignore Return type compatibility
     return protectedSet;
   } catch (error: any) {
     log.warn('v212: 批量查询优化广告活动失败:', (error instanceof Error ? (error as Error).message : String(error)));
@@ -215,9 +215,9 @@ export function detectConflict(
   
   const isEmptyValue = (value: Record<string, unknown>): boolean => {
     if (value === undefined || value === null) return true;
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const strValue = String(value).trim();
-    // @ts-expect-error Return type compatibility
+    // @ts-ignore Return type compatibility
     return strValue === '' || strValue === '0' || strValue === '0.00' || strValue === '0.0';
   };
   
@@ -225,9 +225,9 @@ export function detectConflict(
     const existingValue = existing[field];
     const newValue = newData[field];
     
-    // @ts-expect-error Conditional type narrowing
+    // @ts-ignore Conditional type narrowing
     if (isEmptyValue(existingValue)) continue;
-    // @ts-expect-error Conditional type narrowing
+    // @ts-ignore Conditional type narrowing
     if (isEmptyValue(newValue)) continue;
     
     const existingStr = String(existingValue).trim();

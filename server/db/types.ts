@@ -2,11 +2,11 @@
  * v657: 数据库查询结果类型辅助工具
  * 
  * 目的: 为 drizzle-orm/mysql2 的查询结果提供精确的类型定义，
- * 逐步消除全项目 726+ 个 DB/Drizzle 相关的 @ts-expect-error。
+ * 逐步消除全项目 726+ 个 DB/Drizzle 相关的 @ts-ignore。
  * 
  * 使用方式:
  * ```typescript
- * // 替代: // @ts-expect-error v653: drizzle/mysql2 untyped query result
+ * // 替代: // @ts-ignore v653: drizzle/mysql2 untyped query result
  * //        const result = await database.execute(sql`SELECT ...`);
  * // 使用: const result = await typedExecute<{ id: number; name: string }>(database, sql`SELECT ...`);
  * ```

@@ -36,7 +36,7 @@ const log = createModuleLogger('PrelaunchDbMigration');
  */
 function isAlreadyExistsError(err: Error): boolean {
   const message = String(err?.message || '');
-  // @ts-expect-error - error message access
+  // @ts-ignore - error message access
   const causeMessage = String(err?.cause?.message || err?.cause || '');
   const combined = message + ' ' + causeMessage;
   return combined.includes('Duplicate column') ||
@@ -414,7 +414,7 @@ export async function runPrelaunchDbMigration(): Promise<{ success: boolean; res
         await database.execute(sql.raw(table.ddl));
         results.push(`${table.name}: 表已就绪`);
       } catch (err: unknown) {
-        // @ts-expect-error - runtime type mismatch
+        // @ts-ignore - runtime type mismatch
         if (isAlreadyExistsError(err)) {
           results.push(`${table.name}: 表已存在（跳过）`);
         } else {

@@ -14,7 +14,7 @@ import { eq, and, gte, lte, desc } from 'drizzle-orm';
 export const notificationRouter = router({
   // Get notification settings
   getSettings: protectedProcedure
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ ctx }: unknown) => {
       const settings = await db.getNotificationSettingsByUserId(ctx.user.id);
       if (!settings) {
@@ -58,9 +58,9 @@ export const notificationRouter = router({
     }),
 
   // Send test notification
-  // @ts-expect-error Legacy code type compatibility
+  // @ts-ignore Legacy code type compatibility
   sendTest: protectedProcedure
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .mutation(async ({ ctx }: unknown) => {
       const success = await notificationService.sendNotification({
         userId: ctx.user.id,
@@ -82,10 +82,10 @@ export const notificationRouter = router({
     }),
 
   // Mark notification as read
-  // @ts-expect-error Legacy code type compatibility
+  // @ts-ignore Legacy code type compatibility
   markAsRead: protectedProcedure
     .input(z.object({ id: z.number() }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .mutation(async ({ ctx, input }: unknown) => {
       await db.markNotificationAsRead(input.id);
       return { success: true };
@@ -108,11 +108,11 @@ export const collaborationRouter = router({
         userId: ctx.user.id,
         ...input,
       });
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     }),
 
   // 获取通知统计
-  // @ts-expect-error Complex function parameter types
+  // @ts-ignore Complex function parameter types
   stats: protectedProcedure.query(async ({ ctx }: unknown) => {
     const { getNotificationStats } = await import("../system/collaborationNotificationService");
     return getNotificationStats(ctx.user.id);
@@ -121,24 +121,24 @@ export const collaborationRouter = router({
   // 标记通知为已读
   markAsRead: protectedProcedure
     .input(z.object({ id: z.number() }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .mutation(async ({ ctx, input }: unknown) => {
-      // @ts-expect-error Async operation type inference
+      // @ts-ignore Async operation type inference
       const { markNotificationAsRead } = await import("../system/collaborationNotificationService");
       return markNotificationAsRead(input.id);
     }),
 
   // 标记所有通知为已读
-  // @ts-expect-error Complex function parameter types
+  // @ts-ignore Complex function parameter types
   markAllAsRead: protectedProcedure.mutation(async ({ ctx }: unknown) => {
-    // @ts-expect-error Async operation type inference
+    // @ts-ignore Async operation type inference
     const { markAllNotificationsAsRead } = await import("../system/collaborationNotificationService");
     const count = await markAllNotificationsAsRead(ctx.user.id);
     return { count };
   }),
 
   // 获取用户通知偏好设置
-  // @ts-expect-error Complex function parameter types
+  // @ts-ignore Complex function parameter types
   getPreferences: protectedProcedure.query(async ({ ctx }: unknown) => {
     const { getUserNotificationPreferences } = await import("../system/collaborationNotificationService");
     return getUserNotificationPreferences(ctx.user.id);
@@ -183,7 +183,7 @@ export const collaborationRouter = router({
         notifyOnCritical: input.notifyOnCritical !== undefined ? (input.notifyOnCritical ? 1 : 0) : undefined,
         quietHoursEnabled: input.quietHoursEnabled !== undefined ? (input.quietHoursEnabled ? 1 : 0) : undefined,
       };
-      // @ts-expect-error - type assertion
+      // @ts-ignore - type assertion
       return updateUserNotificationPreferences(ctx.user.id, convertedInput as unknown);
     }),
 

@@ -153,13 +153,13 @@ async function calculateRollbackRate(
         AND created_at > DATE_SUB(NOW(), INTERVAL ${sql.raw(String(days))} DAY)
     `;
     const currentResult = await db.execute(currentPeriodQuery);
-    // @ts-expect-error Dynamic type assertion
+    // @ts-ignore Dynamic type assertion
     const currentRows = (currentResult as Record<string, unknown>[])[0] || currentResult;
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const totalOriginal = Number(currentRows?.[0]?.total_original) || 0;
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const hardRollback = Number(currentRows?.[0]?.hard_rollback) || 0;
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const softRollback = Number(currentRows?.[0]?.soft_rollback) || 0;
     
     // v266: 使用“真正回滚率”作为主指标，排除纠错器正常微调
@@ -186,11 +186,11 @@ async function calculateRollbackRate(
  AND created_at <= DATE_SUB(NOW(), INTERVAL ${sql.raw(String(days))} DAY)
  `;
     const previousResult = await db.execute(previousPeriodQuery);
-    // @ts-expect-error Dynamic type assertion
+    // @ts-ignore Dynamic type assertion
     const previousRows = (previousResult as Record<string, unknown>[])[0] || previousResult;
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const prevTotal = Number(previousRows?.[0]?.total_original) || 0;
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const prevRolledBack = Number(previousRows?.[0]?.hard_rollback) || 0;
     const previousRate = prevTotal > 0 ? (prevRolledBack / prevTotal) * 100 : 0;
 
@@ -238,7 +238,7 @@ async function calculateAlgorithmActivation(
  GROUP BY change_reason, action_detail
  `;
     const result = await db.execute(query);
-    // @ts-expect-error Dynamic type assertion
+    // @ts-ignore Dynamic type assertion
     const rows = (result as Record<string, unknown>[][])[0] || result;
 
     const algorithmCounts: Record<string, number> = {};
@@ -246,9 +246,9 @@ async function calculateAlgorithmActivation(
 
     if (Array.isArray(rows)) {
       for (const row of (rows as unknown[])) {
-        // @ts-expect-error Type inference limitation
+        // @ts-ignore Type inference limitation
         const count = Number(row.cnt) || 0;
-        // @ts-expect-error Type inference limitation
+        // @ts-ignore Type inference limitation
         const algorithm = parseAlgorithmName(row.change_reason, row.action_detail);
         algorithmCounts[algorithm] = (algorithmCounts[algorithm] || 0) + count;
         totalDecisions += count;
@@ -297,7 +297,7 @@ async function calculateAcosTrend(
 
   try {
     // 最近3天ACoS
-    // @ts-expect-error DB query type inference limitation
+    // @ts-ignore DB query type inference limitation
     const recentQuery = sql`
  SELECT 
  SUM(spend) as total_spend,
@@ -307,13 +307,13 @@ async function calculateAcosTrend(
  AND date >= DATE_SUB(CURDATE(), INTERVAL 3 DAY)
  `;
     const recentResult = await db.execute(recentQuery);
-    // @ts-expect-error Dynamic type assertion
+    // @ts-ignore Dynamic type assertion
     const recentRows = (recentResult as Record<string, unknown>[])[0] || recentResult;
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const recentSpend = Number(recentRows?.[0]?.total_spend) || 0;
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const recentSales = Number(recentRows?.[0]?.total_sales) || 0;
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const currentAcos = recentSales > 0 ? (recentSpend / recentSales) * 100 : 0;
 
     // 7天前的3天ACoS
@@ -327,11 +327,11 @@ async function calculateAcosTrend(
         AND date < DATE_SUB(CURDATE(), INTERVAL 7 DAY)
     `;
     const week1Result = await db.execute(week1Query);
-    // @ts-expect-error Dynamic type assertion
+    // @ts-ignore Dynamic type assertion
     const week1Rows = (week1Result as Record<string, unknown>[])[0] || week1Result;
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const week1Spend = Number(week1Rows?.[0]?.total_spend) || 0;
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const week1Sales = Number(week1Rows?.[0]?.total_sales) || 0;
     const acos7dAgo = week1Sales > 0 ? (week1Spend / week1Sales) * 100 : 0;
 
@@ -346,11 +346,11 @@ async function calculateAcosTrend(
         AND date < DATE_SUB(CURDATE(), INTERVAL 14 DAY)
     `;
     const week2Result = await db.execute(week2Query);
-    // @ts-expect-error Dynamic type assertion
+    // @ts-ignore Dynamic type assertion
     const week2Rows = (week2Result as Record<string, unknown>[])[0] || week2Result;
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const week2Spend = Number(week2Rows?.[0]?.total_spend) || 0;
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const week2Sales = Number(week2Rows?.[0]?.total_sales) || 0;
     const acos14dAgo = week2Sales > 0 ? (week2Spend / week2Sales) * 100 : 0;
 
@@ -406,23 +406,23 @@ async function calculateBidIncreaseAnalysis(
  LIMIT 1000
  `;
     const result = await db.execute(query);
-    // @ts-expect-error Dynamic type assertion
+    // @ts-ignore Dynamic type assertion
     const rows = (result as Record<string, unknown>[][])[0] || result;
 
     if (!Array.isArray(rows) || rows.length === 0) {
       return { totalIncreases: 0, avgIncreasePercent: 0, successRate: 0, byScenario: [] };
     }
 
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const scenarioMap = new Map<string, { count: number; totalPercent: number }>();
     let totalPercent = 0;
 
     for (const row of (rows as unknown[])) {
-      // @ts-expect-error Amazon API response type flexibility
+      // @ts-ignore Amazon API response type flexibility
       const percent = Math.abs(Number(row.bid_change_percent) || 0);
       totalPercent += percent;
 
-      // @ts-expect-error Type inference limitation
+      // @ts-ignore Type inference limitation
       const scenario = classifyBidIncreaseScenario(row.change_reason);
       if (!scenarioMap.has(scenario)) {
         scenarioMap.set(scenario, { count: 0, totalPercent: 0 });
@@ -436,7 +436,7 @@ async function calculateBidIncreaseAnalysis(
       scenario,
       count: stats.count,
       avgPercent: Math.round((stats.totalPercent / stats.count) * 10) / 10,
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     })).sort((a: unknown, b: unknown) => b.count - a.count);
 
     return {
@@ -473,9 +473,9 @@ async function calculateCircuitBreakerRate(
  AND created_at > DATE_SUB(NOW(), INTERVAL ${sql.raw(String(days))} DAY)
  `;
     const totalResult = await db.execute(totalQuery);
-    // @ts-expect-error Dynamic type assertion
+    // @ts-ignore Dynamic type assertion
     const totalRows = (totalResult as Record<string, unknown>[])[0] || totalResult;
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const totalDecisions = Number(totalRows?.[0]?.total) || 0;
 
     // 熔断触发数
@@ -491,7 +491,7 @@ async function calculateCircuitBreakerRate(
       GROUP BY change_reason
     `;
     const trippedResult = await db.execute(trippedQuery);
-    // @ts-expect-error Dynamic type assertion
+    // @ts-ignore Dynamic type assertion
     const trippedRows = (trippedResult as Record<string, unknown>[])[0] || trippedResult;
 
     let trippedCount = 0;
@@ -499,10 +499,10 @@ async function calculateCircuitBreakerRate(
 
     if (Array.isArray(trippedRows)) {
       for (const row of (trippedRows as unknown[])) {
-        // @ts-expect-error Type inference limitation
+        // @ts-ignore Type inference limitation
         const count = Number(row.cnt) || 0;
         trippedCount += count;
-        // @ts-expect-error Type inference limitation
+        // @ts-ignore Type inference limitation
         const reason = classifyCircuitBreakerReason(row.change_reason);
         byReason[reason] = (byReason[reason] || 0) + count;
       }

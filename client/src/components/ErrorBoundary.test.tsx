@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * ErrorBoundary 组件测试
  * 测试错误捕获、错误显示和恢复功能

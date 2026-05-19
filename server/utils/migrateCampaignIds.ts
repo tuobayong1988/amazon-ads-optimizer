@@ -19,7 +19,7 @@ import { DbInstance, getDb } from '../db';
 import { sql } from 'drizzle-orm';
 import { createModuleLogger } from './logger';
 import { logMigration, logMigrationWarn, logMigrationError } from './opsLogger';
-// @ts-expect-error Module import type resolution
+// @ts-ignore Module import type resolution
 import { extractCount } from '../types/utilTypes';
 
 const log = createModuleLogger('migrateCampaignIds');
@@ -64,7 +64,7 @@ function extractCount(result: Record<string, unknown>): number {
  */
 async function hasRecordsToMigrate(db: DbInstance, tableName: string): Promise<boolean> {
   try {
-    // @ts-expect-error - Drizzle raw SQL execution
+    // @ts-ignore - Drizzle raw SQL execution
     const result = await db.execute(sql.raw(`
       SELECT 1 as found FROM \`${tableName}\` 
       WHERE LENGTH(campaignId) < ${AMAZON_ID_MIN_LENGTH} 
@@ -93,7 +93,7 @@ async function findRecordsToMigrate(db: DbInstance, tableName: string): Promise<
   
   try {
     // 方法1：通过 campaigns 表直接映射
-    // @ts-expect-error - Drizzle raw SQL execution
+    // @ts-ignore - Drizzle raw SQL execution
     const directResult = await db.execute(sql.raw(`
       SELECT t.id, c.campaignId as correctCampaignId
       FROM \`${tableName}\` t
@@ -104,11 +104,11 @@ async function findRecordsToMigrate(db: DbInstance, tableName: string): Promise<
     `));
     
     const rows = Array.isArray(directResult[0]) ? directResult[0] : directResult;
-    // @ts-expect-error Dynamic type assertion
+    // @ts-ignore Dynamic type assertion
     for (const row of (rows as unknown[])) {
-      // @ts-expect-error Conditional type narrowing
+      // @ts-ignore Conditional type narrowing
       if (row?.id && row?.correctCampaignId) {
-        // @ts-expect-error Complex function parameter types
+        // @ts-ignore Complex function parameter types
         records.push({ id: Number(row.id), correctCampaignId: String(row.correctCampaignId) });
       }
     }
@@ -119,7 +119,7 @@ async function findRecordsToMigrate(db: DbInstance, tableName: string): Promise<
   // 方法2：对于 bidding_logs，通过 adGroupId → ad_groups.campaignId 链路解析未映射的记录
   if (tableName === 'bidding_logs') {
     try {
-      // @ts-expect-error - Drizzle raw SQL execution
+      // @ts-ignore - Drizzle raw SQL execution
       const adGroupResult = await db.execute(sql.raw(`
         SELECT t.id, ag.campaignId as correctCampaignId
         FROM bidding_logs t
@@ -130,14 +130,14 @@ async function findRecordsToMigrate(db: DbInstance, tableName: string): Promise<
         LIMIT 500
       `));
       
-      // @ts-expect-error Type inference limitation
+      // @ts-ignore Type inference limitation
       const existingIds = new Set(records.map(r => r.id));
-      // @ts-expect-error Type inference limitation
+      // @ts-ignore Type inference limitation
       const rows = Array.isArray(adGroupResult[0]) ? adGroupResult[0] : adGroupResult;
       for (const row of (rows as unknown[])) {
-        // @ts-expect-error Complex function parameter types
+        // @ts-ignore Complex function parameter types
         if (row?.id && row?.correctCampaignId && !existingIds.has(Number(row.id))) {
-          // @ts-expect-error Complex function parameter types
+          // @ts-ignore Complex function parameter types
           records.push({ id: Number(row.id), correctCampaignId: String(row.correctCampaignId) });
         }
       }
@@ -163,7 +163,7 @@ async function migrateTable(db: DbInstance, tableName: string): Promise<Migratio
   let hasOrphanRecords = false;
   if (tableName === 'bidding_logs') {
     try {
-      // @ts-expect-error - Drizzle raw SQL execution
+      // @ts-ignore - Drizzle raw SQL execution
       const orphanCheck = await db.execute(sql.raw(`
         SELECT 1 as found FROM bidding_logs 
         WHERE campaignId LIKE 'ORPHAN_%' OR campaignId = 'UNRESOLVED'
@@ -185,12 +185,12 @@ async function migrateTable(db: DbInstance, tableName: string): Promise<Migratio
   
   if (recordsToMigrate.length === 0) {
     // 有疑似记录但无法映射 — 这些是真正的孤立记录
-    // @ts-expect-error - Drizzle raw SQL execution
+    // @ts-ignore - Drizzle raw SQL execution
     const countResult = await db.execute(sql.raw(`
       SELECT COUNT(*) as cnt FROM \`${tableName}\` 
       WHERE LENGTH(campaignId) < ${AMAZON_ID_MIN_LENGTH} AND campaignId REGEXP '^[0-9]+$'
     `));
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const orphanCount = extractCount(countResult);
     if (orphanCount > 0) {
       log.info(`  ${tableName}: ${orphanCount} 条记录无法映射到 campaigns 表（孤立记录），跳过`);
@@ -206,15 +206,15 @@ async function migrateTable(db: DbInstance, tableName: string): Promise<Migratio
   // 逐条 UPDATE — 每条使用主键索引，毫秒级完成，不会造成锁冲突
   for (const record of (recordsToMigrate as unknown[])) {
     try {
-      // @ts-expect-error - Drizzle raw SQL execution
+      // @ts-ignore - Drizzle raw SQL execution
       await db.execute(sql.raw(
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         `UPDATE \`${tableName}\` SET campaignId = '${record.correctCampaignId}' WHERE id = ${record.id}`
       ));
       updatedCount++;
     } catch (e: unknown) {
       failedCount++;
-      // @ts-expect-error Type inference limitation
+      // @ts-ignore Type inference limitation
       const errMsg = `id=${record.id} → ${record.correctCampaignId} 失败: ${(e as Error).message}`;
       errors.push(errMsg);
       if (failedCount <= 3) {

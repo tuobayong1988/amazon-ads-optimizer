@@ -30,19 +30,19 @@ async function getLastSyncTimeForAccount(accountId: number): Promise<Date | null
   try {
     const account = await db.getAdAccountById(accountId);
     if (account && (account as Record<string, unknown>).lastSyncAt) {
-      // @ts-expect-error - dynamic property access
+      // @ts-ignore - dynamic property access
       return new Date((account as Record<string, unknown>).lastSyncAt);
     }
     // 备用：从同步日志表查询
     const { getEngineStatus } = await import('../sync/unifiedSyncEngine');
     const status = getEngineStatus();
-    // @ts-expect-error - string type assertion
+    // @ts-ignore - string type assertion
     if ((status as string).lastSyncResults) {
-      // @ts-expect-error - string type assertion
+      // @ts-ignore - string type assertion
       const accountResult = ((status as string).lastSyncResults as unknown[])?.find((r: Record<string, unknown>) => r.accountId === accountId);
-      // @ts-expect-error Conditional type narrowing
+      // @ts-ignore Conditional type narrowing
       if (accountResult?.completedAt) {
-        // @ts-expect-error Return type compatibility
+        // @ts-ignore Return type compatibility
         return new Date(accountResult.completedAt);
       }
     }

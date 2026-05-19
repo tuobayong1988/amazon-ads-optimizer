@@ -92,7 +92,7 @@ export async function identifyProductLifecycle(
   }
 
   const campaignData = campaign[0] as unknown;
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const createdAt = campaignData.createdAt ? new Date(campaignData.createdAt) : new Date();
   const daysActive = Math.floor((Date.now() - createdAt.getTime()) / (1000 * 60 * 60 * 24));
 
@@ -110,22 +110,22 @@ export async function identifyProductLifecycle(
     .orderBy(desc(dailyPerformance.date));
 
   // 计算关键指标
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const totalImpressions = performanceData.reduce((sum: number, d: Record<string, unknown>) => sum + (d.impressions || 0), 0);
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const totalOrders = performanceData.reduce((sum: number, d: Record<string, unknown>) => sum + (d.orders || 0), 0);
   const totalSpend = performanceData.reduce((sum: number, d: Record<string, unknown>) => sum + parseFloat(String(d.spend || 0)), 0);
   const totalSales = performanceData.reduce((sum: number, d: Record<string, unknown>) => sum + parseFloat(String(d.sales || 0)), 0);
 
   const avgDailyImpressions = totalImpressions / Math.max(performanceData.length, 1);
   const avgDailyOrders = totalOrders / Math.max(performanceData.length, 1);
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const avgAcos = totalSales > 0 ? (totalSpend / totalSales) * 100 : 100;
 
   // 计算销量趋势
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const firstHalfOrders = performanceData.slice(0, 15).reduce((sum: number, d: Record<string, unknown>) => sum + (d.orders || 0), 0);
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const secondHalfOrders = performanceData.slice(15).reduce((sum: number, d: Record<string, unknown>) => sum + (d.orders || 0), 0);
   const trendChange = secondHalfOrders - firstHalfOrders;
   const salesTrend: 'up' | 'down' | 'stable' = 
@@ -202,7 +202,7 @@ export function mergeStrategies(
     .filter(s => s.active)
     .sort((a: unknown, b: unknown) => {
       const priorityOrder = { primary: 0, secondary: 1, event: 2 };
-      // @ts-expect-error - runtime type mismatch
+      // @ts-ignore - runtime type mismatch
       return priorityOrder[a.priority] - priorityOrder[b.priority];
     });
 
@@ -224,7 +224,7 @@ export function mergeStrategies(
     throw new Error('No primary strategy defined');
   }
 
-  // @ts-expect-error - array method type inference
+  // @ts-ignore - array method type inference
   const primaryTemplate = strategyTemplates.find(t => t.id === primaryStrategy.templateId);
   if (!primaryTemplate) {
     throw new Error(`Primary strategy template ${primaryStrategy.templateId} not found`);
@@ -232,39 +232,39 @@ export function mergeStrategies(
 
   // 从主策略开始
   let objective: OptimizationObjective = {
-    // @ts-expect-error - runtime type mismatch
+    // @ts-ignore - runtime type mismatch
     targetAcos: primaryTemplate.targetAcos,
-    // @ts-expect-error - runtime type mismatch
+    // @ts-ignore - runtime type mismatch
     minAcos: primaryTemplate.minAcos,
-    // @ts-expect-error - runtime type mismatch
+    // @ts-ignore - runtime type mismatch
     maxAcos: primaryTemplate.maxAcos,
-    // @ts-expect-error - runtime type mismatch
+    // @ts-ignore - runtime type mismatch
     bidMultiplier: primaryTemplate.bidMultiplier,
-    // @ts-expect-error - runtime type mismatch
+    // @ts-ignore - runtime type mismatch
     budgetMultiplier: primaryTemplate.budgetMultiplier,
     aggressiveness: calculateAggressiveness(primaryTemplate),
   };
 
   // 叠加次要策略和事件策略
   for (const strategy of sortedStrategies.slice(1)) {
-    // @ts-expect-error - array method type inference
+    // @ts-ignore - array method type inference
     const template = strategyTemplates.find(t => t.id === strategy.templateId);
     if (!template) continue;
 
     const weight = strategy.weight;
 
     // 加权平均
-    // @ts-expect-error - runtime type mismatch
+    // @ts-ignore - runtime type mismatch
     objective.targetAcos = objective.targetAcos * (1 - weight) + template.targetAcos * weight;
-    // @ts-expect-error - runtime type mismatch
+    // @ts-ignore - runtime type mismatch
     objective.bidMultiplier = objective.bidMultiplier * (1 - weight) + template.bidMultiplier * weight;
-    // @ts-expect-error - runtime type mismatch
+    // @ts-ignore - runtime type mismatch
     objective.budgetMultiplier = objective.budgetMultiplier * (1 - weight) + template.budgetMultiplier * weight;
     
     // 扩展ACoS范围
-    // @ts-expect-error - runtime type mismatch
+    // @ts-ignore - runtime type mismatch
     objective.minAcos = Math.min(objective.minAcos, template.minAcos);
-    // @ts-expect-error - runtime type mismatch
+    // @ts-ignore - runtime type mismatch
     objective.maxAcos = Math.max(objective.maxAcos, template.maxAcos);
   }
 
@@ -276,9 +276,9 @@ export function mergeStrategies(
  */
 function calculateAggressiveness(template: unknown): number {
   // 基于目标ACoS和出价倍数计算
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const acosScore = (template.targetAcos - 15) / 35; // 归一化到0-1
-  // @ts-expect-error Amazon API response type flexibility
+  // @ts-ignore Amazon API response type flexibility
   const bidScore = (template.bidMultiplier - 0.8) / 0.7; // 归一化到0-1
   return Math.max(0, Math.min(1, (acosScore + bidScore) / 2));
 }

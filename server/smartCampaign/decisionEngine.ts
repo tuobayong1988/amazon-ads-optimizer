@@ -308,15 +308,15 @@ export class SmartDecisionEngine {
     campaigns: CampaignMetrics[],
     goal: OptimizationGoal
   ): Decision[] {
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const decisions = campaigns.map((campaign: unknown) => this.makeDecision(campaign, goal));
 
     // 按优先级和置信度排序
     decisions.sort((a: unknown, b: unknown) => {
       const priorityScore = { high: 3, medium: 2, low: 1 };
-      // @ts-expect-error - runtime type mismatch
+      // @ts-ignore - runtime type mismatch
       const scoreA = priorityScore[a.priority] * a.confidence;
-      // @ts-expect-error - runtime type mismatch
+      // @ts-ignore - runtime type mismatch
       const scoreB = priorityScore[b.priority] * b.confidence;
       return scoreB - scoreA;
     });
@@ -336,11 +336,11 @@ export class SmartDecisionEngine {
       expectedSpendChange: number;
     };
     recommendations: Decision[];
-  // @ts-expect-error Legacy code type compatibility
+  // @ts-ignore Legacy code type compatibility
   } {
-    // @ts-expect-error Dynamic property access
+    // @ts-ignore Dynamic property access
     const actionableDecisions = decisions.filter((d: unknown) => d.action !== 'no_action');
-    // @ts-expect-error Dynamic property access
+    // @ts-ignore Dynamic property access
     const highPriorityDecisions = actionableDecisions.filter((d: unknown) => d.priority === 'high');
 
     const expectedSalesIncrease = actionableDecisions.reduce(

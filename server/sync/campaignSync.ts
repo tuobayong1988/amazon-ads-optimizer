@@ -456,7 +456,7 @@ export async function syncSpCampaigns(service: SyncContext,lastSyncTime?: string
       }
       // v168: 零值防护 - 如果解析出的budget为0但广告活动状态为enabled，记录警告
       if (dailyBudgetValue === 0) {
-        // @ts-expect-error - extra arguments handled by implementation
+        // @ts-ignore - extra arguments handled by implementation
         log.warn(`v168: SP广告 ${apiCampaign.name} budget解析为0, 原始budget字段:`, JSON.stringify(budgetField), 'dailyBudget:', apiCampaign.dailyBudget);
       }
 

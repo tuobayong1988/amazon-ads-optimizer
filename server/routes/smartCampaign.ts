@@ -134,7 +134,7 @@ export const smartCampaignRouter = router({
         daysOfHistory: z.number().default(7),
       })
     )
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ ctx, input }: unknown) => {
       const { campaignId, goal, daysOfHistory } = input;
 
@@ -195,9 +195,9 @@ export const smartCampaignRouter = router({
         goal: optimizationGoalSchema,
         daysOfHistory: z.number().default(7),
       })
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     )
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ ctx, input }: unknown) => {
       const { performanceGroupId, goal, daysOfHistory } = input;
 
@@ -256,10 +256,10 @@ export const smartCampaignRouter = router({
         action: z.enum(['pause', 'enable', 'increase_bid', 'decrease_bid', 'increase_budget', 'decrease_budget']),
         value: z.number().optional(),
         dryRun: z.boolean().default(true),
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       })
     )
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .mutation(async ({ ctx, input }: unknown) => {
       const { campaignId, action, value, dryRun } = input;
 
@@ -310,11 +310,11 @@ export const smartCampaignRouter = router({
 
       // v403: 数据隔离验证 - 验证performanceGroup是否属于当前用户
       const { verifyPerformanceGroupAccess } = await import('../utils/accessControl');
-      // @ts-expect-error Express request/response type assertion
+      // @ts-ignore Express request/response type assertion
       await verifyPerformanceGroupAccess(ctx.user.id, parseInt(performanceGroupId, 10));
 
       // 先获取优化建议
-      // @ts-expect-error Dynamic type assertion
+      // @ts-ignore Dynamic type assertion
       const report = await smartCampaignRouter.createCaller({} as Record<string, unknown>).getBatchOptimizationRecommendations({
         performanceGroupId,
         goal,

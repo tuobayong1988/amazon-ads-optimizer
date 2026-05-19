@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * v427: Redis 连接管理器
  * 

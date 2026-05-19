@@ -28,7 +28,7 @@ export const prelaunchRouter = router({
   /** 获取单个项目详情 */
   getProject: adminProcedure
     .input(z.object({ projectId: z.number() }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ input }: unknown) => {
       const { PrelaunchProjectService } = await import('./services/project');
       const svc = new PrelaunchProjectService();
@@ -64,9 +64,9 @@ export const prelaunchRouter = router({
       category: z.string().optional(),
       seedKeywords: z.array(z.string()).optional(),
       status: z.enum(['draft', 'running', 'completed', 'archived']).optional(),
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .mutation(async ({ input }: unknown) => {
       const { PrelaunchProjectService } = await import('./services/project');
       const svc = new PrelaunchProjectService();
@@ -74,10 +74,10 @@ export const prelaunchRouter = router({
     }),
 
   /** 删除项目 */
-  // @ts-expect-error Legacy code type compatibility
+  // @ts-ignore Legacy code type compatibility
   deleteProject: adminProcedure
     .input(z.object({ projectId: z.number() }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .mutation(async ({ input }: unknown) => {
       const { PrelaunchProjectService } = await import('./services/project');
       const svc = new PrelaunchProjectService();
@@ -94,11 +94,11 @@ export const prelaunchRouter = router({
       scenarioCode: z.string().optional(),
       clusterId: z.number().optional(),
       sortBy: z.enum(['kviScore', 'searchVolume', 'drAmScore']).default('kviScore'),
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       page: z.number().default(1),
       pageSize: z.number().default(50),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ input }: unknown) => {
       const { M1KeywordService } = await import('./services/m1-keywords');
       const svc = new M1KeywordService();
@@ -108,37 +108,37 @@ export const prelaunchRouter = router({
   /** 运行M1词库分析流水线 */
   runM1Pipeline: adminProcedure
     .input(z.object({
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       projectId: z.number(),
       seedKeywords: z.array(z.string()).min(1),
       marketplace: z.string().default('US'),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .mutation(async ({ input }: unknown) => {
       const { M1KeywordService } = await import('./services/m1-keywords');
       const svc = new M1KeywordService();
       return svc.runPipeline(input.projectId, input.seedKeywords, input.marketplace);
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     }),
 
   /** 获取关键词聚类 */
   getKeywordClusters: adminProcedure
     .input(z.object({ projectId: z.number() }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ input }: unknown) => {
       const { M1KeywordService } = await import('./services/m1-keywords');
       const svc = new M1KeywordService();
-      // @ts-expect-error Return type compatibility
+      // @ts-ignore Return type compatibility
       return svc.getClusters(input.projectId);
     }),
 
   /** 获取关键词关系图 */
   getKeywordRelations: adminProcedure
     .input(z.object({ projectId: z.number() }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ input }: unknown) => {
       const { M1KeywordService } = await import('./services/m1-keywords');
-      // @ts-expect-error Type inference limitation
+      // @ts-ignore Type inference limitation
       const svc = new M1KeywordService();
       return svc.getRelations(input.projectId);
     }),
@@ -146,7 +146,7 @@ export const prelaunchRouter = router({
   /** 获取COSMO因果链三元组 */
   getCosmoTriples: adminProcedure
     .input(z.object({ projectId: z.number() }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ input }: unknown) => {
       const { M1KeywordService } = await import('./services/m1-keywords');
       const svc = new M1KeywordService();
@@ -158,7 +158,7 @@ export const prelaunchRouter = router({
   /** 运行M1B属性分析流水线 */
   runM1BPipeline: adminProcedure
     .input(z.object({ projectId: z.number() }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .mutation(async ({ input }: unknown) => {
       const { M1BAttributeAnalysisService } = await import('./services/m1b-attribute-analysis');
       const svc = new M1BAttributeAnalysisService();
@@ -168,7 +168,7 @@ export const prelaunchRouter = router({
   /** 获取M1B属性分析结果 */
   getAttributeAnalysis: adminProcedure
     .input(z.object({ projectId: z.number() }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ input }: unknown) => {
       const { M1BAttributeAnalysisService } = await import('./services/m1b-attribute-analysis');
       const svc = new M1BAttributeAnalysisService();
@@ -193,7 +193,7 @@ export const prelaunchRouter = router({
         quantity: z.string().optional(),
       }),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .mutation(async ({ input }: unknown) => {
       const { M1BAttributeAnalysisService } = await import('./services/m1b-attribute-analysis');
       const svc = new M1BAttributeAnalysisService();
@@ -210,12 +210,12 @@ export const prelaunchRouter = router({
       page: z.number().default(1),
       pageSize: z.number().default(30),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ input }: unknown) => {
       const { M2CompetitorService } = await import('./services/m2-competitors');
       const svc = new M2CompetitorService();
       return svc.getCompetitors(input);
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     }),
 
   /** 运行M2竞品分析流水线 */
@@ -225,7 +225,7 @@ export const prelaunchRouter = router({
       competitorAsins: z.array(z.string()).optional(),
       autoDiscover: z.boolean().default(true),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .mutation(async ({ input }: unknown) => {
       const { M2CompetitorService } = await import('./services/m2-competitors');
       const svc = new M2CompetitorService();
@@ -234,9 +234,9 @@ export const prelaunchRouter = router({
 
   /** 获取竞品TRS详情（白盒化） */
   getCompetitorTrsDetail: adminProcedure
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .input(z.object({ competitorId: z.number() }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ input }: unknown) => {
       const { M2CompetitorService } = await import('./services/m2-competitors');
       const svc = new M2CompetitorService();
@@ -246,7 +246,7 @@ export const prelaunchRouter = router({
   /** 获取竞品场景矩阵 */
   getCompetitorScenarioMatrix: adminProcedure
     .input(z.object({ projectId: z.number() }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ input }: unknown) => {
       const { M2CompetitorService } = await import('./services/m2-competitors');
       const svc = new M2CompetitorService();
@@ -258,9 +258,9 @@ export const prelaunchRouter = router({
     .input(z.object({
       projectId: z.number(),
       competitorId: z.number().optional(),
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ input }: unknown) => {
       const { M2CompetitorService } = await import('./services/m2-competitors');
       const svc = new M2CompetitorService();
@@ -272,7 +272,7 @@ export const prelaunchRouter = router({
   /** 获取项目用户画像 */
   getPersonas: adminProcedure
     .input(z.object({ projectId: z.number() }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ input }: unknown) => {
       const { M3PersonaService } = await import('./services/m3-persona');
       const svc = new M3PersonaService();
@@ -282,7 +282,7 @@ export const prelaunchRouter = router({
   /** 运行M3用户画像生成 */
   runM3Pipeline: adminProcedure
     .input(z.object({ projectId: z.number() }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .mutation(async ({ input }: unknown) => {
       const { M3PersonaService } = await import('./services/m3-persona');
       const svc = new M3PersonaService();
@@ -297,10 +297,10 @@ export const prelaunchRouter = router({
       projectId: z.number(),
       generation: z.number().optional(),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ input }: unknown) => {
       const { M4XCopyService } = await import('./services/m4x-copy');
-      // @ts-expect-error Type inference limitation
+      // @ts-ignore Type inference limitation
       const svc = new M4XCopyService();
       return svc.getCopyVersions(input.projectId, input.generation);
     }),
@@ -308,9 +308,9 @@ export const prelaunchRouter = router({
   /** 运行M4X文案生成（第0代） */
   runM4XGenerate: adminProcedure
     .input(z.object({ projectId: z.number() }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .mutation(async ({ input }: unknown) => {
-      // @ts-expect-error Async operation type inference
+      // @ts-ignore Async operation type inference
       const { M4XCopyService } = await import('./services/m4x-copy');
       const svc = new M4XCopyService();
       return svc.generateInitialCopy(input.projectId);
@@ -319,10 +319,10 @@ export const prelaunchRouter = router({
   /** 触发文案进化（下一代） */
   runM4XEvolve: adminProcedure
     .input(z.object({ projectId: z.number() }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .mutation(async ({ input }: unknown) => {
       const { M4XCopyService } = await import('./services/m4x-copy');
-      // @ts-expect-error Type inference limitation
+      // @ts-ignore Type inference limitation
       const svc = new M4XCopyService();
       return svc.evolveNextGeneration(input.projectId);
     }),
@@ -330,9 +330,9 @@ export const prelaunchRouter = router({
   /** 获取Rufus Q&A种子 */
   getQnaSeeds: adminProcedure
     .input(z.object({ projectId: z.number() }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ input }: unknown) => {
-      // @ts-expect-error Async operation type inference
+      // @ts-ignore Async operation type inference
       const { M4XCopyService } = await import('./services/m4x-copy');
       const svc = new M4XCopyService();
       return svc.getQnaSeeds(input.projectId);
@@ -343,9 +343,9 @@ export const prelaunchRouter = router({
   /** 获取视觉框架简报 */
   getVisualBriefs: adminProcedure
     .input(z.object({ projectId: z.number() }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ input }: unknown) => {
-      // @ts-expect-error Async operation type inference
+      // @ts-ignore Async operation type inference
       const { M5VisualService } = await import('./services/m5-visual');
       const svc = new M5VisualService();
       return svc.getVisualBriefs(input.projectId);
@@ -354,10 +354,10 @@ export const prelaunchRouter = router({
   /** 运行M5视觉框架生成 */
   runM5Pipeline: adminProcedure
     .input(z.object({ projectId: z.number() }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .mutation(async ({ input }: unknown) => {
       const { M5VisualService } = await import('./services/m5-visual');
-      // @ts-expect-error Type inference limitation
+      // @ts-ignore Type inference limitation
       const svc = new M5VisualService();
       return svc.runPipeline(input.projectId);
     }),
@@ -367,9 +367,9 @@ export const prelaunchRouter = router({
     .input(z.object({
       projectId: z.number(),
       briefId: z.number(),
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .mutation(async ({ input }: unknown) => {
       const { M5VisualService } = await import('./services/m5-visual');
       const svc = new M5VisualService();
@@ -380,9 +380,9 @@ export const prelaunchRouter = router({
 
   /** 获取视频脚本列表 */
   getVideoScripts: adminProcedure
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .input(z.object({ projectId: z.number() }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ input }: unknown) => {
       const { M6VideoService } = await import('./services/m6-video');
       const svc = new M6VideoService();
@@ -390,10 +390,10 @@ export const prelaunchRouter = router({
     }),
 
   /** 运行M6视频创意生成 */
-  // @ts-expect-error Legacy code type compatibility
+  // @ts-ignore Legacy code type compatibility
   runM6Pipeline: adminProcedure
     .input(z.object({ projectId: z.number() }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .mutation(async ({ input }: unknown) => {
       const { M6VideoService } = await import('./services/m6-video');
       const svc = new M6VideoService();
@@ -403,11 +403,11 @@ export const prelaunchRouter = router({
   /** 生成视频分镜图（AIGC） */
   generateStoryboardFrames: adminProcedure
     .input(z.object({
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       projectId: z.number(),
       scriptId: z.number(),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .mutation(async ({ input }: unknown) => {
       const { M6VideoService } = await import('./services/m6-video');
       const svc = new M6VideoService();
@@ -417,7 +417,7 @@ export const prelaunchRouter = router({
   /** 获取Banner创意列表 */
   getBannerCreatives: adminProcedure
     .input(z.object({ projectId: z.number() }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ input }: unknown) => {
       const { M6VideoService } = await import('./services/m6-video');
       const svc = new M6VideoService();
@@ -430,7 +430,7 @@ export const prelaunchRouter = router({
       projectId: z.number(),
       bannerId: z.number(),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .mutation(async ({ input }: unknown) => {
       const { M6VideoService } = await import('./services/m6-video');
       const svc = new M6VideoService();
@@ -445,9 +445,9 @@ export const prelaunchRouter = router({
       projectId: z.number(),
       frameworkType: z.string().optional(),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ input }: unknown) => {
-      // @ts-expect-error Async operation type inference
+      // @ts-ignore Async operation type inference
       const { M7AdFrameworkService } = await import('./services/m7-ad-framework');
       const svc = new M7AdFrameworkService();
       return svc.getAdFrameworks(input.projectId, input.frameworkType);
@@ -461,7 +461,7 @@ export const prelaunchRouter = router({
         'SP_KW_MANUAL',
         'SP_PT_MANUAL',
         'SP_AUTO',
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         'SBV_KW',
         'SBV_PT',
         'SB_KW',   // v26.5: Sponsored Brands Keyword
@@ -470,10 +470,10 @@ export const prelaunchRouter = router({
       defaultBid: z.number().default(0.75),
       dailyBudget: z.number().default(30),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .mutation(async ({ input }: unknown) => {
       const { M7AdFrameworkService } = await import('./services/m7-ad-framework');
-      // @ts-expect-error Type inference limitation
+      // @ts-ignore Type inference limitation
       const svc = new M7AdFrameworkService();
       return svc.compileFrameworks(input);
     }),
@@ -481,7 +481,7 @@ export const prelaunchRouter = router({
   /** 预览广告框架（JSON预览，不部署） */
   previewAdPayload: adminProcedure
     .input(z.object({ frameworkId: z.number() }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ input }: unknown) => {
       const { M7AdFrameworkService } = await import('./services/m7-ad-framework');
       const svc = new M7AdFrameworkService();
@@ -490,24 +490,24 @@ export const prelaunchRouter = router({
 
   /** 一键部署广告框架到Amazon */
   deployAdFramework: adminProcedure
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .input(z.object({
       frameworkId: z.number(),
       profileId: z.string(),
       dryRun: z.boolean().default(false),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .mutation(async ({ input }: unknown) => {
       const { M7AdFrameworkService } = await import('./services/m7-ad-framework');
       const svc = new M7AdFrameworkService();
-      // @ts-expect-error Return type compatibility
+      // @ts-ignore Return type compatibility
       return svc.deployToAmazon(input.frameworkId, input.profileId, input.dryRun);
     }),
 
   /** 获取部署日志 */
   getDeployLogs: adminProcedure
     .input(z.object({ frameworkId: z.number() }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ input }: unknown) => {
       const { M7AdFrameworkService } = await import('./services/m7-ad-framework');
       const svc = new M7AdFrameworkService();
@@ -524,7 +524,7 @@ export const prelaunchRouter = router({
       marketplace: z.string().default('US'),
       skipModules: z.array(z.string()).optional(),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .mutation(async ({ input }: unknown) => {
       const { PrelaunchPipelineOrchestrator } = await import('./services/pipeline');
       const orchestrator = new PrelaunchPipelineOrchestrator();
@@ -534,7 +534,7 @@ export const prelaunchRouter = router({
   /** 获取流水线运行状态 */
   getPipelineStatus: adminProcedure
     .input(z.object({ projectId: z.number() }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ input }: unknown) => {
       const { PrelaunchPipelineOrchestrator } = await import('./services/pipeline');
       const orchestrator = new PrelaunchPipelineOrchestrator();

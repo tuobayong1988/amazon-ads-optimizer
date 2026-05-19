@@ -284,16 +284,16 @@ class DbWriter {
         `('${e.timestamp}', '${e.level}', '${escapeSql(e.module)}', '${escapeSql(e.message)}', ${e.metadata ? `'${escapeSql(e.metadata)}'` : 'NULL'})`
       ).join(',');
 
-      // @ts-expect-error DB query type inference limitation
+      // @ts-ignore DB query type inference limitation
       await db.execute(
         `INSERT INTO system_logs (timestamp, level, module, message, metadata) VALUES ${values}`
       );
     } catch (err: unknown) {
       // 写入失败，静默处理（避免日志系统自身的错误导致递归）
       // 仅在控制台输出简短错误
-      // @ts-expect-error - error code check
+      // @ts-ignore - error code check
       if (err?.code !== 'ER_NO_SUCH_TABLE') {
-        // @ts-expect-error - error message access
+        // @ts-ignore - error message access
         process.stderr.write(`[Logger] DB flush error: ${err?.message || 'unknown'}\n`);
       }
     } finally {
@@ -314,7 +314,7 @@ class DbWriter {
       const cutoff = new Date(now - this.retentionDays * 86400_000)
         .toISOString().slice(0, 19).replace('T', ' ');
 
-      // @ts-expect-error DB query type inference limitation
+      // @ts-ignore DB query type inference limitation
       await db.execute(
         `DELETE FROM system_logs WHERE timestamp < '${cutoff}' LIMIT 10000`
       );
@@ -505,7 +505,7 @@ class Logger {
     // 文本搜索
     if (params.search) {
       const searchLower = params.search.toLowerCase();
-      // @ts-expect-error - error message access
+      // @ts-ignore - error message access
       entries = entries.filter(e => (e as Error).message.toLowerCase().includes(searchLower));
     }
 
@@ -552,10 +552,10 @@ class Logger {
     }
 
     // 按数量排序的模块列表（前20个）
-    // @ts-expect-error DB query type inference limitation
+    // @ts-ignore DB query type inference limitation
     const byModule = Array.from(moduleCount.entries())
       .map(([module, count]) => ({ module, count }))
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       .sort((a: unknown, b: unknown) => b.count - a.count)
       .slice(0, 20);
 

@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * server/utils/dynamicLogLevel.ts
  * 

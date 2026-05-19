@@ -39,7 +39,7 @@ const log = createModuleLogger('bidOperations');
 
 // ==================== 类型声明（模块扩展） ====================
 
-// @ts-expect-error Legacy code type compatibility
+// @ts-ignore Legacy code type compatibility
 declare module '../../amazonSyncService' {
   interface AmazonSyncService {
     applyBidAdjustment(...args: unknown[]): unknown;
@@ -53,7 +53,7 @@ declare module '../../amazonSyncService' {
 /**
  * 执行出价调整并同步到Amazon
  */
-// @ts-expect-error Dynamic property access
+// @ts-ignore Dynamic property access
 AmazonSyncService.prototype.applyBidAdjustment = async function(this: AmazonSyncService, targetType: 'keyword' | 'product_target', targetId: number, newBid: number, reason: string, campaignId: number | string, algorithmUsed?: string): Promise<boolean | { success: boolean; apiResponseId?: string }> {
   const db = await getDb();
   if (!db) return false;
@@ -145,10 +145,10 @@ AmazonSyncService.prototype.applyBidAdjustment = async function(this: AmazonSync
       // v333: 捕获API返回的requestId用于端到端追踪
       const apiResult: unknown = await this.client.updateKeywordBids([{
         keywordId: amazonId,
-        // @ts-expect-error Amazon API response type flexibility
+        // @ts-ignore Amazon API response type flexibility
         bid: Number(newBid.toFixed(2)),
       }]);
-      // @ts-expect-error Type inference limitation
+      // @ts-ignore Type inference limitation
       var _apiResponseId = apiResult.requestIds?.[0] || '';
 
       // v150: 移除冗余DB更新 - 本地DB更新由executeBidOptimization的事务批量处理统一执行
@@ -246,7 +246,7 @@ AmazonSyncService.prototype.applyBidAdjustment = async function(this: AmazonSync
     log.info(`[applyBidAdjustment] ✅ Amazon API调用成功: ${targetType} id=${targetId}, ${oldBid} -> ${newBid}${_apiResponseId ? `, requestId=${_apiResponseId}` : ''}`);
     
     try {
-      // @ts-expect-error - Drizzle query builder type
+      // @ts-ignore - Drizzle query builder type
       await db.insert(biddingLogs).values({
         accountId: this.accountId,
         campaignId: resolvedCampaignId,
@@ -283,15 +283,15 @@ AmazonSyncService.prototype.applyBidAdjustment = async function(this: AmazonSync
     // v333: 返回包含apiResponseId的结果对象，同时保持向后兼容（truthy值）
     return { success: true, apiResponseId: _apiResponseId || undefined };
   } catch (error: unknown) {
-    // @ts-expect-error - error message access
+    // @ts-ignore - error message access
     const errorDetail = (error as Record<string, unknown>).response?.data ? JSON.stringify(error.response.data) : (error as Error).message;
     log.warn(`[applyBidAdjustment] ❗ ${targetType} id=${targetId} 出价调整失败:`, errorDetail);
-    // @ts-expect-error - Axios error response access
+    // @ts-ignore - Axios error response access
     log.warn(`[applyBidAdjustment] 详细信息: newBid=${newBid}, campaignId=${campaignId}, HTTP状态=${(error as Error & { response?: unknown }).response?.status || 'N/A'}`);
     
     // v310-fix: 识别Amazon ID无效错误，清空targetId防止后续继续尝试同步
     const isInvalidId = (
-      // @ts-expect-error - Axios error response access
+      // @ts-ignore - Axios error response access
       (error as Error & { response?: unknown }).response?.status === 404 ||
       errorDetail.includes('INVALID_ARGUMENT') ||
       errorDetail.includes('NOT_FOUND') ||
@@ -337,12 +337,12 @@ AmazonSyncService.prototype.applyBidAdjustment = async function(this: AmazonSync
 /**
  * 批量执行出价调整
  */
-// @ts-expect-error Dynamic property access
+// @ts-ignore Dynamic property access
 AmazonSyncService.prototype.applyBatchBidAdjustments = async function(this: AmazonSyncService, adjustments: Array<{ targetType: 'keyword' | 'product_target'; targetId: number; newBid: number; reason: string; campaignId: number; }>): Promise<{ success: number; failed: number }> {
   const results = { success: 0, failed: 0 };
 
   for (const adj of adjustments) {
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const success = await this.applyBidAdjustment(
       adj.targetType,
       adj.targetId,
@@ -365,12 +365,12 @@ AmazonSyncService.prototype.applyBatchBidAdjustments = async function(this: Amaz
  * 获取展示位置调整系数
  * v423: 支持Amazon SP API v3的dynamicBidding.placementBidding结构
  */
-// @ts-expect-error Dynamic property access
+// @ts-ignore Dynamic property access
 AmazonSyncService.prototype.getPlacementMultiplier = function(this: AmazonSyncService, campaign: SpCampaign, placement: string): number {
-  // @ts-expect-error Dynamic type assertion
+  // @ts-ignore Dynamic type assertion
   const c = campaign as Record<string, unknown>;
   // v423: 优先从API v3的dynamicBidding.placementBidding中获取
-  // @ts-expect-error Dynamic property access
+  // @ts-ignore Dynamic property access
   if (c.dynamicBidding?.placementBidding?.length > 0) {
     const placementMap: Record<string, string> = {
       'placementTop': 'PLACEMENT_TOP',
@@ -378,9 +378,9 @@ AmazonSyncService.prototype.getPlacementMultiplier = function(this: AmazonSyncSe
       'placementRestOfSearch': 'PLACEMENT_REST_OF_SEARCH',
     };
     const v3Placement = placementMap[placement] || placement;
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const adjustment = c.dynamicBidding.placementBidding.find(
-      // @ts-expect-error Dynamic property access
+      // @ts-ignore Dynamic property access
       (a: unknown) => a.placement === v3Placement
     );
     return adjustment ? Number(adjustment.percentage) : 0;

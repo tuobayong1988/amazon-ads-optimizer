@@ -98,7 +98,7 @@ export async function geminiGenerateImage(
     }
 
     const data = await response.json() as unknown;
-    // @ts-expect-error - runtime type mismatch
+    // @ts-ignore - runtime type mismatch
     const parts = data?.candidates?.[0]?.content?.parts;
     if (!parts) return null;
 

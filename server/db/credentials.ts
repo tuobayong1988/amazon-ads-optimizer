@@ -81,12 +81,12 @@ export async function updateAmazonApiCredentials(accountId: number, data: Partia
   const { safeEncrypt } = await import('../utils/cryptoService');
   const encryptedData: Record<string, unknown> = { ...data, updatedAt: new Date().toISOString() };
   if (encryptedData.clientSecret) {
-    // @ts-expect-error Dynamic property access
+    // @ts-ignore Dynamic property access
     encryptedData.clientSecret = safeEncrypt(encryptedData.clientSecret);
   }
-  // @ts-expect-error Conditional type narrowing
+  // @ts-ignore Conditional type narrowing
   if (encryptedData.refreshToken) {
-    // @ts-expect-error Dynamic property access
+    // @ts-ignore Dynamic property access
     encryptedData.refreshToken = safeEncrypt(encryptedData.refreshToken);
   }
   

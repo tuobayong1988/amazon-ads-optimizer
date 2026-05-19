@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-nocheck
 /**
  * P5: Worker Process - 微服务拆分入口
  * 

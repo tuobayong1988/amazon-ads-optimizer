@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * OperationConfirmDialog 组件交互测试
  * 

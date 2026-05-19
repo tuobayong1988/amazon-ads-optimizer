@@ -21,7 +21,7 @@ export async function runV268PerformanceIndexMigration(): Promise<void> {
 
   try {
     // 检查索引是否已存在
-    // @ts-expect-error - Drizzle raw SQL execution
+    // @ts-ignore - Drizzle raw SQL execution
     const [existingIndexes] = await db.execute() as unknown;
 
     if (existingIndexes && existingIndexes.length > 0) {
@@ -37,7 +37,7 @@ export async function runV268PerformanceIndexMigration(): Promise<void> {
     log.info('[v268-migration] Index idx_dp_account_date created successfully');
 
     // 检查optimization_events表的索引
-    // @ts-expect-error - Drizzle raw SQL execution
+    // @ts-ignore - Drizzle raw SQL execution
     const [eventsIndexes] = await db.execute() as unknown;
 
     if (!eventsIndexes || eventsIndexes.length === 0) {

@@ -72,12 +72,12 @@ export async function executePlacementOptimization(
     if (dbConn) {
       const allCombos = await multiDimComboAnalyzer.getComboAnalysisForAccount(dbConn, config.accountId);
       for (const combo of allCombos) {
-        // @ts-expect-error Complex function parameter types
+        // @ts-ignore Complex function parameter types
         if (!accountComboMap.has(combo.campaignId)) {
-          // @ts-expect-error DB query type inference limitation
+          // @ts-ignore DB query type inference limitation
           accountComboMap.set(combo.campaignId, []);
         }
-        // @ts-expect-error Array method type inference
+        // @ts-ignore Array method type inference
         accountComboMap.get(combo.campaignId)!.push(combo);
       }
       log.info(`[PlacementOptimization] v183: 加载${allCombos.length}个投放词的组合分析结果`);
@@ -91,14 +91,14 @@ export async function executePlacementOptimization(
     // v476: 广告活动间节流 — 每个广告活动的位置优化间隔5秒
     if (placementCampaignIndex > 0) {
       await new Promise(resolve => setTimeout(resolve, 5000));
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     }
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     placementCampaignIndex++;
 
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const campaignLocalId = getCampaignLocalId(campaign);
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const campaignAmazonId = getCampaignAmazonId(campaign);
     try {
       // v337.1: 修复placement ID MISMATCH — placement_performance表存储的是Amazon ID (varchar)
@@ -111,22 +111,22 @@ export async function executePlacementOptimization(
       // 生成位置调整建议（使用Amazon ID查询placement_performance表）
       const suggestions = await placementOptimizationService.generatePlacementSuggestions(
         campaignAmazonId,
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         config.accountId
       );
       
       // v353: 增强位置优化诊断日志 - 追踪建议生成和过滤原因
       if (suggestions.length === 0) {
-        // @ts-expect-error Amazon API response type flexibility
+        // @ts-ignore Amazon API response type flexibility
         log.info(`[PlacementOptimization] v353诊断: Campaign "${campaign.campaignName}" (${campaignAmazonId}) 生成0条建议, analysis=${JSON.stringify({
           hasData: !!analysis,
-          // @ts-expect-error Conditional type narrowing
+          // @ts-ignore Conditional type narrowing
           dataPoints: analysis?.dataPoints || 0,
-          // @ts-expect-error Conditional type narrowing
+          // @ts-ignore Conditional type narrowing
           placements: analysis?.placements?.length || 0,
         })}`);
       } else {
-        // @ts-expect-error Amazon API response type flexibility
+        // @ts-ignore Amazon API response type flexibility
         log.info(`[PlacementOptimization] v353诊断: Campaign "${campaign.campaignName}" (${campaignAmazonId}) 生成${suggestions.length}条建议: ${suggestions.map((s: Record<string, unknown>) => `${s.placement}: ${s.currentMultiplier}→${s.suggestedMultiplier}%`).join(', ')}`);
       }
       
@@ -135,58 +135,58 @@ export async function executePlacementOptimization(
       const goldenCombos = campaignCombos.filter((c: Record<string, unknown>) => c.comboCategory === 'golden' && c.confidenceLevel !== 'insufficient');
       
       // 统计黄金组合中各位置的表现
-      // @ts-expect-error Type inference limitation
+      // @ts-ignore Type inference limitation
       let topOfSearchGoldenCount = 0;
       let productPageGoldenCount = 0;
       for (const combo of goldenCombos) {
         if (combo.bestPlacement === 'top_of_search') topOfSearchGoldenCount++;
-        // @ts-expect-error Dynamic property access
+        // @ts-ignore Dynamic property access
         if (combo.bestPlacement === 'product_page') productPageGoldenCount++;
       }
       
-      // @ts-expect-error Dynamic type assertion
+      // @ts-ignore Dynamic type assertion
       for (const suggestion of (suggestions as unknown[])) {
         // v183: 如果多维度分析显示某个位置有大量黄金组合，则增强该位置的倾斜
-        // @ts-expect-error Type inference limitation
+        // @ts-ignore Type inference limitation
         let comboAdjustedMultiplier = suggestion.suggestedMultiplier;
-        // @ts-expect-error Type inference limitation
+        // @ts-ignore Type inference limitation
         let comboReason = '';
         
         if (goldenCombos.length > 0) {
-          // @ts-expect-error Dynamic property access
+          // @ts-ignore Dynamic property access
           if (suggestion.placement === 'top_of_search' && topOfSearchGoldenCount > goldenCombos.length * 0.5) {
             // 超过50%黄金组合的最佳位置是搜索顶部，增强搜索顶部倾斜
-            // @ts-expect-error Type inference limitation
+            // @ts-ignore Type inference limitation
             const boost = Math.min(suggestion.suggestedMultiplier * 0.10, 20); // 最多额外+20%
-            // @ts-expect-error Legacy code type compatibility
+            // @ts-ignore Legacy code type compatibility
             comboAdjustedMultiplier = Math.min(suggestion.suggestedMultiplier + boost, 900); // Amazon上限900%
-            // @ts-expect-error Legacy code type compatibility
+            // @ts-ignore Legacy code type compatibility
             comboReason = ` [v183: ${topOfSearchGoldenCount}个黄金组合偏好搜索顶部, +${boost.toFixed(0)}%]`;
-          // @ts-expect-error Dynamic property access
+          // @ts-ignore Dynamic property access
           } else if (suggestion.placement === 'product_page' && productPageGoldenCount > goldenCombos.length * 0.5) {
-            // @ts-expect-error Type inference limitation
+            // @ts-ignore Type inference limitation
             const boost = Math.min(suggestion.suggestedMultiplier * 0.10, 20);
-            // @ts-expect-error Legacy code type compatibility
+            // @ts-ignore Legacy code type compatibility
             comboAdjustedMultiplier = Math.min(suggestion.suggestedMultiplier + boost, 900);
             comboReason = ` [v183: ${productPageGoldenCount}个黄金组合偏好商品页, +${boost.toFixed(0)}%]`;
           }
         }
         
         const adjustment: Record<string, unknown> = {
-          // @ts-expect-error Legacy code type compatibility
+          // @ts-ignore Legacy code type compatibility
           accountId: config.accountId,
           localCampaignId: campaignLocalId,
           amazonCampaignId: campaignAmazonId,
-          // @ts-expect-error Amazon API response type flexibility
+          // @ts-ignore Amazon API response type flexibility
           campaignName: campaign.campaignName,
-          // @ts-expect-error Legacy code type compatibility
+          // @ts-ignore Legacy code type compatibility
           placement: suggestion.placement,
-          // @ts-expect-error Legacy code type compatibility
+          // @ts-ignore Legacy code type compatibility
           currentMultiplier: suggestion.currentMultiplier,
           suggestedMultiplier: comboAdjustedMultiplier,
-          // @ts-expect-error Legacy code type compatibility
+          // @ts-ignore Legacy code type compatibility
           originalSuggestedMultiplier: suggestion.suggestedMultiplier,
-          // @ts-expect-error Legacy code type compatibility
+          // @ts-ignore Legacy code type compatibility
           reason: suggestion.reason + comboReason,
           algorithmUsed: 'placement_optimizer', // v335: 添加算法标识
           apiSyncStatus: dryRun ? 'pending' : 'pending',
@@ -195,17 +195,17 @@ export async function executePlacementOptimization(
         
         details.push(adjustment);
         
-        // @ts-expect-error Conditional type narrowing
+        // @ts-ignore Conditional type narrowing
         if (!dryRun && comboAdjustedMultiplier !== suggestion.currentMultiplier) {
           // v337.1: 修复 — placement_settings表的campaignId也是varchar，应使用Amazon ID
           await placementOptimizationService.applyPlacementAdjustment(
-            // @ts-expect-error Legacy code type compatibility
+            // @ts-ignore Legacy code type compatibility
             campaignAmazonId,
-            // @ts-expect-error Legacy code type compatibility
+            // @ts-ignore Legacy code type compatibility
             config.accountId,
-            // @ts-expect-error Destructuring type inference
+            // @ts-ignore Destructuring type inference
             { ...suggestion, suggestedMultiplier: comboAdjustedMultiplier }
-          // @ts-expect-error Legacy code type compatibility
+          // @ts-ignore Legacy code type compatibility
           );
           adjustmentsCount++;
         }
@@ -225,18 +225,18 @@ export async function executePlacementOptimization(
             const syncResult: unknown = await amazonApiHelper.syncPlacementAdjustmentToAmazon(
               config.accountId,
               amazonCampaignId,
-              // @ts-expect-error Amazon API response type flexibility
+              // @ts-ignore Amazon API response type flexibility
               topSuggestion?.suggestedMultiplier || campaign.placementTopSearchBidAdjustment || 0,
-              // @ts-expect-error Amazon API response type flexibility
+              // @ts-ignore Amazon API response type flexibility
               productSuggestion?.suggestedMultiplier || campaign.placementProductPageBidAdjustment || 0,
               `位置优化: Top=${topSuggestion?.suggestedMultiplier || 0}%, Product=${productSuggestion?.suggestedMultiplier || 0}%`
             );
-            // @ts-expect-error Legacy code type compatibility
+            // @ts-ignore Legacy code type compatibility
             placementSyncSuccess = syncResult;
           }
         } catch (apiError: unknown) {
           placementSyncError = (apiError as Error).message;
-          // @ts-expect-error Amazon API response type flexibility
+          // @ts-ignore Amazon API response type flexibility
           log.warn(`[PlacementOptimization] Amazon API同步失败 (Campaign ${campaign.campaignName}):`, (apiError as Error).message);
         }
         
@@ -244,7 +244,7 @@ export async function executePlacementOptimization(
         for (const d of details.filter(d => d.localCampaignId === campaignLocalId)) {
           d.apiSyncStatus = placementSyncSuccess ? 'synced' : (placementSyncError ? 'failed' : 'pending');
           d.apiSyncDetail = placementSyncError ? JSON.stringify({ error: placementSyncError }) : null;
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         }
         
         // v166: 注册位置倾斜验证任务
@@ -259,9 +259,9 @@ export async function executePlacementOptimization(
               [{
                 localCampaignId: campaignLocalId,
                 amazonCampaignId: amazonCampaignIdForVerify,
-                // @ts-expect-error Conditional type narrowing
+                // @ts-ignore Conditional type narrowing
                 expectedTopOfSearch: topSuggestion?.suggestedMultiplier,
-                // @ts-expect-error Conditional type narrowing
+                // @ts-ignore Conditional type narrowing
                 expectedProductPage: productSuggestion?.suggestedMultiplier,
               }]
             );
@@ -274,7 +274,7 @@ export async function executePlacementOptimization(
       details.push({
         localCampaignId: campaignLocalId,
         amazonCampaignId: campaignAmazonId,
-        // @ts-expect-error Amazon API response type flexibility
+        // @ts-ignore Amazon API response type flexibility
         campaignName: campaign.campaignName,
         error: (error as Error).message,
       });

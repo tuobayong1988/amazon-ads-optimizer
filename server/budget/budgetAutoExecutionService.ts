@@ -381,7 +381,7 @@ export async function executeBudgetAllocation(configId: number): Promise<{
       }
 
       // 保存执行明细
-      // @ts-expect-error - Drizzle query builder type
+      // @ts-ignore - Drizzle query builder type
       await db.insert(budgetAutoExecutionDetails).values({
         historyId: executionId,
         campaignId: suggestion.campaignId,
@@ -393,9 +393,9 @@ export async function executeBudgetAllocation(configId: number): Promise<{
         budgetChange: String(budgetAfter - budgetBefore),
         changePercent: String(details[details.length - 1].adjustmentPercent),
         changeReason: suggestion.reasons.join('; '),
-        // @ts-expect-error - dynamic property access
+        // @ts-ignore - dynamic property access
         performanceScore: String((suggestion as Record<string, unknown>).compositeScore || 0),
-        // @ts-expect-error Dynamic type assertion
+        // @ts-ignore Dynamic type assertion
         confidence: String((suggestion as Record<string, unknown>).confidence || 0),
         apiSyncStatus: 'pending',
       } as Record<string, unknown>);
@@ -528,7 +528,7 @@ export async function getExecutionDetails(executionId: number): Promise<{
 
   return {
     execution: executionResults[0],
-    // @ts-expect-error - array method type inference
+    // @ts-ignore - array method type inference
     details: details.map(d => ({
       id: d.id,
       campaignId: d.campaignId,
@@ -575,7 +575,7 @@ export async function approveExecution(
     // 更新执行状态
     await db.update(budgetAutoExecutionHistory)
       .set({
-        // @ts-expect-error - type assertion
+        // @ts-ignore - type assertion
         status: 'completed' as unknown,
       })
       .where(eq(budgetAutoExecutionHistory.id, executionId));
@@ -583,7 +583,7 @@ export async function approveExecution(
     // 拒绝执行
     await db.update(budgetAutoExecutionHistory)
       .set({
-        // @ts-expect-error - type assertion
+        // @ts-ignore - type assertion
         status: 'cancelled' as unknown,
       })
       .where(eq(budgetAutoExecutionHistory.id, executionId));

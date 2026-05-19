@@ -97,7 +97,7 @@ export const appRouter = router({
   // 认证路由
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     logout: publicProcedure.mutation(({ ctx }: unknown) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
@@ -133,9 +133,9 @@ export const appRouter = router({
       }),
     // 验证Token
     verifyToken: publicProcedure
-      // @ts-expect-error Complex function parameter types
+      // @ts-ignore Complex function parameter types
       .input(z.object({ token: z.string() }))
-      // @ts-expect-error Complex function parameter types
+      // @ts-ignore Complex function parameter types
       .query(async ({ input }: unknown) => {
         const { verifyToken } = await import('./system/localAuthService');
         return verifyToken(input.token);

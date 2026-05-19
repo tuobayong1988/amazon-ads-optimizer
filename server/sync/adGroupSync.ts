@@ -17,6 +17,7 @@ import {
   searchTerms,
   negativeKeywords,
   optimizationEvents,
+  reportJobs,
 } from '../../drizzle/schema';
 import { createModuleLogger } from '../utils/logger';
 import type { AmazonAdsApiClient } from './amazonAdsApi';
@@ -27,12 +28,105 @@ export interface SyncContext {
   accountId: number;
   userId: number;
   marketplace: string;
+  _forceSync?: boolean;
+  _reportWaitTimeoutMs?: number;
+  _subProgressCallback?: (progress: { phase: string; current: number; total: number; detail?: string }) => void;
 }
 
 const log = createModuleLogger('adGroupSync');
 
 // v426: 批量UPSERT的分块大小
 const UPSERT_CHUNK_SIZE = 200;
+
+
+type AdGroupReportRequest = {
+  name: string;
+  adType: 'SP' | 'SB' | 'SD';
+  adProduct: 'SPONSORED_PRODUCTS' | 'SPONSORED_BRANDS' | 'SPONSORED_DISPLAY';
+  startDate: string;
+  endDate: string;
+  requestFn: () => Promise<string>;
+};
+
+type AdGroupReportResult = {
+  name: string;
+  data: Record<string, unknown>[] | null;
+  error?: string;
+};
+
+function extractTimedOutReportId(error?: string): string | null {
+  if (!error || !/timeout/i.test(error)) return null;
+  const match = error.match(/reportId=([a-f0-9-]+)/i);
+  return match?.[1] || null;
+}
+
+async function queueTimedOutAdGroupReports(
+  db: any,
+  service: SyncContext,
+  reportRequests: AdGroupReportRequest[],
+  reportResults: AdGroupReportResult[],
+): Promise<number> {
+  let queued = 0;
+
+  for (let i = 0; i < reportResults.length; i++) {
+    const result = reportResults[i];
+    const reportId = extractTimedOutReportId(result?.error);
+    if (!reportId) continue;
+
+    const req = reportRequests.find(r => r.name === result.name) || reportRequests[i];
+    if (!req) continue;
+
+    try {
+      const existing = await db
+        .select({ id: reportJobs.id })
+        .from(reportJobs)
+        .where(eq(reportJobs.reportId, reportId))
+        .limit(1);
+
+      if (existing.length > 0) {
+        log.info(`[v774:AdGroupAsyncRescue] 超时报告已在异步队列中，跳过重复入队: reportId=${reportId}, jobId=${existing[0].id}`);
+        continue;
+      }
+
+      const profileId = String((service.client as unknown as { credentials?: { profileId?: string | number } }).credentials?.profileId || '');
+      const [insertResult] = await db.insert(reportJobs).values({
+        accountId: service.accountId,
+        profileId,
+        reportType: req.name,
+        adProduct: req.adProduct,
+        reportId,
+        status: 'submitted',
+        startDate: req.startDate,
+        endDate: req.endDate,
+        requestPayload: JSON.stringify({
+          source: 'v774_ad_group_timeout_rescue',
+          adType: req.adType.toLowerCase(),
+          reportName: req.name,
+          startDate: req.startDate,
+          endDate: req.endDate,
+          syncType: 'ad_group_sync',
+          accountId: service.accountId,
+          originalTimeout: result.error,
+        }),
+        retryCount: 0,
+        maxRetries: 5,
+        priority: 'high',
+        submittedAt: sql`NOW()`,
+      });
+      const jobId = (insertResult as { insertId?: number })?.insertId;
+      queued++;
+      log.info(`[v774:AdGroupAsyncRescue] 广告组绩效超时报告已交给异步队列: jobId=${jobId || 'unknown'}, reportId=${reportId}, report=${req.name}`);
+    } catch (queueErr: unknown) {
+      log.warn(`[v774:AdGroupAsyncRescue] 广告组绩效超时报告入队失败 [${req.name}, reportId=${reportId}]:`, (queueErr as Error).message);
+    }
+  }
+
+  if (queued > 0) {
+    log.info(`[v774:AdGroupAsyncRescue] 共接管 ${queued} 个广告组绩效超时报告，当前同步步骤降级为部分完成，后续由异步调度器下载并落库`);
+  }
+
+  return queued;
+}
 
 /**
  * v426: 预加载账户的所有campaigns到Map中（amazonCampaignId -> campaign）
@@ -419,15 +513,36 @@ export async function syncAdGroupPerformanceData(service: SyncContext, days: num
 
     // v413: 批量提交SP/SB/SD广告组报告 + 统一轮询
     const { startDate: spStart, endDate: spEnd } = getMarketplaceDateRange(service.marketplace, 7);
-    const reportRequests: Array<{ name: string; requestFn: () => Promise<string> }> = [];
+    const reportRequests: AdGroupReportRequest[] = [];
     if (spCampaigns.length > 0) {
-      reportRequests.push({ name: 'SP广告组', requestFn: () => service.client.requestSpAdGroupReport(spStart, spEnd) });
+      reportRequests.push({
+        name: 'SP广告组',
+        adType: 'SP',
+        adProduct: 'SPONSORED_PRODUCTS',
+        startDate: spStart,
+        endDate: spEnd,
+        requestFn: () => service.client.requestSpAdGroupReport(spStart, spEnd),
+      });
     }
     if (sbCampaigns.length > 0) {
-      reportRequests.push({ name: 'SB广告组', requestFn: () => service.client.requestSbAdGroupReport(startDate, endDate) });
+      reportRequests.push({
+        name: 'SB广告组',
+        adType: 'SB',
+        adProduct: 'SPONSORED_BRANDS',
+        startDate,
+        endDate,
+        requestFn: () => service.client.requestSbAdGroupReport(startDate, endDate),
+      });
     }
     if (sdCampaigns.length > 0) {
-      reportRequests.push({ name: 'SD广告组', requestFn: () => service.client.requestSdAdGroupReport(startDate, endDate) });
+      reportRequests.push({
+        name: 'SD广告组',
+        adType: 'SD',
+        adProduct: 'SPONSORED_DISPLAY',
+        startDate,
+        endDate,
+        requestFn: () => service.client.requestSdAdGroupReport(startDate, endDate),
+      });
     }
     
     log.info(`[v413] 广告组报告批量提交: ${reportRequests.map(r => r.name).join(', ')}`);
@@ -438,12 +553,18 @@ export async function syncAdGroupPerformanceData(service: SyncContext, days: num
     }
     
     // v676: 全量同步时跳过P5异步模式，强制同步等待
-    const adGroupReportTimeout = service._reportWaitTimeoutMs || 600000;
-    const reportResults = reportRequests.length > 0
+    const adGroupReportTimeout = Math.min(service._reportWaitTimeoutMs || 600000, 25 * 60 * 1000); // v774: 留出5分钟给步骤收尾和异步接管，避免外层30分钟STEP_TIMEOUT抢先失败
+    const reportResults: AdGroupReportResult[] = reportRequests.length > 0
       ? (process.env.P5_ASYNC_REPORTS === 'true' && !service._forceSync
           ? (await service.client.submitReportsToAsyncQueue(reportRequests, { accountId: service.accountId, syncType: 'ad_group_sync' })).results.map(r => ({ name: r.name, data: r.data as Record<string, unknown>[] | null, error: r.error }))
           : await service.client.submitAndWaitMultipleReports(reportRequests, adGroupReportTimeout, 2000))
       : [];
+
+    // v774: submitAndWaitMultipleReports 以 error 字段返回超时 reportId，不会抛异常；这里立即把仍在生成中的报告交给异步队列继续轮询落库。
+    const rescuedTimeoutReports = await queueTimedOutAdGroupReports(db, service, reportRequests, reportResults);
+    if (rescuedTimeoutReports > 0 && service._subProgressCallback) {
+      service._subProgressCallback({ phase: '异步接管', current: 2, total: 3, detail: `${rescuedTimeoutReports}个广告组报告超时后已转入后台队列` });
+    }
 
     /**
      * v426: 统一的绩效数据处理函数

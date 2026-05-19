@@ -14,7 +14,7 @@ import { recordAudit } from '../services/auditLogService';
 // ==================== Team Member Router ====================
 export const teamRouter = router({
   // 获取团队成员列表（P2优化: 自动包含所有者/管理员自身）
-  // @ts-expect-error Complex function parameter types
+  // @ts-ignore Complex function parameter types
   list: protectedProcedure.query(async ({ ctx }: unknown) => {
     const members = await db.getTeamMembersByOwner(ctx.user.id);
     // P2优化: 将当前用户（所有者）作为第一个成员显示
@@ -33,9 +33,9 @@ export const teamRouter = router({
 
   // 获取单个团队成员
   getById: protectedProcedure
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .input(z.object({ id: z.number() }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ ctx, input }: unknown) => {
       return db.getTeamMemberById(input.id);
     }),
@@ -93,10 +93,10 @@ export const teamRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       const { createTeamMemberAccount } = await import('../system/localAuthService');
-      // @ts-expect-error Complex function parameter types
+      // @ts-ignore Complex function parameter types
       const result = await createTeamMemberAccount({
         creatorId: ctx.user.id,
-        // @ts-expect-error Express request/response type assertion
+        // @ts-ignore Express request/response type assertion
         organizationId: ctx.user.organizationId,
         username: input.username,
         name: input.name,
@@ -106,11 +106,11 @@ export const teamRouter = router({
       });
       if (!result.success) {
         throw new TRPCError({ code: 'BAD_REQUEST', message: result.error || '创建失败' });
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       }
       // 记录审计日志
       recordAudit({
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         action: 'team.createMember',
         userId: ctx.user.id,
         entityType: 'team_member',
@@ -232,7 +232,7 @@ export const teamRouter = router({
   // 获取账号的所有权限
   getAccountPermissions: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ ctx, input }: unknown) => {
       return db.getPermissionsByAccount(input.accountId);
     }),
@@ -242,7 +242,7 @@ export const teamRouter = router({
 // ==================== Email Report Router ====================
 export const emailReportRouter = router({
   // 获取订阅列表
-  // @ts-expect-error Complex function parameter types
+  // @ts-ignore Complex function parameter types
   list: protectedProcedure.query(async ({ ctx }: unknown) => {
     return db.getEmailSubscriptionsByUser(ctx.user.id);
   }),
@@ -452,21 +452,21 @@ export const inviteCodeRouter = router({
       expiresInDays: z.number().min(1).max(365).optional(),
       note: z.string().max(255).optional(),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .mutation(async ({ ctx, input }) => {
       const { createInviteCode } = await import('../system/inviteCodeService');
       const { createAuditLog } = await import('../system/auditLogService');
       
       const result = await createInviteCode({
         createdBy: ctx.user.id,
-        // @ts-expect-error Express request/response type assertion
+        // @ts-ignore Express request/response type assertion
         organizationId: (ctx.user as Record<string, unknown>).organizationId || 1,
         ...input,
       });
       
       if (result.success && result.inviteCode) {
         await createAuditLog({
-          // @ts-expect-error Express request/response type assertion
+          // @ts-ignore Express request/response type assertion
           organizationId: (ctx.user as Record<string, unknown>).organizationId || 1,
           userId: ctx.user.id,
           userName: ctx.user.name || ctx.user.email || undefined,
@@ -487,7 +487,7 @@ export const inviteCodeRouter = router({
     .input(z.object({
       count: z.number().min(1).max(100),
       inviteType: z.enum(['team_member', 'external_user']).default('external_user'),
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       maxUses: z.number().min(0).max(1000).default(1),
       expiresInDays: z.number().min(1).max(365).optional(),
       note: z.string().max(255).optional(),
@@ -496,10 +496,10 @@ export const inviteCodeRouter = router({
       const { createInviteCodesBatch } = await import('../system/inviteCodeService');
       return createInviteCodesBatch({
         createdBy: ctx.user.id,
-        // @ts-expect-error Express request/response type assertion
+        // @ts-ignore Express request/response type assertion
         organizationId: (ctx.user as Record<string, unknown>).organizationId || 1,
         inviteType: input.inviteType,
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         maxUses: input.maxUses,
         expiresInDays: input.expiresInDays,
         note: input.note,
@@ -509,23 +509,23 @@ export const inviteCodeRouter = router({
   // 验证邀请码（公开接口 - v481: 修复为publicProcedure，允许未登录用户在注册页面验证邀请码）
   validate: publicProcedure
     .input(z.object({ code: z.string() }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ input }: unknown) => {
       const { validateInviteCode } = await import('../system/inviteCodeService');
-      // @ts-expect-error Return type compatibility
+      // @ts-ignore Return type compatibility
       return validateInviteCode(input.code);
     }),
 
   // 获取邀请码列表
-  // @ts-expect-error Complex function parameter types
+  // @ts-ignore Complex function parameter types
   list: protectedProcedure.query(async ({ ctx }: unknown) => {
     const { getInviteCodes } = await import('../system/inviteCodeService');
     return getInviteCodes(ctx.user.id);
-  // @ts-expect-error Legacy code type compatibility
+  // @ts-ignore Legacy code type compatibility
   }),
 
   // 获取邀请码统计
-  // @ts-expect-error Complex function parameter types
+  // @ts-ignore Complex function parameter types
   stats: protectedProcedure.query(async ({ ctx }: unknown) => {
     const { getInviteCodeStats } = await import('../system/inviteCodeService');
     return getInviteCodeStats(ctx.user.id);
@@ -534,17 +534,17 @@ export const inviteCodeRouter = router({
   // 禁用邀请码
   disable: protectedProcedure
     .input(z.object({ id: z.number() }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .mutation(async ({ ctx, input }: unknown) => {
       const { disableInviteCode } = await import('../system/inviteCodeService');
       return disableInviteCode(input.id);
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     }),
 
   // 启用邀请码
   enable: protectedProcedure
     .input(z.object({ id: z.number() }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .mutation(async ({ ctx, input }: unknown) => {
       const { enableInviteCode } = await import('../system/inviteCodeService');
       return enableInviteCode(input.id);
@@ -553,7 +553,7 @@ export const inviteCodeRouter = router({
   // 删除邀请码
   delete: protectedProcedure
     .input(z.object({ id: z.number() }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .mutation(async ({ ctx, input }: unknown) => {
       const { deleteInviteCode } = await import('../system/inviteCodeService');
       return deleteInviteCode(input.id);

@@ -108,41 +108,41 @@ function addNoise(value: number, noiseLevel: number = 0.15): number {
 
 // 按概率分布分配整数值
 function distributeInteger(total: number, weights: number[]): number[] {
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const sum = weights.reduce((a: unknown, b: unknown) => a + b, 0);
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const normalized = weights.map(w => w / sum);
   
   // 先按比例分配
   const result = normalized.map(w => Math.floor(total * w));
   
   // 分配剩余
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   let remaining = total - result.reduce((a: unknown, b: unknown) => a + b, 0);
   const fractions = normalized.map((w: unknown, i: unknown) => ({
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     index: i,
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     fraction: (total * w) - result[i]
-  // @ts-expect-error Legacy code type compatibility
+  // @ts-ignore Legacy code type compatibility
   }));
-  // @ts-expect-error Legacy code type compatibility
+  // @ts-ignore Legacy code type compatibility
   fractions.sort((a: unknown, b: unknown) => b.fraction - a.fraction);
   
   for (let i = 0; i < remaining && i < fractions.length; i++) {
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     result[fractions[i].index]++;
   }
   
-  // @ts-expect-error Return type compatibility
+  // @ts-ignore Return type compatibility
   return result;
 }
 
 // 按概率分布分配小数值
 function distributeDecimal(total: number, weights: number[]): number[] {
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const sum = weights.reduce((a: unknown, b: unknown) => a + b, 0);
-  // @ts-expect-error Array method type inference
+  // @ts-ignore Array method type inference
   return weights.map(w => Math.round((total * w / sum) * 100) / 100);
 }
 
@@ -185,30 +185,30 @@ export async function populateHourlyPerformance() {
     const weekendFactor = (dayOfWeek === 0 || dayOfWeek === 6) ? 0.3 : 0;
     const adjustedDistribution = US_HOURLY_TRAFFIC_DISTRIBUTION.map((base: unknown, hour: unknown) => {
       // 周末：减少工作时间高峰，增加全天均匀分布
-      // @ts-expect-error Conditional type narrowing
+      // @ts-ignore Conditional type narrowing
       if (weekendFactor > 0) {
         const avg = 1 / 24;
-        // @ts-expect-error Return type compatibility
+        // @ts-ignore Return type compatibility
         return base * (1 - weekendFactor) + avg * weekendFactor;
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       }
-      // @ts-expect-error Return type compatibility
+      // @ts-ignore Return type compatibility
       return base;
     });
     
     // 添加噪声后的分布
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const noisyDistribution = adjustedDistribution.map(w => addNoise(w, 0.12));
     
     // 分配各指标到24小时
     const hourlyImpressions = distributeInteger(totalImpressions, noisyDistribution);
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const hourlyClicks = distributeInteger(totalClicks, noisyDistribution.map((w: unknown, h: unknown) => w * addNoise(HOURLY_CVR_FACTOR[h], 0.1)));
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const hourlySpend = distributeDecimal(totalSpend, noisyDistribution.map((w: unknown, h: unknown) => w * addNoise(HOURLY_CVR_FACTOR[h], 0.1)));
     
     // 销售和订单按转化率因子分配（高转化时段获得更多销售）
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const salesWeights = noisyDistribution.map((w: unknown, h: unknown) => w * addNoise(HOURLY_CVR_FACTOR[h], 0.15));
     const hourlySales = distributeDecimal(totalSales, salesWeights);
     const hourlyOrders = distributeInteger(totalOrders, salesWeights);
@@ -241,7 +241,7 @@ export async function populateHourlyPerformance() {
         date: dateStr,
         hour,
         dayOfWeek,
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         impressions: imp,
         clicks: clk,
         spend: sp.toFixed(2),
@@ -254,9 +254,9 @@ export async function populateHourlyPerformance() {
         hourlyCpc: clk > 0 ? (sp / clk).toFixed(2) : null,
       });
       
-      // @ts-expect-error Dynamic property access
+      // @ts-ignore Dynamic property access
       if (batch.length >= batchSize) {
-        // @ts-expect-error DB query type inference limitation
+        // @ts-ignore DB query type inference limitation
         await db.insert(hourlyPerformance).values(batch);
         insertedCount += batch.length;
         batch = [];
@@ -269,7 +269,7 @@ export async function populateHourlyPerformance() {
   
   // 插入剩余批次
   if (batch.length > 0) {
-    // @ts-expect-error DB query type inference limitation
+    // @ts-ignore DB query type inference limitation
     await db.insert(hourlyPerformance).values(batch);
     insertedCount += batch.length;
   }
@@ -326,7 +326,7 @@ export async function populatePlacementPerformance() {
       batch.push({
         campaignId: String(daily.campaignId),
         accountId: daily.accountId,
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         placement,
         date: dateStr,
         impressions: imp,
@@ -338,12 +338,12 @@ export async function populatePlacementPerformance() {
         cpc: clk > 0 ? (sp / clk).toFixed(2) : null,
         cvr: clk > 0 ? (ord / clk).toFixed(6) : null,
         acos: sal > 0 ? ((sp / sal) * 100).toFixed(4) : null,
-        // @ts-expect-error Conditional type narrowing
+        // @ts-ignore Conditional type narrowing
         roas: sp > 0 ? (sal / sp).toFixed(2) : null,
       });
       
       if (batch.length >= batchSize) {
-        // @ts-expect-error DB query type inference limitation
+        // @ts-ignore DB query type inference limitation
         await db.insert(placementPerformance).values(batch);
         insertedCount += batch.length;
         batch = [];
@@ -355,7 +355,7 @@ export async function populatePlacementPerformance() {
   }
   
   if (batch.length > 0) {
-    // @ts-expect-error DB query type inference limitation
+    // @ts-ignore DB query type inference limitation
     await db.insert(placementPerformance).values(batch);
     insertedCount += batch.length;
   }

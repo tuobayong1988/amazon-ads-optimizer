@@ -18,7 +18,7 @@ export const multiTenantRouter = router({
       const tenantCtx = await withTenant()(ctx);
       return next({ ctx: tenantCtx });
     })
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ ctx }: unknown) => {
       const tenantCtx = ctx as TenantContext;
       return {
@@ -84,9 +84,9 @@ export const multiTenantRouter = router({
     .use(async ({ ctx, next }) => {
       const tenantCtx = await withTenant()(ctx);
       return next({ ctx: tenantCtx });
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     })
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ ctx }: unknown) => {
       const tenantCtx = ctx as TenantContext;
       const { organizationId } = tenantCtx;
@@ -253,10 +253,10 @@ export const multiTenantRouter = router({
   getBillingHistory: protectedProcedure
     .use(async ({ ctx, next }) => {
       const tenantCtx = await withTenant()(ctx);
-      // @ts-expect-error Complex function parameter types
+      // @ts-ignore Complex function parameter types
       return next({ ctx: tenantCtx });
     })
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ ctx }: unknown) => {
       const tenantCtx = ctx as TenantContext;
       const { organizationId, userRole } = tenantCtx;
@@ -275,11 +275,11 @@ export const multiTenantRouter = router({
    */
   getApiKeys: protectedProcedure
     .use(async ({ ctx, next }) => {
-      // @ts-expect-error Type inference limitation
+      // @ts-ignore Type inference limitation
       const tenantCtx = await withTenant()(ctx);
       return next({ ctx: tenantCtx });
     })
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ ctx }: unknown) => {
       const tenantCtx = ctx as TenantContext;
       const { organizationId } = tenantCtx;
@@ -430,12 +430,12 @@ async function createInvitation(data: Record<string, unknown>) {
     token: 'invite_token_123',
     expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
   };
-// @ts-expect-error Legacy code type compatibility
+// @ts-ignore Legacy code type compatibility
 }
 
 async function sendInvitationEmail(invitation: unknown) {
   // 实际实现需要发送邮件
-  // @ts-expect-error Legacy code type compatibility
+  // @ts-ignore Legacy code type compatibility
   log.info('Sending invitation email to:', invitation.email);
 }
 
@@ -490,13 +490,13 @@ async function getSubscriptionPlans() {
         smart_campaign: true,
       },
     },
-  // @ts-expect-error Legacy code type compatibility
+  // @ts-ignore Legacy code type compatibility
   ];
 }
 
 async function getSubscriptionPlanBySlug(slug: string) {
   const plans = await getSubscriptionPlans();
-  // @ts-expect-error Dynamic property access
+  // @ts-ignore Dynamic property access
   return plans.find((p: unknown) => p.slug === slug);
 }
 

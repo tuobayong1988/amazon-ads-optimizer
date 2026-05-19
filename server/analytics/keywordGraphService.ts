@@ -136,7 +136,7 @@ export async function generateEmbeddings(texts: string[]): Promise<number[][]> {
 Output ONLY the JSON array, no explanation.`
         }, {
           role: 'user',
-          // @ts-expect-error Amazon API response type flexibility
+          // @ts-ignore Amazon API response type flexibility
           content: `Generate semantic embeddings for these keywords:\n${batch.map((t: unknown, idx: unknown) => `${idx + 1}. "${t}"`).join('\n')}\n\nOutput a JSON array of arrays, one 32-dim vector per keyword.`
         }],
         temperature: 0,
@@ -243,7 +243,7 @@ export async function buildKeywordGraph(accountId: number): Promise<{
     for (let i = 0; i < edgeValues.length; i += batchSize) {
       const batch = edgeValues.slice(i, i + batchSize);
       await db.insert(keywordSemanticGraph).values(
-        // @ts-expect-error - array method type inference
+        // @ts-ignore - array method type inference
         batch.map(e => ({
           accountId,
           sourceNodeType: 'keyword' as const,

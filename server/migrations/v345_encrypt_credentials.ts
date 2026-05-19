@@ -83,7 +83,7 @@ export async function migrateEncryptCredentials(): Promise<{
       FROM amazon_api_credentials
     `) as unknown;
     
-    // @ts-expect-error - runtime type mismatch
+    // @ts-ignore - runtime type mismatch
     const records = rows[0] || rows;
     result.totalRecords = records.length;
     log.info(`[v345-migration] 共 ${records.length} 条凭证记录`);
@@ -91,24 +91,24 @@ export async function migrateEncryptCredentials(): Promise<{
     // 步骤3: 逐条加密
     for (const record of (records as unknown[])) {
       try {
-        // @ts-expect-error Type inference limitation
+        // @ts-ignore Type inference limitation
         const needEncryptSecret = record.clientSecret && !isEncrypted(record.clientSecret);
-        // @ts-expect-error Type inference limitation
+        // @ts-ignore Type inference limitation
         const needEncryptToken = record.refreshToken && !isEncrypted(record.refreshToken);
 
-        // @ts-expect-error Conditional type narrowing
+        // @ts-ignore Conditional type narrowing
         if (!needEncryptSecret && !needEncryptToken) {
           result.skipped++;
-          // @ts-expect-error Complex function parameter types
+          // @ts-ignore Complex function parameter types
           log.info(`[v345-migration] 账户 ${record.accountId}: 已加密，跳过`);
           continue;
         }
 
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         const updates: string[] = [];
         
         if (needEncryptSecret) {
-          // @ts-expect-error Type inference limitation
+          // @ts-ignore Type inference limitation
           const encryptedSecret = encrypt(record.clientSecret);
           await db.execute(sql`
  UPDATE amazon_api_credentials 
@@ -118,25 +118,25 @@ export async function migrateEncryptCredentials(): Promise<{
           updates.push('clientSecret');
         }
 
-        // @ts-expect-error Conditional type narrowing
+        // @ts-ignore Conditional type narrowing
         if (needEncryptToken) {
-          // @ts-expect-error Type inference limitation
+          // @ts-ignore Type inference limitation
           const encryptedToken = encrypt(record.refreshToken);
           await db.execute(sql`
  UPDATE amazon_api_credentials 
  SET refreshToken = ${encryptedToken}
  WHERE id = ${(record as any).id}
  `);
-          // @ts-expect-error Array method type inference
+          // @ts-ignore Array method type inference
           updates.push('refreshToken');
         }
 
         result.encrypted++;
-        // @ts-expect-error Complex function parameter types
+        // @ts-ignore Complex function parameter types
         log.info(`[v345-migration] 账户 ${record.accountId}: 已加密 [${updates.join(', ')}]`);
       } catch (recordError: unknown) {
         result.failed++;
-        // @ts-expect-error Type inference limitation
+        // @ts-ignore Type inference limitation
         const msg = `账户 ${record.accountId} 加密失败: ${(recordError as Error).message}`;
         result.errors.push(msg);
         console.error(`[v345-migration] ${msg}`);

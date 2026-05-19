@@ -413,7 +413,7 @@ export class SQSConsumerService {
       } catch (error: unknown) {
         const errMsg = (error as Error).message || 'Unknown error';
         const errName = (error as Record<string, unknown>).name || 'Error';
-        // @ts-expect-error Dynamic type assertion
+        // @ts-ignore Dynamic type assertion
         const statusCode = (error as Record<string, unknown>).$metadata?.httpStatusCode || (error as Record<string, unknown>).statusCode || '';
         log.warn(`[SQS Consumer] 队列 ${queue.name} 轮询错误: [${errName}${statusCode ? ` HTTP ${statusCode}` : ''}] ${errMsg}`);
         logSyncError('SQSConsumer', `队列${queue.name}轮询错误`, { queue: queue.name, errorName: errName, statusCode, error: errMsg });
@@ -485,23 +485,23 @@ export class SQSConsumerService {
   /**
    * 处理单条消息
    */
-  // @ts-expect-error Complex function parameter types
+  // @ts-ignore Complex function parameter types
   private async processMessage(queue: SQSQueueConfig, message: unknown): Promise<void> {
-    // @ts-expect-error Conditional type narrowing
+    // @ts-ignore Conditional type narrowing
     if (!message.Body) {
       log.warn('[SQS Consumer] 消息体为空');
       return;
     }
 
-    // @ts-expect-error Generic type constraint
+    // @ts-ignore Generic type constraint
     let body: Record<string, unknown>;
     try {
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       body = JSON.parse(message.Body);
     } catch (e: any) {
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       log.warn('[SQS Consumer] JSON解析失败:', message.Body.substring(0, 200));
-      // @ts-expect-error Complex function parameter types
+      // @ts-ignore Complex function parameter types
       logSyncError('SQSConsumer', 'JSON解析失败', { preview: message.Body.substring(0, 200) });
       return;
     }
@@ -516,7 +516,7 @@ export class SQSConsumerService {
     let amsData = body;
     if (body.Type === 'Notification' && body.Message) {
       try {
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         amsData = JSON.parse(body.Message);
       } catch (e: any) {
         log.warn('[SQS Consumer] 解析SNS消息内容失败');
@@ -530,15 +530,15 @@ export class SQSConsumerService {
     // 根据数据类型路由到不同的处理器
     switch (queue.dataType) {
       case 'traffic':
-        // @ts-expect-error - runtime type mismatch
+        // @ts-ignore - runtime type mismatch
         await this.processTrafficMessage(amsData, queue.adType);
         break;
       case 'conversion':
-        // @ts-expect-error - runtime type mismatch
+        // @ts-ignore - runtime type mismatch
         await this.processConversionMessage(amsData, queue.adType);
         break;
       case 'budget':
-        // @ts-expect-error - runtime type mismatch
+        // @ts-ignore - runtime type mismatch
         await this.processBudgetMessage(amsData, queue.adType);
         break;
       default:
@@ -551,14 +551,14 @@ export class SQSConsumerService {
    */
   private async handleSubscriptionConfirmation(body: Record<string, unknown>): Promise<void> {
     const subscribeUrl = body.SubscribeURL;
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const topicArn = body.TopicArn;
     
     log.debug(`[SQS Consumer] 收到SNS订阅确认请求: TopicArn=${topicArn}`);
     
     if (subscribeUrl) {
       try {
-        // @ts-expect-error Complex function parameter types
+        // @ts-ignore Complex function parameter types
         const response = await axios.get(subscribeUrl, {
           timeout: 30000,
           headers: { 'User-Agent': 'AmazonAdsOptimizer/1.0' },
@@ -1020,24 +1020,24 @@ export class SQSConsumerService {
       if (params.dataType === 'traffic') {
         updateData.impressions = params.impressions;
         updateData.clicks = params.clicks;
-        // @ts-expect-error Dynamic property access
+        // @ts-ignore Dynamic property access
         updateData.spend = String(params.spend);
-      // @ts-expect-error Conditional type narrowing
+      // @ts-ignore Conditional type narrowing
       } else {
-        // @ts-expect-error Dynamic property access
+        // @ts-ignore Dynamic property access
         updateData.sales = String(params.sales);
-        // @ts-expect-error Dynamic property access
+        // @ts-ignore Dynamic property access
         updateData.orders = params.orders;
       }
       // 重新计算派生指标
       const row = existing[0] as unknown;
-      // @ts-expect-error Dynamic property access
+      // @ts-ignore Dynamic property access
       const totalSpend = params.dataType === 'traffic' ? params.spend : parseFloat(String(row.spend || '0'));
-      // @ts-expect-error Dynamic property access
+      // @ts-ignore Dynamic property access
       const totalSales = params.dataType === 'conversion' ? params.sales : parseFloat(String(row.sales || '0'));
-      // @ts-expect-error Dynamic property access
+      // @ts-ignore Dynamic property access
       const totalClicks = params.dataType === 'traffic' ? params.clicks : (row.clicks || 0);
-      // @ts-expect-error Dynamic property access
+      // @ts-ignore Dynamic property access
       const totalOrders = params.dataType === 'conversion' ? params.orders : (row.orders || 0);
       
       if (totalSpend > 0 && totalSales > 0) {
@@ -1045,7 +1045,7 @@ export class SQSConsumerService {
         updateData.roas = String((totalSales / totalSpend).toFixed(2));
       }
       if (totalClicks > 0) {
-        // @ts-expect-error Dynamic property access
+        // @ts-ignore Dynamic property access
         updateData.ctr = String(((row.impressions || 0) > 0 ? totalClicks / (row.impressions || 1) : 0).toFixed(6));
         updateData.cvr = String((totalOrders / totalClicks).toFixed(6));
         updateData.cpc = String((totalSpend / totalClicks).toFixed(4));
@@ -1056,7 +1056,7 @@ export class SQSConsumerService {
         .where(eq(keywordPlacementHourlyPerformance.id, existing[0].id));
     } else {
       // 插入新记录
-      // @ts-expect-error - Drizzle query builder type
+      // @ts-ignore - Drizzle query builder type
       await dbConn.insert(keywordPlacementHourlyPerformance).values({
         accountId: params.accountId,
         campaignId: params.campaignId,

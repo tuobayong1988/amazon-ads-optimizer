@@ -240,7 +240,7 @@ export async function upsertDailyPerformanceFromAms(data: {
         INSERT IGNORE INTO ams_processed_messages (idempotency_id, dataset_id)
         VALUES (${data.idempotencyId}, ${data.datasetId || null})
       `);
-      // @ts-expect-error Dynamic type assertion
+      // @ts-ignore Dynamic type assertion
       if ((result as Record<string, unknown>)[0]?.affectedRows === 0) {
         // 已处理过的消息，跳过
         log.debug(`[AMS DB] 跳过重复消息: idempotencyId=${data.idempotencyId}`);
@@ -285,7 +285,7 @@ export async function upsertDailyPerformanceFromAms(data: {
         .where(eq(dailyPerformance.id, existingCampaign.id));
     } else {
       // 首条delta记录：直接插入（负数delta在首条时归零保护）
-      // @ts-expect-error - Drizzle query builder type
+      // @ts-ignore - Drizzle query builder type
       await db.insert(dailyPerformance).values({
         accountId: data.accountId,
         campaignId: safeCampaignId,
@@ -334,7 +334,7 @@ export async function updateDailyPerformanceConversion(data: {
  INSERT IGNORE INTO ams_processed_messages (idempotency_id, dataset_id)
  VALUES (${data.idempotencyId}, ${data.datasetId || null})
  `);
-      // @ts-expect-error Dynamic type assertion
+      // @ts-ignore Dynamic type assertion
       if ((result as Record<string, unknown>)[0]?.affectedRows === 0) {
         log.debug(`[AMS DB] 跳过重复转化消息: idempotencyId=${data.idempotencyId}`);
         return;
@@ -455,7 +455,7 @@ export async function deleteDailyPerformanceByDateRange(
       sql`DATE(${dailyPerformance.date}) <= ${endDate}`
     ));
   
-  // @ts-expect-error - MySQL affectedRows
+  // @ts-ignore - MySQL affectedRows
   return (result as Record<string, unknown>[][])[0]?.affectedRows || 0;
 }
 

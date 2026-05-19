@@ -23,7 +23,7 @@ export async function createSyncJob(data: {
   const db = await getDb();
   if (!db) return null;
   
-  const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+  // v773: 所有 data_sync_jobs 时间字段统一使用数据库本地 NOW()，避免应用 UTC 与 MySQL 会话时区混用。
   // v445: 使用raw SQL设置trigger_source，因为drizzle schema中还没有这个字段
   const [result] = await db.insert(dataSyncJobs).values({
     userId: data.userId,
@@ -32,8 +32,8 @@ export async function createSyncJob(data: {
     status: 'running',
     isIncremental: data.isIncremental ? 1 : 0,
     maxRetries: data.maxRetries || 3,
-    startedAt: now,
-    createdAt: now,
+    startedAt: sql`NOW()`,
+    createdAt: sql`NOW()`,
   });
   
   // v445: 单独更新trigger_source字段（绕过drizzle schema限制）
@@ -80,10 +80,10 @@ export async function updateSyncJob(jobId: number, data: {
   
   const updateData: Record<string, unknown> = { ...data };
   if (data.status === 'completed' || data.status === 'failed') {
-    updateData.completedAt = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    updateData.completedAt = sql`NOW()`;
   }
   // 更新时间戳
-  updateData.updatedAt = new Date().toISOString().slice(0, 19).replace('T', ' ');
+  updateData.updatedAt = sql`NOW()`;
   
   await db.update(dataSyncJobs)
     .set(updateData)
@@ -341,7 +341,7 @@ export async function getSyncChangeRecords(syncJobId: number, entityType?: strin
   
   const conditions = [eq(syncChangeRecords.syncJobId, syncJobId)];
   if (entityType) {
-    // @ts-expect-error - type assertion
+    // @ts-ignore - type assertion
     conditions.push(eq(syncChangeRecords.entityType, entityType as unknown));
   }
   
@@ -443,7 +443,7 @@ export async function getSyncConflicts(accountId: number, status?: string) {
   
   const conditions = [eq(syncConflicts.accountId, accountId)];
   if (status) {
-    // @ts-expect-error - string type assertion
+    // @ts-ignore - string type assertion
     conditions.push(eq(syncConflicts.resolutionStatus, status as string));
   }
   
@@ -603,7 +603,7 @@ export async function getSyncQueue(userId: number, status?: string) {
   
   const conditions = [eq(syncTaskQueue.userId, userId)];
   if (status) {
-    // @ts-expect-error - string type assertion
+    // @ts-ignore - string type assertion
     conditions.push(eq(syncTaskQueue.status, status as string));
   }
   
@@ -785,7 +785,7 @@ export async function cleanupOldSyncTasks(userId: number, retainDays: number = 7
       lte(syncTaskQueue.completedAt, cutoffDateStr)
     ));
   
-  // @ts-expect-error - MySQL affectedRows
+  // @ts-ignore - MySQL affectedRows
   return (result as Record<string, number>).affectedRows || 0;
 }
 
@@ -861,7 +861,7 @@ export async function createSyncSchedule(data: {
   
   const [result] = await db.insert(dataSyncSchedules)
     .values({
-      // @ts-expect-error - Dynamic data property access
+      // @ts-ignore - Dynamic data property access
       userId: data.userId,
       accountId: data.accountId,
       syncType: data.syncType as unknown,
@@ -872,7 +872,7 @@ export async function createSyncSchedule(data: {
       nextRunAt: nextRunAt.toISOString().slice(0, 19).replace('T', ' '),
     });
   
-  // @ts-expect-error - type assertion
+  // @ts-ignore - type assertion
   return (result as Record<string, number>).insertId;
 }
 
@@ -1085,7 +1085,7 @@ export async function createSyncLog(data: {
   
   const [result] = await db.insert(dataSyncJobs)
     .values({
-      // @ts-expect-error - Dynamic data property access
+      // @ts-ignore - Dynamic data property access
       userId: data.userId,
       accountId: data.accountId,
       syncType: data.syncType as unknown,
@@ -1103,7 +1103,7 @@ export async function createSyncLog(data: {
       errorMessage: data.errorMessage,
     });
   
-  // @ts-expect-error - type assertion
+  // @ts-ignore - type assertion
   return (result as Record<string, number>).insertId;
 }
 

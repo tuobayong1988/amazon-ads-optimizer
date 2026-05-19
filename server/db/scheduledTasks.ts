@@ -51,7 +51,7 @@ export async function createScheduledTask(data: {
   const db = await getDb();
   if (!db) return 0;
   
-  // @ts-expect-error DB query type inference limitation
+  // @ts-ignore DB query type inference limitation
   const result = await db.insert(scheduledTasks).values({
     userId: data.userId,
     accountId: data.accountId || null,
@@ -128,7 +128,7 @@ export async function recordTaskExecution(data: {
   const db = await getDb();
   if (!db) return;
   
-  // @ts-expect-error DB query type inference limitation
+  // @ts-ignore DB query type inference limitation
   await db.insert(taskExecutionLog).values({
     taskId: data.taskId,
     userId: data.userId,

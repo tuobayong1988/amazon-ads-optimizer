@@ -239,7 +239,7 @@ export async function recordExperimentDailyMetrics(accountId: number): Promise<v
             AND accountId = ${accountId}
         `);
         
-        // @ts-expect-error - type assertion
+        // @ts-ignore - type assertion
         const metrics = (metricsQuery as Record<string, unknown>)[0]?.[0] || { impressions: 0, clicks: 0, spend: 0, sales: 0, orders: 0 };
         
         await abTestService.recordDailyMetrics(

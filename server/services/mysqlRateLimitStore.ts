@@ -107,7 +107,7 @@ export class MysqlRateLimitStore implements RateLimitStore {
       if (!db) return null;
 
       const { sql } = await import('drizzle-orm');
-      // @ts-expect-error DB query type inference limitation
+      // @ts-ignore DB query type inference limitation
       const [rows] = await db.execute(
         sql`SELECT tokens, last_refill_time FROM rate_limit_buckets WHERE bucket_key = ${key}`
       ) as unknown;
@@ -168,7 +168,7 @@ export class MysqlRateLimitStore implements RateLimitStore {
       );
 
       // 2. 原子性更新：补充令牌 + 消费1个令牌
-      // @ts-expect-error DB query type inference limitation
+      // @ts-ignore DB query type inference limitation
       const [result] = await db.execute(
         sql`UPDATE rate_limit_buckets 
             SET 
@@ -232,7 +232,7 @@ export class MysqlRateLimitStore implements RateLimitStore {
       );
 
       // 查询当前窗口的计数
-      // @ts-expect-error DB query type inference limitation
+      // @ts-ignore DB query type inference limitation
       const [rows] = await db.execute(
         sql`SELECT SUM(count) as total FROM rate_limit_counters 
             WHERE counter_key = ${key} AND window_start >= ${now - windowMs}`
@@ -256,11 +256,11 @@ export class MysqlRateLimitStore implements RateLimitStore {
       if (!db) return 0;
 
       const { sql } = await import('drizzle-orm');
-      // @ts-expect-error Type inference limitation
+      // @ts-ignore Type inference limitation
       const now = Date.now();
 
       // 查询最近60秒的计数（默认窗口）
-      // @ts-expect-error DB query type inference limitation
+      // @ts-ignore DB query type inference limitation
       const [rows] = await db.execute(
         sql`SELECT SUM(count) as total FROM rate_limit_counters 
             WHERE counter_key = ${key} AND window_start >= ${now - 60000}`

@@ -23,7 +23,7 @@ import type {
 const log = createModuleLogger('SyncTracking');
 
 // 扩展 AmazonSyncService 类型声明
-// @ts-expect-error Legacy code type compatibility
+// @ts-ignore Legacy code type compatibility
 declare module '../../amazonSyncService' {
   interface AmazonSyncService {
     syncSpCampaignsWithTracking(lastSyncTime?: string | null, syncJobId?: number | null): Promise<SyncResultWithTracking>;
@@ -44,7 +44,7 @@ export interface SyncResultWithTracking {
   conflicts: number;
 }
 
-// @ts-expect-error Dynamic property access
+// @ts-ignore Dynamic property access
 AmazonSyncService.prototype.syncSpCampaignsWithTracking = async function(
   lastSyncTime?: string | null,
   syncJobId?: number | null
@@ -115,14 +115,14 @@ AmazonSyncService.prototype.syncSpCampaignsWithTracking = async function(
       
       // v168: SP API v3的dailyBudget可能嵌套在多种结构中
       let dailyBudgetValue = 0;
-      // @ts-expect-error Dynamic type assertion
+      // @ts-ignore Dynamic type assertion
       const budgetFieldT = (apiCampaign as Record<string, unknown>).budget;
       if (budgetFieldT !== undefined && budgetFieldT !== null) {
-        // @ts-expect-error Conditional type narrowing
+        // @ts-ignore Conditional type narrowing
         if (typeof budgetFieldT === 'number') {
           dailyBudgetValue = budgetFieldT;
         } else if (typeof budgetFieldT === 'object') {
-          // @ts-expect-error Legacy code type compatibility
+          // @ts-ignore Legacy code type compatibility
           dailyBudgetValue = budgetFieldT.budget || budgetFieldT.dailyBudget || budgetFieldT.amount || 0;
         }
       }
@@ -137,18 +137,18 @@ AmazonSyncService.prototype.syncSpCampaignsWithTracking = async function(
         accountId: this.accountId,
         campaignId: String(apiCampaign.campaignId),
         campaignName: apiCampaign.name,
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         campaignType: campaignType as 'sp_auto' | 'sp_manual' | 'sb' | 'sd',
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         targetingType: normalizedTargetingType,
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         dailyBudget: String(dailyBudgetValue),
         campaignStatus: (apiCampaign.state?.toLowerCase() || 'enabled') as 'enabled' | 'paused' | 'archived',
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         placementTopSearchBidAdjustment: this.getPlacementMultiplier(apiCampaign, 'placementTop'),
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         placementProductPageBidAdjustment: this.getPlacementMultiplier(apiCampaign, 'placementProductPage'),
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         placementRestBidAdjustment: this.getPlacementMultiplier(apiCampaign, 'placementRestOfSearch'),
         updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
       };
@@ -178,7 +178,7 @@ AmazonSyncService.prototype.syncSpCampaignsWithTracking = async function(
             syncJobId,
             accountId: this.accountId,
             userId: this.userId,
-            // @ts-expect-error Legacy code type compatibility
+            // @ts-ignore Legacy code type compatibility
             entityType: 'campaign',
             changeType: 'updated',
             entityId: String(apiCampaign.campaignId),
@@ -186,10 +186,10 @@ AmazonSyncService.prototype.syncSpCampaignsWithTracking = async function(
             previousData: existing,
             newData: campaignData,
             changedFields: Object.keys(campaignData).filter(k => 
-              // @ts-expect-error Dynamic type assertion
+              // @ts-ignore Dynamic type assertion
               (existing as Record<string, unknown>)[k] !== (campaignData as Record<string, unknown>[])[k as number]
             ),
-          // @ts-expect-error Legacy code type compatibility
+          // @ts-ignore Legacy code type compatibility
           });
         }
 
@@ -197,9 +197,9 @@ AmazonSyncService.prototype.syncSpCampaignsWithTracking = async function(
         const localBudget = parseFloat(existing.dailyBudget || '0');
         const apiBudget = parseFloat(String(campaignData.dailyBudget || '0'));
         if (apiBudget === 0 && localBudget > 0) {
-          // @ts-expect-error Complex function parameter types
+          // @ts-ignore Complex function parameter types
           log.warn(`v168: 零值预算防护(Tracking)生效 - campaign=${existing.campaignName}, local=$${localBudget}, api=$${apiBudget}`);
-          // @ts-expect-error Dynamic type assertion
+          // @ts-ignore Dynamic type assertion
           delete (campaignData as Record<string, unknown>[]).dailyBudget;
         }
         // v150.1: 预算保护逻辑
@@ -207,37 +207,37 @@ AmazonSyncService.prototype.syncSpCampaignsWithTracking = async function(
           const hasRecentOpt = protectedCampaignIds.has(existing.id);
           if (hasRecentOpt) {
             log.debug(`v150.1: 预算保护生效(WT) - campaign=${existing.campaignName}, local=$${localBudget}, api=$${apiBudget}`);
-            // @ts-expect-error Dynamic type assertion
+            // @ts-ignore Dynamic type assertion
             delete (campaignData as Record<string, unknown>[]).dailyBudget;
             protectionStats.budgetProtected++;
-            // @ts-expect-error Complex function parameter types
+            // @ts-ignore Complex function parameter types
             protectionStats.protectedEntities.push(`camp:${existing.campaignName}`);
           } else {
             protectionStats.budgetOverwritten++;
-          // @ts-expect-error Legacy code type compatibility
+          // @ts-ignore Legacy code type compatibility
           }
         }
         
         // v165+v423: 位置倾斜比例保护逻辑 - 如果有近期优化事件，保留本地位置倾斜值
-        // @ts-expect-error Type inference limitation
+        // @ts-ignore Type inference limitation
         const localTopPlacement = existing.placementTopSearchBidAdjustment || 0;
-        // @ts-expect-error Dynamic type assertion
+        // @ts-ignore Dynamic type assertion
         const apiTopPlacement = (campaignData as Record<string, unknown>[]).placementTopSearchBidAdjustment || 0;
         const localProductPlacement = existing.placementProductPageBidAdjustment || 0;
-        // @ts-expect-error Dynamic type assertion
+        // @ts-ignore Dynamic type assertion
         const apiProductPlacement = (campaignData as Record<string, unknown>[]).placementProductPageBidAdjustment || 0;
         // v423: 增加restOfSearch位置保护
         const localRestPlacement = (existing as Record<string, unknown>).placementRestBidAdjustment || 0;
-        // @ts-expect-error Dynamic type assertion
+        // @ts-ignore Dynamic type assertion
         const apiRestPlacement = (campaignData as Record<string, unknown>[]).placementRestBidAdjustment || 0;
         const hasPlacementDiff = localTopPlacement !== apiTopPlacement || localProductPlacement !== apiProductPlacement || localRestPlacement !== apiRestPlacement;
         if (hasPlacementDiff && protectedCampaignIds.has(existing.id)) {
           log.debug(`v165: 位置倾斜保护生效 - campaign=${existing.campaignName}, localTop=${localTopPlacement}%, apiTop=${apiTopPlacement}%, localProduct=${localProductPlacement}%, apiProduct=${apiProductPlacement}%, localRest=${localRestPlacement}%, apiRest=${apiRestPlacement}%`);
-          // @ts-expect-error Dynamic type assertion
+          // @ts-ignore Dynamic type assertion
           delete (campaignData as Record<string, unknown>[]).placementTopSearchBidAdjustment;
-          // @ts-expect-error Dynamic type assertion
+          // @ts-ignore Dynamic type assertion
           delete (campaignData as Record<string, unknown>[]).placementProductPageBidAdjustment;
-          // @ts-expect-error Dynamic type assertion
+          // @ts-ignore Dynamic type assertion
           delete (campaignData as Record<string, unknown>[]).placementRestBidAdjustment;
           protectionStats.protectedEntities.push(`placement:${existing.campaignName}`);
         }
@@ -285,17 +285,17 @@ AmazonSyncService.prototype.syncSpCampaignsWithTracking = async function(
     return result;
   } catch (error: unknown) {
     log.warn('[同步WithTracking] ❌ SP广告活动同步失败');
-    // @ts-expect-error - runtime type mismatch
+    // @ts-ignore - runtime type mismatch
     log.warn('[同步WithTracking] 错误类型:', error.constructor?.name);
-    // @ts-expect-error - error message access
+    // @ts-ignore - error message access
     log.warn('[同步WithTracking] 错误消息:', error?.message || error);
-    // @ts-expect-error - error stack access
+    // @ts-ignore - error stack access
     log.warn('[同步WithTracking] 错误堆栈:', error?.stack);
-    // @ts-expect-error - Axios error response access
+    // @ts-ignore - Axios error response access
     if (error?.response) {
-      // @ts-expect-error - Axios error response access
+      // @ts-ignore - Axios error response access
       log.warn('[同步WithTracking] API响应状态:', (error as Error & { response?: unknown }).response.status);
-      // @ts-expect-error - Axios error response access
+      // @ts-ignore - Axios error response access
       log.warn('[同步WithTracking] API响应数据:', JSON.stringify((error as Error & { response?: unknown }).response.data, null, 2));
     }
     return result;
@@ -305,7 +305,7 @@ AmazonSyncService.prototype.syncSpCampaignsWithTracking = async function(
 /**
  * 同步SB广告活动（带变更跟踪）
  */
-// @ts-expect-error Dynamic property access
+// @ts-ignore Dynamic property access
 AmazonSyncService.prototype.syncSbCampaignsWithTracking = async function(
   lastSyncTime?: string | null,
   syncJobId?: number | null
@@ -350,17 +350,17 @@ AmazonSyncService.prototype.syncSbCampaignsWithTracking = async function(
         sbCostType = 'vcpm';
       }
       if ((apiCampaign as Record<string, unknown>).costType) {
-        // @ts-expect-error Dynamic type assertion
+        // @ts-ignore Dynamic type assertion
         const apiCostType = String((apiCampaign as Record<string, unknown>).costType).toLowerCase();
-        // @ts-expect-error Conditional type narrowing
+        // @ts-ignore Conditional type narrowing
         if (apiCostType === 'vcpm' || apiCostType === 'cpm') {
-          // @ts-expect-error Legacy code type compatibility
+          // @ts-ignore Legacy code type compatibility
           sbCostType = apiCostType as 'vcpm' | 'cpm';
         }
       }
 
       // 获取SB广告格式
-      // @ts-expect-error Dynamic type assertion
+      // @ts-ignore Dynamic type assertion
       const sbAdFormat = (apiCampaign as Record<string, unknown>).adFormat || (apiCampaign as Record<string, unknown>).creative?.adFormat || null;
       const validAdFormats = ['productCollection', 'video', 'storeSpotlight', 'brandVideo'];
       const normalizedAdFormat = validAdFormats.includes(sbAdFormat) ? sbAdFormat : null;
@@ -371,11 +371,11 @@ AmazonSyncService.prototype.syncSbCampaignsWithTracking = async function(
         campaignName: apiCampaign.name,
         campaignType: 'sb' as const,
         targetingType: 'manual' as const,
-        // @ts-expect-error Conditional type narrowing
+        // @ts-ignore Conditional type narrowing
         dailyBudget: String(apiCampaign.budget?.budget || apiCampaign.budget || 0),
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         campaignStatus: ((apiCampaign.state || 'enabled').toLowerCase()) as 'enabled' | 'paused' | 'archived',
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         state: ((apiCampaign.state || 'enabled').toLowerCase()) as 'enabled' | 'paused' | 'archived' | 'pending' | 'other',
         costType: sbCostType, // ✅ 根据Goal动态设置
         campaignGoal: sbGoal || null, // ✅ 存储原始Goal值
@@ -388,19 +388,19 @@ AmazonSyncService.prototype.syncSbCampaignsWithTracking = async function(
         if (conflictCheck.hasConflict && syncJobId) {
           conflictRecords.push({
             syncJobId,
-            // @ts-expect-error Legacy code type compatibility
+            // @ts-ignore Legacy code type compatibility
             accountId: this.accountId,
             userId: this.userId,
             entityType: 'campaign',
             entityId: String(apiCampaign.campaignId),
-            // @ts-expect-error Legacy code type compatibility
+            // @ts-ignore Legacy code type compatibility
             entityName: apiCampaign.name,
             conflictType: 'data_mismatch',
             localData: existing,
             remoteData: campaignData,
             conflictFields: conflictCheck.conflictFields,
           });
-          // @ts-expect-error Legacy code type compatibility
+          // @ts-ignore Legacy code type compatibility
           result.conflicts++;
         }
 
@@ -412,12 +412,12 @@ AmazonSyncService.prototype.syncSbCampaignsWithTracking = async function(
             entityType: 'campaign',
             changeType: 'updated',
             entityId: String(apiCampaign.campaignId),
-            // @ts-expect-error Legacy code type compatibility
+            // @ts-ignore Legacy code type compatibility
             entityName: apiCampaign.name,
             previousData: existing,
             newData: campaignData,
             changedFields: Object.keys(campaignData).filter(k => 
-              // @ts-expect-error Dynamic type assertion
+              // @ts-ignore Dynamic type assertion
               (existing as Record<string, unknown>)[k] !== (campaignData as Record<string, unknown>[])[k as number]
             ),
           });
@@ -425,7 +425,7 @@ AmazonSyncService.prototype.syncSbCampaignsWithTracking = async function(
 
         await db
           .update(campaigns)
-          // @ts-expect-error DB query type inference limitation
+          // @ts-ignore DB query type inference limitation
           .set(campaignData)
           .where(eq(campaigns.id, existing.id));
         result.updated++;
@@ -438,13 +438,13 @@ AmazonSyncService.prototype.syncSbCampaignsWithTracking = async function(
             entityType: 'campaign',
             changeType: 'created',
             entityId: String(apiCampaign.campaignId),
-            // @ts-expect-error Legacy code type compatibility
+            // @ts-ignore Legacy code type compatibility
             entityName: apiCampaign.name,
             newData: campaignData,
           });
         }
 
-        // @ts-expect-error DB query type inference limitation
+        // @ts-ignore DB query type inference limitation
         await db.insert(campaigns).values({
           ...campaignData,
           createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
@@ -471,7 +471,7 @@ AmazonSyncService.prototype.syncSbCampaignsWithTracking = async function(
 /**
  * 同步SD广告活动（带变更跟踪）
  */
-// @ts-expect-error Dynamic property access
+// @ts-ignore Dynamic property access
 AmazonSyncService.prototype.syncSdCampaignsWithTracking = async function(
   lastSyncTime?: string | null,
   syncJobId?: number | null
@@ -482,7 +482,7 @@ AmazonSyncService.prototype.syncSdCampaignsWithTracking = async function(
   const result: SyncResultWithTracking = {
     synced: 0,
     skipped: 0,
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     created: 0,
     updated: 0,
     deleted: 0,
@@ -498,7 +498,7 @@ AmazonSyncService.prototype.syncSdCampaignsWithTracking = async function(
     for (const apiCampaign of apiCampaigns) {
       const [existing] = await db
         .select()
-        // @ts-expect-error DB query type inference limitation
+        // @ts-ignore DB query type inference limitation
         .from(campaigns)
         .where(
           and(
@@ -512,7 +512,7 @@ AmazonSyncService.prototype.syncSdCampaignsWithTracking = async function(
       // 始终使用Amazon API返回的最新数据更新本地记录
 
       // ✅ 获取SD广告的计费类型
-      // @ts-expect-error Dynamic type assertion
+      // @ts-ignore Dynamic type assertion
       const sdCostType = ((apiCampaign as Record<string, unknown>).costType || 'cpc').toLowerCase();
       const validCostTypes = ['cpc', 'vcpm', 'cpm'];
       const normalizedCostType = validCostTypes.includes(sdCostType) ? sdCostType : 'cpc';
@@ -526,10 +526,10 @@ AmazonSyncService.prototype.syncSdCampaignsWithTracking = async function(
       const sdTactic = (apiCampaign as Record<string, unknown>).tactic || null;
 
       // ✅ 获取SD广告的竞价优化目标
-      // @ts-expect-error Amazon API response type flexibility
+      // @ts-ignore Amazon API response type flexibility
       const sdBidOptimization = (apiCampaign as Record<string, unknown>).bidOptimization || null;
       const validBidOpts = ['reach', 'pageVisits', 'conversions'];
-      // @ts-expect-error Type inference limitation
+      // @ts-ignore Type inference limitation
       const normalizedBidOpt = validBidOpts.includes(sdBidOptimization) ? sdBidOptimization : null;
 
       const campaignData = {
@@ -538,18 +538,18 @@ AmazonSyncService.prototype.syncSdCampaignsWithTracking = async function(
         campaignName: apiCampaign.name,
         campaignType: 'sd' as const,
         targetingType: 'manual' as const,
-        // @ts-expect-error Conditional type narrowing
+        // @ts-ignore Conditional type narrowing
         dailyBudget: String(apiCampaign.budget?.budget || apiCampaign.budget || 0),
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         campaignStatus: ((apiCampaign.state || 'enabled').toLowerCase()) as 'enabled' | 'paused' | 'archived',
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         state: ((apiCampaign.state || 'enabled').toLowerCase()) as 'enabled' | 'paused' | 'archived' | 'pending' | 'other',
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         costType: normalizedCostType as 'cpc' | 'vcpm' | 'cpm', // ✅ 从API获取
         campaignGoal: sdGoal || null, // ✅ 存储SD广告目标
         bidOptimization: normalizedBidOpt, // ✅ 存储竞价优化目标
         tactic: sdTactic, // ✅ 存储定向策略
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
       };
 
@@ -557,38 +557,38 @@ AmazonSyncService.prototype.syncSdCampaignsWithTracking = async function(
         const conflictCheck = detectConflict(existing, campaignData, ['dailyBudget', 'status']);
         if (conflictCheck.hasConflict && syncJobId) {
           conflictRecords.push({
-            // @ts-expect-error Legacy code type compatibility
+            // @ts-ignore Legacy code type compatibility
             syncJobId,
             accountId: this.accountId,
             userId: this.userId,
             entityType: 'campaign',
             entityId: String(apiCampaign.campaignId),
-            // @ts-expect-error Legacy code type compatibility
+            // @ts-ignore Legacy code type compatibility
             entityName: apiCampaign.name,
             conflictType: 'data_mismatch',
             localData: existing,
             remoteData: campaignData,
             conflictFields: conflictCheck.conflictFields,
           });
-          // @ts-expect-error Legacy code type compatibility
+          // @ts-ignore Legacy code type compatibility
           result.conflicts++;
         }
 
         if (syncJobId) {
           changeRecords.push({
-            // @ts-expect-error Legacy code type compatibility
+            // @ts-ignore Legacy code type compatibility
             syncJobId,
             accountId: this.accountId,
             userId: this.userId,
             entityType: 'campaign',
             changeType: 'updated',
             entityId: String(apiCampaign.campaignId),
-            // @ts-expect-error Legacy code type compatibility
+            // @ts-ignore Legacy code type compatibility
             entityName: apiCampaign.name,
             previousData: existing,
             newData: campaignData,
             changedFields: Object.keys(campaignData).filter(k => 
-              // @ts-expect-error Dynamic type assertion
+              // @ts-ignore Dynamic type assertion
               (existing as Record<string, unknown>)[k] !== (campaignData as Record<string, unknown>[])[k as number]
             ),
           });
@@ -596,27 +596,27 @@ AmazonSyncService.prototype.syncSdCampaignsWithTracking = async function(
 
         await db
           .update(campaigns)
-          // @ts-expect-error DB query type inference limitation
+          // @ts-ignore DB query type inference limitation
           .set(campaignData)
           .where(eq(campaigns.id, existing.id));
         result.updated++;
       } else {
         if (syncJobId) {
           changeRecords.push({
-            // @ts-expect-error Legacy code type compatibility
+            // @ts-ignore Legacy code type compatibility
             syncJobId,
             accountId: this.accountId,
             userId: this.userId,
             entityType: 'campaign',
             changeType: 'created',
             entityId: String(apiCampaign.campaignId),
-            // @ts-expect-error Legacy code type compatibility
+            // @ts-ignore Legacy code type compatibility
             entityName: apiCampaign.name,
             newData: campaignData,
           });
         }
 
-        // @ts-expect-error DB query type inference limitation
+        // @ts-ignore DB query type inference limitation
         await db.insert(campaigns).values({
           ...campaignData,
           createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
@@ -643,7 +643,7 @@ AmazonSyncService.prototype.syncSdCampaignsWithTracking = async function(
 /**
  * 同步SP广告组（带变更跟踪）
  */
-// @ts-expect-error Dynamic property access
+// @ts-ignore Dynamic property access
 AmazonSyncService.prototype.syncSpAdGroupsWithTracking = async function(
   lastSyncTime?: string | null,
   syncJobId?: number | null
@@ -700,7 +700,7 @@ AmazonSyncService.prototype.syncSpAdGroupsWithTracking = async function(
       // Amazon API返回的state可能是大写的ENABLED/PAUSED/ARCHIVED，需要转换为小写
       const normalizedState = (apiAdGroup.state || 'enabled').toLowerCase() as 'enabled' | 'paused' | 'archived';
       
-      // @ts-expect-error Type inference limitation
+      // @ts-ignore Type inference limitation
       const adGroupData = {
         campaignId: campaign.campaignId,
         accountId: this.accountId,
@@ -741,7 +741,7 @@ AmazonSyncService.prototype.syncSpAdGroupsWithTracking = async function(
             previousData: existing,
             newData: adGroupData,
             changedFields: Object.keys(adGroupData).filter(k => 
-              // @ts-expect-error Dynamic type assertion
+              // @ts-ignore Dynamic type assertion
               (existing as Record<string, unknown>)[k] !== (adGroupData as Record<string, unknown>[])[k]
             ),
           });
@@ -751,7 +751,7 @@ AmazonSyncService.prototype.syncSpAdGroupsWithTracking = async function(
           .update(adGroups)
           .set(adGroupData)
           .where(eq(adGroups.id, existing.id));
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         result.updated++;
       } else {
         if (syncJobId) {
@@ -793,7 +793,7 @@ AmazonSyncService.prototype.syncSpAdGroupsWithTracking = async function(
 /**
  * 同步SP关键词（带变更跟踪）
  */
-// @ts-expect-error Dynamic property access
+// @ts-ignore Dynamic property access
 AmazonSyncService.prototype.syncSpKeywordsWithTracking = async function(
   lastSyncTime?: string | null,
   syncJobId?: number | null
@@ -860,7 +860,7 @@ AmazonSyncService.prototype.syncSpKeywordsWithTracking = async function(
       const normalizedMatchType = (apiKeyword.matchType || 'broad').toLowerCase() as 'broad' | 'phrase' | 'exact';
       const normalizedState = (apiKeyword.state || 'enabled').toLowerCase() as 'enabled' | 'paused' | 'archived';
       
-      // @ts-expect-error Type inference limitation
+      // @ts-ignore Type inference limitation
       const keywordData = {
         internalAdGroupId: adGroup.id,  // v418: ID体系重构
         accountId: this.accountId,
@@ -873,7 +873,7 @@ AmazonSyncService.prototype.syncSpKeywordsWithTracking = async function(
         updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
       };
 
-      // @ts-expect-error Conditional type narrowing
+      // @ts-ignore Conditional type narrowing
       if (existing) {
         // v523.2: 保护 amazon_deleted 状态不被同步覆盖
         if (existing.keywordStatus === 'amazon_deleted' && normalizedState !== 'archived') {
@@ -909,7 +909,7 @@ AmazonSyncService.prototype.syncSpKeywordsWithTracking = async function(
             previousData: existing,
             newData: keywordData,
             changedFields: Object.keys(keywordData).filter(k => 
-              // @ts-expect-error Dynamic type assertion
+              // @ts-ignore Dynamic type assertion
               (existing as Record<string, unknown>)[k] !== (keywordData as Record<string, unknown>[])[k]
             ),
           });
@@ -922,7 +922,7 @@ AmazonSyncService.prototype.syncSpKeywordsWithTracking = async function(
           const hasRecentOpt = protectedKeywordIds.has(existing.id);
           if (hasRecentOpt) {
             log.debug(`v150.1: 出价保护生效(WT) - keyword=${existing.keywordText}, local=$${localBid}, api=$${apiBid}`);
-            // @ts-expect-error Amazon API response type flexibility
+            // @ts-ignore Amazon API response type flexibility
             delete (keywordData as Record<string, unknown>[]).bid;
             protectionStats.bidProtected++;
             protectionStats.protectedEntities.push(`kw:${existing.keywordText}`);
@@ -933,7 +933,7 @@ AmazonSyncService.prototype.syncSpKeywordsWithTracking = async function(
 
         await db
           .update(keywords)
-          // @ts-expect-error DB query type inference limitation
+          // @ts-ignore DB query type inference limitation
           .set(keywordData)
           .where(eq(keywords.id, existing.id));
         result.updated++;
@@ -978,7 +978,7 @@ AmazonSyncService.prototype.syncSpKeywordsWithTracking = async function(
 /**
  * 同步SP商品定位（带变更跟踪）
  */
-// @ts-expect-error Dynamic property access
+// @ts-ignore Dynamic property access
 AmazonSyncService.prototype.syncSpProductTargetsWithTracking = async function(
   lastSyncTime?: string | null,
   syncJobId?: number | null
@@ -1064,7 +1064,7 @@ AmazonSyncService.prototype.syncSpProductTargetsWithTracking = async function(
         targetValue,
         bid: String(apiTarget.bid || 0),
         targetStatus: normalizedState,
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
       };
 
@@ -1097,14 +1097,14 @@ AmazonSyncService.prototype.syncSpProductTargetsWithTracking = async function(
             accountId: this.accountId,
             userId: this.userId,
             entityType: 'product_target',
-            // @ts-expect-error Legacy code type compatibility
+            // @ts-ignore Legacy code type compatibility
             changeType: 'updated',
             entityId: String(apiTarget.targetId),
             entityName: targetValue,
             previousData: existing,
             newData: targetData,
             changedFields: Object.keys(targetData).filter(k => 
-              // @ts-expect-error Dynamic type assertion
+              // @ts-ignore Dynamic type assertion
               (existing as Record<string, unknown>)[k] !== (targetData as Record<string, unknown>[])[k]
             ),
           });
@@ -1117,7 +1117,7 @@ AmazonSyncService.prototype.syncSpProductTargetsWithTracking = async function(
           const hasRecentOpt = protectedTargetIds.has(existing.id);
           if (hasRecentOpt) {
             log.debug(`v150.1: 出价保护生效(WT) - target=${existing.targetValue}, local=$${localBid}, api=$${apiBid}`);
-            // @ts-expect-error Amazon API response type flexibility
+            // @ts-ignore Amazon API response type flexibility
             delete (targetData as Record<string, unknown>[]).bid;
             protectionStats.bidProtected++;
             protectionStats.protectedEntities.push(`tgt:${existing.targetValue}`);
@@ -1145,7 +1145,7 @@ AmazonSyncService.prototype.syncSpProductTargetsWithTracking = async function(
           });
         }
 
-        // @ts-expect-error DB query type inference limitation
+        // @ts-ignore DB query type inference limitation
         await db.insert(productTargets).values({
           ...targetData,
           createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),

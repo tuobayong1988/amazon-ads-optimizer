@@ -54,48 +54,48 @@ async function checkDatabase() {
     return { dbStatus: 'error', reason: 'Database connection failed' };
   }
 
-  // @ts-expect-error - runtime type mismatch
+  // @ts-ignore - runtime type mismatch
   const results: Record<string, unknown>[] = {};
 
   // AMS Data Check
   try {
-    // @ts-expect-error - Drizzle raw SQL execution
+    // @ts-ignore - Drizzle raw SQL execution
     const [amsResult] = await db.execute(sql`
       SELECT COUNT(*) as count, MAX(createdAt) as lastReceived 
       FROM ams_performance_data 
       WHERE createdAt >= NOW() - INTERVAL '24 hours'
     `) as unknown;
-    // @ts-expect-error - runtime type mismatch
+    // @ts-ignore - runtime type mismatch
     results.amsData = amsResult[0];
-  // @ts-expect-error - error message access
+  // @ts-ignore - error message access
   } catch (e: unknown) { results.amsData = { error: (e as Error).message }; }
 
   // API Report Jobs Check
   try {
-    // @ts-expect-error - Drizzle raw SQL execution
+    // @ts-ignore - Drizzle raw SQL execution
     const [reportResult] = await db.execute(sql`
       SELECT status, COUNT(*) as count
       FROM report_jobs
       WHERE createdAt >= NOW() - INTERVAL '24 hours'
       GROUP BY status
     `) as unknown;
-    // @ts-expect-error - runtime type mismatch
+    // @ts-ignore - runtime type mismatch
     results.reportJobs = reportResult;
-  // @ts-expect-error - error message access
+  // @ts-ignore - error message access
   } catch (e: unknown) { results.reportJobs = { error: (e as Error).message }; }
 
   // Data Fusion Check
   try {
-    // @ts-expect-error - Drizzle raw SQL execution
+    // @ts-ignore - Drizzle raw SQL execution
     const [fusionResult] = await db.execute(sql`
       SELECT dataSource, COUNT(*) as count, MAX(date) as latestDate
       FROM daily_performance
       WHERE date >= CURRENT_DATE - INTERVAL '3 days'
       GROUP BY dataSource
     `) as unknown;
-    // @ts-expect-error - runtime type mismatch
+    // @ts-ignore - runtime type mismatch
     results.dataFusion = fusionResult;
-  // @ts-expect-error - error message access
+  // @ts-ignore - error message access
   } catch (e: unknown) { results.dataFusion = { error: (e as Error).message }; }
 
   return { dbStatus: 'ok', ...results };

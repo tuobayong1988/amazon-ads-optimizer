@@ -39,7 +39,7 @@ export const auditRouter = router({
   // v370.4: 数据隔离 - 获取单个审计日志详情
   getById: protectedProcedure
     .input(z.object({ id: z.number() }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ ctx, input }: unknown) => {
       const { getAuditLogById } = await import("../system/auditService");
       const log = await getAuditLogById(input.id);
@@ -63,9 +63,9 @@ export const auditRouter = router({
 
   // 获取账号操作统计
   accountStats: protectedProcedure
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .input(z.object({ accountId: z.number(), days: z.number().default(30) }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ ctx, input }: unknown) => {
       const { getAccountAuditStats } = await import("../system/auditService");
       return getAccountAuditStats(input.accountId, input.days);

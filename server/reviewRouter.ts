@@ -35,7 +35,7 @@ export const reviewRouter = router({
       campaignIds: z.array(z.number()).optional(),
       days: z.number().default(30),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ input }: unknown) => {
       return await getNgramAnalysisSummary(input.accountId, input.campaignIds, input.days);
     }),
@@ -48,9 +48,9 @@ export const reviewRouter = router({
       accountId: z.number(),
       campaignIds: z.array(z.number()).optional(),
       days: z.number().default(30),
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ input }: unknown) => {
       return await generateNegativeKeywordSuggestions(input.accountId, input.campaignIds, input.days);
     }),
@@ -62,10 +62,10 @@ export const reviewRouter = router({
     .input(z.object({
       accountId: z.number(),
       campaignIds: z.array(z.number()).optional(),
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       days: z.number().default(30),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ input }: unknown) => {
       return await generateNgramAnalysisReport(input.accountId, input.campaignIds, input.days);
     }),
@@ -81,15 +81,15 @@ export const reviewRouter = router({
       decisions: z.array(z.object({
         ngram: z.string(),
         matchType: z.enum(['phrase', 'exact']),
-        // @ts-expect-error Dynamic property access
+        // @ts-ignore Dynamic property access
         action: z.enum(['accept', 'reject']),
       })),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .mutation(async ({ input, ctx }: unknown) => {
-      // @ts-expect-error - array method type inference
+      // @ts-ignore - array method type inference
       const accepted = input.decisions.filter(d => d.action === 'accept');
-      // @ts-expect-error - array method type inference
+      // @ts-ignore - array method type inference
       const rejected = input.decisions.filter(d => d.action === 'reject');
       
       // 执行接受的否词
@@ -101,7 +101,7 @@ export const reviewRouter = router({
           input.accountId,
           input.campaignId,
           input.adGroupId,
-          // @ts-expect-error - array method type inference
+          // @ts-ignore - array method type inference
           accepted.map(a => ({ keyword: a.ngram, matchType: a.matchType }))
         );
         addedCount = result.addedCount;
@@ -126,12 +126,12 @@ export const reviewRouter = router({
   acceptAllNegativeSuggestions: protectedProcedure
     .input(z.object({
       accountId: z.number(),
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       campaignId: z.number(),
       adGroupId: z.number().nullable(),
       days: z.number().default(30),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .mutation(async ({ input }: unknown) => {
       // 获取所有建议
       const suggestions = await generateNegativeKeywordSuggestions(
@@ -162,13 +162,13 @@ export const reviewRouter = router({
    * 获取迁移摘要
    */
   getMigrationSummary: protectedProcedure
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .input(z.object({
       accountId: z.number(),
       campaignIds: z.array(z.number()).optional(),
       days: z.number().default(30),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ input }: unknown) => {
       return await getMigrationSummary(input.accountId, input.campaignIds, input.days);
     }),
@@ -177,14 +177,14 @@ export const reviewRouter = router({
    * 获取迁移建议列表（供审核）
    */
   getMigrationSuggestions: protectedProcedure
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .input(z.object({
       accountId: z.number(),
       campaignIds: z.array(z.number()).optional(),
       days: z.number().default(30),
       targetRoas: z.number().default(3.0),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ input }: unknown) => {
       return await generateMigrationSuggestions(
         input.accountId,
@@ -203,7 +203,7 @@ export const reviewRouter = router({
       campaignIds: z.array(z.number()).optional(),
       days: z.number().default(30),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ input }: unknown) => {
       return await detectTrafficConflicts(input.accountId, input.campaignIds, input.days);
     }),
@@ -212,7 +212,7 @@ export const reviewRouter = router({
    * 批量审核迁移建议
    */
   reviewMigrationSuggestions: protectedProcedure
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .input(z.object({
       accountId: z.number(),
       decisions: z.array(z.object({
@@ -221,11 +221,11 @@ export const reviewRouter = router({
         action: z.enum(['accept', 'reject']),
       })),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .mutation(async ({ input }: unknown) => {
-      // @ts-expect-error - array method type inference
+      // @ts-ignore - array method type inference
       const accepted = input.decisions.filter(d => d.action === 'accept');
-      // @ts-expect-error - array method type inference
+      // @ts-ignore - array method type inference
       const rejected = input.decisions.filter(d => d.action === 'reject');
       
       // 执行接受的隔离
@@ -235,7 +235,7 @@ export const reviewRouter = router({
       if (accepted.length > 0) {
         const result = await executeTrafficIsolation(
           input.accountId,
-          // @ts-expect-error - array method type inference
+          // @ts-ignore - array method type inference
           accepted.map(a => ({
             searchTerm: a.searchTerm,
             campaignId: a.sourceCampaignId,
@@ -258,7 +258,7 @@ export const reviewRouter = router({
    * 批量审核冲突消解建议
    */
   reviewConflictResolutions: protectedProcedure
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .input(z.object({
       accountId: z.number(),
       decisions: z.array(z.object({
@@ -268,11 +268,11 @@ export const reviewRouter = router({
         action: z.enum(['accept', 'reject']),
       })),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .mutation(async ({ input }: unknown) => {
-      // @ts-expect-error - array method type inference
+      // @ts-ignore - array method type inference
       const accepted = input.decisions.filter(d => d.action === 'accept');
-      // @ts-expect-error - array method type inference
+      // @ts-ignore - array method type inference
       const rejected = input.decisions.filter(d => d.action === 'reject');
       
       // 执行接受的冲突消解
@@ -283,7 +283,7 @@ export const reviewRouter = router({
         // 在所有loser campaign中添加精准否定
         const result = await executeTrafficIsolation(
           input.accountId,
-          // @ts-expect-error - array method type inference
+          // @ts-ignore - array method type inference
           decision.loserCampaignIds.map(campaignId => ({
             searchTerm: decision.searchTerm,
             campaignId,
@@ -311,7 +311,7 @@ export const reviewRouter = router({
       campaignIds: z.array(z.number()).optional(),
       days: z.number().default(30),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .mutation(async ({ input }: unknown) => {
       // 获取所有冲突
       const conflicts = await detectTrafficConflicts(
@@ -355,7 +355,7 @@ export const reviewRouter = router({
       type: z.enum(['negative', 'migration', 'conflict']).optional(),
       limit: z.number().default(50),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ input }: unknown) => {
       // 返回空数组，因为审核历史表可能不存在
       return [];

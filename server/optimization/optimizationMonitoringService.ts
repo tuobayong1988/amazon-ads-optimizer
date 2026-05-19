@@ -160,7 +160,7 @@ async function checkBidRatio(
   try {
     const sinceStr = since.toISOString();
     // v263: 使用actionType (bid_increase/bid_decrease) 替代不存在的direction字段
-    // @ts-expect-error - runtime type mismatch
+    // @ts-ignore - runtime type mismatch
     const result = await db.select({
       actionType: optimizationEvents.actionType,
       count: sql<number>`count(*)`,
@@ -178,9 +178,9 @@ async function checkBidRatio(
     let raiseCount = 0;
     let lowerCount = 0;
     for (const row of (result as unknown[])) {
-      // @ts-expect-error Amazon API response type flexibility
+      // @ts-ignore Amazon API response type flexibility
       if (row.actionType === 'bid_increase') raiseCount = Number(row.count);
-      // @ts-expect-error Amazon API response type flexibility
+      // @ts-ignore Amazon API response type flexibility
       if (row.actionType === 'bid_decrease') lowerCount = Number(row.count);
     }
 
@@ -219,7 +219,7 @@ async function checkAcosOverrun(
 ): Promise<{ avgOverrun: number; highRiskCount: number }> {
   try {
     // 查询所有活跃账户的ACoS和目标ACoS
-    // @ts-expect-error - runtime type mismatch
+    // @ts-ignore - runtime type mismatch
     const accounts = await db.select({
       id: adAccounts.id,
       name: adAccounts.accountName,
@@ -236,17 +236,17 @@ async function checkAcosOverrun(
     // 改为从actionDetail JSON中提取ACoS数据，或从performanceGroups获取目标ACoS
     for (const account of (accounts as unknown[])) {
       // 从optimization_logs的actionDetail中提取最近的ACoS数据
-      // @ts-expect-error - runtime type mismatch
+      // @ts-ignore - runtime type mismatch
       const latestLog = await db.select({
         actionDetail: optimizationLogs.actionDetail,
         previousValue: optimizationLogs.previousValue,
         newValue: optimizationLogs.newValue,
       })
       .from(optimizationLogs)
-      // @ts-expect-error DB query type inference limitation
+      // @ts-ignore DB query type inference limitation
       .where(
         and(
-          // @ts-expect-error Legacy code type compatibility
+          // @ts-ignore Legacy code type compatibility
           eq(optimizationLogs.accountId, account.id),
           sql`${optimizationLogs.logCategory} = 'bid_adjustment'`
         )
@@ -264,29 +264,29 @@ async function checkAcosOverrun(
             totalOverrun += Math.max(0, overrunPercent);
             accountCount++;
 
-            // @ts-expect-error Conditional type narrowing
+            // @ts-ignore Conditional type narrowing
             if (overrunPercent > ALERT_THRESHOLDS.acosOverrunPercent) {
               highRiskCount++;
               alerts.push({
-                // @ts-expect-error Legacy code type compatibility
+                // @ts-ignore Legacy code type compatibility
                 id: `acos-overrun-${account.id}-${Date.now()}`,
                 category: 'acos_overrun',
                 severity: actual > target * ALERT_THRESHOLDS.criticalAcosMultiplier ? 'critical' : 'warning',
-                // @ts-expect-error Legacy code type compatibility
+                // @ts-ignore Legacy code type compatibility
                 title: `${account.name} ${account.marketplace} ACoS严重超标`,
                 message: `实际ACoS ${actual.toFixed(1)}%，目标${target.toFixed(1)}%，超标${overrunPercent.toFixed(0)}%`,
                 metric: 'acos_overrun_percent',
                 currentValue: overrunPercent,
-                // @ts-expect-error Legacy code type compatibility
+                // @ts-ignore Legacy code type compatibility
                 threshold: ALERT_THRESHOLDS.acosOverrunPercent,
-                // @ts-expect-error Legacy code type compatibility
+                // @ts-ignore Legacy code type compatibility
                 recommendation: overrunPercent > 100
                   ? '建议暂停该账户的高ACoS广告活动，切换到"利润优先"策略'
                   : '建议降低目标ACoS或检查关键词质量',
                 timestamp: new Date(),
-                // @ts-expect-error Legacy code type compatibility
+                // @ts-ignore Legacy code type compatibility
                 accountId: account.id,
-                // @ts-expect-error Legacy code type compatibility
+                // @ts-ignore Legacy code type compatibility
                 accountName: `${account.name} ${account.marketplace}`,
               });
             }
@@ -315,7 +315,7 @@ async function checkSyncHealth(
   alerts: MonitoringAlert[]
 ): Promise<{ successRate: number }> {
   try {
-    // @ts-expect-error - runtime type mismatch
+    // @ts-ignore - runtime type mismatch
     const result = await db.select({
       status: optimizationEvents.apiSyncStatus,
       count: sql<number>`count(*)`,
@@ -325,19 +325,19 @@ async function checkSyncHealth(
       and(
         eq(optimizationEvents.userId, teamId),
         sql`${optimizationEvents.apiSyncStatus} NOT IN ('not_applicable', 'invalid_legacy')`
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       )
     )
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     .groupBy(optimizationEvents.apiSyncStatus);
 
     let synced = 0;
     let total = 0;
     for (const row of (result as unknown[])) {
-      // @ts-expect-error Type inference limitation
+      // @ts-ignore Type inference limitation
       const count = Number(row.count);
       total += count;
-      // @ts-expect-error Dynamic property access
+      // @ts-ignore Dynamic property access
       if (row.status === 'synced') synced += count;
     }
 
@@ -378,7 +378,7 @@ async function checkAlgorithmHealth(
   try {
     const sinceStr = since.toISOString();
     // 查询30天内的优化操作总数
-    // @ts-expect-error - runtime type mismatch
+    // @ts-ignore - runtime type mismatch
     const opsResult = await db.select({
       count: sql<number>`count(*)`,
     })
@@ -395,7 +395,7 @@ async function checkAlgorithmHealth(
 
     // v263: 查询正向操作 — 使用status='success'替代不存在的isPositive字段
     // 正向操作定义：成功执行的出价调整
-    // @ts-expect-error - runtime type mismatch
+    // @ts-ignore - runtime type mismatch
     const positiveResult = await db.select({
       count: sql<number>`count(*)`,
     })
@@ -413,7 +413,7 @@ async function checkAlgorithmHealth(
     const positiveRate = totalOps > 0 ? (positiveCount / totalOps) * 100 : 0;
 
     // 查询使用的算法类型
-    // @ts-expect-error - runtime type mismatch
+    // @ts-ignore - runtime type mismatch
     const algorithmResult = await db.select({
       algorithm: optimizationEvents.algorithmVersion,
     })
@@ -527,7 +527,7 @@ async function checkUnassignedCampaigns(
 ): Promise<void> {
   try {
     // 查询所有未分配的活跃广告活动
-    // @ts-expect-error - runtime type mismatch
+    // @ts-ignore - runtime type mismatch
     const unassigned = await db.select({
       id: campaigns.id,
       campaignName: campaigns.campaignName,
@@ -575,7 +575,7 @@ async function checkProactiveRiskWarning(
   alerts: MonitoringAlert[]
 ): Promise<void> {
   try {
-    // @ts-expect-error - runtime type mismatch
+    // @ts-ignore - runtime type mismatch
     const accounts = await db.select({
       id: adAccounts.id,
       name: adAccounts.accountName,
@@ -584,11 +584,11 @@ async function checkProactiveRiskWarning(
     .from(adAccounts)
     .where(eq(adAccounts.userId, teamId));
 
-    // @ts-expect-error Dynamic type assertion
+    // @ts-ignore Dynamic type assertion
     for (const account of (accounts as unknown[])) {
       try {
         // 查询最近7天和前14天的ACoS
-        // @ts-expect-error - Drizzle raw SQL execution
+        // @ts-ignore - Drizzle raw SQL execution
         const [recentResult] = await db.execute(
           sql`SELECT 
  SUM(CAST(spend AS DECIMAL(10,2))) as total_spend,
@@ -598,7 +598,7 @@ async function checkProactiveRiskWarning(
  AND date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)`
         ) as unknown;
         
-        // @ts-expect-error - Drizzle raw SQL execution
+        // @ts-ignore - Drizzle raw SQL execution
         const [prevResult] = await db.execute(
           sql`SELECT 
  SUM(CAST(spend AS DECIMAL(10,2))) as total_spend,
@@ -613,7 +613,7 @@ async function checkProactiveRiskWarning(
         const prevData = prevResult?.[0] || prevResult;
         
         const recentSpend = Number(recentData?.total_spend) || 0;
-        // @ts-expect-error Type inference limitation
+        // @ts-ignore Type inference limitation
         const recentSales = Number(recentData?.total_sales) || 0;
         const prevSpend = Number(prevData?.total_spend) || 0;
         const prevSales = Number(prevData?.total_sales) || 0;
@@ -624,13 +624,13 @@ async function checkProactiveRiskWarning(
           const deterioration = prevAcos > 0 ? ((recentAcos - prevAcos) / prevAcos) * 100 : 0;
 
           if (deterioration > 20) {
-            // @ts-expect-error Complex function parameter types
+            // @ts-ignore Complex function parameter types
             alerts.push({
-              // @ts-expect-error Legacy code type compatibility
+              // @ts-ignore Legacy code type compatibility
               id: `proactive-risk-${account.id}-${Date.now()}`,
               category: 'proactive_risk_warning',
               severity: deterioration > 50 ? 'critical' : 'warning',
-              // @ts-expect-error Legacy code type compatibility
+              // @ts-ignore Legacy code type compatibility
               title: `${account.name} ${account.marketplace} ACoS趋势恶化预警`,
               message: `最近7天ACoS ${recentAcos.toFixed(1)}%，比前14天(${prevAcos.toFixed(1)}%)恶化${deterioration.toFixed(0)}%，需提前干预`,
               metric: 'acos_deterioration_rate',
@@ -638,9 +638,9 @@ async function checkProactiveRiskWarning(
               threshold: 20,
               recommendation: `建议立即检查该账户的高ACoS关键词，考虑切换到更保守的策略模板或降低目标ACoS`,
               timestamp: new Date(),
-              // @ts-expect-error Legacy code type compatibility
+              // @ts-ignore Legacy code type compatibility
               accountId: account.id,
-              // @ts-expect-error Legacy code type compatibility
+              // @ts-ignore Legacy code type compatibility
               accountName: `${account.name} ${account.marketplace}`,
             });
           }

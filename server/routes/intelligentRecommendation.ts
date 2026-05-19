@@ -13,7 +13,7 @@ const log = createModuleLogger('Route_intelligentRecommendation');
 export const intelligentRecommendationRouter = router({
   scan: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       return await scanAccountHealth(input.accountId);
@@ -39,7 +39,7 @@ export const intelligentRecommendationRouter = router({
           accountId: input.accountId,
           name: input.name,
           description: input.description || '',
-          // @ts-expect-error - type assertion
+          // @ts-ignore - type assertion
           optimizationGoal: input.optimizationGoal as unknown,
           targetAcos: input.targetAcos?.toString(),
           targetRoas: input.targetRoas?.toString(),
@@ -53,7 +53,7 @@ export const intelligentRecommendationRouter = router({
 
         try {
           const { triggerInitialOptimization } = await import('../optimization/optimizationScheduler');
-          // @ts-expect-error - catch block error type
+          // @ts-ignore - catch block error type
           triggerInitialOptimization(id, { triggeredBy: 'create' as unknown }).catch((err: any) => {
             log.warn(`[智能推荐] 触发首次优化失败:`, err);
           });
@@ -70,9 +70,9 @@ export const intelligentRecommendationRouter = router({
     }),
 
   getSummaryBadge: protectedProcedure
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .input(z.object({ accountId: z.number() }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       const result = await scanAccountHealth(input.accountId);

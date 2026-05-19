@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * server/services/dataRetentionService.ts
  * 

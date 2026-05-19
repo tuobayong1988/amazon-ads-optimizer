@@ -255,7 +255,7 @@ export async function syncSearchTerms(service: SyncContext,days: number = 14): P
     const allAdGroups = await db
       .select({ id: adGroups.id, adGroupId: adGroups.adGroupId })
       .from(adGroups)
-      // @ts-expect-error - property exists at runtime
+      // @ts-ignore - property exists at runtime
       .where(eq(adGroups.accountId, service.accountId));
     const adGroupMap = new Map<string, { id: number }>();
     for (const ag of allAdGroups) {
@@ -266,7 +266,7 @@ export async function syncSearchTerms(service: SyncContext,days: number = 14): P
     const allKeywords = await db
       .select({ id: keywords.id, adGroupId: keywords.internalAdGroupId, keywordText: keywords.keywordText, matchType: keywords.matchType })
       .from(keywords)
-      // @ts-expect-error - property exists at runtime
+      // @ts-ignore - property exists at runtime
       .where(eq(keywords.accountId, service.accountId));
     const keywordMap = new Map<string, { id: number; matchType: string | null }>();
     for (const kw of (allKeywords as unknown[])) {
@@ -278,7 +278,7 @@ export async function syncSearchTerms(service: SyncContext,days: number = 14): P
     const allTargets = await db
       .select({ id: productTargets.id, adGroupId: productTargets.internalAdGroupId, targetValue: productTargets.targetValue, targetMatchType: productTargets.targetMatchType })
       .from(productTargets)
-      // @ts-expect-error - property exists at runtime
+      // @ts-ignore - property exists at runtime
       .where(eq(productTargets.accountId, service.accountId));
     const targetMap = new Map<string, { id: number; targetMatchType: string | null }>();
     for (const t of allTargets) {
@@ -349,7 +349,7 @@ export async function syncSearchTerms(service: SyncContext,days: number = 14): P
 
       const searchTermData = {
         accountId: service.accountId,
-        // @ts-expect-error - property exists at runtime
+        // @ts-ignore - property exists at runtime
         campaignId: campaign.campaignId,
         internalAdGroupId: adGroup.id,
         searchTerm: searchTermText,

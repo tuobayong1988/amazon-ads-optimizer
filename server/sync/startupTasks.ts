@@ -14,7 +14,7 @@ async function zombieCleanup() {
       let totalZombies = 0;
       for (let batch = 0; batch < 10; batch++) {
         const [r] = await conn.execute(
-          "UPDATE data_sync_jobs SET status='failed', errorMessage=CONCAT(COALESCE(errorMessage,''),' [v614i-fix9] zombie cleanup: stale >2h') WHERE status='running' AND startedAt < DATE_SUB(NOW(), INTERVAL 2 HOUR) LIMIT 50"
+          "UPDATE data_sync_jobs SET status='failed', errorMessage=CONCAT(COALESCE(errorMessage,''),' [v772] zombie cleanup: heartbeat stale >180min'), completedAt=NOW() WHERE status='running' AND COALESCE(updated_at, startedAt) < DATE_SUB(NOW(), INTERVAL 180 MINUTE) LIMIT 50"
         );
         const affected = r.affectedRows;
         totalZombies += affected;
@@ -160,7 +160,7 @@ async function autoArchiveTasks() {
         "UPDATE optimization_tasks SET status='failed', error_message=CONCAT(COALESCE(error_message,''),' [v607] stuck processing') WHERE status='processing' AND created_at<DATE_SUB(NOW(),INTERVAL 24 HOUR) LIMIT 100"
       );
       const [r4] = await conn.execute(
-        "UPDATE data_sync_jobs SET status='failed', errorMessage=CONCAT(COALESCE(errorMessage,''),' [v607] stuck running'), completedAt=NOW() WHERE status='running' AND startedAt<DATE_SUB(NOW(),INTERVAL 2 HOUR) LIMIT 50"
+        "UPDATE data_sync_jobs SET status='failed', errorMessage=CONCAT(COALESCE(errorMessage,''),' [v772] stuck running: heartbeat stale >180min'), completedAt=NOW() WHERE status='running' AND COALESCE(updated_at, startedAt)<DATE_SUB(NOW(),INTERVAL 180 MINUTE) LIMIT 50"
       );
       const [r5] = await conn.execute(
         "UPDATE optimization_events SET status='failed' WHERE status='processing' AND created_at<DATE_SUB(NOW(),INTERVAL 24 HOUR) LIMIT 100"
@@ -183,7 +183,7 @@ async function accountHealthManager() {
       const [orphanRows] = await conn.execute(`
         UPDATE data_sync_jobs j
         LEFT JOIN ad_accounts a ON j.accountId = a.id
-        SET j.status='failed', j.errorMessage='v546: \u8D26\u6237\u4E0D\u5B58\u5728\u6216\u5DF2\u5220\u9664', j.completedAt=UTC_TIMESTAMP()
+        SET j.status='failed', j.errorMessage='v546: \u8D26\u6237\u4E0D\u5B58\u5728\u6216\u5DF2\u5220\u9664', j.completedAt=NOW()
         WHERE j.status IN ('running','queued') AND a.id IS NULL
       `);
       if (orphanRows.affectedRows > 0) {
@@ -304,11 +304,11 @@ async function healthCheckAndCleanup() {
         log214.info(`Health-check: reset ${r1.affectedRows} stale error accounts to idle`);
       }
       const [runningJobs] = await conn.execute(
-        "SELECT id, accountId, startedAt, lastHeartbeat, progress, stepDetails FROM data_sync_jobs WHERE status='running' ORDER BY startedAt ASC"
+        "SELECT id, accountId, startedAt, updated_at AS heartbeatAt, progress_percent AS progress, step_details AS stepDetails, TIMESTAMPDIFF(MINUTE, startedAt, NOW()) AS runMin, TIMESTAMPDIFF(SECOND, COALESCE(updated_at, startedAt), NOW()) AS hbAge FROM data_sync_jobs WHERE status='running' ORDER BY startedAt ASC"
       );
       for (const job of runningJobs) {
-        const runMin = Math.round((Date.now() - new Date(job.startedAt).getTime()) / 6e4);
-        const hbAge = job.lastHeartbeat ? Math.round((Date.now() - new Date(job.lastHeartbeat).getTime()) / 1e3) : 9999;
+        const runMin = Number(job.runMin ?? 0);
+        const hbAge = Number(job.hbAge ?? 9999);
         const progress = job.progress || 0;
         let activityScore = 0;
         if (hbAge < 60) activityScore += 40;
@@ -330,13 +330,13 @@ async function healthCheckAndCleanup() {
         } else {
           log214.warn(`Health-check: \u274C Job#${job.id} (account ${job.accountId}) running ${runMin}min, heartbeat ${hbAge}s ago, progress ${progress}%, activity=${activityScore} \u2192 confirmed stuck, marking failed`);
           await conn.execute(
-            "UPDATE data_sync_jobs SET status='failed', errorMessage=CONCAT(COALESCE(errorMessage,''),' [v608] health-check: heartbeat timeout >30min, activity='+?) WHERE id=?",
+            "UPDATE data_sync_jobs SET status='failed', completedAt=NOW(), errorMessage=CONCAT(COALESCE(errorMessage,''),' [v772] health-check: heartbeat timeout >30min, activity=',?) WHERE id=? AND status='running' AND COALESCE(updated_at, startedAt) < DATE_SUB(NOW(), INTERVAL 30 MINUTE)",
             [String(activityScore), job.id]
           );
         }
       }
       const [ultraLong] = await conn.execute(
-        "UPDATE data_sync_jobs SET status='failed', errorMessage=CONCAT(COALESCE(errorMessage,''),' [v608] hard-limit: exceeded 6h maximum') WHERE status='running' AND startedAt < DATE_SUB(NOW(), INTERVAL 6 HOUR)"
+        "UPDATE data_sync_jobs SET status='failed', completedAt=NOW(), errorMessage=CONCAT(COALESCE(errorMessage,''),' [v772] hard-limit: exceeded 6h and heartbeat stale >30min') WHERE status='running' AND startedAt < DATE_SUB(NOW(), INTERVAL 6 HOUR) AND COALESCE(updated_at, startedAt) < DATE_SUB(NOW(), INTERVAL 30 MINUTE)"
       );
       if (ultraLong.affectedRows > 0) {
         log214.warn(`Health-check: force-killed ${ultraLong.affectedRows} jobs exceeding 6h hard limit`);

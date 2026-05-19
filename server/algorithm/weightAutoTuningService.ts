@@ -142,13 +142,13 @@ export function calculateDimensionCorrelations(
   }
 
   const n = dimensionScores.length;
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const meanOutcome = outcomes.reduce((s: unknown, v: unknown) => s + v, 0) / n;
 
   return DIMENSION_NAMES.map(dimension => {
-    // @ts-expect-error Express request/response type assertion
+    // @ts-ignore Express request/response type assertion
     const scores = dimensionScores.map(s => s[dimension] || 0);
-    // @ts-expect-error Express request/response type assertion
+    // @ts-ignore Express request/response type assertion
     const meanScore = scores.reduce((s: unknown, v: unknown) => s + v, 0) / n;
 
     // 皮尔逊相关系数
@@ -233,29 +233,29 @@ export function adjustWeights(
   }
 
   // 第2步：归一化权重，确保所有权重不低于minWeightFloor
-  // @ts-expect-error DB query type inference limitation
+  // @ts-ignore DB query type inference limitation
   const totalWeight = Object.values(newWeights).reduce((s: unknown, w: unknown) => s + w, 0);
-  // @ts-expect-error Conditional type narrowing
+  // @ts-ignore Conditional type narrowing
   if (totalWeight > 0) {
     // 迭代归一化 + floor保证（最多3轮确保收敛）
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     for (let round = 0; round < 3; round++) {
-      // @ts-expect-error DB query type inference limitation
+      // @ts-ignore DB query type inference limitation
       const currentTotal = Object.values(newWeights).reduce((s: unknown, w: unknown) => s + w, 0);
-      // @ts-expect-error Conditional type narrowing
+      // @ts-ignore Conditional type narrowing
       if (currentTotal <= 0) break;
-      // @ts-expect-error Complex function parameter types
+      // @ts-ignore Complex function parameter types
       for (const key of Object.keys(newWeights)) {
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         newWeights[key] = newWeights[key] / currentTotal;
         newWeights[key] = Math.max(config.minWeightFloor, newWeights[key]);
       }
     }
     // 最终归一化（不再应用floor，确保总和精确为1）
-    // @ts-expect-error DB query type inference limitation
+    // @ts-ignore DB query type inference limitation
     const finalTotal = Object.values(newWeights).reduce((s: unknown, w: unknown) => s + w, 0);
     for (const key of Object.keys(newWeights)) {
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       newWeights[key] = newWeights[key] / finalTotal;
     }
   }

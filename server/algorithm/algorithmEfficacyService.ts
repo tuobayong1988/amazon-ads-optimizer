@@ -31,7 +31,7 @@ export async function getAlgorithmEfficacyForTarget(
   
   try {
     // 1. 从optimization_logs获取出价调整记录的算法层级分布
-    // @ts-expect-error - Drizzle raw SQL execution
+    // @ts-ignore - Drizzle raw SQL execution
     const [bidLogs] = await dbInstance.execute(
       sql`SELECT action_detail FROM optimization_logs 
           WHERE performance_group_id = ${targetId}
@@ -51,7 +51,7 @@ export async function getAlgorithmEfficacyForTarget(
     if (bidLogs && bidLogs.length > 0) {
       for (const log of (bidLogs as unknown[])) {
         try {
-          // @ts-expect-error Dynamic property access
+          // @ts-ignore Dynamic property access
           const detail = typeof log.action_detail === 'string' ? JSON.parse(log.action_detail) : log.action_detail;
           if (!detail) continue;
           
@@ -96,7 +96,7 @@ export async function getAlgorithmEfficacyForTarget(
     // 2. 从algorithm_effect_records获取正向率（如果有更精确的数据）
     let precisePositiveRate: number | null = null;
     try {
-      // @ts-expect-error - Drizzle raw SQL execution
+      // @ts-ignore - Drizzle raw SQL execution
       const [effectStats] = await dbInstance.execute(
         sql`SELECT 
               COUNT(*) as total,
@@ -121,7 +121,7 @@ export async function getAlgorithmEfficacyForTarget(
     let evolutionCorrections = 0;
     let improvementTrend = 'stable';
     try {
-      // @ts-expect-error - Drizzle raw SQL execution
+      // @ts-ignore - Drizzle raw SQL execution
       const [evoStats] = await dbInstance.execute(
         sql`SELECT 
               COUNT(*) as total_corrections,

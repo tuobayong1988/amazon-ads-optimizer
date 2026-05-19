@@ -89,32 +89,60 @@ async function executeTask(task) {
       );
     }
     const { syncAccount: syncAccount2 } = await Promise.resolve().then(() => (init_unifiedSyncEngine(), unifiedSyncEngine_exports));
-    const skipStepsArray = checkpoint ? checkpoint.completedStepIds : [];
+    const skipStepsArray = checkpoint && Array.isArray(checkpoint.completedStepIds) ? checkpoint.completedStepIds : [];
+    const completedStepIds = new Set(skipStepsArray);
+    let checkpointTotalSynced = typeof checkpoint?.totalSynced === "number" ? checkpoint.totalSynced : 0;
+    let checkpointCurrentStepIndex = typeof checkpoint?.currentStepIndex === "number" ? checkpoint.currentStepIndex : 0;
+    let checkpointTotalSteps = typeof checkpoint?.totalSteps === "number" ? checkpoint.totalSteps : 0;
+    const persistTaskCheckpoint = /* @__PURE__ */ __name(async (reason = "progress") => {
+      const updatedCheckpoint = {
+        taskId: task.id,
+        accountId: task.accountId,
+        tier: task.tier,
+        completedStepIds: Array.from(completedStepIds),
+        currentStepIndex: checkpointCurrentStepIndex,
+        totalSteps: checkpointTotalSteps,
+        totalSynced: checkpointTotalSynced,
+        elapsedMs: Date.now() - startTime,
+        reason,
+        savedAt: (/* @__PURE__ */ new Date()).toISOString()
+      };
+      await saveTaskCheckpoint(updatedCheckpoint).catch(() => {
+      });
+    }, "persistTaskCheckpoint");
     const syncResult = await syncAccount2(
       { accountId: task.accountId },
       task.tier,
       {
         skipSteps: skipStepsArray,
-        onProgress: /* @__PURE__ */ __name(async (stepName, stepIndex, totalSteps) => {
-          const updatedCheckpoint = {
-            taskId: task.id,
-            accountId: task.accountId,
-            tier: task.tier,
-            completedStepIds: [...skipStepsArray],
-            // 当前已完成的步骤
-            currentStepIndex: stepIndex,
-            totalSteps,
-            totalSynced: 0,
-            elapsedMs: Date.now() - startTime,
-            savedAt: (/* @__PURE__ */ new Date()).toISOString()
-          };
-          await saveTaskCheckpoint(updatedCheckpoint).catch(() => {
-          });
+        onProgress: /* @__PURE__ */ __name(async (_stepName, stepIndex, totalSteps) => {
+          // v775: onProgress 在步骤开始和心跳期间触发，不代表步骤已成功完成；这里只更新位置/心跳型checkpoint。
+          checkpointCurrentStepIndex = stepIndex;
+          checkpointTotalSteps = totalSteps;
           task.currentStepIndex = stepIndex;
           task.totalSteps = totalSteps;
-        }, "onProgress")
+          await persistTaskCheckpoint("progress");
+        }, "onProgress"),
+        onStepComplete: /* @__PURE__ */ __name(async (stepInfo) => {
+          // v775: 仅在同步引擎确认步骤成功完成后追加 completedStepIds，避免把失败中的当前步骤误标为完成。
+          const stepId = stepInfo?.stepId;
+          if (stepId && !completedStepIds.has(stepId)) {
+            completedStepIds.add(stepId);
+            const synced = typeof stepInfo.synced === "number" ? stepInfo.synced : 0;
+            checkpointTotalSynced += synced;
+          }
+          checkpointCurrentStepIndex = typeof stepInfo?.stepIndex === "number" ? stepInfo.stepIndex + 1 : checkpointCurrentStepIndex;
+          checkpointTotalSteps = typeof stepInfo?.totalSteps === "number" ? stepInfo.totalSteps : checkpointTotalSteps;
+          task.currentStepIndex = checkpointCurrentStepIndex;
+          task.totalSteps = checkpointTotalSteps;
+          await persistTaskCheckpoint("step_complete");
+        }, "onStepComplete")
       }
     );
+    if (syncResult && typeof syncResult.totalSynced === "number" && completedStepIds.size === 0) {
+      checkpointTotalSynced = syncResult.totalSynced;
+      await persistTaskCheckpoint("result_fallback");
+    }
     const durationMs = Date.now() - startTime;
     await completeTask(task.id, task.accountId, task.tier);
     log85.info(

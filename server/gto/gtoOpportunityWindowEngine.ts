@@ -77,11 +77,11 @@ export function detectOpportunityWindow(
     return buildNoWindow('历史数据不足，无法检测机会窗口');
   }
   
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const avgHistCpc = sameHourSignals.reduce((s: unknown, h: unknown) => s + h.avgCpc, 0) / sameHourSignals.length;
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const avgHistImpressions = sameHourSignals.reduce((s: unknown, h: unknown) => s + h.avgImpressions, 0) / sameHourSignals.length;
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const avgHistCompetition = sameHourSignals.reduce((s: unknown, h: unknown) => s + h.avgCompetition, 0) / sameHourSignals.length;
   
   // ===== 信号检测 =====

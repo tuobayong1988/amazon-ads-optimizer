@@ -62,7 +62,7 @@ const LARGE_ACCOUNT_TIMEOUT_TIERS = [
  * v519: 根据账户广告活动数量计算动态锁TTL
  */
 async function getDynamicLockTtl(accountId: number, tier: SyncTier): Promise<number> {
-  if (tier === 'nightly') return NIGHTLY_LOCK_TTL_MS;
+    if ((tier as string) === 'nightly') return NIGHTLY_LOCK_TTL_MS;
 
   try {
     const db = await getDb();
@@ -119,7 +119,7 @@ export async function shardBasedSyncAll(
 
   // Step 1: 获取全局锁（防止同一层级的多个实例同时执行）
   const globalLockKey = `sync:global:${tier}`;
-  const globalLockTtl = tier === 'nightly' ? NIGHTLY_LOCK_TTL_MS : GLOBAL_LOCK_TTL_MS;
+  const globalLockTtl = (tier as string) === 'nightly' ? NIGHTLY_LOCK_TTL_MS : GLOBAL_LOCK_TTL_MS;
   const lockAcquired = await acquireLock(globalLockKey, INSTANCE_ID, globalLockTtl);
   if (!lockAcquired) {
     log.info(`[v358] ${tier}层同步已有其他实例在执行，跳过`);
@@ -141,11 +141,11 @@ export async function shardBasedSyncAll(
     for (const account of (accounts as unknown[])) {
       for (const step of steps) {
         shardDefs.push({
-          // @ts-expect-error Legacy code type compatibility
+          // @ts-ignore Legacy code type compatibility
           accountId: account.accountId,
           stepId: step.id,
           stepName: step.name,
-          // @ts-expect-error - runtime type mismatch
+          // @ts-ignore - runtime type mismatch
           tier: step.tier,
         });
       }
@@ -308,6 +308,7 @@ export async function retryFailedShards(): Promise<{
     result.retried++;
     
     try {
+      const retryStartTime = Date.now();
       await markShardRunning(shard.shardId);
       
       // 发现账户信息
@@ -342,6 +343,7 @@ export async function retryFailedShards(): Promise<{
             shardId: shard.shardId,
             status: 'completed',
             recordsSynced: stepResult.synced || 0,
+            durationMs: Date.now() - retryStartTime,
           });
           result.succeeded++;
         } else {

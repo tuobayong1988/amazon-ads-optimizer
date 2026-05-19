@@ -187,7 +187,7 @@ async function oxylabsRequest<T>(payload: Record<string, unknown>): Promise<T | 
 
       console.error(
         `[Oxylabs] Request failed (attempt ${attempt + 1}/${MAX_RETRIES + 1}): ` +
-        // @ts-expect-error Conditional type narrowing
+        // @ts-ignore Conditional type narrowing
         `${error.message}${statusCode ? ` [HTTP ${statusCode}]` : ''}`
       );
 
@@ -482,15 +482,15 @@ export async function checkServiceHealth(): Promise<{
       credentialsConfigured: true,
       message: `Oxylabs service is operational. Response status: ${response.status}`,
     };
-  // @ts-expect-error Legacy code type compatibility
+  // @ts-ignore Legacy code type compatibility
   } catch (error: unknown) {
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const statusCode = error.response?.status;
     return {
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       available: false,
       credentialsConfigured: true,
-      // @ts-expect-error Conditional type narrowing
+      // @ts-ignore Conditional type narrowing
       message: `Oxylabs service check failed: ${error.message}${statusCode ? ` [HTTP ${statusCode}]` : ''}`,
     };
   }

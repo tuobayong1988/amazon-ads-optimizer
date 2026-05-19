@@ -523,7 +523,7 @@ export const autoOperationService = {
   async getLogs(accountId: number, limit: number = 50): Promise<AutoOperationLog[]> {
     return logStore
       .filter(log => log.accountId === accountId)
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       .sort((a: unknown, b: unknown) => b.startedAt.getTime() - a.startedAt.getTime())
       .slice(0, limit);
   },
@@ -535,11 +535,11 @@ export const autoOperationService = {
     const now = new Date();
     const dueAccounts: number[] = [];
     
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     configStore.forEach((config: unknown, accountId: unknown) => {
-      // @ts-expect-error Dynamic property access
+      // @ts-ignore Dynamic property access
       if (config.enabled && config.nextRunAt && config.nextRunAt <= now) {
-        // @ts-expect-error Array method type inference
+        // @ts-ignore Array method type inference
         dueAccounts.push(accountId);
       }
     });

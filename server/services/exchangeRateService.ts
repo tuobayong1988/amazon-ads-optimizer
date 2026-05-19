@@ -84,7 +84,7 @@ async function fetchRatesFromApi(): Promise<Record<string, number> | null> {
     if (missing.length > 0) {
       log.warn(`[ExchangeRateService] 缺少关键货币: ${missing.join(', ')}，使用兜底值补充`);
       for (const c of (missing as unknown[])) {
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         ratesToUsd[c] = FALLBACK_RATES_TO_USD[c] || 1.0;
       }
     }

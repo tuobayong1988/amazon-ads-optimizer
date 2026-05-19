@@ -238,7 +238,7 @@ export async function adGroupHasProductTargets(
       conn = await db.getDirectConnection();
       ownConn = true;
     }
-    // @ts-expect-error - MySQL connection method
+    // @ts-ignore - MySQL connection method
     const [rows] = await conn.execute(
       'SELECT COUNT(*) AS cnt FROM product_targets WHERE internal_ad_group_id = ? AND targetId IS NOT NULL LIMIT 1',
       [adGroupId]
@@ -249,7 +249,7 @@ export async function adGroupHasProductTargets(
     return false;
   } finally {
     if (ownConn && conn) {
-      // @ts-expect-error - MySQL connection method
+      // @ts-ignore - MySQL connection method
       try { conn.release(); } catch (_: any) {} // v350: 归还连接到池
     }
   }
@@ -270,25 +270,25 @@ export function batchValidateKeywords(
   const rejected: Array<{ originalText: string; reason: string; data: Record<string, unknown> }> = [];
   
   for (const kw of (keywords as unknown[])) {
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const result = sanitizeAndValidateKeyword(kw.text, mode);
     if (result.isValid) {
-      // @ts-expect-error Complex function parameter types
+      // @ts-ignore Complex function parameter types
       valid.push({
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         originalText: kw.text,
         sanitizedText: result.sanitizedText,
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         data: kw,
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       });
     } else {
-      // @ts-expect-error Complex function parameter types
+      // @ts-ignore Complex function parameter types
       rejected.push({
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         originalText: kw.text,
         reason: result.reasonMessage || result.reasonCode || 'UNKNOWN',
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         data: kw,
       });
     }

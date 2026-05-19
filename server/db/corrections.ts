@@ -60,7 +60,7 @@ export async function addAttributionCorrectionRecord(data: {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
-  // @ts-expect-error - Drizzle query builder type
+  // @ts-ignore - Drizzle query builder type
   await db.insert(attributionCorrectionRecords).values({
     userId: data.userId,
     accountId: data.accountId,

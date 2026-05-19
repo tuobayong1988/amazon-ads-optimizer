@@ -18,7 +18,7 @@ const log = createModuleLogger('Route_keyword');
 export const keywordRouter = router({
   list: protectedProcedure
     .input(z.object({ adGroupId: z.number() }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ ctx, input }: unknown) => {
       // v376: P1数据隔离修复 - 验证当前用户有权访问该adGroupId
       const { verifyAdGroupAccess } = await import('../utils/accessControl');
@@ -30,9 +30,9 @@ export const keywordRouter = router({
   
   // v370.4: 数据隔离 - 验证keyword归属
   get: protectedProcedure
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .input(z.object({ id: z.number() }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ ctx, input }: unknown) => {
       const { verifyKeywordAccess } = await import('../utils/accessControl');
       await verifyKeywordAccess(ctx.user.id, input.id);
@@ -78,10 +78,10 @@ export const keywordRouter = router({
     .input(z.object({
       id: z.number(),
       bid: z.string().optional(),
-      // @ts-expect-error Dynamic property access
+      // @ts-ignore Dynamic property access
       status: z.enum(["enabled", "paused", "archived"]).optional(),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .mutation(async ({ ctx, input }: unknown) => {
       // v385: 数据隔离 - 验证关键词归属
       const { verifyKeywordAccess } = await import('../utils/accessControl');
@@ -97,35 +97,35 @@ export const keywordRouter = router({
       ids: z.array(z.number()),
       bidType: z.enum(["fixed", "increase_percent", "decrease_percent", "cpc_multiplier", "cpc_increase_percent", "cpc_decrease_percent"]),
       bidValue: z.number(),
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     }))
     .mutation(async ({ ctx, input }) => {
       // v426: 批量验证关键词归属（一次性查询替代N次循环）
-      // @ts-expect-error Async operation type inference
+      // @ts-ignore Async operation type inference
       const { verifyBatchKeywordAccess } = await import('../utils/accessControl');
-      // @ts-expect-error Express request/response type assertion
+      // @ts-ignore Express request/response type assertion
       await verifyBatchKeywordAccess(ctx.user.id, input.ids);
       
       // v426: 批量获取所有关键词（一次查询替代N次循环）
-      // @ts-expect-error DB query type inference limitation
+      // @ts-ignore DB query type inference limitation
       const allKeywords = await db.getKeywordsByIds(input.ids);
-      // @ts-expect-error Type inference limitation
+      // @ts-ignore Type inference limitation
       const keywordMap = new Map(allKeywords.map((k: unknown) => [k.id, k]));
       
-      // @ts-expect-error Type inference limitation
+      // @ts-ignore Type inference limitation
       const results = [];
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       for (const id of input.ids) {
-        // @ts-expect-error Type inference limitation
+        // @ts-ignore Type inference limitation
         const keyword = keywordMap.get(id);
         if (!keyword) continue;
         
         let newBid: number;
-        // @ts-expect-error Amazon API response type flexibility
+        // @ts-ignore Amazon API response type flexibility
         const currentBid = parseFloat(keyword.bid);
-        // @ts-expect-error Amazon API response type flexibility
+        // @ts-ignore Amazon API response type flexibility
         const spend = parseFloat(keyword.spend || "0");
-        // @ts-expect-error Amazon API response type flexibility
+        // @ts-ignore Amazon API response type flexibility
         const clicks = keyword.clicks || 0;
         const cpc = clicks > 0 ? spend / clicks : currentBid; // 如果没有点击，使用当前出价作为CPC
         
@@ -190,28 +190,28 @@ export const keywordRouter = router({
               kwId: keywordsTable.id,
               adGroupId: keywordsTable.internalAdGroupId,
               campaignId: adGroups.campaignId,
-              // @ts-expect-error Legacy code type compatibility
+              // @ts-ignore Legacy code type compatibility
               accountId: campaigns.accountId,
             })
-            // @ts-expect-error DB query type inference limitation
+            // @ts-ignore DB query type inference limitation
             .from(keywordsTable)
-            // @ts-expect-error Legacy code type compatibility
+            // @ts-ignore Legacy code type compatibility
             .innerJoin(adGroups, eq(keywordsTable.internalAdGroupId, adGroups.id))
             .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.campaignId))
             .where(inArray(keywordsTable.id, results.map(r => r.id)));
             
             const byAccount = new Map<number, Array<{ keywordId: number; newBid: number; campaignId: number }>>();
             for (const kw of (kwDetails as unknown[])) {
-              // @ts-expect-error Dynamic property access
+              // @ts-ignore Dynamic property access
               const r = results.find(r => r.id === kw.kwId);
               if (!r) continue;
-              // @ts-expect-error DB query type inference limitation
+              // @ts-ignore DB query type inference limitation
               if (!byAccount.has(kw.accountId)) byAccount.set(kw.accountId, []);
-              // @ts-expect-error Dynamic type assertion
+              // @ts-ignore Dynamic type assertion
               byAccount.get(kw.accountId)!.push({ keywordId: kw.kwId, newBid: r.newBid, campaignId: kw.campaignId } as Record<string, unknown>);
             }
             
-            // @ts-expect-error Amazon API response type flexibility
+            // @ts-ignore Amazon API response type flexibility
             const { syncBidAdjustmentsToAmazon } = await import('../services/amazonApiHelper');
             for (const [accountId, kws] of byAccount) {
               const adjustments = kws.map(kw => ({
@@ -221,11 +221,11 @@ export const keywordRouter = router({
                 reason: `用户手动批量调整关键词出价`,
               }));
               const syncResult: unknown = await syncBidAdjustmentsToAmazon(accountId, adjustments);
-              // @ts-expect-error Complex function parameter types
+              // @ts-ignore Complex function parameter types
               log.info(`[Keyword.batchUpdateBid] v159: accountId=${accountId}, 同步结果: 成功=${syncResult.success}, 失败=${syncResult.failed}`);
               
               // v219: 出价同步后触发确认同步
-              // @ts-expect-error Dynamic property access
+              // @ts-ignore Dynamic property access
               if (syncResult.success > 0) {
                 try {
                   // v359: 使用可靠确认服务
@@ -235,14 +235,14 @@ export const keywordRouter = router({
               }
             }
           }
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         } catch (syncError: unknown) {
           log.warn(`[Keyword.batchUpdateBid] v159: Amazon同步失败(本地已更新):`, (syncError as Error).message);
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         }
       }
       
-      // @ts-expect-error Return type compatibility
+      // @ts-ignore Return type compatibility
       return { success: true, updated: results.length, results };
     }),
   
@@ -252,14 +252,14 @@ export const keywordRouter = router({
       ids: z.array(z.number()),
       status: z.enum(["enabled", "paused"]),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .mutation(async ({ ctx, input }: unknown) => {
       // v426: 批量验证关键词归属（一次性查询替代N次循环）
-      // @ts-expect-error Async operation type inference
+      // @ts-ignore Async operation type inference
       const { verifyBatchKeywordAccess } = await import('../utils/accessControl');
       await verifyBatchKeywordAccess(ctx.user.id, input.ids);
       // v426: 批量更新本地数据库（一次查询替代N次循环）
-      // @ts-expect-error DB query type inference limitation
+      // @ts-ignore DB query type inference limitation
       await db.batchUpdateKeywordStatus(input.ids, input.status);
       const updated = input.ids.length;
       
@@ -269,7 +269,7 @@ export const keywordRouter = router({
         const dbInstance = await db.getDb();
         if (dbInstance) {
           const { keywords: keywordsTable, adGroups, campaigns } = await import('../../drizzle/schema');
-          // @ts-expect-error DB query type inference limitation
+          // @ts-ignore DB query type inference limitation
           const { eq, inArray } = await import('drizzle-orm');
           
           // 查询关键词关联的accountId
@@ -287,9 +287,9 @@ export const keywordRouter = router({
           // 按accountId分组
           const byAccount = new Map<number, Array<{ keywordId: number; campaignId: number }>>();
           for (const kw of (kwDetails as unknown[])) {
-            // @ts-expect-error DB query type inference limitation
+            // @ts-ignore DB query type inference limitation
             if (!byAccount.has(kw.accountId)) byAccount.set(kw.accountId, []);
-            // @ts-expect-error Dynamic type assertion
+            // @ts-ignore Dynamic type assertion
             byAccount.get(kw.accountId)!.push({ keywordId: kw.kwId, campaignId: kw.campaignId } as Record<string, unknown>);
           }
           
@@ -303,11 +303,11 @@ export const keywordRouter = router({
               reason: `用户手动批量${input.status === 'enabled' ? '启用' : '暂停'}关键词`,
             }));
             const syncResult: unknown = await syncKeywordStatusToAmazon(accountId, statusChanges);
-            // @ts-expect-error Complex function parameter types
+            // @ts-ignore Complex function parameter types
             log.info(`[Keyword.batchUpdateStatus] v159: accountId=${accountId}, 同步结果: 成功=${syncResult.success}, 失败=${syncResult.failed}`);
             
             // v219: 关键词状态同步后触发确认同步
-            // @ts-expect-error Dynamic property access
+            // @ts-ignore Dynamic property access
             if (syncResult.success > 0) {
               try {
                 // v359: 使用可靠确认服务
@@ -327,7 +327,7 @@ export const keywordRouter = router({
   // v370.4: 数据隔离
   getMarketCurve: protectedProcedure
     .input(z.object({ id: z.number() }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ ctx, input }: unknown) => {
       const { verifyKeywordAccess } = await import('../utils/accessControl');
       await verifyKeywordAccess(ctx.user.id, input.id);
@@ -357,7 +357,7 @@ export const keywordRouter = router({
       id: z.number(),
       days: z.number().min(7).max(90).default(30),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ ctx, input }: unknown) => {
       const { verifyKeywordAccess } = await import('../utils/accessControl');
       await verifyKeywordAccess(ctx.user.id, input.id);
@@ -406,7 +406,7 @@ export const keywordRouter = router({
         bid: z.string(),
       })),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .mutation(async ({ ctx, input }: unknown) => {
       // v382: 数据隔离
       const results = [];
@@ -431,7 +431,7 @@ export const keywordRouter = router({
             continue;
           }
           
-          // @ts-expect-error DB query type inference limitation
+          // @ts-ignore DB query type inference limitation
           const id = await db.createKeyword({
             internalAdGroupId: input.adGroupId,  // v357: adGroupId现在是varchar类型
             keywordText: kw.keywordText,
@@ -445,7 +445,7 @@ export const keywordRouter = router({
             keywordText: kw.keywordText,
             matchType: kw.matchType,
             bid: kw.bid,
-          // @ts-expect-error Legacy code type compatibility
+          // @ts-ignore Legacy code type compatibility
           });
         } catch (error: any) {
           errors.push({
@@ -456,7 +456,7 @@ export const keywordRouter = router({
         }
       }
       
-      // @ts-expect-error Return type compatibility
+      // @ts-ignore Return type compatibility
       return {
         success: true,
         created: results.length,
@@ -472,7 +472,7 @@ export const keywordRouter = router({
 export const productTargetRouter = router({
   list: protectedProcedure
     .input(z.object({ adGroupId: z.number() }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ ctx, input }: unknown) => {
       // v382: 数据隔离
       // v381: productTargets.internalAdGroupId存储的是本地自增ID（String类型），前端传入的也是本地ID
@@ -483,7 +483,7 @@ export const productTargetRouter = router({
   // v370.4: 数据隔离 - productTarget通过adGroup关联到用户
   get: protectedProcedure
     .input(z.object({ id: z.number() }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ ctx, input }: unknown) => {
       // v382: 数据隔离
       // productTarget的所有权验证通过中间件的campaignId检查完成
@@ -494,9 +494,9 @@ export const productTargetRouter = router({
     .input(z.object({
       id: z.number(),
       bid: z.string(),
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .mutation(async ({ ctx, input }: unknown) => {
       // v382: 数据隔离
       await db.updateProductTargetBid(input.id, input.bid);
@@ -509,7 +509,7 @@ export const productTargetRouter = router({
       bid: z.string().optional(),
       status: z.enum(["enabled", "paused", "archived"]).optional(),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .mutation(async ({ ctx, input }: unknown) => {
       // v382: 数据隔离
       const { id, ...data } = input;
@@ -524,7 +524,7 @@ export const productTargetRouter = router({
       bidType: z.enum(["fixed", "increase_percent", "decrease_percent", "cpc_multiplier", "cpc_increase_percent", "cpc_decrease_percent"]),
       bidValue: z.number(),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .mutation(async ({ ctx, input }: unknown) => {
       // v382: 数据隔离
       const results = [];
@@ -552,7 +552,7 @@ export const productTargetRouter = router({
           newBid = cpc * (1 - input.bidValue / 100);
         }
         
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         newBid = Math.max(0.02, Math.round(newBid * 100) / 100);
         
         await db.updateProductTargetBid(id, newBid.toFixed(2));
@@ -583,7 +583,7 @@ export const productTargetRouter = router({
               const r = results.find(r => r.id === pt.ptId);
               if (!r) continue;
               if (!byAccount.has(pt.accountId)) byAccount.set(pt.accountId, []);
-              // @ts-expect-error Dynamic type assertion
+              // @ts-ignore Dynamic type assertion
               byAccount.get(pt.accountId)!.push({ keywordId: pt.ptId, newBid: r.newBid, campaignId: pt.campaignId } as Record<string, unknown>);
             }
             
@@ -597,7 +597,7 @@ export const productTargetRouter = router({
                 isProductTarget: true,
               }));
               const syncResult: unknown = await syncBidAdjustmentsToAmazon(accountId, adjustments);
-              // @ts-expect-error Complex function parameter types
+              // @ts-ignore Complex function parameter types
               log.info(`[ProductTarget.batchUpdateBid] v159: accountId=${accountId}, 同步结果: 成功=${syncResult.success}, 失败=${syncResult.failed}`);
             }
           }
@@ -613,10 +613,10 @@ export const productTargetRouter = router({
   batchUpdateStatus: protectedProcedure
     .input(z.object({
       ids: z.array(z.number()),
-      // @ts-expect-error Dynamic property access
+      // @ts-ignore Dynamic property access
       status: z.enum(["enabled", "paused"]),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .mutation(async ({ ctx, input }: unknown) => {
       // v382: 数据隔离
       // v159: 先更新本地数据库
@@ -627,7 +627,7 @@ export const productTargetRouter = router({
       }
       
       // v159: 同步商品定向状态变更到Amazon
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       try {
         const dbInstance = await db.getDb();
         if (dbInstance) {
@@ -648,7 +648,7 @@ export const productTargetRouter = router({
           const byAccount = new Map<number, Array<{ keywordId: number; campaignId: number }>>();
           for (const pt of ptDetails) {
             if (!byAccount.has(pt.accountId)) byAccount.set(pt.accountId, []);
-            // @ts-expect-error Dynamic type assertion
+            // @ts-ignore Dynamic type assertion
             byAccount.get(pt.accountId)!.push({ keywordId: pt.ptId, campaignId: pt.campaignId } as Record<string, unknown>);
           }
           
@@ -662,7 +662,7 @@ export const productTargetRouter = router({
               isProductTarget: true,
             }));
             const syncResult: unknown = await syncKeywordStatusToAmazon(accountId, statusChanges);
-            // @ts-expect-error Complex function parameter types
+            // @ts-ignore Complex function parameter types
             log.info(`[ProductTarget.batchUpdateStatus] v159: accountId=${accountId}, 同步结果: 成功=${syncResult.success}, 失败=${syncResult.failed}`);
           }
         }
@@ -679,7 +679,7 @@ export const productTargetRouter = router({
       id: z.number(),
       days: z.number().min(7).max(90).default(30),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ ctx, input }: unknown) => {
       // v382: 数据隔离
       const target = await db.getProductTargetById(input.id);

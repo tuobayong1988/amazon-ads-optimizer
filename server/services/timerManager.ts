@@ -61,7 +61,7 @@ class TimerManager {
       try {
         await callback();
       } catch (err: unknown) {
-        // @ts-expect-error Complex function parameter types
+        // @ts-ignore Complex function parameter types
         log.warn(`[TimerManager] 定时器 "${key}" 执行异常: ${err?.message || err}`);
       }
     };

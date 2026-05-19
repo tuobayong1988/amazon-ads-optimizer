@@ -102,23 +102,23 @@ export function buildImpressionCurve(dataPoints: BidPerformanceData[]): Impressi
   const y = validPoints.map(p => p.impressions);
   
   // 计算线性回归参数
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const sumLnX = lnX.reduce((a: unknown, b: unknown) => a + b, 0);
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const sumY = y.reduce((a: unknown, b: unknown) => a + b, 0);
   const sumLnXY = lnX.reduce((sum, x, i) => sum + x * y[i], 0);
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const sumLnX2 = lnX.reduce((sum: number, x: Record<string, unknown>) => sum + x * x, 0);
   
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const a = (n * sumLnXY - sumLnX * sumY) / (n * sumLnX2 - sumLnX * sumLnX);
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const c = (sumY - a * sumLnX) / n;
   
   // 计算R²
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const meanY = sumY / n;
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const ssTotal = y.reduce((sum: number, yi: Record<string, unknown>) => sum + Math.pow(yi - meanY, 2), 0);
   const ssResidual = validPoints.reduce((sum, p, i) => {
     const predicted = a * lnX[i] + c;
@@ -143,32 +143,32 @@ export function buildCTRCurve(dataPoints: BidPerformanceData[]): CTRCurveParams 
   
   if (validPoints.length < 3) {
     return {
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       baseCtr: 0.01,
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       positionBonus: 0.5,
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       topSearchCtrBonus: 0.3
     };
   }
   
   // 计算平均CTR
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const totalClicks = validPoints.reduce((sum: number, p: Record<string, unknown>) => sum + p.clicks, 0);
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const totalImpressions = validPoints.reduce((sum: number, p: Record<string, unknown>) => sum + p.impressions, 0);
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const baseCtr = totalClicks / totalImpressions;
   
   // 分析出价与CTR的关系（高出价通常获得更好位置，CTR更高）
-  // @ts-expect-error Amazon API response type flexibility
+  // @ts-ignore Amazon API response type flexibility
   const sortedByBid = [...validPoints].sort((a: unknown, b: unknown) => b.bid - a.bid);
   const topHalf = sortedByBid.slice(0, Math.ceil(sortedByBid.length / 2));
   const bottomHalf = sortedByBid.slice(Math.ceil(sortedByBid.length / 2));
   
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const topCTR = topHalf.reduce((sum: number, p: Record<string, unknown>) => sum + p.ctr, 0) / topHalf.length;
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const bottomCTR = bottomHalf.reduce((sum: number, p: Record<string, unknown>) => sum + p.ctr, 0) / bottomHalf.length;
   
   const positionBonus = bottomCTR > 0 ? (topCTR - bottomCTR) / bottomCTR : 0.5;
@@ -183,11 +183,11 @@ export function buildCTRCurve(dataPoints: BidPerformanceData[]): CTRCurveParams 
 /**
  * 计算转化参数
  */
-// @ts-expect-error Complex function parameter types
+// @ts-ignore Complex function parameter types
 export function calculateConversionParams(dataPoints: BidPerformanceData[]): ConversionParams {
   const validPoints = dataPoints.filter(p => p.clicks > 0);
   
-  // @ts-expect-error Dynamic property access
+  // @ts-ignore Dynamic property access
   if (validPoints.length < 3) {
     return {
       cvr: 0.05,
@@ -196,16 +196,16 @@ export function calculateConversionParams(dataPoints: BidPerformanceData[]): Con
     };
   }
   
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const totalClicks = validPoints.reduce((sum: number, p: Record<string, unknown>) => sum + p.clicks, 0);
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const totalOrders = validPoints.reduce((sum: number, p: Record<string, unknown>) => sum + p.orders, 0);
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const totalSales = validPoints.reduce((sum: number, p: Record<string, unknown>) => sum + p.sales, 0);
   
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const cvr = totalOrders / Math.max(totalClicks, 1);
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const aov = totalOrders > 0 ? totalSales / totalOrders : 30;
   
   return {
@@ -372,21 +372,21 @@ export async function buildMarketCurveForKeyword(
         eq(bidPerformanceHistory.bidObjectId, String(keywordId)),
         gte(bidPerformanceHistory.date, startDate.toISOString().split('T')[0])
       )
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     );
   
-  // @ts-expect-error Dynamic property access
+  // @ts-ignore Dynamic property access
   if (historyData.length < 5) {
     // 数据不足，尝试从关键词表获取汇总数据
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const keywordData = await db
-      // @ts-expect-error DB query type inference limitation
+      // @ts-ignore DB query type inference limitation
       .select()
-      // @ts-expect-error DB query type inference limitation
+      // @ts-ignore DB query type inference limitation
       .from(keywords)
-      // @ts-expect-error DB query type inference limitation
+      // @ts-ignore DB query type inference limitation
       .where(eq(keywords.id, keywordId))
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       .limit(1);
     
     if (keywordData.length === 0) {
@@ -397,23 +397,23 @@ export async function buildMarketCurveForKeyword(
     
     // 使用关键词汇总数据构建简化模型
     const dataPoints: BidPerformanceData[] = [{
-      // @ts-expect-error Amazon API response type flexibility
+      // @ts-ignore Amazon API response type flexibility
       bid: Number(kw.bid) || 1,
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       effectiveCpc: Number(kw.spend) / Math.max(Number(kw.clicks), 1),
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       impressions: kw.impressions || 0,
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       clicks: kw.clicks || 0,
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       spend: Number(kw.spend) || 0,
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       sales: Number(kw.sales) || 0,
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       orders: kw.orders || 0,
-      // @ts-expect-error Conditional type narrowing
+      // @ts-ignore Conditional type narrowing
       ctr: (kw.impressions && kw.clicks) ? (kw.clicks / kw.impressions) * 100 : 0.01,
-      // @ts-expect-error Conditional type narrowing
+      // @ts-ignore Conditional type narrowing
       cvr: (kw.clicks && kw.orders) ? (kw.orders / kw.clicks) * 100 : 0.05
     }];
     
@@ -451,7 +451,7 @@ export async function buildMarketCurveForKeyword(
   const conversion = calculateConversionParams(dataPoints);
   
   // 计算最优出价
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const optimal = calculateOptimalBid(impressionCurve, ctrCurve, conversion);
   
   // 计算置信度
@@ -479,9 +479,9 @@ function calculateModelConfidence(dataPoints: BidPerformanceData[], r2: number):
   
   // 基于数据一致性的置信度
   const clicks = dataPoints.map(p => p.clicks);
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const avgClicks = clicks.reduce((a: unknown, b: unknown) => a + b, 0) / clicks.length;
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const variance = clicks.reduce((sum: number, c: Record<string, unknown>) => sum + Math.pow(c - avgClicks, 2), 0) / clicks.length;
   const cv = Math.sqrt(variance) / Math.max(avgClicks, 1); // 变异系数
   const consistencyConfidence = Math.max(0, 1 - cv);
@@ -560,34 +560,34 @@ export async function saveMarketCurveModel(
 /**
  * 获取关键词的市场曲线模型
  */
-// @ts-expect-error Legacy code type compatibility
+// @ts-ignore Legacy code type compatibility
 export async function getMarketCurveModel(
   accountId: number,
   bidObjectType: 'keyword' | 'asin' | 'audience',
-  // @ts-expect-error Amazon API response type flexibility
+  // @ts-ignore Amazon API response type flexibility
   bidObjectId: string
-// @ts-expect-error Async operation type inference
+// @ts-ignore Async operation type inference
 ): Promise<MarketCurveResult | null> {
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const db = await getDbInstance();
   const models = await db
     .select()
-    // @ts-expect-error DB query type inference limitation
+    // @ts-ignore DB query type inference limitation
     .from(marketCurveModels)
-    // @ts-expect-error DB query type inference limitation
+    // @ts-ignore DB query type inference limitation
     .where(
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       and(
         eq(marketCurveModels.accountId, accountId),
-        // @ts-expect-error Amazon API response type flexibility
+        // @ts-ignore Amazon API response type flexibility
         eq(marketCurveModels.bidObjectType, bidObjectType),
-        // @ts-expect-error Amazon API response type flexibility
+        // @ts-ignore Amazon API response type flexibility
         eq(marketCurveModels.bidObjectId, bidObjectId)
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       )
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     )
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     .limit(1);
   
   if (models.length === 0) {
@@ -598,59 +598,59 @@ export async function getMarketCurveModel(
   
   return {
     impressionCurve: {
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       a: Number(m.impressionCurveA) || 0,
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       b: Number(m.impressionCurveB) || 0,
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       c: Number(m.impressionCurveC) || 0,
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       r2: Number(m.impressionCurveR2) || 0
     },
     ctrCurve: {
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       baseCtr: Number(m.baseCtr) || 0,
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       positionBonus: Number(m.positionBonus) || 0,
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       topSearchCtrBonus: Number(m.topSearchCtrBonus) || 0
     },
     conversion: {
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       cvr: Number(m.cvr) || 0,
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       aov: Number(m.aov) || 0,
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       conversionDelayDays: m.conversionDelayDays || 7
     },
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     optimalBid: Number(m.optimalBid) || 0,
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     maxProfit: Number(m.maxProfit) || 0,
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     profitMargin: Number(m.profitMargin) || 0,
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     breakEvenCpc: Number(m.breakEvenCpc) || 0,
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     dataPoints: m.dataPoints || 0,
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     confidence: Number(m.confidence) || 0
-  // @ts-expect-error Legacy code type compatibility
+  // @ts-ignore Legacy code type compatibility
   };
 }
 
 /**
  * 批量更新账号下所有关键词的市场曲线模型
  */
-// @ts-expect-error Complex function parameter types
+// @ts-ignore Complex function parameter types
 export async function updateAllMarketCurveModels(accountId: number): Promise<{
   updated: number;
-  // @ts-expect-error Legacy code type compatibility
+  // @ts-ignore Legacy code type compatibility
   failed: number;
-  // @ts-expect-error Legacy code type compatibility
+  // @ts-ignore Legacy code type compatibility
   errors: string[];
 }> {
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const db = await getDbInstance();
   const result = {
     updated: 0,
@@ -676,7 +676,7 @@ export async function updateAllMarketCurveModels(accountId: number): Promise<{
       const adGroupData = await db
         .select()
         .from(keywords)
-        // @ts-expect-error DB query type inference limitation
+        // @ts-ignore DB query type inference limitation
         .where(eq(keywords.id, kw.id))
         .limit(1);
       
@@ -685,31 +685,31 @@ export async function updateAllMarketCurveModels(accountId: number): Promise<{
       // 构建市场曲线
       const model = await buildMarketCurveForKeyword(
         accountId,
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         String(kw.internalAdGroupId), // 使用adGroupId作为campaignId的代理
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         kw.id
       );
       
       if (model) {
         await saveMarketCurveModel(
           accountId,
-          // @ts-expect-error Legacy code type compatibility
+          // @ts-ignore Legacy code type compatibility
           String(kw.internalAdGroupId),
           'keyword',
-          // @ts-expect-error Legacy code type compatibility
+          // @ts-ignore Legacy code type compatibility
           String(kw.id),
-          // @ts-expect-error Legacy code type compatibility
+          // @ts-ignore Legacy code type compatibility
           kw.keywordText,
           model,
-          // @ts-expect-error Amazon API response type flexibility
+          // @ts-ignore Amazon API response type flexibility
           Number(kw.bid)
         );
         result.updated++;
       }
     } catch (error: any) {
       result.failed++;
-      // @ts-expect-error Complex function parameter types
+      // @ts-ignore Complex function parameter types
       result.errors.push(`关键词 ${kw.id}: ${error instanceof Error ? (error as Error).message : String(error)}`);
     }
   }

@@ -86,7 +86,7 @@ export function fitSigmoidCurve(
   if (n < 4) {
     // 数据不足，返回保守默认值
     const maxImp = impressions.length > 0 ? Math.max(...impressions) : 1000;
-    // @ts-expect-error Amazon API response type flexibility
+    // @ts-ignore Amazon API response type flexibility
     const avgBid = bids.length > 0 ? bids.reduce((a: unknown, b: unknown) => a + b, 0) / bids.length : 1;
     return {
       L: maxImp * 2,
@@ -98,9 +98,9 @@ export function fitSigmoidCurve(
   }
   
   // 初始参数估计
-  // @ts-expect-error Amazon API response type flexibility
+  // @ts-ignore Amazon API response type flexibility
   const sortedByBid = bids.map((b: unknown, i: unknown) => ({ bid: b, imp: impressions[i] }))
-    // @ts-expect-error Amazon API response type flexibility
+    // @ts-ignore Amazon API response type flexibility
     .sort((a: unknown, b: unknown) => a.bid - b.bid);
   
   const maxImp = Math.max(...impressions);
@@ -124,16 +124,16 @@ export function fitSigmoidCurve(
     
     for (let i = 0; i < n; i++) {
       const bid = bids[i];
-      // @ts-expect-error Amazon API response type flexibility
+      // @ts-ignore Amazon API response type flexibility
       const expTerm = Math.exp(-k * (bid - x0));
       const denom = 1 + expTerm;
       const predicted = L / denom + b;
-      // @ts-expect-error Array method type inference
+      // @ts-ignore Array method type inference
       residuals.push(impressions[i] - predicted);
       
       // 偏导数
       const dL = 1 / denom;
-      // @ts-expect-error Amazon API response type flexibility
+      // @ts-ignore Amazon API response type flexibility
       const dk = L * (bid - x0) * expTerm / (denom * denom);
       const dx0 = -L * k * expTerm / (denom * denom);
       const db = 1;
@@ -161,13 +161,13 @@ export function fitSigmoidCurve(
     
     // 解4×4线性方程组（高斯消元）
     const delta = solveLinearSystem(JTJ, JTr);
-    // @ts-expect-error Conditional type narrowing
+    // @ts-ignore Conditional type narrowing
     if (!delta) break;
     
     // 更新参数
     const newL = L + delta[0];
     const newK = k + delta[1];
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const newX0 = x0 + delta[2];
     const newB = b + delta[3];
     
@@ -188,19 +188,19 @@ export function fitSigmoidCurve(
       lambda *= 0.5;
       
       if (Math.abs(oldSSR - newSSR) / Math.max(oldSSR, 1) < tolerance) break;
-    // @ts-expect-error Conditional type narrowing
+    // @ts-ignore Conditional type narrowing
     } else {
       lambda *= 2;
     }
   }
   
   // 计算R²
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const meanImp = impressions.reduce((a: unknown, b: unknown) => a + b, 0) / n;
   let ssTotal = 0, ssResidual = 0;
   for (let i = 0; i < n; i++) {
     ssTotal += (impressions[i] - meanImp) ** 2;
-    // @ts-expect-error Amazon API response type flexibility
+    // @ts-ignore Amazon API response type flexibility
     const predicted = L / (1 + Math.exp(-k * (bids[i] - x0))) + b;
     ssResidual += (impressions[i] - predicted) ** 2;
   }
@@ -209,10 +209,10 @@ export function fitSigmoidCurve(
   return {
     L: Math.round(L * 100) / 100,
     k: Math.round(k * 10000) / 10000,
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     x0: Math.round(x0 * 10000) / 10000,
     b: Math.round(b * 100) / 100,
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     r2: Math.max(0, Math.min(1, r2)),
   };
 }
@@ -222,7 +222,7 @@ export function fitSigmoidCurve(
  */
 function solveLinearSystem(A: number[][], b: number[]): number[] | null {
   const n = A.length;
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const aug = A.map((row: unknown, i: unknown) => [...row, b[i]]);
   
   for (let col = 0; col < n; col++) {

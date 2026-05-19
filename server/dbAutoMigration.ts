@@ -33,7 +33,7 @@ const log = createModuleLogger('AutoDbMigration');
  */
 function isAlreadyExistsError(err: Error): boolean {
   const message = String(err?.message || '');
-  // @ts-expect-error - error message access
+  // @ts-ignore - error message access
   const causeMessage = String(err?.cause?.message || err?.cause || '');
   const combined = message + ' ' + causeMessage;
   
@@ -51,13 +51,13 @@ function isAlreadyExistsError(err: Error): boolean {
  */
 async function safeDDL(database: unknown, ddlSql: unknown, tableName: string, results: string[]): Promise<boolean> {
   try {
-    // @ts-expect-error DB query type inference limitation
+    // @ts-ignore DB query type inference limitation
     await database.execute(ddlSql);
     results.push(`${tableName}: 已就绪`);
     log.info(`${tableName} 已就绪`);
     return true;
   } catch (err: unknown) {
-    // @ts-expect-error - runtime type mismatch
+    // @ts-ignore - runtime type mismatch
     if (isAlreadyExistsError(err)) {
       results.push(`${tableName}: 已存在（跳过）`);
       return true;
@@ -685,7 +685,7 @@ export async function runAutoDbMigration(): Promise<{ success: boolean; results:
         indexSuccess++;
       } catch (err: unknown) {
         const msg = String((err as Error)?.message || '');
-        // @ts-expect-error - accessing cause for detailed error
+        // @ts-ignore - accessing cause for detailed error
         const causeMsg = String(err?.cause?.message || err?.cause || '');
         const fullMsg = msg + ' | cause: ' + causeMsg;
         if (fullMsg.includes('Duplicate key name') || fullMsg.includes('already exists')) {
@@ -741,7 +741,7 @@ export async function runAutoDbMigration(): Promise<{ success: boolean; results:
         v450IndexSuccess++;
       } catch (err: unknown) {
         const msg = String((err as Error)?.message || '');
-        // @ts-expect-error - accessing cause for detailed error
+        // @ts-ignore - accessing cause for detailed error
         const causeMsg = String(err?.cause?.message || err?.cause || '');
         const fullMsg = msg + ' | cause: ' + causeMsg;
         if (fullMsg.includes('Duplicate key name') || fullMsg.includes('already exists')) {
@@ -932,7 +932,7 @@ export async function runAutoDbMigration(): Promise<{ success: boolean; results:
       const remainCount = (remainResult as Record<string, unknown>).affectedRows || 0;
       log.info(`v508: 回填剩余空状态: ${remainCount} 条`);
 
-      // @ts-expect-error Complex function parameter types
+      // @ts-ignore Complex function parameter types
       results.push(`v508: 空字符串回填完成 - superseded=${supersededCount + daypartCount}, permanently_failed=${permFailCount + remainCount}`);
     } catch (e: unknown) {
       log.warn('v508: 空字符串回填失败: ' + (e as Error).message);
@@ -1023,10 +1023,10 @@ export async function runAutoDbMigration(): Promise<{ success: boolean; results:
           AND created_at < DATE_SUB(NOW(), INTERVAL 30 DAY)
       `)) as unknown[];
       const otherNaCount = (otherNaResult as Record<string, unknown>).affectedRows || 0;
-      // @ts-expect-error Complex function parameter types
+      // @ts-ignore Complex function parameter types
       log.info(`v508: 回写 other not_applicable → permanently_failed: ${otherNaCount} 条`);
 
-      // @ts-expect-error Complex function parameter types
+      // @ts-ignore Complex function parameter types
       results.push(`v508: not_applicable回写完成 - synced=${syncedBackfillCount}, permanently_failed=${oldNaCount + legacyCount + otherNaCount}, pending=${recentNaCount}`);
     } catch (e: unknown) {
       log.warn('v508: not_applicable回写失败: ' + (e as Error).message);

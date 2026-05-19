@@ -173,9 +173,9 @@ async function hasRecentFullSync(accountId: number, hoursThreshold: number): Pro
         AND status = 'completed'
         AND completed_at > ${cutoff}
     `);
-    // @ts-expect-error - dynamic query result
+    // @ts-ignore - dynamic query result
     const rows = Array.isArray(result) ? result[0] : result.rows || result;
-    // @ts-expect-error - dynamic query result
+    // @ts-ignore - dynamic query result
     const cnt = Array.isArray(rows) && rows.length > 0 ? Number(rows[0].cnt || rows[0].CNT || 0) : 0;
     return cnt > 0;
   } catch (e) {
@@ -198,12 +198,12 @@ async function sortAccountsBySize(accounts: Array<{id: number; accountName: stri
       WHERE account_id IN (${sql.join(accountIds.map(id => sql`${id}`), sql`, `)})
       GROUP BY account_id
     `);
-    // @ts-expect-error - dynamic query result
+    // @ts-ignore - dynamic query result
     const rows = Array.isArray(sizeResult) ? sizeResult[0] : sizeResult.rows || sizeResult;
     const sizeMap = new Map<number, number>();
     if (Array.isArray(rows)) {
       for (const row of rows) {
-        // @ts-expect-error - dynamic query result
+        // @ts-ignore - dynamic query result
         sizeMap.set(Number(row.account_id), Number(row.campaign_count || 0));
       }
     }

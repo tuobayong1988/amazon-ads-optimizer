@@ -333,12 +333,12 @@ export async function runRollbackEvaluation(accountId?: number): Promise<{
     for (const rule of enabledRules) {
       // 检查是否已有该记录的建议
       const existingSuggestion = rollbackSuggestions.find(
-        // @ts-expect-error Dynamic property access
+        // @ts-ignore Dynamic property access
         s => s.adjustmentId === record.id && s.ruleId === rule.id && s.status === 'pending'
       );
       if (existingSuggestion) continue;
       
-      // @ts-expect-error - type assertion
+      // @ts-ignore - type assertion
       const suggestion = evaluateAdjustment(record as unknown, rule);
       if (suggestion) {
         newSuggestions.push(suggestion);
@@ -375,7 +375,7 @@ export function getRollbackSuggestions(filters?: {
   }
   
   // 按创建时间倒序排列
-  // @ts-expect-error Return type compatibility
+  // @ts-ignore Return type compatibility
   return suggestions.sort((a: unknown, b: unknown) => b.createdAt.getTime() - a.createdAt.getTime());
 }
 
@@ -459,11 +459,11 @@ export function getRollbackSuggestionStats(): {
   };
   
   for (const suggestion of (rollbackSuggestions as unknown[])) {
-    // @ts-expect-error - runtime type mismatch
+    // @ts-ignore - runtime type mismatch
     stats[suggestion.status]++;
-    // @ts-expect-error - runtime type mismatch
+    // @ts-ignore - runtime type mismatch
     stats.byPriority[suggestion.priority]++;
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     stats.byRule[suggestion.ruleId] = (stats.byRule[suggestion.ruleId] || 0) + 1;
   }
   

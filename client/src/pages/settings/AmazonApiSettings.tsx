@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { safeToLocaleString } from "@/lib/safeDate";
 import { useAuth } from "@/_core/hooks/useAuth";

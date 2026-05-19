@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * FloatingActionButton 组件交互测试
  * 

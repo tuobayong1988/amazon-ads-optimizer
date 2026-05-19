@@ -16,7 +16,7 @@ export const dataHealthRouter = router({
    * 聚合所有子系统的健康状态
    */
   getOverview: protectedProcedure
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ ctx }: unknown) => {
       try {
         const results: Record<string, unknown> = {};
@@ -86,9 +86,9 @@ export const dataHealthRouter = router({
             
             // v370.4: 多租户数据隔离 - 只查询当前用户的账户数据
             const { adAccounts } = await import('../../drizzle/schema');
-            // @ts-expect-error DB query type inference limitation
+            // @ts-ignore DB query type inference limitation
             const userAccountRows = await db.select({ id: adAccounts.id }).from(adAccounts).where(sql`${adAccounts.userId} = ${ctx.user?.id || 0}`);
-            // @ts-expect-error Type inference limitation
+            // @ts-ignore Type inference limitation
             const userAccountIds = userAccountRows.map((r: unknown) => r.id);
             const accountFilter = userAccountIds.length > 0 
               ? sql`${dataSyncJobs.accountId} IN (${sql.raw(userAccountIds.join(','))})` 
@@ -132,7 +132,7 @@ export const dataHealthRouter = router({
                   GROUP BY DATE(startedAt)
                   ORDER BY date ASC`
             ) as unknown;
-            // @ts-expect-error Dynamic type assertion
+            // @ts-ignore Dynamic type assertion
             const trendData = ((trendRows as unknown)?.[0] || []).map((r: any) => ({
               date: r.date,
               dateLabel: r.date ? new Date(r.date).toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' }) : '',
@@ -153,7 +153,7 @@ export const dataHealthRouter = router({
                   GROUP BY accountId
                   ORDER BY total DESC`
             ) as unknown;
-            // @ts-expect-error Dynamic type assertion
+            // @ts-ignore Dynamic type assertion
             const accountLeaderboard = ((leaderboardRows as unknown)?.[0] || []).map((r: any) => ({
               accountId: Number(r.accountId),
               total: Number(r.total || 0),
@@ -185,24 +185,24 @@ export const dataHealthRouter = router({
         const issues: string[] = [];
         
         // 限流健康
-        // @ts-expect-error Dynamic type assertion
+        // @ts-ignore Dynamic type assertion
         if ((results.rateLimiting as unknown)?.status !== 'active') {
           healthScore -= 10;
           issues.push('限流服务未激活');
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         }
         
         // 自愈健康 - v373: 兼容running_on_leader状态
-        // @ts-expect-error Dynamic type assertion
+        // @ts-ignore Dynamic type assertion
         const selfHealingStatus = (results.selfHealing as unknown)?.status;
         if (selfHealingStatus !== 'running' && selfHealingStatus !== 'running_on_leader' && selfHealingStatus !== 'initializing') {
           healthScore -= 15;
-          // @ts-expect-error Array method type inference
+          // @ts-ignore Array method type inference
           issues.push('自愈调度器未运行');
         }
         
         // 同步健康
-        // @ts-expect-error Dynamic type assertion
+        // @ts-ignore Dynamic type assertion
         const syncStats = (results.syncJobs as unknown)?.stats24h;
         if (syncStats) {
           if (syncStats.successRate < 90) {
@@ -234,7 +234,7 @@ export const dataHealthRouter = router({
    */
   getRateLimitMetrics: protectedProcedure
     .input(z.object({ accountId: z.number().optional() }).optional())
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ ctx, input }: unknown) => {
       try {
         const { getApiRateLimitService } = await import('../services/apiRateLimitService');

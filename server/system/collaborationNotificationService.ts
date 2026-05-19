@@ -287,7 +287,7 @@ export async function getUserNotifications(params: {
   
   const conditions = [eq(collaborationNotifications.recipientUserId, userId)];
   if (status) {
-    // @ts-expect-error - string type assertion
+    // @ts-ignore - string type assertion
     conditions.push(eq(collaborationNotifications.status, status as string));
   }
   
@@ -343,7 +343,7 @@ export async function markAllNotificationsAsRead(userId: number): Promise<number
     .update(collaborationNotifications)
     .set({ status: "read", readAt: new Date().toISOString() })
     .where(and(eq(collaborationNotifications.recipientUserId, userId), eq(collaborationNotifications.status, "sent")));
-  // @ts-expect-error - MySQL affectedRows
+  // @ts-ignore - MySQL affectedRows
   return (result as Record<string, number>).affectedRows || 0;
 }
 
@@ -380,7 +380,7 @@ export async function triggerCollaborationNotification(params: {
   } = params;
   
   // 检查是否是重要操作
-  // @ts-expect-error - type assertion
+  // @ts-ignore - type assertion
   if (!IMPORTANT_ACTIONS.includes(actionType as unknown)) {
     return 0;
   }
@@ -411,7 +411,7 @@ export async function triggerCollaborationNotification(params: {
     .from(teamMembers)
     .where(and(eq(teamMembers.status, "active")));
   
-  // @ts-expect-error Dynamic property access
+  // @ts-ignore Dynamic property access
   const recipients = members.filter((m: unknown) => m.memberId !== actionUserId);
   
   if (recipients.length === 0) {
@@ -461,9 +461,9 @@ export async function triggerCollaborationNotification(params: {
       actionUserName,
       targetType: targetType || null,
       targetId: targetId || null,
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       targetName: targetName || null,
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       accountId: accountId || null,
       accountName: accountName || null,
       channel: "app",
@@ -487,10 +487,10 @@ export async function triggerCollaborationNotification(params: {
         actionUserId,
         actionUserName,
         targetType: targetType || null,
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         targetId: targetId || null,
         targetName: targetName || null,
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         accountId: accountId || null,
         accountName: accountName || null,
         channel: "email",

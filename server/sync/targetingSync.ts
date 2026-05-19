@@ -31,6 +31,92 @@ export interface SyncContext {
 
 const log = createModuleLogger('targetingSync');
 
+type KeywordMatchType = 'broad' | 'phrase' | 'exact';
+type ProductTargetType = 'asin' | 'category';
+type ProductTargetMatchType = 'exact' | 'expanded' | 'category_exact' | 'brand_exact' | 'substitute' | 'accessory' | 'loose' | 'close';
+
+function normalizeKeywordMatchType(raw: unknown): KeywordMatchType | null {
+  const value = String(raw || '').trim().toLowerCase().replace(/_/g, ' ');
+  if (value === 'broad') return 'broad';
+  if (value === 'phrase') return 'phrase';
+  if (value === 'exact') return 'exact';
+  return null;
+}
+
+function getStringField(row: Record<string, unknown>, keys: string[]): string {
+  for (const key of keys) {
+    const value = row[key];
+    if (value !== undefined && value !== null && String(value).trim() !== '') {
+      return String(value).trim();
+    }
+  }
+  return '';
+}
+
+function makeSyntheticId(prefix: string, value: string): string {
+  let hash = 0;
+  for (let i = 0; i < value.length; i++) {
+    hash = ((hash << 5) - hash + value.charCodeAt(i)) | 0;
+  }
+  return `${prefix}:${Math.abs(hash).toString(36)}`.slice(0, 64);
+}
+
+function parseSbTargetExpression(raw: string): { targetType: ProductTargetType; targetValue: string; targetMatchType: ProductTargetMatchType } | null {
+  const expression = raw.trim();
+  if (!expression) return null;
+  const lower = expression.toLowerCase();
+
+  const asinMatch = expression.match(/asin\s*[=:]\s*[\"']?([A-Z0-9]{10})[\"']?/i) || expression.match(/\b(B[A-Z0-9]{9})\b/i);
+  if (asinMatch?.[1]) {
+    const targetMatchType: ProductTargetMatchType = lower.includes('expanded') || lower.includes('asinexpanded') ? 'expanded' : 'exact';
+    return { targetType: 'asin', targetValue: asinMatch[1].toUpperCase(), targetMatchType };
+  }
+
+  const categoryMatch = expression.match(/category\s*[=:]\s*[\"']?([^\"'\),;]+)[\"']?/i) || expression.match(/categorysameas\s*\(([^\)]+)\)/i);
+  if (categoryMatch?.[1]) {
+    return { targetType: 'category', targetValue: categoryMatch[1].trim().slice(0, 64), targetMatchType: 'category_exact' };
+  }
+
+  return null;
+}
+
+function normalizeSbTargetingRow(row: Record<string, unknown>):
+  | { kind: 'keyword'; keywordText: string; matchType: KeywordMatchType; targetId: string }
+  | { kind: 'product_target'; targetId: string; targetType: ProductTargetType; targetValue: string; targetExpression: string; targetMatchType: ProductTargetMatchType }
+  | null {
+  const rawMatchType = getStringField(row, ['matchType', 'keywordMatchType']);
+  const keywordMatchType = normalizeKeywordMatchType(rawMatchType);
+  const targetingText = getStringField(row, ['targetingText', 'keywordText', 'keyword']);
+  const targetExpression = getStringField(row, ['targetingExpression', 'resolvedExpression', 'expression', 'targetingText']);
+  const rawTargetingType = getStringField(row, ['targetingType', 'targetingExpressionType', 'type']).toUpperCase();
+  const targetId = getStringField(row, ['targetId', 'keywordId']);
+
+  const productExpression = parseSbTargetExpression(targetExpression);
+  const looksLikeProductTarget = !!productExpression || rawMatchType.toUpperCase().includes('TARGETING_EXPRESSION') || rawTargetingType.includes('TARGETING_EXPRESSION') || rawTargetingType.includes('PRODUCT');
+
+  if (looksLikeProductTarget && productExpression) {
+    return {
+      kind: 'product_target',
+      targetId: targetId || makeSyntheticId(`expr:${productExpression.targetType}`, productExpression.targetValue),
+      targetType: productExpression.targetType,
+      targetValue: productExpression.targetValue,
+      targetExpression: targetExpression || targetingText,
+      targetMatchType: productExpression.targetMatchType,
+    };
+  }
+
+  if (!keywordMatchType || !targetingText) {
+    return null;
+  }
+
+  return {
+    kind: 'keyword',
+    keywordText: targetingText,
+    matchType: keywordMatchType,
+    targetId: targetId || makeSyntheticId('text', `${targetingText}:${keywordMatchType}`),
+  };
+}
+
 /**
  * 同步SP自动定向数据
  * 获取自动广告的匹配组数据（紧密匹配、宽泛匹配、同类商品、关联商品）
@@ -455,49 +541,54 @@ export async function syncSbTargeting(service: SyncContext,days: number = 14): P
     log.debug(`获取到 ${reportData.length} 条SB定向数据`);
     let synced = 0;
 
-    // v422: 修复 - SB报告中没有keywordId字段，只有targetingText和matchType
-    for (const row of (reportData as unknown[])) {
+    // v738: SB targeting 报表会同时返回关键词定向与商品/类目定向。
+    // 这里先归一化 Amazon 原始字段，再分别写入 keywords / product_targets，避免 TARGETING_EXPRESSION 等 API 枚举误写入本地枚举列。
+    let skipped = 0;
+    for (const rawRow of (reportData as unknown[])) {
+      const row = rawRow as Record<string, unknown>;
+
       // 查找对应的adGroup
+      const adGroupId = getStringField(row, ['adGroupId']);
+      if (!adGroupId) { skipped++; continue; }
       const [adGroup] = await db
         .select()
         .from(adGroups)
-        .where(eq(adGroups.adGroupId, String(row.adGroupId)))
+        .where(eq(adGroups.adGroupId, adGroupId))
         .limit(1);
 
-      if (!adGroup) continue;
+      if (!adGroup) { skipped++; continue; }
 
-      // v422: 修复字段名 - SB报告返回的是targetingText，不是keyword或keywordId
-      const targetingText = row.targetingText || '';
-      const matchType = (row.matchType || 'broad').toLowerCase();
-      if (!targetingText) continue;
+      const normalizedTarget = normalizeSbTargetingRow(row);
+      if (!normalizedTarget) { skipped++; continue; }
 
-      {
-        // v422: 通过targetingText+matchType匹配已有关键词记录
+      const cost = Number(row.cost || row.spend || 0) || 0;
+      const sales = Number(row.salesClicks || row.salesClicks14d || row.sales || 0) || 0;
+      const clicks = Number(row.clicks || 0) || 0;
+      const impressions = Number(row.impressions || 0) || 0;
+      const orders = Number(row.purchasesClicks || row.purchasesClicks14d || row.purchases || 0) || 0;
+      const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+
+      if (normalizedTarget.kind === 'keyword') {
         const existingRows = await db
           .select()
           .from(keywords)
           .where(
             and(
               eq(keywords.internalAdGroupId, adGroup.id),
-              eq(keywords.keywordText, targetingText)
+              eq(keywords.keywordText, normalizedTarget.keywordText),
+              eq(keywords.matchType, normalizedTarget.matchType)
             )
           )
           .limit(1);
         const existing = existingRows[0] || null;
 
-        const cost = row.cost || 0;
-        const sales = row.salesClicks || 0;
-        const clicks = row.clicks || 0;
-        const impressions = row.impressions || 0;
-        const orders = row.purchasesClicks || 0;
-
         const keywordData = {
           internalAdGroupId: adGroup.id,
           accountId: service.accountId,
           campaignId: adGroup.campaignId,
-          keywordId: existing?.keywordId || `text:${targetingText}`,
-          keywordText: targetingText,
-          matchType: matchType as 'broad' | 'phrase' | 'exact',
+          keywordId: existing?.keywordId || normalizedTarget.targetId,
+          keywordText: normalizedTarget.keywordText,
+          matchType: normalizedTarget.matchType,
           bid: '0.00',
           impressions,
           clicks,
@@ -510,7 +601,7 @@ export async function syncSbTargeting(service: SyncContext,days: number = 14): P
           keywordCpc: clicks > 0 ? String((cost / clicks).toFixed(2)) : null,
           keywordRoas: cost > 0 && sales > 0 ? String((sales / cost).toFixed(2)) : null,
           keywordStatus: 'enabled' as const,
-          updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+          updatedAt: now,
         };
 
         if (existing) {
@@ -525,13 +616,70 @@ export async function syncSbTargeting(service: SyncContext,days: number = 14): P
         } else {
           await db.insert(keywords).values({
             ...keywordData,
-            createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+            createdAt: now,
           });
         }
         synced++;
-      }  // v422: end block
+        continue;
+      }
+
+      const existingRows = await db
+        .select()
+        .from(productTargets)
+        .where(
+          and(
+            eq(productTargets.internalAdGroupId, adGroup.id),
+            eq(productTargets.targetId, normalizedTarget.targetId)
+          )
+        )
+        .limit(1);
+      const existing = existingRows[0] || null;
+
+      const targetData = {
+        internalAdGroupId: adGroup.id,
+        accountId: service.accountId,
+        campaignId: adGroup.campaignId,
+        targetId: normalizedTarget.targetId,
+        targetType: normalizedTarget.targetType,
+        targetValue: normalizedTarget.targetValue,
+        targetExpression: normalizedTarget.targetExpression,
+        targetMatchType: normalizedTarget.targetMatchType,
+        bid: '0.00',
+        impressions,
+        clicks,
+        spend: String(cost),
+        sales: String(sales),
+        orders,
+        targetAcos: sales > 0 ? String(((cost / sales) * 100).toFixed(2)) : null,
+        targetRoas: cost > 0 && sales > 0 ? String((sales / cost).toFixed(2)) : null,
+        targetCtr: impressions > 0 ? String((clicks / impressions).toFixed(4)) : null,
+        targetCvr: clicks > 0 ? String((orders / clicks).toFixed(4)) : null,
+        targetCpc: clicks > 0 ? String((cost / clicks).toFixed(2)) : null,
+        targetStatus: 'enabled' as const,
+        updatedAt: now,
+      };
+
+      if (existing) {
+        // v523.2: 保护 amazon_deleted 状态不被绩效同步覆盖
+        if (existing.targetStatus === 'amazon_deleted') {
+          delete (targetData as Record<string, unknown>).targetStatus;
+        }
+        await db
+          .update(productTargets)
+          .set(targetData)
+          .where(eq(productTargets.id, existing.id));
+      } else {
+        await db.insert(productTargets).values({
+          ...targetData,
+          createdAt: now,
+        });
+      }
+      synced++;
     }
 
+    if (skipped > 0) {
+      log.info(`[v738] SB定向同步跳过 ${skipped} 条无法归一化或缺少adGroup的记录`);
+    }
     log.info(`SB定向同步完成: ${synced} 条记录`);
 
     // v512: 通过SB Keywords/Targets List API获取SB定向的真实bid

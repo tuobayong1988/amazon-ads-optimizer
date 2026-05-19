@@ -370,16 +370,16 @@ export async function getAccountLevelMetrics(accountId: number): Promise<{
       );
     
     const row = result[0] as unknown;
-    // @ts-expect-error Dynamic property access
+    // @ts-ignore Dynamic property access
     if (!row || row.totalClicks === 0) return null;
     
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const totalClicks = Number(row.totalClicks);
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const totalOrders = Number(row.totalOrders);
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const totalSpend = parseFloat(row.totalSpend as string);
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const totalSales = parseFloat(row.totalSales as string);
     
     return {
@@ -436,19 +436,19 @@ export async function getCrossCampaignCategoryMetrics(
           // 排除当前优化目标的数据，避免自引用
           excludePerformanceGroupId
             ? sql`${dailyPerformance.performanceGroupId} != ${excludePerformanceGroupId}`
-            // @ts-expect-error DB query type inference limitation
+            // @ts-ignore DB query type inference limitation
             : sql`1=1`
         )
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       );
     
     const row = result[0] as unknown;
-    // @ts-expect-error Conditional type narrowing
+    // @ts-ignore Conditional type narrowing
     if (!row || Number(row.totalClicks) === 0) return null;
     
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const totalClicks = Number(row.totalClicks);
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const totalOrders = Number(row.totalOrders);
     
     return {

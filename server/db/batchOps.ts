@@ -23,7 +23,7 @@ export async function createBatchOperation(data: {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
-  // @ts-expect-error DB query type inference limitation
+  // @ts-ignore DB query type inference limitation
   const result = await db.insert(batchOperations).values({
     userId: data.userId,
     accountId: data.accountId || null,

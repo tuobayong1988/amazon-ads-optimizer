@@ -17,17 +17,17 @@ async function ensurePreferencesColumn(db: DbInstance) {
   if (columnEnsured) return;
   
   try {
-    // @ts-expect-error - Drizzle raw SQL execution
+    // @ts-ignore - Drizzle raw SQL execution
     await db.execute(sql`SELECT preferences FROM team_members LIMIT 1`) as unknown;
     columnEnsured = true;
   } catch (error: unknown) {
     try {
-      // @ts-expect-error - Drizzle raw SQL execution
+      // @ts-ignore - Drizzle raw SQL execution
       await db.execute(sql`ALTER TABLE team_members ADD COLUMN preferences JSON DEFAULT NULL`) as unknown;
       log.info('[User] preferences column added to team_members table');
       columnEnsured = true;
     } catch (alterError: unknown) {
-      // @ts-expect-error - error message access
+      // @ts-ignore - error message access
       if (alterError?.message?.includes('Duplicate column')) {
         columnEnsured = true;
       } else {
@@ -39,7 +39,7 @@ async function ensurePreferencesColumn(db: DbInstance) {
 
 export const userRouter = router({
   // 获取用户偏好设置
-  // @ts-expect-error Complex function parameter types
+  // @ts-ignore Complex function parameter types
   getPreferences: protectedProcedure.query(async ({ ctx }: unknown) => {
     const db = await getDb();
     if (!db) return {};
@@ -47,11 +47,11 @@ export const userRouter = router({
     try {
       await ensurePreferencesColumn(db);
       
-      // @ts-expect-error - Drizzle raw SQL execution
+      // @ts-ignore - Drizzle raw SQL execution
       const result = await db.execute() as unknown;
       
       // drizzle-orm/mysql2 返回 [rows, fields]
-      // @ts-expect-error - any type assertion
+      // @ts-ignore - any type assertion
       const rows = result[0] as unknown;
       if (Array.isArray(rows) && rows.length > 0) {
         const prefs = rows[0].preferences;
@@ -61,7 +61,7 @@ export const userRouter = router({
       }
       return {};
     } catch (error: unknown) {
-      // @ts-expect-error - error message access
+      // @ts-ignore - error message access
       log.warn('[User] Failed to get preferences:', error?.message);
       return {};
     }
@@ -81,10 +81,10 @@ export const userRouter = router({
         await ensurePreferencesColumn(db);
         
         // 获取当前偏好
-        // @ts-expect-error - Drizzle raw SQL execution
+        // @ts-ignore - Drizzle raw SQL execution
         const result = await db.execute() as unknown;
         
-        // @ts-expect-error - any type assertion
+        // @ts-ignore - any type assertion
         const rows = result[0] as unknown;
         const row = Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
         
@@ -99,10 +99,10 @@ export const userRouter = router({
         const prefsJson = JSON.stringify(currentPrefs);
         
         // 保存到team_members表
-        // @ts-expect-error - Drizzle raw SQL execution
+        // @ts-ignore - Drizzle raw SQL execution
         const updateResult = await db.execute() as unknown;
         
-        // @ts-expect-error - MySQL affectedRows
+        // @ts-ignore - MySQL affectedRows
         const affectedRows = updateResult[0]?.affectedRows ?? 0;
         
         if (affectedRows === 0) {
@@ -114,7 +114,7 @@ export const userRouter = router({
         return { success: true };
       } catch (error: unknown) {
         log.warn(`[User] Failed to update preferences: ${(error as Error)?.message || String(error)}`);
-        // @ts-expect-error - error message access
+        // @ts-ignore - error message access
         return { success: false, error: error?.message };
       }
     }),

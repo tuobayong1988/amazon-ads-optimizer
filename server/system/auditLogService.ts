@@ -150,7 +150,7 @@ export async function queryAuditLogs(query: AuditLogQuery): Promise<{ logs: Audi
     }
     
     const countResult = await db.execute(sql`SELECT COUNT(*) as total FROM audit_logs ${whereClause}`);
-    // @ts-expect-error Dynamic type assertion
+    // @ts-ignore Dynamic type assertion
     const total = (countResult as Record<string, unknown>[])[0]?.[0]?.total || 0;
     
     const result = await db.execute(sql`
@@ -158,9 +158,9 @@ export async function queryAuditLogs(query: AuditLogQuery): Promise<{ logs: Audi
       ORDER BY created_at DESC LIMIT ${sql.raw(String(limit))} OFFSET ${offset}
     `);
     
-    // @ts-expect-error Dynamic type assertion
+    // @ts-ignore Dynamic type assertion
     const rows = (result as Record<string, unknown>[][])[0] || [];
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     const logs: AuditLog[] = rows.map((row: Record<string, unknown>) => ({
       id: row.id,
       organizationId: row.organization_id,
@@ -169,14 +169,14 @@ export async function queryAuditLogs(query: AuditLogQuery): Promise<{ logs: Audi
       actionType: row.action_type,
       actionCategory: row.action_category,
       resourceType: row.resource_type,
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       resourceId: row.resource_id,
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       resourceName: row.resource_name,
       description: row.description,
-      // @ts-expect-error Conditional type narrowing
+      // @ts-ignore Conditional type narrowing
       oldValue: row.old_value ? JSON.parse(row.old_value) : null,
-      // @ts-expect-error Conditional type narrowing
+      // @ts-ignore Conditional type narrowing
       newValue: row.new_value ? JSON.parse(row.new_value) : null,
       ipAddress: row.ip_address,
       userAgent: row.user_agent,

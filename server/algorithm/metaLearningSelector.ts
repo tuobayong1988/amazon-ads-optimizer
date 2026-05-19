@@ -394,7 +394,7 @@ async function executeAlgorithm(
       if (keywordId || targetId) {
         const entityType = keywordId ? 'keyword' : 'target';
         const entityId = keywordId || targetId || 0;
-        // @ts-expect-error - type assertion
+        // @ts-ignore - type assertion
         const params = await fitAndCacheSigmoidForEntity(accountId, entityType as unknown, entityId, campaignId || '');
         if (params && params.r2 > 0.3) {
           sigmoid = calculateSigmoidOptimalBid(params, 0.01, 0.05, 30);
@@ -424,18 +424,18 @@ async function executeAlgorithm(
           if (sigR.optimalBid > 0) {
             const sigConf = Math.min(0.9, sigP.r2);
             bids.push({ bid: sigR.optimalBid, weight: sigConf });
-            // @ts-expect-error Dynamic type assertion
+            // @ts-ignore Dynamic type assertion
             sigmoid = { recommendedBid: sigR.optimalBid, confidence: sigConf } as Record<string, unknown>;
           }
         }
       } catch { /* Sigmoid不可用时静默跳过 */ }
-      // @ts-expect-error Amazon API response type flexibility
+      // @ts-ignore Amazon API response type flexibility
       if (bids.length > 0) {
-        // @ts-expect-error Amazon API response type flexibility
+        // @ts-ignore Amazon API response type flexibility
         const tw = bids.reduce((s: unknown, b: unknown) => s + b.weight, 0);
-        // @ts-expect-error Amazon API response type flexibility
+        // @ts-ignore Amazon API response type flexibility
         bid = bids.reduce((s: unknown, b: unknown) => s + b.bid * b.weight, 0) / tw;
-        // @ts-expect-error Amazon API response type flexibility
+        // @ts-ignore Amazon API response type flexibility
         conf = tw / bids.length;
       }
       break;
@@ -484,12 +484,12 @@ export async function selectBestAlgorithm(
   currentBid?: number,
   strategyTemplateId?: string | null  // v271 P1-2: 策略模板级别的算法配置
 ): Promise<MetaDecision> {
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const scores = await evaluateAlgorithms(accountId, keywordId, targetId, campaignId, currentBid, strategyTemplateId);
   
   // 选择得分最高的可用算法
   const eligibleScores = scores.filter(s => s.eligible);
-  // @ts-expect-error Express request/response type assertion
+  // @ts-ignore Express request/response type assertion
   eligibleScores.sort((a: unknown, b: unknown) => b.score - a.score);
   
   const top1 = eligibleScores[0] || scores.find(s => s.algorithm === 'rule_based')!;
@@ -571,23 +571,23 @@ export async function selectBestAlgorithm(
       
       // 合并各算法的决策详情
       linucbDecision = result1.linucb || result2.linucb;
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       cqlDecision = result1.cql || result2.cql;
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       sigmoidDecision = result1.sigmoid || result2.sigmoid;
       
       if (fusionBids.length >= 2) {
         // 按置信度加权融合
-        // @ts-expect-error Type inference limitation
+        // @ts-ignore Type inference limitation
         const totalConf = fusionBids.reduce((s: unknown, b: unknown) => s + b.confidence, 0);
-        // @ts-expect-error Amazon API response type flexibility
+        // @ts-ignore Amazon API response type flexibility
         recommendedBid = fusionBids.reduce((s: unknown, b: unknown) => s + b.bid * b.confidence, 0) / totalConf;
         // 融合后的置信度取加权平均，并给予融合奖励（多算法一致性提升置信度）
         const bidDivergence = Math.abs(fusionBids[0].bid - fusionBids[1].bid) / Math.max(fusionBids[0].bid, fusionBids[1].bid, 0.01);
         // v271 P1-2: 共识奖励阈值从策略模板配置获取
         const { consensusBonus: cbConfig } = cascadeConfig;
         const consensusBonus = bidDivergence < cbConfig.highThreshold ? cbConfig.highBonus : bidDivergence < cbConfig.mediumThreshold ? cbConfig.mediumBonus : 0;
-        // @ts-expect-error Legacy code type compatibility
+        // @ts-ignore Legacy code type compatibility
         confidence = Math.min(0.95, (totalConf / fusionBids.length) + consensusBonus);
         selectedAlgorithmName = 'ensemble' as AlgorithmType; // 融合模式记录为ensemble
         fusionDetail = `Cascade融合: ${fusionBids.map(b => `${b.algorithm}($${b.bid.toFixed(2)},conf=${b.confidence.toFixed(2)})`).join(' + ')} → $${recommendedBid.toFixed(2)}, 分歧度=${(bidDivergence*100).toFixed(1)}%, 共识奖励=${(consensusBonus*100).toFixed(0)}%`;
@@ -649,7 +649,7 @@ export async function selectBestAlgorithm(
   
   // 记录选择日志
   const db = await getDbInstance();
-  // @ts-expect-error - Drizzle query builder type
+  // @ts-ignore - Drizzle query builder type
   await db.insert(algorithmSelectionLogs).values({
     accountId,
     keywordId: keywordId || null,

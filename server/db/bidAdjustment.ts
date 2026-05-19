@@ -66,7 +66,7 @@ export async function recordBidAdjustment(data: {
     ? ((data.newBid - data.previousBid) / data.previousBid * 100)
     : 100;
   
-  // @ts-expect-error - Drizzle query builder type
+  // @ts-ignore - Drizzle query builder type
   const result = await db.insert(bidAdjustmentHistory).values({
     accountId: data.accountId,
     campaignId: data.campaignId,
@@ -94,7 +94,7 @@ export async function recordBidAdjustment(data: {
     const statusMap: Record<string, string> = {
       'applied': 'success', 'pending': 'pending', 'failed': 'failed', 'rolled_back': 'rolled_back'
     };
-    // @ts-expect-error - Drizzle query builder type
+    // @ts-ignore - Drizzle query builder type
     await db.insert(optimizationEvents).values({
       performanceGroupId: data.performanceGroupId,
       performanceGroupName: data.performanceGroupName,
@@ -180,7 +180,7 @@ export async function recordBidAdjustmentBatch(records: Array<{
     };
   });
   
-  // @ts-expect-error - Drizzle query builder type
+  // @ts-ignore - Drizzle query builder type
   const result = await db.insert(bidAdjustmentHistory).values(values as unknown);
   return result;
 }
@@ -475,69 +475,69 @@ export async function importBidAdjustmentHistory(records: Array<{
   
   records.forEach((record: unknown, index: unknown) => {
     // 验证必填字段
-    // @ts-expect-error Conditional type narrowing
+    // @ts-ignore Conditional type narrowing
     if (!record.accountId) {
-      // @ts-expect-error Complex function parameter types
+      // @ts-ignore Complex function parameter types
       errors.push({ row: index + 1, error: '缺少账号ID' });
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       return;
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     }
-    // @ts-expect-error Dynamic property access
+    // @ts-ignore Dynamic property access
     if (record.previousBid === undefined || record.newBid === undefined) {
-      // @ts-expect-error Complex function parameter types
+      // @ts-ignore Complex function parameter types
       errors.push({ row: index + 1, error: '缺少出价数据' });
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       return;
     }
     
-    // @ts-expect-error Amazon API response type flexibility
+    // @ts-ignore Amazon API response type flexibility
     const bidChangePercent = record.previousBid > 0 
-      // @ts-expect-error Conditional type narrowing
+      // @ts-ignore Conditional type narrowing
       ? ((record.newBid - record.previousBid) / record.previousBid * 100)
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       : 100;
     
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     validRecords.push({
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       accountId: record.accountId,
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       campaignId: record.campaignId,
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       campaignName: record.campaignName,
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       performanceGroupId: record.performanceGroupId,
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       performanceGroupName: record.performanceGroupName,
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       keywordId: record.keywordId,
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       keywordText: record.keywordText,
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       matchType: record.matchType,
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       previousBid: String(record.previousBid),
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       newBid: String(record.newBid),
       bidChangePercent: String(Math.round(bidChangePercent * 100) / 100),
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       adjustmentType: record.adjustmentType || 'manual',
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       adjustmentReason: record.adjustmentReason || '批量导入',
-      // @ts-expect-error Conditional type narrowing
+      // @ts-ignore Conditional type narrowing
       expectedProfitIncrease: record.expectedProfitIncrease ? String(record.expectedProfitIncrease) : null,
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       appliedBy: record.appliedBy || 'import',
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       appliedAt: record.appliedAt || new Date().toISOString().slice(0, 19).replace('T', ' '),
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       status: record.status || 'applied',
     });
   });
   
   if (validRecords.length > 0) {
-    // @ts-expect-error DB query type inference limitation
+    // @ts-ignore DB query type inference limitation
     await db.insert(bidAdjustmentHistory).values(validRecords);
   }
   

@@ -57,7 +57,7 @@ export async function tenantMiddleware(ctx: Context): Promise<TenantContext> {
   }
 
   // 获取组织信息
-  // @ts-expect-error Type inference limitation
+  // @ts-ignore Type inference limitation
   const organization = await getOrganization(organizationId);
   if (!organization) {
     throw new TRPCError({
@@ -87,13 +87,13 @@ export async function tenantMiddleware(ctx: Context): Promise<TenantContext> {
   }
 
   // 获取用户角色
-  // @ts-expect-error Express request/response type assertion
+  // @ts-ignore Express request/response type assertion
   const userRole = await getUserRole(ctx.user.id, organizationId);
 
-  // @ts-expect-error Return type compatibility
+  // @ts-ignore Return type compatibility
   return {
     ...ctx,
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     organizationId,
     organization,
     userRole,

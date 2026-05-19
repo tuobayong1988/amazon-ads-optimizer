@@ -160,7 +160,7 @@ export class PrelaunchPipelineOrchestrator {
           status: result.success ? 'completed' : 'failed',
           startedAt: status.modules[mod.name].startedAt,
           completedAt: new Date().toISOString(),
-          // @ts-expect-error Dynamic type assertion
+          // @ts-ignore Dynamic type assertion
           error: result.success ? undefined : (result as Record<string, unknown>).error,
         };
       } catch (error: unknown) {

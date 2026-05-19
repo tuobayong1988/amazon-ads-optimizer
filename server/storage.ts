@@ -57,7 +57,7 @@ function toFormData(
   const blob =
     typeof data === "string"
       ? new Blob([data], { type: contentType })
-      // @ts-expect-error Dynamic type assertion
+      // @ts-ignore Dynamic type assertion
       : new Blob([data as unknown], { type: contentType });
   const form = new FormData();
   form.append("file", blob, fileName || "file");

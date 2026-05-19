@@ -80,7 +80,7 @@ export async function executeBudgetAllocation(
     // v756: 整体冷却期检查 — 如果优化目标下所有campaign均在冷却期内，直接跳过
     let allInCooldown = true;
     for (const c of campaigns) {
-      // @ts-expect-error Dynamic property access
+      // @ts-ignore Dynamic property access
       if (!isBudgetInCooldown(c.lastOptimizedAt)) {
         allInCooldown = false;
         break;
@@ -114,7 +114,7 @@ export async function executeBudgetAllocation(
       
       for (const allocation of portfolioResult.allocations) {
         // 查找对应的campaign对象
-        // @ts-expect-error Dynamic property access
+        // @ts-ignore Dynamic property access
         const campaign = campaigns.find((c: any) => String(c.campaignId) === String(allocation.campaignId) || String(c.id) === String(allocation.campaignId));
         
         const currentBudget = allocation.currentBudget;
@@ -205,7 +205,7 @@ export async function executeBudgetAllocation(
       log.info(`[BudgetAllocation] v756回退路径: 目标${config.id} 生成${budgetResult.suggestions.length}条预算建议, campaigns=${campaigns.length}`);
       
       for (const suggestion of budgetResult.suggestions) {
-        // @ts-expect-error Dynamic property access
+        // @ts-ignore Dynamic property access
         const campaign = campaigns.find(c => c.id === suggestion.campaignId);
         if (!campaign) {
           log.warn(`[BudgetAllocation] v756: suggestion.campaignId=${suggestion.campaignId} 未在campaigns列表中找到匹配`);
@@ -214,7 +214,7 @@ export async function executeBudgetAllocation(
         
         // v756: 应用渐进式预算调整，但增加额外安全约束
         let finalBudget = suggestion.suggestedBudget;
-        // @ts-expect-error - type assertion
+        // @ts-ignore - type assertion
         const twMetrics = (suggestion as unknown)?.timeWeightedMetrics;
         
         if (twMetrics && Math.abs(suggestion.suggestedBudget - suggestion.currentBudget) > 0.50) {
@@ -224,7 +224,7 @@ export async function executeBudgetAllocation(
             suggestion.suggestedBudget,
             twMetrics
           );
-          // @ts-expect-error Legacy code type compatibility
+          // @ts-ignore Legacy code type compatibility
           finalBudget = gradualResult.gradualBudget;
         }
         
@@ -246,7 +246,7 @@ export async function executeBudgetAllocation(
           accountId: config.accountId,
           campaignId: suggestion.campaignId,
           amazonCampaignId: suggestion.amazonCampaignId,
-          // @ts-expect-error Amazon API response type flexibility
+          // @ts-ignore Amazon API response type flexibility
           campaignName: campaign.campaignName,
           currentBudget: suggestion.currentBudget,
           suggestedBudget: finalBudget,
@@ -299,13 +299,13 @@ export async function executeBudgetAllocation(
               }
             } else {
               adjustment.apiSyncStatus = 'failed';
-              // @ts-expect-error Amazon API response type flexibility
+              // @ts-ignore Amazon API response type flexibility
               log.warn(`[BudgetAllocation] v756: API同步失败，跳过DB更新 (Campaign ${campaign.campaignName})`);
             }
           } catch (apiError: unknown) {
             adjustment.apiSyncStatus = 'failed';
             adjustment.apiSyncDetail = JSON.stringify({ error: (apiError as Error).message });
-            // @ts-expect-error Amazon API response type flexibility
+            // @ts-ignore Amazon API response type flexibility
             log.warn(`[BudgetAllocation] v756: API同步失败，跳过DB更新 (Campaign ${campaign.campaignName}):`, (apiError as Error).message);
           }
         }

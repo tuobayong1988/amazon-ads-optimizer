@@ -54,11 +54,11 @@ async function withRetry<T>(
       } catch (_: any) {}
       return result;
     } catch (error: unknown) {
-      // @ts-expect-error - legacy type assertion
+      // @ts-ignore - legacy type assertion
       lastError = error;
-      // @ts-expect-error - legacy type assertion
+      // @ts-ignore - legacy type assertion
       const isThrottle = (error as unknown as Record<string, unknown>).response?.status === 429 || (error as Error).message?.includes('请求过于频繁') || (error as Error).message?.includes('Too Many Requests');
-      // @ts-expect-error - Axios error response access
+      // @ts-ignore - Axios error response access
       const isServerError = (error as Error & { response?: unknown }).response?.status >= 500;
       const isNetworkError = (error as Error & { code?: string }).code === 'ECONNRESET' || 
         (error as Error & { code?: string }).code === 'ETIMEDOUT' ||
@@ -217,10 +217,10 @@ export async function syncBidAdjustmentsToAmazon(
     if (uniqueCampaignIds.length > 0) {
       try {
         const campResults = await dbInstance
-          // @ts-expect-error - legacy type assertion
+          // @ts-ignore - legacy type assertion
           .select({ campaignId: campaignsSchema.campaignId, campaignType: campaignsSchema.campaignType })
           .from(campaignsSchema)
-          // @ts-expect-error - legacy type assertion
+          // @ts-ignore - legacy type assertion
           .where(inArray(campaignsSchema.campaignId, uniqueCampaignIds));
         for (const camp of campResults) {
           if (camp.campaignId && camp.campaignType) {
@@ -275,7 +275,7 @@ export async function syncBidAdjustmentsToAmazon(
           result.itemResults.set(kw.id, { status: 'failed', error: `keywordId为非数字表达式，应通过product target API处理` });
           continue;
         }
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         const campType = campaignTypeMap.get(kw.campaignId) || 'sp_manual';
         kwIdMap.set(kw.id, {
           amazonId: trimmedKwId,
@@ -468,7 +468,7 @@ export async function syncBidAdjustmentsToAmazon(
   log.info(`[v502] 关键词出价按类型分组: SP=${spKeywordBids.length}, SB=${sbKeywordBids.length}, SD=${sdKeywordBids.length}`);
   
   // === SP关键词出价更新 ===
-  // @ts-expect-error - legacy type assertion
+  // @ts-ignore - legacy type assertion
   if (spKeywordBids.length > 0) {
     // v646: 全站点动态SP最低竞价拦截器
     const { getBidConstraint: getSpBidConstraint } = await import('../utils/amazonBidConstraints');
@@ -488,37 +488,37 @@ export async function syncBidAdjustmentsToAmazon(
     log.info(`[v502] 批量发送 ${spKeywordBids.length} 个SP关键词出价更新到Amazon`);
     try {
       const apiResult: unknown = await withRetry(
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         () => (syncService as unknown as Record<string, unknown>).client.updateKeywordBids(
-          // @ts-expect-error - legacy type assertion
+          // @ts-ignore - legacy type assertion
           spKeywordBids.map(r => ({ keywordId: r.keywordId, bid: r.bid }))
         ),
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         { maxRetries: 5, baseDelayMs: 5000, label: `batchUpdateSpKeywordBids-${spKeywordBids.length}`, accountId }
-      // @ts-expect-error - legacy type assertion
+      // @ts-ignore - legacy type assertion
       );
       
-      // @ts-expect-error - legacy type assertion
+      // @ts-ignore - legacy type assertion
       const successCount = spKeywordBids.length - (apiResult.errors?.length || 0);
       result.success += successCount;
-      // @ts-expect-error - legacy type assertion
+      // @ts-ignore - legacy type assertion
       const requestId = apiResult.requestIds?.[0] || '';
-      // @ts-expect-error - legacy type assertion
+      // @ts-ignore - legacy type assertion
       const failedKeywordIds = new Set((apiResult.errors || []).map((e: Record<string, unknown>) => String(e.keywordId)));
-      // @ts-expect-error - legacy type assertion
+      // @ts-ignore - legacy type assertion
       for (const item of spKeywordBids) {
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         if (!failedKeywordIds.has(item.keywordId)) {
           result.itemResults.set(item.localId, { status: 'synced', apiResponseId: requestId });
         }
       }
       
       const entityNotFoundKeywordIds: string[] = [];
-      // @ts-expect-error - legacy type assertion
+      // @ts-ignore - legacy type assertion
       if (apiResult.errors && apiResult.errors.length > 0) {
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         result.failed += apiResult.errors.length;
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         for (const err of apiResult.errors as Array<Record<string, unknown>>) {
           const localItem = spKeywordBids.find(r => r.keywordId === String(err.keywordId));
           const errMsg = `SP keyword ${err.keywordId}: ${err.details || (err as unknown as Record<string, unknown>).code || 'unknown'}`;
@@ -534,7 +534,7 @@ export async function syncBidAdjustmentsToAmazon(
       }
       
       if (entityNotFoundKeywordIds.length > 0) {
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         try {
           const idList = entityNotFoundKeywordIds.map(id => `'${String(id).replace(/'/g, "''")}'`).join(',');
           await dbInstance.execute(
@@ -546,7 +546,7 @@ export async function syncBidAdjustmentsToAmazon(
         }
       }
       
-      // @ts-expect-error - legacy type assertion
+      // @ts-ignore - legacy type assertion
       log.info(`[v502] SP关键词出价更新完成: 成功=${successCount}, 失败=${apiResult.errors?.length || 0}`);
     } catch (batchErr: unknown) {
       log.warn(`[v502] SP关键词出价批量更新异常: ${(batchErr as Error).message}`);
@@ -592,30 +592,30 @@ export async function syncBidAdjustmentsToAmazon(
       log.warn(`[v502] ${sbSkipped.length}个SB关键词缺少adGroupId/campaignId，跳过`);
       for (const item of sbSkipped) {
         result.failed++;
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         result.errors.push(`SB keyword ${item.keywordId}: 缺少adGroupId或campaignId`);
         result.itemResults.set(item.localId, { status: 'failed', error: '缺少adGroupId或campaignId' });
       }
     }
     
-    // @ts-expect-error - legacy type assertion
+    // @ts-ignore - legacy type assertion
     if (sbUpdates.length > 0) {
-      // @ts-expect-error - legacy type assertion
+      // @ts-ignore - legacy type assertion
       try {
         // v502: 批次间节流
         if (spKeywordBids.length > 0) {
           await new Promise(resolve => setTimeout(resolve, 5000));
         }
         const apiResult: unknown = await withRetry(
-          // @ts-expect-error - legacy type assertion
+          // @ts-ignore - legacy type assertion
           () => (syncService as unknown as Record<string, unknown>).client.updateSbKeywordBids(sbUpdates),
           { maxRetries: 5, baseDelayMs: 5000, label: `batchUpdateSbKeywordBids-${sbUpdates.length}`, accountId }
         );
         
         const sbFailedIds = new Map<string, string>();
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         if (apiResult.errors && apiResult.errors.length > 0) {
-          // @ts-expect-error - legacy type assertion
+          // @ts-ignore - legacy type assertion
           for (const err of apiResult.errors as Array<Record<string, unknown>>) {
             sbFailedIds.set(String(err.keywordId), String(err.details || err.code || 'SB_API_ERROR'));
           }
@@ -680,15 +680,15 @@ export async function syncBidAdjustmentsToAmazon(
           try {
             await new Promise(resolve => setTimeout(resolve, 3000)); // 重试前等待3秒
             const retryResult: unknown = await withRetry(
-              // @ts-expect-error - legacy type assertion
+              // @ts-ignore - legacy type assertion
               () => (syncService as unknown as Record<string, unknown>).client.updateSbKeywordBids(minBidRetryItems),
               { maxRetries: 2, baseDelayMs: 5000, label: `retrySbKeywordBids-minBid-${minBidRetryItems.length}`, accountId }
             );
             
             const retryFailedIds = new Map<string, string>();
-            // @ts-expect-error - legacy type assertion
+            // @ts-ignore - legacy type assertion
             if (retryResult.errors && retryResult.errors.length > 0) {
-              // @ts-expect-error - legacy type assertion
+              // @ts-ignore - legacy type assertion
               for (const err of retryResult.errors as Array<Record<string, unknown>>) {
                 retryFailedIds.set(String(err.keywordId), String(err.details || err.code || 'RETRY_FAILED'));
               }
@@ -725,7 +725,7 @@ export async function syncBidAdjustmentsToAmazon(
         log.warn(`[v502] SB关键词出价批量更新异常: ${batchErrMsg}`);
         result.failed += sbUpdates.length;
         for (const item of sbKeywordBids.filter(r => r.adGroupId && r.campaignId)) {
-          // @ts-expect-error - legacy type assertion
+          // @ts-ignore - legacy type assertion
           result.itemResults.set(item.localId, { status: 'failed', error: batchErrMsg });
         }
         result.errors.push(`SB关键词出价批量更新异常: ${batchErrMsg}`);
@@ -746,7 +746,7 @@ export async function syncBidAdjustmentsToAmazon(
   }
   
   // === SD关键词出价更新 — 使用 updateSdKeywordBids (如果存在) ===
-  // @ts-expect-error - legacy type assertion
+  // @ts-ignore - legacy type assertion
   if (sdKeywordBids.length > 0) {
     // v646: 全站点动态SD最低竞价拦截器
     const { getBidConstraint: getSdBidConstraint } = await import('../utils/amazonBidConstraints');
@@ -764,26 +764,26 @@ export async function syncBidAdjustmentsToAmazon(
     }
     
     log.info(`[v502] 批量发送 ${sdKeywordBids.length} 个SD关键词出价更新到Amazon`);
-    // @ts-expect-error - legacy type assertion
+    // @ts-ignore - legacy type assertion
     try {
       if (sdKeywordBids.length > 0 && (spKeywordBids.length > 0 || sbKeywordBids.length > 0)) {
         await new Promise(resolve => setTimeout(resolve, 5000));
       }
       // SD关键词使用与SP相同的格式（keywordId + bid）
-      // @ts-expect-error - legacy type assertion
+      // @ts-ignore - legacy type assertion
       const sdApiMethod = (syncService as unknown as Record<string, unknown>).client.updateSdKeywordBids || (syncService as unknown as Record<string, unknown>).client.updateKeywordBids;
       const apiResult: unknown = await withRetry(
         () => sdApiMethod.call((syncService as unknown as Record<string, unknown>).client,
-          // @ts-expect-error - legacy type assertion
+          // @ts-ignore - legacy type assertion
           sdKeywordBids.map(r => ({ keywordId: r.keywordId, bid: r.bid }))
         ),
         { maxRetries: 5, baseDelayMs: 5000, label: `batchUpdateSdKeywordBids-${sdKeywordBids.length}`, accountId }
       );
       
-      // @ts-expect-error - legacy type assertion
+      // @ts-ignore - legacy type assertion
       const successCount = sdKeywordBids.length - (apiResult.errors?.length || 0);
       result.success += successCount;
-      // @ts-expect-error - legacy type assertion
+      // @ts-ignore - legacy type assertion
       const failedIds = new Set((apiResult.errors || []).map((e: Record<string, unknown>) => String(e.keywordId)));
       for (const item of sdKeywordBids) {
         if (!failedIds.has(item.keywordId)) {
@@ -793,7 +793,7 @@ export async function syncBidAdjustmentsToAmazon(
           result.itemResults.set(item.localId, { status: 'failed', error: 'SD API error' });
         }
       }
-      // @ts-expect-error - legacy type assertion
+      // @ts-ignore - legacy type assertion
       log.info(`[v502] SD关键词出价更新完成: 成功=${successCount}, 失败=${apiResult.errors?.length || 0}`);
     } catch (batchErr: unknown) {
       log.warn(`[v502] SD关键词出价批量更新异常: ${(batchErr as Error).message}`);
@@ -808,20 +808,20 @@ export async function syncBidAdjustmentsToAmazon(
   if (deduplicatedKeywordBids.length > 0 && resolvedTargetBids.length > 0) {
     log.info(`[AmazonApiHelper] v476: API批次间节流 - 等待10秒后发送商品定向出价更新...`);
     await new Promise(resolve => setTimeout(resolve, 10000));
-  // @ts-expect-error - legacy type assertion
+  // @ts-ignore - legacy type assertion
   }
   
   // v502: 商品定向出价按campaignType分组
   const spTargetBids = resolvedTargetBids.filter(r => {
     const ct = (r.campaignType || '').toLowerCase();
     return ct.includes('sp') || ct === '' || (!ct.includes('sb') && !ct.includes('sd'));
-  // @ts-expect-error - legacy type assertion
+  // @ts-ignore - legacy type assertion
   });
   const sbTargetBids = resolvedTargetBids.filter(r => (r.campaignType || '').toLowerCase().includes('sb'));
-  // @ts-expect-error - legacy type assertion
+  // @ts-ignore - legacy type assertion
   const sdTargetBids = resolvedTargetBids.filter(r => (r.campaignType || '').toLowerCase().includes('sd'));
   
-  // @ts-expect-error - legacy type assertion
+  // @ts-ignore - legacy type assertion
   if (resolvedTargetBids.length > 0) {
     log.info(`[v502] 商品定向出价按类型分组: SP=${spTargetBids.length}, SB=${sbTargetBids.length}, SD=${sdTargetBids.length}`);
     
@@ -849,22 +849,22 @@ export async function syncBidAdjustmentsToAmazon(
   if (spTargetBids.length > 0) {
     log.info(`[v502] 批量发送 ${spTargetBids.length} 个SP商品定向出价更新到Amazon`);
     try {
-      // @ts-expect-error - legacy type assertion
+      // @ts-ignore - legacy type assertion
       const apiResult: unknown = await withRetry(
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         () => (syncService as unknown as Record<string, unknown>).client.updateProductTargetBids(
           spTargetBids.map(r => ({ targetId: r.targetId, bid: r.bid }))
         ),
         { maxRetries: 5, baseDelayMs: 5000, label: `batchUpdateSpProductTargetBids-${spTargetBids.length}`, accountId }
       );
       
-      // @ts-expect-error - legacy type assertion
+      // @ts-ignore - legacy type assertion
       const successCount = spTargetBids.length - (apiResult.errors?.length || 0);
       result.success += successCount;
-      // @ts-expect-error - legacy type assertion
+      // @ts-ignore - legacy type assertion
       const requestId = apiResult.requestIds?.[0] || '';
       
-      // @ts-expect-error - legacy type assertion
+      // @ts-ignore - legacy type assertion
       const failedTargetIds = new Set((apiResult.errors || []).map((e: Record<string, unknown>) => String(e.targetId)));
       for (const item of spTargetBids) {
         if (!failedTargetIds.has(item.targetId)) {
@@ -873,11 +873,11 @@ export async function syncBidAdjustmentsToAmazon(
       }
       
       const entityNotFoundTargetIds: string[] = [];
-      // @ts-expect-error - legacy type assertion
+      // @ts-ignore - legacy type assertion
       if (apiResult.errors && apiResult.errors.length > 0) {
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         result.failed += apiResult.errors.length;
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         for (const err of apiResult.errors as Array<Record<string, unknown>>) {
           const localItem = spTargetBids.find(r => r.targetId === String(err.targetId));
           const errMsg = `SP product_target ${err.targetId}: ${err.details || (err as unknown as Record<string, unknown>).code || 'unknown'}`;
@@ -896,7 +896,7 @@ export async function syncBidAdjustmentsToAmazon(
         try {
           const idList = entityNotFoundTargetIds.map(id => `'${String(id).replace(/'/g, "''")}'`).join(',');
           await dbInstance.execute(
-            // @ts-expect-error - legacy type assertion
+            // @ts-ignore - legacy type assertion
             sql.raw(`UPDATE product_targets SET targetStatus = 'amazon_deleted' WHERE targetId IN (${idList})`)
           );
           log.warn(`[v502] 已标记${entityNotFoundTargetIds.length}个SP商品定向为amazon_deleted`);
@@ -905,9 +905,9 @@ export async function syncBidAdjustmentsToAmazon(
         }
       }
       
-      // @ts-expect-error - legacy type assertion
+      // @ts-ignore - legacy type assertion
       log.info(`[v502] SP商品定向出价更新完成: 成功=${successCount}, 失败=${apiResult.errors?.length || 0}`);
-    // @ts-expect-error - legacy type assertion
+    // @ts-ignore - legacy type assertion
     } catch (batchErr: unknown) {
       log.warn(`[v502] SP商品定向出价批量更新异常: ${(batchErr as Error).message}`);
       result.failed += spTargetBids.length;
@@ -925,7 +925,7 @@ export async function syncBidAdjustmentsToAmazon(
       if (spTargetBids.length > 0) {
         await new Promise(resolve => setTimeout(resolve, 5000));
       }
-      // @ts-expect-error - legacy type assertion
+      // @ts-ignore - legacy type assertion
       const sbApiMethod = (syncService as unknown as Record<string, unknown>).client.updateSbProductTargetBids || (syncService as unknown as Record<string, unknown>).client.updateProductTargetBids;
       const apiResult: unknown = await withRetry(
         () => sbApiMethod.call((syncService as unknown as Record<string, unknown>).client,
@@ -934,28 +934,28 @@ export async function syncBidAdjustmentsToAmazon(
         { maxRetries: 5, baseDelayMs: 5000, label: `batchUpdateSbProductTargetBids-${sbTargetBids.length}`, accountId }
       );
       
-      // @ts-expect-error - legacy type assertion
+      // @ts-ignore - legacy type assertion
       const successCount = sbTargetBids.length - (apiResult.errors?.length || 0);
       result.success += successCount;
-      // @ts-expect-error - legacy type assertion
+      // @ts-ignore - legacy type assertion
       const failedIds = new Set((apiResult.errors || []).map((e: Record<string, unknown>) => String(e.targetId)));
       for (const item of sbTargetBids) {
         if (!failedIds.has(item.targetId)) {
           result.itemResults.set(item.localId, { status: 'synced' });
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         } else {
           result.failed++;
-          // @ts-expect-error - legacy type assertion
+          // @ts-ignore - legacy type assertion
           result.itemResults.set(item.localId, { status: 'failed', error: 'SB API error' });
         }
       }
-      // @ts-expect-error - legacy type assertion
+      // @ts-ignore - legacy type assertion
       log.info(`[v502] SB商品定向出价更新完成: 成功=${successCount}, 失败=${apiResult.errors?.length || 0}`);
     } catch (batchErr: unknown) {
       log.warn(`[v502] SB商品定向出价批量更新异常: ${(batchErr as Error).message}`);
       result.failed += sbTargetBids.length;
       for (const item of sbTargetBids) {
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         result.itemResults.set(item.localId, { status: 'failed', error: (batchErr as Error).message });
       }
     }
@@ -968,7 +968,7 @@ export async function syncBidAdjustmentsToAmazon(
       if (spTargetBids.length > 0 || sbTargetBids.length > 0) {
         await new Promise(resolve => setTimeout(resolve, 5000));
       }
-      // @ts-expect-error - legacy type assertion
+      // @ts-ignore - legacy type assertion
       const sdApiMethod = (syncService as unknown as Record<string, unknown>).client.updateSdProductTargetBids || (syncService as unknown as Record<string, unknown>).client.updateProductTargetBids;
       const apiResult: unknown = await withRetry(
         () => sdApiMethod.call((syncService as unknown as Record<string, unknown>).client,
@@ -977,10 +977,10 @@ export async function syncBidAdjustmentsToAmazon(
         { maxRetries: 5, baseDelayMs: 5000, label: `batchUpdateSdProductTargetBids-${sdTargetBids.length}`, accountId }
       );
       
-      // @ts-expect-error - legacy type assertion
+      // @ts-ignore - legacy type assertion
       const successCount = sdTargetBids.length - (apiResult.errors?.length || 0);
       result.success += successCount;
-      // @ts-expect-error - legacy type assertion
+      // @ts-ignore - legacy type assertion
       const failedIds = new Set((apiResult.errors || []).map((e: Record<string, unknown>) => String(e.targetId)));
       for (const item of sdTargetBids) {
         if (!failedIds.has(item.targetId)) {
@@ -990,7 +990,7 @@ export async function syncBidAdjustmentsToAmazon(
           result.itemResults.set(item.localId, { status: 'failed', error: 'SD API error' });
         }
       }
-      // @ts-expect-error - legacy type assertion
+      // @ts-ignore - legacy type assertion
       log.info(`[v502] SD商品定向出价更新完成: 成功=${successCount}, 失败=${apiResult.errors?.length || 0}`);
     } catch (batchErr: unknown) {
       log.warn(`[v502] SD商品定向出价批量更新异常: ${(batchErr as Error).message}`);
@@ -1041,7 +1041,7 @@ export async function syncBidAdjustmentsToAmazon(
         }
         
         const apiResult: unknown = await withRetry(
-          // @ts-expect-error - legacy type assertion
+          // @ts-ignore - legacy type assertion
           () => (syncService as unknown as Record<string, unknown>).client.updateSdTargetBids(
             sdAudBids.map(r => ({ targetId: r.targetId, bid: r.bid }))
           ),
@@ -1177,13 +1177,13 @@ export async function syncBidAdjustmentsToAmazon(
  */
 export async function syncNewKeywordsToAmazon(
   accountId: number,
-  // @ts-expect-error - legacy type assertion
+  // @ts-ignore - legacy type assertion
   newKeywords: Array<{
     localKeywordId?: number;  // 本地数据库的keyword ID（如果已插入）
     adGroupId: number | string;  // v201: Amazon AdGroup ID (支持string避免精度丢失)
-    // @ts-expect-error - legacy type assertion
+    // @ts-ignore - legacy type assertion
     campaignId: number | string;  // v201: Amazon Campaign ID (支持string避免精度丢失)
-    // @ts-expect-error - legacy type assertion
+    // @ts-ignore - legacy type assertion
     keywordText: string;
     matchType: 'exact' | 'phrase' | 'broad';
     bid: number;
@@ -1198,18 +1198,18 @@ export async function syncNewKeywordsToAmazon(
   
   if (newKeywords.length === 0) return result;
   
-  // @ts-expect-error - legacy type assertion
+  // @ts-ignore - legacy type assertion
   log.info(`[AmazonApiHelper] 开始同步新关键词到Amazon: accountId=${accountId}, 总计=${newKeywords.length}个`);
   
   const syncService = await getAmazonSyncService(accountId);
   if (!syncService) {
-    // @ts-expect-error - legacy type assertion
+    // @ts-ignore - legacy type assertion
     const errorMsg = `无法获取账号 ${accountId} 的API服务`;
     result.errors.push(errorMsg);
-    // @ts-expect-error - legacy type assertion
+    // @ts-ignore - legacy type assertion
     result.failed = newKeywords.length;
     return result;
-  // @ts-expect-error - legacy type assertion
+  // @ts-ignore - legacy type assertion
   }
   
   // v337: Amazon端存在性检查 - 在创建前检查关键词是否已存在于Amazon
@@ -1220,13 +1220,13 @@ export async function syncNewKeywordsToAmazon(
     const adGroupIds = [...new Set(newKeywords.map(k => String(k.adGroupId)))];
     for (const agId of adGroupIds) {
       try {
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         const existingKws = await (syncService as unknown as Record<string, unknown>).client.listSpKeywords(Number(agId));
         const keySet = new Set<string>();
         for (const kw of (existingKws as unknown[])) {
-          // @ts-expect-error - legacy type assertion
+          // @ts-ignore - legacy type assertion
           const text = (kw.keywordText || '').toLowerCase().trim();
-          // @ts-expect-error - legacy type assertion
+          // @ts-ignore - legacy type assertion
           const mt = (kw.matchType || '').toLowerCase();
           if (text) keySet.add(`${text}::${mt}`);
         }
@@ -1240,29 +1240,29 @@ export async function syncNewKeywordsToAmazon(
     // 过滤掉已存在的关键词
     const filteredKeywords: typeof newKeywords = [];
     for (const kw of (newKeywords as unknown[])) {
-      // @ts-expect-error - legacy type assertion
+      // @ts-ignore - legacy type assertion
       const agKeySet = existingKeywordsMap.get(String(kw.adGroupId));
-      // @ts-expect-error - legacy type assertion
+      // @ts-ignore - legacy type assertion
       const lookupKey = `${kw.keywordText.toLowerCase().trim()}::${kw.matchType.toLowerCase()}`;
       if (agKeySet && agKeySet.has(lookupKey)) {
         result.success++; // 已存在视为成功（幂等）
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         result.createdKeywords.push({
-          // @ts-expect-error - legacy type assertion
+          // @ts-ignore - legacy type assertion
           localId: kw.localKeywordId,
           amazonKeywordId: 0,
-          // @ts-expect-error - legacy type assertion
+          // @ts-ignore - legacy type assertion
           keywordText: kw.keywordText,
         });
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         log.info(`[AmazonApiHelper] v337: 关键词已存在于Amazon，跳过创建: "${kw.keywordText}" [${kw.matchType}] in adGroup ${kw.adGroupId}`);
       } else {
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         filteredKeywords.push(kw);
       }
     }
     
-    // @ts-expect-error - legacy type assertion
+    // @ts-ignore - legacy type assertion
     if (filteredKeywords.length < newKeywords.length) {
       log.info(`[AmazonApiHelper] v337: Amazon端去重: ${newKeywords.length}个 -> ${filteredKeywords.length}个 (${newKeywords.length - filteredKeywords.length}个已存在)`);
     }
@@ -1293,9 +1293,9 @@ export async function syncNewKeywordsToAmazon(
     try {
       // v190: 添加withRetry包装批次API调用，自动重试限流和服务器错误
       const apiResult: unknown = await withRetry(
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         () => (syncService as unknown as Record<string, unknown>).client.createSpKeywords(
-          // @ts-expect-error - legacy type assertion
+          // @ts-ignore - legacy type assertion
           (batch as unknown[]).map((k: Record<string, unknown>) => ({
             adGroupId: k.adGroupId,
             campaignId: k.campaignId,
@@ -1309,9 +1309,9 @@ export async function syncNewKeywordsToAmazon(
       );
       
       // 处理API返回结果
-      // @ts-expect-error - legacy type assertion
+      // @ts-ignore - legacy type assertion
       for (let i = 0; i < apiResult.createdKeywords.length; i++) {
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         const created = apiResult.createdKeywords[i];
         const original = batch[i];
         
@@ -1357,15 +1357,15 @@ export async function syncNewKeywordsToAmazon(
             errorCode === 'INVALID_VALUE' ||
             errorCode === 'INVALID_ARGUMENT' ||
             errorCode === 'ERROR' || // v350: Amazon通用拒绝码，通常为品牌词/受限词
-            // @ts-expect-error - legacy type assertion
+            // @ts-ignore - legacy type assertion
             errorDetail.toLowerCase().includes('trademark') ||
-            // @ts-expect-error - legacy type assertion
+            // @ts-ignore - legacy type assertion
             errorDetail.toLowerCase().includes('brand') ||
-            // @ts-expect-error - legacy type assertion
+            // @ts-ignore - legacy type assertion
             errorDetail.toLowerCase().includes('restricted') ||
-            // @ts-expect-error - legacy type assertion
+            // @ts-ignore - legacy type assertion
             errorDetail.toLowerCase().includes('not eligible') ||
-            // @ts-expect-error - legacy type assertion
+            // @ts-ignore - legacy type assertion
             errorDetail.toLowerCase().includes('duplicate')
           );
           // v351: 移除localKeywordId前提条件，确保所有永久性失败都被标记
@@ -1393,7 +1393,7 @@ export async function syncNewKeywordsToAmazon(
         }
       }
       
-      // @ts-expect-error - error code check
+      // @ts-ignore - error code check
       log.info(`[AmazonApiHelper] 第${batchIdx + 1}批完成: 本批成功=${apiResult.createdKeywords.filter(k => k.code === 'SUCCESS').length}, 累计成功=${result.success}`);
     } catch (error: unknown) {
       // 单批失败不影响其他批次
@@ -1401,11 +1401,11 @@ export async function syncNewKeywordsToAmazon(
       result.failed += batchFailCount;
       const errorMsg = `第${batchIdx + 1}批创建关键词API调用失败: ${(error as Error).message}`;
       result.errors.push(errorMsg);
-      // @ts-expect-error - Axios error response access
+      // @ts-ignore - Axios error response access
       log.warn(`[AmazonApiHelper] ❌ ${errorMsg}`, (error as Error & { response?: unknown }).response?.data || '');
       
       // 如果是限流错误，增加等待时间
-      // @ts-expect-error - Axios error response access
+      // @ts-ignore - Axios error response access
       if ((error as Error & { response?: unknown }).response?.status === 429) {
         const throttleWait = BATCH_DELAY_MS * 5;
         log.debug(`[AmazonApiHelper] ⚠️ 限流，等待${throttleWait}ms后继续下一批...`);
@@ -1420,9 +1420,9 @@ export async function syncNewKeywordsToAmazon(
   }
   
   log.warn(`[AmazonApiHelper] 新关键词同步完成: 成功=${result.success}, 失败=${result.failed}, 总计=${newKeywords.length}`);
-  // @ts-expect-error - legacy type assertion
+  // @ts-ignore - legacy type assertion
   return result;
-// @ts-expect-error - legacy type assertion
+// @ts-ignore - legacy type assertion
 }
 
 /**
@@ -1473,12 +1473,12 @@ export async function syncNewProductTargetsToAmazon(
       });
       
       // v350: 修复API调用路径 - 应通过syncService.client调用而非syncService
-      // @ts-expect-error - dynamic property access
+      // @ts-ignore - dynamic property access
       const apiResult: unknown = await (syncService.client as Record<string, unknown>).createSpProductTargets(apiTargets);
       
-      // @ts-expect-error - legacy type assertion
+      // @ts-ignore - legacy type assertion
       for (let j = 0; j < apiResult.createdTargets.length; j++) {
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         const created = apiResult.createdTargets[j];
         if (created.code === 'SUCCESS' && created.targetId) {
           result.success++;
@@ -1527,21 +1527,21 @@ export async function syncBudgetAdjustmentToAmazon(
     await withRetry(async () => {
       if (type === 'sb') {
         // v323: SB v4 API budget是直接的数字，不是嵌套对象
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         await (syncService as unknown as Record<string, unknown>).client.updateSbCampaign(String(campaignId), {
           budget: newBudget,
         });
       } else if (type === 'sd') {
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         await (syncService as unknown as Record<string, unknown>).client.updateSdCampaign(String(campaignId), {  // v356: 统一使用String类型传递Amazon ID
           budget: newBudget,
         });
       } else {
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         await (syncService as unknown as Record<string, unknown>).client.updateSpCampaign(String(campaignId), {
           dailyBudget: newBudget,
         });
-      // @ts-expect-error - legacy type assertion
+      // @ts-ignore - legacy type assertion
       }
     }, { label: `预算同步 Campaign ${campaignId}`, accountId });
     
@@ -1582,7 +1582,7 @@ export async function syncPlacementAdjustmentToAmazon(
         if (Math.round(productPagePercent) > 0) {
           bidAdjustments.push({ predicate: 'placementProductPage', percentage: Math.round(productPagePercent) });
         }
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         await (syncService as unknown as Record<string, unknown>).client.updateSbCampaign(String(campaignId), {
           bidding: { bidAdjustments },
         } as Record<string, unknown>);
@@ -1602,7 +1602,7 @@ export async function syncPlacementAdjustmentToAmazon(
         if (Math.round(productPagePercent) > 0) {
           placementBidding.push({ placement: 'PLACEMENT_PRODUCT_PAGE', percentage: Math.round(productPagePercent) });
         }
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         await (syncService as unknown as Record<string, unknown>).client.updateSpCampaign(String(campaignId), {
           dynamicBidding: {
             placementBidding,
@@ -1612,7 +1612,7 @@ export async function syncPlacementAdjustmentToAmazon(
       log.info(`[AmazonApiHelper] SP位置倾斜同步成功: Campaign ${campaignId}, Top=${topOfSearchPercent}%, ProductPage=${productPagePercent}%`);
     }
     return true;
-  // @ts-expect-error - legacy type assertion
+  // @ts-ignore - legacy type assertion
   } catch (error: unknown) {
     log.warn(`[AmazonApiHelper] 位置倾斜同步失败(含重试): Campaign ${campaignId}:`, (error as Error).message);
     return false;
@@ -1648,15 +1648,15 @@ export async function syncNegativeKeywordsToAmazon(
     matchType: 'negativeExact' | 'negativePhrase';
     level: 'campaign' | 'adgroup';
   }>
-// @ts-expect-error - legacy type assertion
+// @ts-ignore - legacy type assertion
 ): Promise<{ success: number; failed: number; errors: string[]; keywordIdMap: Map<string, string> }> {
   const result = { success: 0, failed: 0, errors: [] as string[], keywordIdMap: new Map<string, string>() };
   
   if (negatives.length === 0) return result;
   
-  // @ts-expect-error - legacy type assertion
+  // @ts-ignore - legacy type assertion
   const syncService = await getAmazonSyncService(accountId);
-  // @ts-expect-error - legacy type assertion
+  // @ts-ignore - legacy type assertion
   if (!syncService) {
     result.errors.push(`无法获取账号 ${accountId} 的API服务`);
     result.failed = negatives.length;
@@ -1670,7 +1670,7 @@ export async function syncNegativeKeywordsToAmazon(
   
   // 批量创建campaign级别否定关键词（带去重）
   if (campaignLevel.length > 0) {
-    // @ts-expect-error - legacy type assertion
+    // @ts-ignore - legacy type assertion
     try {
       // v149: 幂等性 - 获取已有的campaign级否定词进行去重
       // v176: 修复matchType格式标准化 - Amazon返回NEGATIVE_PHRASE，本地用negativePhrase
@@ -1678,7 +1678,7 @@ export async function syncNegativeKeywordsToAmazon(
       const existingNegatives = new Set<string>();
       for (const cid of uniqueCampaignIds) {
         try {
-          // @ts-expect-error - legacy type assertion
+          // @ts-ignore - legacy type assertion
           const existing = await (syncService as unknown as Record<string, unknown>).client.listSpCampaignNegativeKeywords(String(cid));  // v356: 确保string类型
           for (const e of existing) {
             const key = `${e.campaignId}:${(e.keywordText || '').toLowerCase()}:${normalizeMatchTypeForComparison(e.matchType)}`;
@@ -1692,7 +1692,7 @@ export async function syncNegativeKeywordsToAmazon(
       // 过滤掉已存在的否定词 (v176: 使用标准化matchType比较)
       const newCampaignNegatives = campaignLevel.filter(n => {
         const key = `${n.campaignId}:${n.keywordText.toLowerCase()}:${normalizeMatchTypeForComparison(n.matchType)}`;
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         return !existingNegatives.has(key);
       });
       
@@ -1704,7 +1704,7 @@ export async function syncNegativeKeywordsToAmazon(
       
       if (newCampaignNegatives.length > 0) {
         // v189: 使用withRetry包装API调用
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         const results = await withRetry(() => (syncService as unknown as Record<string, unknown>).client.createSpCampaignNegativeKeywords(
           newCampaignNegatives.map(n => ({
             campaignId: n.campaignId,
@@ -1714,37 +1714,37 @@ export async function syncNegativeKeywordsToAmazon(
         ), { label: 'Campaign否定词创建', accountId });
         
         // v175b: 正确处理部分成功的响应 - 通过index关联回原始请求
-        // @ts-expect-error - runtime type mismatch
+        // @ts-ignore - runtime type mismatch
         for (let ri = 0; ri < results.length; ri++) {
-          // @ts-expect-error - legacy type assertion
+          // @ts-ignore - legacy type assertion
           const r = results[ri] as Record<string, unknown>;
-          // @ts-expect-error - legacy type assertion
+          // @ts-ignore - legacy type assertion
           if (r.code === 'SUCCESS' || r.code === 'SUCCESS_DUPLICATE' || r.keywordId) {
             result.success++;
             // v195: 记录成功创建的否定词ID，用于回写amazon_negative_keyword_id
             const idx = r.index !== undefined ? r.index : ri;
-            // @ts-expect-error - legacy type assertion
+            // @ts-ignore - legacy type assertion
             if (idx < newCampaignNegatives.length) {
-              // @ts-expect-error - legacy type assertion
+              // @ts-ignore - legacy type assertion
               const neg = newCampaignNegatives[idx];
               const mapKey = `campaign:${neg.campaignId}:${neg.keywordText.toLowerCase()}`;
               if (r.keywordId) {
-                // @ts-expect-error - legacy type assertion
+                // @ts-ignore - legacy type assertion
                 result.keywordIdMap.set(mapKey, String(r.keywordId));
               }
               // v449: 区分新创建和重复的日志
               const dupTag = r.code === 'SUCCESS_DUPLICATE' ? ' (duplicate, 已存在)' : '';
               log.info(`[AmazonApiHelper] 否定词创建成功${dupTag}: "${neg.keywordText}" -> keywordId=${r.keywordId}`);
-            // @ts-expect-error - legacy type assertion
+            // @ts-ignore - legacy type assertion
             }
-          // @ts-expect-error - legacy type assertion
+          // @ts-ignore - legacy type assertion
           } else {
             result.failed++;
             // v175b: 记录失败的具体关键词信息
             const idx = r.index !== undefined ? r.index : ri;
-            // @ts-expect-error - legacy type assertion
+            // @ts-ignore - legacy type assertion
             const failedKeyword = idx < newCampaignNegatives.length 
-              // @ts-expect-error - legacy type assertion
+              // @ts-ignore - legacy type assertion
               ? newCampaignNegatives[idx].keywordText : 'unknown';
             result.errors.push(`Campaign否定词失败[${failedKeyword}]: ${r.details}`);
           }
@@ -1765,7 +1765,7 @@ export async function syncNegativeKeywordsToAmazon(
       const existingNegatives = new Set<string>();
       for (const agId of uniqueAdGroupIds) {
         try {
-          // @ts-expect-error - legacy type assertion
+          // @ts-ignore - legacy type assertion
           const existing = await (syncService as unknown as Record<string, unknown>).client.listSpNegativeKeywords(agId as unknown);
           for (const e of existing) {
             const key = `${e.adGroupId}:${(e.keywordText || '').toLowerCase()}:${normalizeMatchTypeForComparison(e.matchType)}`;
@@ -1790,9 +1790,9 @@ export async function syncNegativeKeywordsToAmazon(
       
       if (newAdGroupNegatives.length > 0) {
         // v189: 使用withRetry包装API调用
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         const results = await withRetry(() => (syncService as unknown as Record<string, unknown>).client.createSpNegativeKeywords(
-          // @ts-expect-error - legacy type assertion
+          // @ts-ignore - legacy type assertion
           (newAdGroupNegatives as unknown[]).map((n: Record<string, unknown>) => ({
             adGroupId: n.adGroupId!,
             campaignId: n.campaignId,
@@ -1801,18 +1801,18 @@ export async function syncNegativeKeywordsToAmazon(
           }))
         ), { label: 'AdGroup否定词创建', accountId });
         
-        // @ts-expect-error - runtime type mismatch
+        // @ts-ignore - runtime type mismatch
         for (let ri = 0; ri < results.length; ri++) {
-          // @ts-expect-error - legacy type assertion
+          // @ts-ignore - legacy type assertion
           const r = results[ri] as Record<string, unknown>;
-          // @ts-expect-error - legacy type assertion
+          // @ts-ignore - legacy type assertion
           if (r.code === 'SUCCESS' || r.code === 'SUCCESS_DUPLICATE' || r.keywordId) {
             result.success++;
             // v195: 记录adGroup级否定词的keywordId
             const idx = r.index !== undefined ? r.index : ri;
-            // @ts-expect-error - legacy type assertion
+            // @ts-ignore - legacy type assertion
             if (idx < newAdGroupNegatives.length) {
-              // @ts-expect-error - legacy type assertion
+              // @ts-ignore - legacy type assertion
               const neg = newAdGroupNegatives[idx];
               const mapKey = `adgroup:${neg.adGroupId}:${neg.keywordText.toLowerCase()}`;
               if (r.keywordId) {
@@ -1857,7 +1857,7 @@ export async function syncNegativeProductTargetsToAmazon(
 ): Promise<{ success: number; failed: number; errors: string[] }> {
   const result = { success: 0, failed: 0, errors: [] as string[] };
   
-  // @ts-expect-error - legacy type assertion
+  // @ts-ignore - legacy type assertion
   if (negatives.length === 0) return result;
   
   const syncService = await getAmazonSyncService(accountId);
@@ -1881,11 +1881,11 @@ export async function syncNegativeProductTargetsToAmazon(
       const uniqueCampaignIds = [...new Set(spCampaignLevel.map(n => n.campaignId))];
       for (const cid of uniqueCampaignIds) {
         try {
-          // @ts-expect-error - legacy type assertion
+          // @ts-ignore - legacy type assertion
           const existing = await (syncService as unknown as Record<string, unknown>).client.listSpCampaignNegativeTargets(cid);
           for (const e of (existing as Record<string, unknown>[])) {
             const expr = (e.expression as Array<{type: string; value?: string}>) || [];
-            // @ts-expect-error - legacy type assertion
+            // @ts-ignore - legacy type assertion
             for (const ex of expr) {
               if (ex.type === 'asinSameAs' && ex.value) {
                 existingNegTargets.add(`${e.campaignId}:${ex.value}`);
@@ -1904,11 +1904,11 @@ export async function syncNegativeProductTargetsToAmazon(
         result.success += skippedCount;
       }
       
-      // @ts-expect-error - legacy type assertion
+      // @ts-ignore - legacy type assertion
       if (newSpCampaignLevel.length === 0) {
         log.info(`[AmazonApiHelper] v478: 所有SP Campaign否定产品定向已存在，跳过`);
       } else {
-      // @ts-expect-error - legacy type assertion
+      // @ts-ignore - legacy type assertion
       const apiResults = await withRetry(() => (syncService as unknown as Record<string, unknown>).client.createSpCampaignNegativeTargets(
         newSpCampaignLevel.map(n => ({
           campaignId: n.campaignId,
@@ -1917,7 +1917,7 @@ export async function syncNegativeProductTargetsToAmazon(
         }))
       ), { label: 'SP Campaign否定产品定向', accountId });
       
-      // @ts-expect-error - runtime type mismatch
+      // @ts-ignore - runtime type mismatch
       for (const r of apiResults) {
         if ((r as unknown as Record<string, unknown>).code === 'SUCCESS' || (r as unknown as Record<string, unknown>).targetId) {
           result.success++;
@@ -1936,7 +1936,7 @@ export async function syncNegativeProductTargetsToAmazon(
   // SP AdGroup级否定产品定向
   if (spAdGroupLevel.length > 0) {
     try {
-      // @ts-expect-error - legacy type assertion
+      // @ts-ignore - legacy type assertion
       const apiResults = await withRetry(() => (syncService as unknown as Record<string, unknown>).client.createSpNegativeTargets(
         spAdGroupLevel.map(n => ({
           campaignId: n.campaignId,
@@ -1946,7 +1946,7 @@ export async function syncNegativeProductTargetsToAmazon(
         }))
       ), { label: 'SP AdGroup否定产品定向', accountId });
       
-      // @ts-expect-error - runtime type mismatch
+      // @ts-ignore - runtime type mismatch
       for (const r of apiResults) {
         if ((r as unknown as Record<string, unknown>).code === 'SUCCESS' || (r as unknown as Record<string, unknown>).targetId) {
           result.success++;
@@ -1964,7 +1964,7 @@ export async function syncNegativeProductTargetsToAmazon(
   // SB AdGroup级否定产品定向
   if (sbAdGroupLevel.length > 0) {
     try {
-      // @ts-expect-error - legacy type assertion
+      // @ts-ignore - legacy type assertion
       const apiResults = await (syncService as unknown as Record<string, unknown>).client.createSbNegativeTargets(
         sbAdGroupLevel.map(n => ({
           campaignId: n.campaignId,
@@ -1983,7 +1983,7 @@ export async function syncNegativeProductTargetsToAmazon(
   // SD AdGroup级否定产品定向
   if (sdAdGroupLevel.length > 0) {
     try {
-      // @ts-expect-error - legacy type assertion
+      // @ts-ignore - legacy type assertion
       const apiResults = await (syncService as unknown as Record<string, unknown>).client.createSdNegativeTargets(
         sdAdGroupLevel.map(n => ({
           adGroupId: n.adGroupId || '',
@@ -2030,23 +2030,23 @@ export async function syncKeywordStatusToAmazon(
   
   if (statusChanges.length === 0) return result;
   
-  // @ts-expect-error - legacy type assertion
+  // @ts-ignore - legacy type assertion
   log.info(`[AmazonApiHelper] 开始同步关键词状态变更: accountId=${accountId}, 总计=${statusChanges.length}条`);
   
   const syncService = await getAmazonSyncService(accountId);
   if (!syncService) {
-    // @ts-expect-error - legacy type assertion
+    // @ts-ignore - legacy type assertion
     const errorMsg = `无法获取账号 ${accountId} 的API服务（凭证缺失或无效）`;
-    // @ts-expect-error - legacy type assertion
+    // @ts-ignore - legacy type assertion
     log.warn(`[AmazonApiHelper] ${errorMsg}`);
-    // @ts-expect-error - legacy type assertion
+    // @ts-ignore - legacy type assertion
     result.errors.push(errorMsg);
-    // @ts-expect-error - legacy type assertion
+    // @ts-ignore - legacy type assertion
     result.failed = statusChanges.length;
     return result;
   }
   
-  // @ts-expect-error - legacy type assertion
+  // @ts-ignore - legacy type assertion
   const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
   
   // 分离关键词和商品定向
@@ -2116,26 +2116,26 @@ export async function syncKeywordStatusToAmazon(
     if (resolvedKeywordUpdates.length > 0) {
       try {
         log.info(`[AmazonApiHelper] v199: 批量发送 ${resolvedKeywordUpdates.length} 个关键词状态更新到Amazon`);
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         const apiResult: unknown = await withRetry(
-          // @ts-expect-error - legacy type assertion
+          // @ts-ignore - legacy type assertion
           () => (syncService as unknown as Record<string, unknown>).client.updateKeywordStatus(resolvedKeywordUpdates),
           { maxRetries: 2, baseDelayMs: 2000, label: `batchUpdateKeywordStatus-${resolvedKeywordUpdates.length}`, accountId }
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         );
         
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         result.success += apiResult.successCount;
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         if (apiResult.errors.length > 0) {
-          // @ts-expect-error - legacy type assertion
+          // @ts-ignore - legacy type assertion
           result.failed += apiResult.errors.length;
-          // @ts-expect-error - legacy type assertion
+          // @ts-ignore - legacy type assertion
           for (const err of apiResult.errors) {
             result.errors.push(`关键词 ${err.keywordId} 状态更新失败: ${err.details || (err as unknown as Record<string, unknown>).code}`);
           }
         }
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         log.warn(`[AmazonApiHelper] v199: 关键词状态批量更新完成: 成功=${apiResult.successCount}, 失败=${apiResult.errors.length}`);
       } catch (batchErr: unknown) {
         log.warn(`[AmazonApiHelper] v199: 关键词状态批量更新异常: ${(batchErr as Error).message}`);
@@ -2194,10 +2194,10 @@ export async function syncKeywordStatusToAmazon(
         }
       }
     } else {
-      // @ts-expect-error - legacy type assertion
+      // @ts-ignore - legacy type assertion
       result.failed += productTargetChanges.length;
       result.errors.push('数据库连接失败');
-    // @ts-expect-error - legacy type assertion
+    // @ts-ignore - legacy type assertion
     }
     
     // 批量发送到Amazon（updateProductTargetStatus已有分批逻辑）
@@ -2205,23 +2205,23 @@ export async function syncKeywordStatusToAmazon(
       try {
         log.info(`[AmazonApiHelper] v199: 批量发送 ${resolvedTargetUpdates.length} 个商品定向状态更新到Amazon`);
         const apiResult: unknown = await withRetry(
-          // @ts-expect-error - legacy type assertion
+          // @ts-ignore - legacy type assertion
           () => (syncService as unknown as Record<string, unknown>).client.updateProductTargetStatus(resolvedTargetUpdates),
           { maxRetries: 2, baseDelayMs: 2000, label: `batchUpdateProductTargetStatus-${resolvedTargetUpdates.length}`, accountId }
         );
         
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         result.success += apiResult.successCount;
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         if (apiResult.errors.length > 0) {
-          // @ts-expect-error - legacy type assertion
+          // @ts-ignore - legacy type assertion
           result.failed += apiResult.errors.length;
-          // @ts-expect-error - legacy type assertion
+          // @ts-ignore - legacy type assertion
           for (const err of apiResult.errors) {
             result.errors.push(`商品定向 ${err.targetId} 状态更新失败: ${err.details || (err as unknown as Record<string, unknown>).code}`);
           }
         }
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         log.warn(`[AmazonApiHelper] v199: 商品定向状态批量更新完成: 成功=${apiResult.successCount}, 失败=${apiResult.errors.length}`);
       } catch (batchErr: unknown) {
         log.warn(`[AmazonApiHelper] v199: 商品定向状态批量更新异常: ${(batchErr as Error).message}`);
@@ -2287,13 +2287,13 @@ export async function syncCampaignStatusToAmazon(
     try {
       await withRetry(async () => {
         if (campaignType === 'sb') {
-          // @ts-expect-error - legacy type assertion
+          // @ts-ignore - legacy type assertion
           await (syncService as unknown as Record<string, unknown>).client.updateSbCampaign(change.amazonCampaignId, { state: change.newStatus.toUpperCase() });
         } else if (campaignType === 'sd') {
-          // @ts-expect-error - legacy type assertion
+          // @ts-ignore - legacy type assertion
           await (syncService as unknown as Record<string, unknown>).client.updateSdCampaign(String(change.amazonCampaignId), { state: change.newStatus.toUpperCase() });
         } else {
-          // @ts-expect-error - legacy type assertion
+          // @ts-ignore - legacy type assertion
           await (syncService as unknown as Record<string, unknown>).client.updateSpCampaign(change.amazonCampaignId, { state: change.newStatus.toUpperCase() } as Record<string, unknown>);
         }
       }, { maxRetries: 2, baseDelayMs: 2000, label: `campaignStatus-${change.amazonCampaignId}`, accountId });
@@ -2316,20 +2316,20 @@ export async function syncCampaignStatusToAmazon(
         }
       } catch (logError: unknown) {
         log.warn(`[AmazonApiHelper] 无法记录同步失败日志: ${(logError as Error).message}`);
-      // @ts-expect-error - legacy type assertion
+      // @ts-ignore - legacy type assertion
       }
       
-      // @ts-expect-error - legacy type assertion
+      // @ts-ignore - legacy type assertion
       return { success: false, error: errorMsg };
-    // @ts-expect-error - legacy type assertion
+    // @ts-ignore - legacy type assertion
     }
   }
   
   // v359: 并发执行，每批最多CONCURRENCY个
   for (let i = 0; i < validChanges.length; i += CONCURRENCY) {
-    // @ts-expect-error - legacy type assertion
+    // @ts-ignore - legacy type assertion
     const batch = validChanges.slice(i, i + CONCURRENCY);
-    // @ts-expect-error - legacy type assertion
+    // @ts-ignore - legacy type assertion
     const batchResults = await Promise.allSettled(batch.map(c => processCampaignUpdate(c)));
     
     for (const br of batchResults) {
@@ -2345,7 +2345,7 @@ export async function syncCampaignStatusToAmazon(
     // 批间延迟避免限流
     if (i + CONCURRENCY < validChanges.length) {
       await new Promise(resolve => setTimeout(resolve, 300));
-    // @ts-expect-error - legacy type assertion
+    // @ts-ignore - legacy type assertion
     }
   }
   
@@ -2359,9 +2359,9 @@ export async function syncCampaignStatusToAmazon(
  * 原来: N个adGroup = N次串行API调用（每次只包含1个）
  * 现在: SP类型合并为1次批量API调用，SD类型合并为1次批量API调用
  */
-// @ts-expect-error - legacy type assertion
+// @ts-ignore - legacy type assertion
 export async function syncAdGroupStatusToAmazon(
-  // @ts-expect-error - legacy type assertion
+  // @ts-ignore - legacy type assertion
   accountId: number,
   statusChanges: Array<{
     adGroupId: number;
@@ -2412,28 +2412,28 @@ export async function syncAdGroupStatusToAmazon(
     log.info(`[AmazonApiHelper] v359: 批量发送 ${spChanges.length} 个SP广告组状态更新`);
     try {
       const apiResult: unknown = await withRetry(
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         () => (syncService as unknown as Record<string, unknown>).client.updateSpAdGroupStatus(
           spChanges.map(c => ({ adGroupId: c.amazonAdGroupId, state: c.newStatus }))
         ),
         { maxRetries: 2, baseDelayMs: 2000, label: `batchUpdateSpAdGroupStatus-${spChanges.length}`, accountId }
       );
       
-      // @ts-expect-error - legacy type assertion
+      // @ts-ignore - legacy type assertion
       result.success += apiResult.successCount || 0;
-      // @ts-expect-error - legacy type assertion
+      // @ts-ignore - legacy type assertion
       if (apiResult.errors && apiResult.errors.length > 0) {
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         result.failed += apiResult.errors.length;
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         for (const err of apiResult.errors) {
           result.errors.push(`SP广告组 ${(err as unknown as Record<string, unknown>).adGroupId}: ${(err as unknown as Record<string, unknown>).details || (err as unknown as Record<string, unknown>).code || 'unknown'}`);
         }
       }
       // 如果successCount未返回，通过总数减去失败数推算
-      // @ts-expect-error - legacy type assertion
+      // @ts-ignore - legacy type assertion
       if (apiResult.successCount === undefined) {
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         result.success += spChanges.length - (apiResult.errors?.length || 0);
       }
       log.info(`[AmazonApiHelper] v359: SP广告组状态批量更新完成`);
@@ -2449,27 +2449,27 @@ export async function syncAdGroupStatusToAmazon(
     log.info(`[AmazonApiHelper] v359: 批量发送 ${sdChanges.length} 个SD广告组状态更新`);
     try {
       const apiResult: unknown = await withRetry(
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         () => (syncService as unknown as Record<string, unknown>).client.updateSdAdGroupStatus(
           sdChanges.map(c => ({ adGroupId: c.amazonAdGroupId, state: c.newStatus }))
         ),
         { maxRetries: 2, baseDelayMs: 2000, label: `batchUpdateSdAdGroupStatus-${sdChanges.length}`, accountId }
       );
       
-      // @ts-expect-error - legacy type assertion
+      // @ts-ignore - legacy type assertion
       result.success += apiResult.successCount || 0;
-      // @ts-expect-error - legacy type assertion
+      // @ts-ignore - legacy type assertion
       if (apiResult.errors && apiResult.errors.length > 0) {
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         result.failed += apiResult.errors.length;
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         for (const err of apiResult.errors) {
           result.errors.push(`SD广告组 ${(err as unknown as Record<string, unknown>).adGroupId}: ${(err as unknown as Record<string, unknown>).details || (err as unknown as Record<string, unknown>).code || 'unknown'}`);
         }
       }
-      // @ts-expect-error - legacy type assertion
+      // @ts-ignore - legacy type assertion
       if (apiResult.successCount === undefined) {
-        // @ts-expect-error - legacy type assertion
+        // @ts-ignore - legacy type assertion
         result.success += sdChanges.length - (apiResult.errors?.length || 0);
       }
       log.info(`[AmazonApiHelper] v359: SD广告组状态批量更新完成`);

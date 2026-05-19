@@ -38,7 +38,7 @@ export async function backfillMatchType(): Promise<{ updated: number; errors: nu
     `);
     
     // 获取受影响的行数
-    // @ts-expect-error - MySQL affectedRows
+    // @ts-ignore - MySQL affectedRows
     const affectedRows = (result as Record<string, unknown>[][])[0]?.affectedRows || (result as unknown)?.affectedRows || 0;
     updated = affectedRows;
     
@@ -54,7 +54,7 @@ export async function backfillMatchType(): Promise<{ updated: number; errors: nu
       WHERE event_category = 'bid_adjustment'
     `);
     
-    // @ts-expect-error Dynamic type assertion
+    // @ts-ignore Dynamic type assertion
     const coverage = (coverageResult as Record<string, unknown>[])[0] || {};
     const total = Number(coverage.total) || 0;
     const withMatchType = Number(coverage.with_match_type) || 0;

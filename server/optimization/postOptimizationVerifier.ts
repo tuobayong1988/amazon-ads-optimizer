@@ -376,7 +376,7 @@ async function executeVerificationTask(taskId: string): Promise<void> {
     const itemsByType = groupItemsByType(task.items);
     
     for (const [type, items] of itemsByType.entries()) {
-      // @ts-expect-error Type inference limitation
+      // @ts-ignore Type inference limitation
       const results = await verifyByType(syncService, type, items);
       resultsByType.set(type, results);
     }
@@ -519,60 +519,60 @@ async function verifyBidAdjustments(
         
         // v512: 根据fieldName路由到正确的API端点
         switch (fieldName) {
-          // @ts-expect-error Amazon API response type flexibility
+          // @ts-ignore Amazon API response type flexibility
           case 'keyword_bid':
-            // @ts-expect-error Dynamic type assertion
+            // @ts-ignore Dynamic type assertion
             amazonItems = await (syncService as Record<string, unknown>).client.listSpKeywords(adGroupId || undefined);
             idField = 'keywordId';
-            // @ts-expect-error Legacy code type compatibility
+            // @ts-ignore Legacy code type compatibility
             break;
           case 'product_target_bid':
-            // @ts-expect-error Dynamic type assertion
+            // @ts-ignore Dynamic type assertion
             amazonItems = await (syncService as Record<string, unknown>).client.listSpProductTargets(adGroupId || undefined);
             idField = 'targetId';
-            // @ts-expect-error Legacy code type compatibility
+            // @ts-ignore Legacy code type compatibility
             break;
           case 'sb_keyword_bid':
             try {
-              // @ts-expect-error Dynamic type assertion
+              // @ts-ignore Dynamic type assertion
               amazonItems = await (syncService as Record<string, unknown>).client.listSbKeywords(adGroupId ? String(adGroupId) : undefined);
               idField = 'keywordId';
             } catch (sbErr: unknown) {
               log.warn(`[v512] SB关键词验证API调用失败(403可能是正常的): ${(sbErr as Error).message}`);
               amazonItems = [];
-            // @ts-expect-error Legacy code type compatibility
+            // @ts-ignore Legacy code type compatibility
             }
             break;
           case 'sb_product_target_bid':
             try {
-              // @ts-expect-error Dynamic type assertion
+              // @ts-ignore Dynamic type assertion
               amazonItems = await (syncService as Record<string, unknown>).client.listSbTargets(adGroupId ? String(adGroupId) : undefined);
               idField = 'targetId';
             } catch (sbErr: unknown) {
               log.warn(`[v512] SB商品定向验证API调用失败: ${(sbErr as Error).message}`);
               amazonItems = [];
-            // @ts-expect-error Legacy code type compatibility
+            // @ts-ignore Legacy code type compatibility
             }
             break;
           case 'sd_keyword_bid':
           case 'sd_product_target_bid':
             try {
-              // @ts-expect-error Dynamic type assertion
+              // @ts-ignore Dynamic type assertion
               amazonItems = await (syncService as Record<string, unknown>).client.listSdTargets(adGroupId || undefined);
               idField = 'targetId';
             } catch (sdErr: unknown) {
               log.warn(`[v512] SD定向验证API调用失败: ${(sdErr as Error).message}`);
-              // @ts-expect-error Legacy code type compatibility
+              // @ts-ignore Legacy code type compatibility
               amazonItems = [];
             }
             break;
           case 'sd_audience_bid':
             try {
               // SD受众和SD商品定向共享同一个/sd/targets端点
-              // @ts-expect-error Dynamic type assertion
+              // @ts-ignore Dynamic type assertion
               amazonItems = await (syncService as Record<string, unknown>).client.listSdTargets(adGroupId || undefined);
               idField = 'targetId';
-            // @ts-expect-error Legacy code type compatibility
+            // @ts-ignore Legacy code type compatibility
             } catch (sdErr: unknown) {
               log.warn(`[v512] SD受众验证API调用失败: ${(sdErr as Error).message}`);
               amazonItems = [];
@@ -580,7 +580,7 @@ async function verifyBidAdjustments(
             break;
           default:
             log.warn(`[v512] 未知的fieldName: ${fieldName}，默认使用SP关键词API`);
-            // @ts-expect-error Dynamic type assertion
+            // @ts-ignore Dynamic type assertion
             amazonItems = await (syncService as Record<string, unknown>).client.listSpKeywords(adGroupId || undefined);
             idField = 'keywordId';
         }
@@ -588,9 +588,9 @@ async function verifyBidAdjustments(
         // 构建Amazon ID到出价的映射
         const amazonBidMap = new Map<string, number>();
         for (const apiItem of (amazonItems || [])) {
-          // @ts-expect-error - runtime type mismatch
+          // @ts-ignore - runtime type mismatch
           const id = String(apiItem[idField]);
-          // @ts-expect-error - Drizzle query builder type
+          // @ts-ignore - Drizzle query builder type
           const bid = typeof apiItem.bid === 'object' && apiItem.bid !== null ? (apiItem.bid.amount || 0) : (apiItem.bid || 0);
           amazonBidMap.set(id, Number(bid));
         }
@@ -634,7 +634,7 @@ async function verifyBidAdjustments(
  * 验证预算调整
  * 通过Amazon API查询广告活动当前预算，与期望值对比
  */
-// @ts-expect-error Legacy code type compatibility
+// @ts-ignore Legacy code type compatibility
 async function verifyBudgetAdjustments(
   syncService: Record<string, unknown>,
   items: VerificationItem[]
@@ -698,30 +698,30 @@ async function verifyBudgetAdjustments(
     // v749: 仅对数据库未确认的项目进行 API 验证（fallback）
     if (apiPendingItems.length > 0) {
       try {
-        // @ts-expect-error Dynamic type assertion
+        // @ts-ignore Dynamic type assertion
         const spCampaigns = await (syncService as Record<string, unknown>).client.listSpCampaigns().catch(() => []);
-        // @ts-expect-error Dynamic type assertion
+        // @ts-ignore Dynamic type assertion
         const sbCampaigns = await (syncService as Record<string, unknown>).client.listSbCampaigns?.().catch(() => []) || [];
-        // @ts-expect-error Dynamic type assertion
+        // @ts-ignore Dynamic type assertion
         const sdCampaigns = await (syncService as Record<string, unknown>).client.listSdCampaigns?.().catch(() => []) || [];
         
         const amazonBudgetMap = new Map<string, number>();
         for (const campaign of (spCampaigns as unknown[])) {
-          // @ts-expect-error Amazon API response type flexibility
+          // @ts-ignore Amazon API response type flexibility
           const cid = normalizeId(campaign.campaignId);
-          // @ts-expect-error DB query type inference limitation
+          // @ts-ignore DB query type inference limitation
           if (cid) amazonBudgetMap.set(cid, campaign.dailyBudget || campaign.budget?.dailyBudget);
         }
         for (const campaign of (sbCampaigns as unknown[])) {
-          // @ts-expect-error Amazon API response type flexibility
+          // @ts-ignore Amazon API response type flexibility
           const cid = normalizeId(campaign.campaignId);
-          // @ts-expect-error DB query type inference limitation
+          // @ts-ignore DB query type inference limitation
           if (cid) amazonBudgetMap.set(cid, campaign.dailyBudget || campaign.budget?.dailyBudget || campaign.budget?.budget);
         }
         for (const campaign of (sdCampaigns as unknown[])) {
-          // @ts-expect-error Amazon API response type flexibility
+          // @ts-ignore Amazon API response type flexibility
           const cid = normalizeId(campaign.campaignId);
-          // @ts-expect-error DB query type inference limitation
+          // @ts-ignore DB query type inference limitation
           if (cid) amazonBudgetMap.set(cid, campaign.dailyBudget || campaign.budget?.dailyBudget);
         }
         
@@ -772,30 +772,30 @@ async function verifyBudgetAdjustmentsViaApi(
   const normalizeId = (id: unknown): string => String(id ?? '').trim();
   
   try {
-    // @ts-expect-error Dynamic type assertion
+    // @ts-ignore Dynamic type assertion
     const spCampaigns = await (syncService as Record<string, unknown>).client.listSpCampaigns().catch(() => []);
-    // @ts-expect-error Dynamic type assertion
+    // @ts-ignore Dynamic type assertion
     const sbCampaigns = await (syncService as Record<string, unknown>).client.listSbCampaigns?.().catch(() => []) || [];
-    // @ts-expect-error Dynamic type assertion
+    // @ts-ignore Dynamic type assertion
     const sdCampaigns = await (syncService as Record<string, unknown>).client.listSdCampaigns?.().catch(() => []) || [];
     
     const amazonBudgetMap = new Map<string, number>();
     for (const campaign of (spCampaigns as unknown[])) {
-      // @ts-expect-error Amazon API response type flexibility
+      // @ts-ignore Amazon API response type flexibility
       const cid = normalizeId(campaign.campaignId);
-      // @ts-expect-error DB query type inference limitation
+      // @ts-ignore DB query type inference limitation
       if (cid) amazonBudgetMap.set(cid, campaign.dailyBudget || campaign.budget?.dailyBudget);
     }
     for (const campaign of (sbCampaigns as unknown[])) {
-      // @ts-expect-error Amazon API response type flexibility
+      // @ts-ignore Amazon API response type flexibility
       const cid = normalizeId(campaign.campaignId);
-      // @ts-expect-error DB query type inference limitation
+      // @ts-ignore DB query type inference limitation
       if (cid) amazonBudgetMap.set(cid, campaign.dailyBudget || campaign.budget?.dailyBudget || campaign.budget?.budget);
     }
     for (const campaign of (sdCampaigns as unknown[])) {
-      // @ts-expect-error Amazon API response type flexibility
+      // @ts-ignore Amazon API response type flexibility
       const cid = normalizeId(campaign.campaignId);
-      // @ts-expect-error DB query type inference limitation
+      // @ts-ignore DB query type inference limitation
       if (cid) amazonBudgetMap.set(cid, campaign.dailyBudget || campaign.budget?.dailyBudget);
     }
     
@@ -833,22 +833,22 @@ async function verifyPlacementAdjustments(
   syncService: Record<string, unknown>,
   items: VerificationItem[]
 ): Promise<VerificationResult[]> {
-  // @ts-expect-error Legacy code type compatibility
+  // @ts-ignore Legacy code type compatibility
   const results: VerificationResult[] = [];
   
   try {
-    // @ts-expect-error Dynamic type assertion
+    // @ts-ignore Dynamic type assertion
     const amazonCampaigns = await (syncService as Record<string, unknown>).client.listSpCampaigns();
     
     // v423: 构建Amazon campaignId到位置倾斜的映射，支持API v3的dynamicBidding.placementBidding结构
     const amazonPlacementMap = new Map<string, { topOfSearch: number; productPage: number; restOfSearch: number }>();
-    // @ts-expect-error Dynamic type assertion
+    // @ts-ignore Dynamic type assertion
     for (const campaign of (amazonCampaigns as unknown[])) {
       let topOfSearch = 0, productPage = 0, restOfSearch = 0;
       // v423: 优先从API v3的dynamicBidding.placementBidding获取
-      // @ts-expect-error Amazon API response type flexibility
+      // @ts-ignore Amazon API response type flexibility
       if (campaign.dynamicBidding?.placementBidding?.length > 0) {
-        // @ts-expect-error Amazon API response type flexibility
+        // @ts-ignore Amazon API response type flexibility
         for (const adj of campaign.dynamicBidding.placementBidding) {
           if (adj.placement === 'PLACEMENT_TOP') topOfSearch = adj.percentage;
           if (adj.placement === 'PLACEMENT_PRODUCT_PAGE') productPage = adj.percentage;
@@ -856,14 +856,14 @@ async function verifyPlacementAdjustments(
         }
       } else {
         // 兼容旧版API的bidding.adjustments
-        // @ts-expect-error Amazon API response type flexibility
+        // @ts-ignore Amazon API response type flexibility
         const adjustments = campaign.bidding?.adjustments || [];
         for (const adj of adjustments) {
           if (adj.predicate === 'placementTop') topOfSearch = adj.percentage;
           if (adj.predicate === 'placementProductPage') productPage = adj.percentage;
         }
       }
-      // @ts-expect-error DB query type inference limitation
+      // @ts-ignore DB query type inference limitation
       amazonPlacementMap.set(String(campaign.campaignId), { topOfSearch, productPage, restOfSearch });
     }
     
@@ -878,16 +878,16 @@ async function verifyPlacementAdjustments(
       let isMatch = true;
       const mismatches: string[] = [];
       
-      // @ts-expect-error - runtime type mismatch
+      // @ts-ignore - runtime type mismatch
       if (expected.topOfSearch !== undefined && Math.abs(actual.topOfSearch - expected.topOfSearch) > 1) {
         isMatch = false;
-        // @ts-expect-error - runtime type mismatch
+        // @ts-ignore - runtime type mismatch
         mismatches.push(`搜索顶部: 期望=${expected.topOfSearch}%, 实际=${actual.topOfSearch}%`);
       }
-      // @ts-expect-error - runtime type mismatch
+      // @ts-ignore - runtime type mismatch
       if (expected.productPage !== undefined && Math.abs(actual.productPage - expected.productPage) > 1) {
         isMatch = false;
-        // @ts-expect-error - runtime type mismatch
+        // @ts-ignore - runtime type mismatch
         mismatches.push(`商品页面: 期望=${expected.productPage}%, 实际=${actual.productPage}%`);
       }
       
@@ -920,7 +920,7 @@ async function verifyPlacementAdjustments(
 async function verifyNegativeKeywords(
   syncService: Record<string, unknown>,
   items: VerificationItem[]
-// @ts-expect-error Async operation type inference
+// @ts-ignore Async operation type inference
 ): Promise<VerificationResult[]> {
   const results: VerificationResult[] = [];
   
@@ -934,10 +934,10 @@ async function verifyNegativeKeywords(
   }
   
   for (const [campaignId, groupItems] of byCampaign.entries()) {
-    // @ts-expect-error Legacy code type compatibility
+    // @ts-ignore Legacy code type compatibility
     try {
       // 查询该campaign下的所有否定关键词
-      // @ts-expect-error Dynamic type assertion
+      // @ts-ignore Dynamic type assertion
       const amazonNegatives = await (syncService as Record<string, unknown>).client.listSpCampaignNegativeKeywords(campaignId || undefined);
       
       // 构建keywordText到记录的映射
@@ -951,7 +951,7 @@ async function verifyNegativeKeywords(
       const adGroupIds = new Set(groupItems.map(i => i.context?.adGroupId).filter(Boolean));
       for (const adGroupId of adGroupIds) {
         try {
-          // @ts-expect-error Dynamic type assertion
+          // @ts-ignore Dynamic type assertion
           const adGroupNegatives = await (syncService as Record<string, unknown>).client.listSpNegativeKeywords(adGroupId);
           for (const neg of adGroupNegatives) {
             const key = `${neg.keywordText}_${neg.matchType}`.toLowerCase();
@@ -964,7 +964,7 @@ async function verifyNegativeKeywords(
       
       for (const item of groupItems) {
         const expected = item.expectedValue;
-        // @ts-expect-error - runtime type mismatch
+        // @ts-ignore - runtime type mismatch
         const key = `${expected.keywordText}_${expected.matchType}`.toLowerCase();
         const found = amazonNegMap.get(key);
         
@@ -974,7 +974,7 @@ async function verifyNegativeKeywords(
           results.push({
             item,
             status: 'not_found',
-            // @ts-expect-error - runtime type mismatch
+            // @ts-ignore - runtime type mismatch
             message: `否词 "${expected.keywordText}" (${expected.matchType}) 在Amazon中未找到`,
           });
         }
@@ -994,12 +994,12 @@ async function verifyNegativeKeywords(
 /**
  * 验证关键词状态变更
  */
-// @ts-expect-error Legacy code type compatibility
+// @ts-ignore Legacy code type compatibility
 async function verifyKeywordStatus(
   syncService: Record<string, unknown>,
   items: VerificationItem[]
 ): Promise<VerificationResult[]> {
-  // @ts-expect-error Legacy code type compatibility
+  // @ts-ignore Legacy code type compatibility
   const results: VerificationResult[] = [];
   
   // 按adGroupId分组
@@ -1013,12 +1013,12 @@ async function verifyKeywordStatus(
   
   for (const [adGroupId, groupItems] of byAdGroup.entries()) {
     try {
-      // @ts-expect-error Dynamic type assertion
+      // @ts-ignore Dynamic type assertion
       const amazonKeywords = await (syncService as Record<string, unknown>).client.listSpKeywords(adGroupId || undefined);
       
       const amazonStateMap = new Map<string, string>();
       for (const kw of (amazonKeywords as unknown[])) {
-        // @ts-expect-error DB query type inference limitation
+        // @ts-ignore DB query type inference limitation
         amazonStateMap.set(String(kw.keywordId), kw.state);
       }
       
@@ -1124,29 +1124,29 @@ async function applyConfirmedResults(results: VerificationResult[]): Promise<voi
               pendingPlacementProduct: null,
               lastSyncedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
             };
-            // @ts-expect-error - runtime type mismatch
+            // @ts-ignore - runtime type mismatch
             if (result.actualValue?.topOfSearch !== undefined) {
-              // @ts-expect-error - runtime type mismatch
+              // @ts-ignore - runtime type mismatch
               updateData.placementTopSearchBidAdjustment = String(result.actualValue.topOfSearch);
             }
-            // @ts-expect-error - runtime type mismatch
+            // @ts-ignore - runtime type mismatch
             if (result.actualValue?.productPage !== undefined) {
-              // @ts-expect-error - runtime type mismatch
+              // @ts-ignore - runtime type mismatch
               updateData.placementProductPageBidAdjustment = String(result.actualValue.productPage);
             }
             await tx.update(campaigns)
               .set(updateData)
               .where(eq(campaigns.id, item.localId));
-            // @ts-expect-error - runtime type mismatch
+            // @ts-ignore - runtime type mismatch
             log.debug(`v166: ✅ 广告活动 ${item.localId} 位置倾斜已确认: top=${result.actualValue?.topOfSearch}%, product=${result.actualValue?.productPage}%`);
             break;
           }
           
           case 'negative_keyword': {
             // 否词确认 — 如果Amazon返回了keywordId，更新本地记录
-            // @ts-expect-error - runtime type mismatch
+            // @ts-ignore - runtime type mismatch
             if (result.actualValue?.keywordId) {
-              // @ts-expect-error - runtime type mismatch
+              // @ts-ignore - runtime type mismatch
               log.debug(`v166: ✅ 否词 ${item.localId} 已确认存在于Amazon (amazonId=${result.actualValue.keywordId})`);
             } else {
               log.debug(`v166: ✅ 否词 ${item.localId} 已确认存在于Amazon`);
@@ -1219,14 +1219,14 @@ async function handleConflicts(results: VerificationResult[]): Promise<void> {
               pendingPlacementProduct: null,
               lastSyncedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
             };
-            // @ts-expect-error - runtime type mismatch
+            // @ts-ignore - runtime type mismatch
             if (result.actualValue?.topOfSearch !== undefined) {
-              // @ts-expect-error - runtime type mismatch
+              // @ts-ignore - runtime type mismatch
               updateData.placementTopSearchBidAdjustment = String(result.actualValue.topOfSearch);
             }
-            // @ts-expect-error - runtime type mismatch
+            // @ts-ignore - runtime type mismatch
             if (result.actualValue?.productPage !== undefined) {
-              // @ts-expect-error - runtime type mismatch
+              // @ts-ignore - runtime type mismatch
               updateData.placementProductPageBidAdjustment = String(result.actualValue.productPage);
             }
             await tx.update(campaigns)

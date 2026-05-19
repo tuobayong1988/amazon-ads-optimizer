@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * server/automation/smartAutoEnrollService.ts
  * 

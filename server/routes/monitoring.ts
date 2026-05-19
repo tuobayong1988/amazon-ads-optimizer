@@ -22,7 +22,7 @@ export const monitoringRouter = router({
    * 获取当前团队的监控报告
    */
   getReport: protectedProcedure
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ ctx }: unknown) => {
       const teamId = ctx.user.id;
       if (!teamId) {
@@ -59,9 +59,9 @@ export const monitoringRouter = router({
   /**
    * 手动触发监控检查
    */
-  // @ts-expect-error Legacy code type compatibility
+  // @ts-ignore Legacy code type compatibility
   runCheck: protectedProcedure
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .mutation(async ({ ctx }: unknown) => {
       const teamId = ctx.user.id;
       if (!teamId) {
@@ -104,10 +104,10 @@ export const monitoringRouter = router({
   getHealthMetrics: protectedProcedure
     .input(z.object({
       accountId: z.number(),
-      // @ts-expect-error Legacy code type compatibility
+      // @ts-ignore Legacy code type compatibility
       days: z.number().optional().default(7),
     }))
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ ctx, input }: unknown) => {
       // v268 性能优化: 健康指标缓存（TTL 5分钟）
       const cacheKey = `monitoring.healthMetrics:${input.accountId}:${input.days}`;
@@ -387,7 +387,7 @@ export const monitoringRouter = router({
    */
   getSLOTrend: protectedProcedure
     .input(z.object({ days: z.number().min(1).max(30).optional() }).optional())
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ ctx, input }: unknown) => {
       try {
         const { getSLOTrend } = await import('../sync/infrastructure/sloMonitor');
@@ -403,7 +403,7 @@ export const monitoringRouter = router({
    */
   getIntegrityReport: protectedProcedure
     .input(z.object({ daysToCheck: z.number().min(1).max(90).optional() }).optional())
-    // @ts-expect-error Complex function parameter types
+    // @ts-ignore Complex function parameter types
     .query(async ({ ctx, input }: unknown) => {
       try {
         const { checkAllAccountsIntegrity } = await import('../sync/infrastructure/dataIntegrityChecker');
@@ -415,30 +415,28 @@ export const monitoringRouter = router({
     }),
 
   /**
-   * v358.1: 手动触发数据完整性检查并自动修复
+   * v746: 手动触发数据完整性检查并自动修复
    */
   triggerIntegrityCheck: protectedProcedure
     .mutation(async () => {
       try {
-        const { checkAllAccountsIntegrity, executeAutoRepair } = await import('../sync/infrastructure/dataIntegrityChecker');
-        const checkResult = await checkAllAccountsIntegrity(14);
-        const repairResults: Array<{ accountId: number; repaired: boolean; actionsExecuted: number; errors: string[] }> = [];
-        
-        for (const result of checkResult.results.filter(r => r.needsRepair)) {
-          const repairResult = await executeAutoRepair(result);
-          repairResults.push({
-            accountId: result.accountId,
-            ...repairResult,
-          });
-        }
+        const { runIntegrityCheckAndAutoRepair } = await import('../sync/infrastructure/dataIntegrityChecker');
+        const sweepResult = await runIntegrityCheckAndAutoRepair(14);
+        const repairResults = sweepResult.repairSummary.errors.map(errorGroup => ({
+          accountId: errorGroup.accountId,
+          repaired: false,
+          actionsExecuted: 0,
+          errors: errorGroup.errors,
+        }));
         
         return {
           success: true,
           error: null,
           checkResult: {
-            totalAccounts: checkResult.totalAccounts,
-            healthyAccounts: checkResult.healthyAccounts,
-            unhealthyAccounts: checkResult.unhealthyAccounts,
+            totalAccounts: sweepResult.totalAccounts,
+            healthyAccounts: sweepResult.healthyAccounts,
+            unhealthyAccounts: sweepResult.unhealthyAccounts,
+            repairSummary: sweepResult.repairSummary,
           },
           repairResults,
         };

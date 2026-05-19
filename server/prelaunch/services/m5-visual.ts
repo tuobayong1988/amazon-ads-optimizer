@@ -64,9 +64,9 @@ SLOT PURPOSE: ${slot.description}
 
 PRODUCT CONTEXT:
 - Core Keywords: ${coreKws.map((k: Record<string, unknown>) => k.keyword).join(', ')}
-// @ts-expect-error Dynamic type assertion
+// @ts-ignore Dynamic type assertion
 - Target Persona: ${(topPersona as any)?.personaName || 'General consumer'}
-// @ts-expect-error Dynamic type assertion
+// @ts-ignore Dynamic type assertion
 - Persona Demographics: ${(topPersona as any)?.demographics || 'N/A'}
 
 COMPETITIVE LANDSCAPE:
@@ -84,7 +84,7 @@ Return JSON: {"headline":"...","visualDescription":"...","keyElements":["..."],"
         const brief = await geminiStructuredOutput<Record<string, unknown>>('', prompt, { temperature: 0.4 });
 
         await db.insert(prelaunchVisualBriefs).values({
-          // @ts-expect-error - runtime type mismatch
+          // @ts-ignore - runtime type mismatch
           projectId,
           slotPosition: slot.position,
           slotRole: slot.role,

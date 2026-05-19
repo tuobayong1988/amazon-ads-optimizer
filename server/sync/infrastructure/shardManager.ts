@@ -343,19 +343,19 @@ async function updateTaskProgress(taskId: string): Promise<void> {
       WHERE task_id = ${taskId}
     `);
 
-    // @ts-expect-error Dynamic type assertion
+    // @ts-ignore Dynamic type assertion
     const row = (stats as Record<string, unknown>[])?.[0]?.[0] || (stats as Record<string, unknown>[])?.[0];
     if (!row) return;
 
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const total = Number(row.total) || 0;
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const completed = Number(row.completed) || 0;
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const failed = Number(row.failed) || 0;
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const inProgress = Number(row.in_progress) || 0;
-    // @ts-expect-error Type inference limitation
+    // @ts-ignore Type inference limitation
     const totalSynced = Number(row.total_synced) || 0;
 
     // 判断任务整体状态
@@ -446,6 +446,7 @@ export async function getRetryableShards(): Promise<Array<{
   taskId: string;
   accountId: number;
   stepId: string;
+  tier: SyncTier;
   retryCount: number;
 }>> {
   const db = await getDb();
@@ -465,6 +466,7 @@ export async function getRetryableShards(): Promise<Array<{
       taskId: s.taskId,
       accountId: s.accountId,
       stepId: s.stepId,
+      tier: s.tier as SyncTier,
       retryCount: s.retryCount,
     }));
   } catch (error: unknown) {
@@ -508,7 +510,7 @@ export async function acquireLock(
     return true;
   } catch (error: unknown) {
     // UNIQUE约束冲突说明锁已被持有
-    // @ts-expect-error - MySQL error code check
+    // @ts-ignore - MySQL error code check
     if (error.code === 'ER_DUP_ENTRY' || (error as Error).message?.includes('Duplicate')) {
       log.debug(`[v358] 锁已被占用: ${lockKey}`);
       return false;

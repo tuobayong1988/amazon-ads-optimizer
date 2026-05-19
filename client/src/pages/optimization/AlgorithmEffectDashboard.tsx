@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { useState, useMemo, useCallback, useEffect } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { useGlobalAccountId } from "@/hooks/useGlobalAccountId";

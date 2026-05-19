@@ -182,7 +182,7 @@ export async function checkAllCampaignsPacing(
   try {
     // v739: 仅获取已纳入活跃且autoOptimize已开启的优化目标下的Campaign
     // 修复：之前查询账户下所有enabled Campaign，导致未纳入优化目标的广告活动也被日内节奏调整
-    // @ts-expect-error - Drizzle raw SQL execution
+    // @ts-ignore - Drizzle raw SQL execution
     const [targetRows] = await db.execute(sql`
       SELECT id FROM performance_groups
       WHERE accountId = ${accountId}
@@ -196,7 +196,7 @@ export async function checkAllCampaignsPacing(
       return [];
     }
     
-    // @ts-expect-error - Drizzle raw SQL execution
+    // @ts-ignore - Drizzle raw SQL execution
     const [rows] = await db.execute(sql`
       SELECT campaignId, dailyBudget, performanceGroupId
       FROM campaigns
@@ -216,7 +216,7 @@ export async function checkAllCampaignsPacing(
     
     for (const campaign of managedCampaigns) {
       const adjustment = await adjustIntradayPacing(
-        // @ts-expect-error Amazon API response type flexibility
+        // @ts-ignore Amazon API response type flexibility
         campaign.campaignId,
         accountId
       );
@@ -294,7 +294,7 @@ async function getCampaignBudget(
   if (!db) return 0;
   
   try {
-    // @ts-expect-error - Drizzle raw SQL execution
+    // @ts-ignore - Drizzle raw SQL execution
     const [rows] = await db.execute(sql`
       SELECT dailyBudget
       FROM campaigns
