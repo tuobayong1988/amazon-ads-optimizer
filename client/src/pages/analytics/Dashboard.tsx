@@ -274,6 +274,45 @@ function QuickActionCard({
   );
 }
 
+function QueryIssueNotice({ title, error, onRetry }: { title: string; error: unknown; onRetry?: () => void }) {
+  const message = error instanceof Error ? error.message : String(error || '接口返回异常');
+
+  return (
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border border-red-500/30 bg-red-500/10 p-4 text-sm">
+      <div className="flex items-start gap-3">
+        <AlertTriangle className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
+        <div>
+          <p className="font-medium text-red-500">{title}</p>
+          <p className="text-muted-foreground mt-1">{message}</p>
+        </div>
+      </div>
+      {onRetry && (
+        <Button variant="outline" size="sm" onClick={onRetry}>
+          <RefreshCw className="w-4 h-4 mr-2" />
+          重试
+        </Button>
+      )}
+    </div>
+  );
+}
+
+function KPICardSkeleton() {
+  return (
+    <Card className="relative overflow-hidden border bg-card/50">
+      <CardContent className="p-5">
+        <div className="flex items-start justify-between">
+          <div className="space-y-3 w-full">
+            <div className="h-4 w-20 rounded bg-muted animate-pulse" />
+            <div className="h-8 w-28 rounded bg-muted animate-pulse" />
+            <div className="h-4 w-24 rounded bg-muted animate-pulse" />
+          </div>
+          <div className="h-11 w-11 rounded-xl bg-muted animate-pulse" />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 // 时间范围预设选项
 
 // v103: Marketplace timezone utilities for correct date calculation
@@ -343,7 +382,7 @@ export default function Dashboard() {
   const { user } = useAuth();
   // v399: 使用全局店铺选择器替代本地状态
   const { accountId: selectedAccountId, accounts, isLoading: accountsLoading } = useGlobalAccountId();
-const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [refreshStatus, setRefreshStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   
   // 区域对比时间范围状态
@@ -403,7 +442,7 @@ const [isRefreshing, setIsRefreshing] = useState(false);
   }, [kpiDatePreset, kpiCustomStartDate, kpiCustomEndDate, currentMarketplace]);
 
   // ✅ Fetch KPIs - 与日期选择器联动
-  const { data: kpis, isLoading: kpisLoading, refetch: refetchKpis } = trpc.analytics.getKPIs.useQuery(
+  const { data: kpis, isLoading: kpisLoading, error: kpisError, refetch: refetchKpis } = trpc.analytics.getKPIs.useQuery(
     { 
       accountId: accountId!,
       startDate: kpiDateRange.startDate,
@@ -415,6 +454,13 @@ const [isRefreshing, setIsRefreshing] = useState(false);
   // 获取当前账户的货币符号
   // @ts-ignore
   const currencySymbol = getCurrencySymbolByCode(kpis?.currency);
+
+  const trendDateLabel = useMemo(() => {
+    if (kpiDateRange.startDate && kpiDateRange.endDate) {
+      return `${kpiDateRange.startDate} 至 ${kpiDateRange.endDate}`;
+    }
+    return '当前筛选范围';
+  }, [kpiDateRange.startDate, kpiDateRange.endDate]);
 
   // v386: 归因调整数据延迟加载，不阻塞关键路径
   const { data: attributionData } = trpc.specialScenario.getAttributionAdjustedData.useQuery(
@@ -462,7 +508,7 @@ const [isRefreshing, setIsRefreshing] = useState(false);
   const [showAdjustedData, setShowAdjustedData] = useState(true);
 
   // v386: 系统健康指标延迟加载，不阻塞关键路径
-  const { data: healthMetrics } = trpc.monitoring.getHealthMetrics.useQuery(
+  const { data: healthMetrics, error: healthMetricsError } = trpc.monitoring.getHealthMetrics.useQuery(
     { accountId: accountId!, days: 7 },
     { enabled: !!accountId && deferredQueriesEnabled, staleTime: 10 * 60 * 1000, refetchInterval: 10 * 60 * 1000 }
   );
@@ -527,7 +573,7 @@ const [isRefreshing, setIsRefreshing] = useState(false);
   }, [regionDatePreset, regionCustomStartDate, regionCustomEndDate, currentMarketplace]);
 
   // v386: 区域对比数据延迟加载（跨账户查询较重，不阻塞关键路径）
-  const { data: regionComparison, isLoading: regionLoading } = trpc.analytics.getRegionComparison.useQuery(
+  const { data: regionComparison, isLoading: regionLoading, error: regionComparisonError, refetch: refetchRegionComparison } = trpc.analytics.getRegionComparison.useQuery(
     { 
       userId: user?.id!,
       startDate: regionDateRange.startDate,
@@ -537,7 +583,7 @@ const [isRefreshing, setIsRefreshing] = useState(false);
   );
 
   // ✅ 获取真实趋势数据 - 与日期选择器联动
-  const { data: realTrendData } = trpc.analytics.getTrendData.useQuery(
+  const { data: realTrendData, isLoading: trendLoading, error: trendDataError, refetch: refetchTrendData } = trpc.analytics.getTrendData.useQuery(
     { 
       accountId: accountId!, 
       startDate: kpiDateRange.startDate,
@@ -666,6 +712,20 @@ const [isRefreshing, setIsRefreshing] = useState(false);
           </div>
         </div>
 
+        {/* v785: 首屏关键接口错误可诊断化，避免失败时只显示 0 值或空白图表。 */}
+        {kpisError && (
+          <QueryIssueNotice title="KPI 数据加载失败" error={kpisError} onRetry={() => void refetchKpis()} />
+        )}
+        {trendDataError && (
+          <QueryIssueNotice title="趋势图数据加载失败" error={trendDataError} onRetry={() => void refetchTrendData()} />
+        )}
+        {deferredQueriesEnabled && regionComparisonError && (
+          <QueryIssueNotice title="区域对比数据加载失败" error={regionComparisonError} onRetry={() => void refetchRegionComparison()} />
+        )}
+        {deferredQueriesEnabled && healthMetricsError && (
+          <QueryIssueNotice title="系统健康监控加载失败" error={healthMetricsError} />
+        )}
+
         {/* 归因调整开关 */}
         {adjustedKpis && (
           <div className="flex items-center justify-between p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
@@ -696,6 +756,10 @@ const [isRefreshing, setIsRefreshing] = useState(false);
 
         {/* KPI Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          {kpisLoading && !kpis ? (
+            Array.from({ length: 5 }).map((_, index) => <KPICardSkeleton key={index} />)
+          ) : (
+            <>
           <KPICard
             title="转化/天"
             // @ts-ignore
@@ -742,6 +806,8 @@ const [isRefreshing, setIsRefreshing] = useState(false);
             trendLabel="vs 上周"
             color="cyan"
           />
+            </>
+          )}
         </div>
 
         {/* ✅ 归因期数据成熟度提示 */}
@@ -1282,6 +1348,7 @@ const [isRefreshing, setIsRefreshing] = useState(false);
                   // @ts-ignore
                   regionComparison={regionComparison}
                   currencySymbol={currencySymbol}
+                  trendDateLabel={trendDateLabel}
                 />
               </Suspense>
             </CardContent>

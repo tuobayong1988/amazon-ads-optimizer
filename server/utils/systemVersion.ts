@@ -13,4 +13,4 @@
  * 每次发版时，只需修改此文件中的版本号，并在 postDeployOptimizer.ts 的
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
-export const SYSTEM_VERSION = 784;  // v784: 修复共享 campaign 维度上下文 storeId 回退到 accountId
+export const SYSTEM_VERSION = 785;  // v785: 性能巡检问题修复：Dashboard查询分流、同步日志分页、轮询与索引优化

@@ -1056,11 +1056,23 @@ export const amazonApiRouter = router({
     .input(z.object({ 
       // @ts-ignore Legacy code type compatibility
       accountId: z.number(),
-      limit: z.number().optional().default(20),
+      limit: z.number().min(1).max(200).optional().default(20),
+      offset: z.number().min(0).optional().default(0),
+      status: z.enum(['pending', 'running', 'completed', 'failed', 'cancelled', 'active', 'all']).optional().default('all'),
+      search: z.string().trim().max(100).optional(),
+      startDate: z.string().optional(),
+      endDate: z.string().optional(),
     }))
     // @ts-ignore Complex function parameter types
     .query(async ({ ctx, input }: unknown) => {
-      return db.getSyncHistory(input.accountId, input.limit);
+      return db.getSyncHistory(input.accountId, {
+        limit: input.limit,
+        offset: input.offset,
+        status: input.status,
+        search: input.search,
+        startDate: input.startDate,
+        endDate: input.endDate,
+      });
     }),
 
   // 获取用户正在进行的同步任务

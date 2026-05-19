@@ -25,13 +25,15 @@ interface DashboardChartsProps {
   weeklyComparison: unknown[];
   regionComparison: unknown[];
   currencySymbol: string;
+  trendDateLabel?: string;
 }
 
 export default function DashboardCharts({ 
   trendData, 
   weeklyComparison, 
   regionComparison, 
-  currencySymbol 
+  currencySymbol,
+  trendDateLabel = '当前筛选范围'
 }: DashboardChartsProps) {
   return (
     <>
@@ -91,7 +93,7 @@ export default function DashboardCharts({
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle className="text-lg">销售额与花费趋势</CardTitle>
-                <CardDescription>过去30天数据</CardDescription>
+                <CardDescription>{trendDateLabel}</CardDescription>
               </div>
               <div className="flex items-center gap-4 text-sm">
                 <div className="flex items-center gap-2">
@@ -180,7 +182,7 @@ export default function DashboardCharts({
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-lg">ACoS趋势</CardTitle>
-            <CardDescription>过去30天数据</CardDescription>
+            <CardDescription>{trendDateLabel}</CardDescription>
           </CardHeader>
           <CardContent>
             {trendData.length === 0 ? (

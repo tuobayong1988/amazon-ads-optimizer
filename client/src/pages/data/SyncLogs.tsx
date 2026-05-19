@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -42,14 +42,33 @@ export default function SyncLogs() {
   // v399: 使用全局店铺选择器替代本地状态
   const { accountId: selectedAccountId, accounts, isLoading: accountsLoading } = useGlobalAccountId();
   const setSelectedAccountId = (_: unknown) => {}; // v399: 由全局选择器控制，本地setter为no-op
-const [page, setPage] = useState(1);
+  const [page, setPage] = useState(1);
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
   const pageSize = 50;
-  // 获取同步历史记录
+  const syncStatusFilter = useMemo(() => {
+    if (levelFilter === 'success') return 'completed' as const;
+    if (levelFilter === 'error') return 'failed' as const;
+    if (levelFilter === 'info') return 'active' as const;
+    return 'all' as const;
+  }, [levelFilter]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [selectedAccountId, searchQuery, levelFilter, typeFilter, startDate, endDate]);
+
+  // 获取同步历史记录：v785 改为服务端分页/过滤，避免一次性拉取全量日志后在浏览器中过滤。
   const { data: syncHistoryData, isLoading: logsLoading, refetch: refetchLogs } = trpc.amazonApi.getSyncHistory.useQuery(
-    { accountId: selectedAccountId! },
-    { enabled: !!selectedAccountId }
+    {
+      accountId: selectedAccountId!,
+      limit: pageSize,
+      offset: (page - 1) * pageSize,
+      status: syncStatusFilter,
+      search: searchQuery.trim() || undefined,
+      startDate: startDate ? format(startDate, 'yyyy-MM-dd') : undefined,
+      endDate: endDate ? format(endDate, 'yyyy-MM-dd') : undefined,
+    },
+    { enabled: !!selectedAccountId, staleTime: 30 * 1000 }
   );
   
   // 转换同步历史为日志格式
@@ -84,46 +103,12 @@ const [page, setPage] = useState(1);
     return { successCount, errorCount, warningCount };
   }, [syncHistoryData]);
 
-  // 过滤日志
+  // 服务端已完成关键词、级别与日期过滤；前端仅保留类型过滤兜底。
   const filteredLogs = useMemo(() => {
     if (!logsData?.logs) return [];
-    
-    return logsData.logs.filter((log: unknown) => {
-      // 搜索过滤
-      if (searchQuery) {
-        const query = searchQuery.toLowerCase();
-        const message = ((log as any).message || '').toLowerCase();
-        const details = JSON.stringify((log as any).details || {}).toLowerCase();
-        if (!message.includes(query) && !details.includes(query)) {
-          return false;
-        }
-      }
-      
-      // 级别过滤
-      if (levelFilter !== 'all' && (log as any).level !== levelFilter) {
-        return false;
-      }
-      
-      // 类型过滤
-      if (typeFilter !== 'all' && (log as any).logType !== typeFilter) {
-        return false;
-      }
-      
-      // 日期过滤
-      if (startDate) {
-        const logDate = safeParseDate((log as any).createdAt);
-        if (logDate < startDate) return false;
-      }
-      if (endDate) {
-        const logDate = safeParseDate((log as any).createdAt);
-        const endOfDay = safeParseDate(endDate);
-        endOfDay.setHours(23, 59, 59, 999);
-        if (logDate > endOfDay) return false;
-      }
-      
-      return true;
-    });
-  }, [logsData?.logs, searchQuery, levelFilter, typeFilter, startDate, endDate]);
+    if (typeFilter === 'all') return logsData.logs;
+    return logsData.logs.filter((log: unknown) => (log as any).logType === typeFilter);
+  }, [logsData?.logs, typeFilter]);
 
   // 获取日志级别的样式
   const getLevelBadge = (level: string) => {
@@ -380,6 +365,7 @@ const [page, setPage] = useState(1);
                     setTypeFilter('all');
                     setStartDate(undefined);
                     setEndDate(undefined);
+                    setPage(1);
                   }}
                 >
                   清除筛选
@@ -398,7 +384,7 @@ const [page, setPage] = useState(1);
                 日志记录
               </CardTitle>
               <CardDescription>
-                共 {logsData?.total || 0} 条记录，当前显示 {filteredLogs.length} 条
+                共 {logsData?.total || 0} 条记录，本页显示 {filteredLogs.length} 条
               </CardDescription>
             </div>
           {/* @ts-ignore */}

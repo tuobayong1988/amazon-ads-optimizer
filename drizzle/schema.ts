@@ -1721,8 +1721,9 @@ export const dataSyncJobs = mysqlTable("data_sync_jobs", {
 	index('idx_dsj_accountId').on(table.accountId),
 	index('idx_dsj_status').on(table.status),
 	index('idx_dsj_userId').on(table.userId),
-	index('idx_dsj_account_status').on(table.accountId, table.status),
-	index('idx_dsj_startedAt').on(table.startedAt),
+		index('idx_dsj_account_status').on(table.accountId, table.status),
+		index('idx_dsj_account_created_status').on(table.accountId, table.createdAt, table.status),
+		index('idx_dsj_startedAt').on(table.startedAt),
 ]));
 
 export const dataSyncLogs = mysqlTable("data_sync_logs", {

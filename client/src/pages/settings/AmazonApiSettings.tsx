@@ -284,13 +284,18 @@ export default function AmazonApiSettings() {
     },
   });
 
+  const shouldPollAccountSyncJob = isSyncing || (syncProgress.step !== 'idle' && syncProgress.step !== 'complete' && syncProgress.step !== 'error');
+
   // 获取当前账户正在进行的同步任务
+  // v785: 首次进入页面仅查询一次；仅在前端确认有同步任务时轮询，避免无任务时持续 2 秒请求。
   // v671: 当WebSocket活跃时降低轮询频率（从2秒→10秒），减少服务器负载
   const { data: accountActiveSyncJob, refetch: refetchAccountActiveSyncJob } = trpc.amazonApi.getAccountActiveSyncJob.useQuery(
     { accountId: selectedAccountId! },
     {
       enabled: !!selectedAccountId,
-      refetchInterval: isWsActive ? 10000 : 2000, // v671: WebSocket活跃时10秒轮询作为兜底，否则保持2秒
+      staleTime: shouldPollAccountSyncJob ? 0 : 30 * 1000,
+      refetchOnWindowFocus: false,
+      refetchInterval: shouldPollAccountSyncJob ? (isWsActive ? 10000 : 3000) : false, // v785: 无活动任务时停止固定轮询
     }
   );
 

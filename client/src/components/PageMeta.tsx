@@ -130,7 +130,7 @@ export const PAGE_META_CONFIG = {
     title: "A/B测试",
     description: "创建和管理广告A/B测试，对比不同策略的效果，找到最佳的广告优化方案。",
     keywords: "A/B测试,广告测试,策略对比,效果分析",
-    canonicalPath: "/ab-testing"
+    canonicalPath: "/ab-test"
   },
   reports: {
     title: "数据报告",

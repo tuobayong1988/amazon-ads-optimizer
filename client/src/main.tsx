@@ -1,7 +1,7 @@
 import { trpc } from "@/lib/trpc";
 import { UNAUTHED_ERR_MSG } from '@shared/const';
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { httpBatchLink, TRPCClientError } from "@trpc/client";
+import { httpBatchLink, httpLink, splitLink, TRPCClientError } from "@trpc/client";
 import { createRoot } from "react-dom/client";
 import superjson from "superjson";
 import App from "./App";
@@ -87,18 +87,43 @@ const authenticatedFetch: typeof globalThis.fetch = (input, init) => {
   });
 };
 
+const NON_BATCHED_QUERY_PATHS = new Set([
+  // v785: 首页首屏关键接口单独请求，避免被慢查询拖住整个 tRPC batch 响应。
+  'analytics.getKPIs',
+  'analytics.getTrendData',
+  // v785: 跨区域、监控和归因接口查询成本较高，也不应与关键 KPI 合批。
+  'analytics.getRegionComparison',
+  'monitoring.getHealthMetrics',
+  'monitoring.getDeployCorrectionReport',
+  'specialScenario.getAttributionAdjustedData',
+]);
+
+const createHttpLink = () => httpLink({
+  url: "/api/trpc",
+  transformer: superjson,
+  fetch: authenticatedFetch,
+});
+
+const createHttpBatchLink = () => httpBatchLink({
+  url: "/api/trpc",
+  transformer: superjson,
+  fetch: authenticatedFetch,
+  /**
+   * v261: 增加maxURLLength限制
+   * 当URL超过此长度时，httpBatchLink会将请求拆分为多个较小的batch
+   * 这确保了即使拆分后的请求也会经过authenticatedFetch
+   */
+  maxURLLength: 2083,
+});
+
 const trpcClient = trpc.createClient({
   links: [
-    httpBatchLink({
-      url: "/api/trpc",
-      transformer: superjson,
-      fetch: authenticatedFetch,
-      /**
-       * v261: 增加maxURLLength限制
-       * 当URL超过此长度时，httpBatchLink会将请求拆分为多个较小的batch
-       * 这确保了即使拆分后的请求也会经过authenticatedFetch
-       */
-      maxURLLength: 2083,
+    splitLink({
+      condition(op) {
+        return NON_BATCHED_QUERY_PATHS.has(op.path);
+      },
+      true: createHttpLink(),
+      false: createHttpBatchLink(),
     }),
   ],
 });

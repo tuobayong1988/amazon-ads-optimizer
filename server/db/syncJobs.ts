@@ -191,23 +191,66 @@ export async function getAccountActiveSyncJob(accountId: number) {
 /**
  * 获取账号的同步历史记录
  */
-export async function getSyncHistory(accountId: number, limit: number = 20) {
+export type SyncHistoryFilters = {
+  limit?: number;
+  offset?: number;
+  status?: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled' | 'active' | 'all';
+  search?: string;
+  startDate?: string;
+  endDate?: string;
+};
+
+export async function getSyncHistory(accountId: number, options: number | SyncHistoryFilters = 20) {
   const db = await getDb();
-  if (!db) return { jobs: [], total: 0 };
-  
+  if (!db) return { jobs: [], total: 0, limit: 0, offset: 0 };
+
+  const normalized: SyncHistoryFilters = typeof options === 'number' ? { limit: options } : options;
+  const limit = Math.min(Math.max(normalized.limit ?? 20, 1), 200);
+  const offset = Math.max(normalized.offset ?? 0, 0);
+  const status = normalized.status && normalized.status !== 'all' ? normalized.status : undefined;
+  const search = normalized.search?.trim();
+
+  const conditions = [eq(dataSyncJobs.accountId, accountId)];
+
+  if (status === 'active') {
+    conditions.push(inArray(dataSyncJobs.status, ['pending', 'running']));
+  } else if (status) {
+    conditions.push(eq(dataSyncJobs.status, status));
+  }
+
+  if (normalized.startDate) {
+    conditions.push(sql`${dataSyncJobs.createdAt} >= ${normalized.startDate}`);
+  }
+
+  if (normalized.endDate) {
+    const exclusiveEnd = new Date(normalized.endDate);
+    exclusiveEnd.setUTCDate(exclusiveEnd.getUTCDate() + 1);
+    conditions.push(sql`${dataSyncJobs.createdAt} < ${exclusiveEnd.toISOString().split('T')[0]}`);
+  }
+
+  if (search) {
+    const keyword = `%${search.replace(/[%_]/g, '\\$&')}%`;
+    conditions.push(sql`(CAST(${dataSyncJobs.id} AS CHAR) LIKE ${keyword} OR ${dataSyncJobs.errorMessage} LIKE ${keyword} OR ${dataSyncJobs.currentStep} LIKE ${keyword})`);
+  }
+
+  const whereClause = and(...conditions);
+
   const jobs = await db.select()
     .from(dataSyncJobs)
-    .where(eq(dataSyncJobs.accountId, accountId))
+    .where(whereClause)
     .orderBy(desc(dataSyncJobs.createdAt))
-    .limit(limit);
+    .limit(limit)
+    .offset(offset);
   
   const [countResult] = await db.select({ count: sql<number>`count(*)` })
     .from(dataSyncJobs)
-    .where(eq(dataSyncJobs.accountId, accountId));
+    .where(whereClause);
   
   return {
     jobs,
     total: countResult?.count || 0,
+    limit,
+    offset,
   };
 }
 

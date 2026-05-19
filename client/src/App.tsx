@@ -178,6 +178,7 @@ function Router() {
       <Route path="/auto-rollback">{() => <Redirect to="/settings" />}</Route>
       <Route path="/algorithm-optimization">{() => <Redirect to="/settings" />}</Route>
       <Route path="/intelligent-budget">{() => <Redirect to="/strategy-center" />}</Route>
+      <Route path="/ab-testing">{() => <Redirect to="/ab-test" />}</Route>
       <Route path="/ab-test">{() => <LazyRoute component={ABTest} />}</Route>
       <Route path="/budget-auto-execution">{() => <Redirect to="/settings" />}</Route>
       <Route path="/api-security">{() => <LazyRoute component={ApiSecurityCenter} />}</Route>

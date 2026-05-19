@@ -11,6 +11,16 @@ import { createModuleLogger } from '../utils/logger';
 
 const log = createModuleLogger('DB:performance');
 
+function toDateOnly(value: Date): string {
+  return value.toISOString().split('T')[0];
+}
+
+function toExclusiveEndDateOnly(value: Date): string {
+  const next = new Date(value);
+  next.setUTCDate(next.getUTCDate() + 1);
+  return toDateOnly(next);
+}
+
 // ==================== Daily Performance Functions ====================
 /**
  * v361: UPSERT模式 - 基于唯一约束避免重复插入
@@ -40,12 +50,12 @@ export async function getDailyPerformanceByDateRange(
   const db = await getDb();
   if (!db) return [];
   
-  const startDateStr = startDate.toISOString().split('T')[0];
-  const endDateStr = endDate.toISOString().split('T')[0];
+  const startDateStr = toDateOnly(startDate);
+  const exclusiveEndDateStr = toExclusiveEndDateOnly(endDate);
   const conditions = [
     eq(dailyPerformance.accountId, accountId),
     sql`${dailyPerformance.date} >= ${startDateStr}`,
-    sql`${dailyPerformance.date} <= ${endDateStr}`
+    sql`${dailyPerformance.date} < ${exclusiveEndDateStr}`
   ];
   
   if (campaignId) {
@@ -85,8 +95,8 @@ export async function getDailyPerformanceAggregatedByDate(
   const db = await getDb();
   if (!db) return [];
   
-  const startDateStr = startDate.toISOString().split('T')[0];
-  const endDateStr = endDate.toISOString().split('T')[0];
+  const startDateStr = toDateOnly(startDate);
+  const exclusiveEndDateStr = toExclusiveEndDateOnly(endDate);
   
   return db.select({
     date: sql<string>`DATE(${dailyPerformance.date})`.as('date'),
@@ -101,8 +111,9 @@ export async function getDailyPerformanceAggregatedByDate(
       eq(dailyPerformance.accountId, accountId),
       // ✅ 只汇总campaign级别的记录
       sql`${dailyPerformance.campaignId} IS NOT NULL`,
-      sql`DATE(${dailyPerformance.date}) >= ${startDateStr}`,
-      sql`DATE(${dailyPerformance.date}) <= ${endDateStr}`
+      // v785: 不在 WHERE 中包裹 DATE(date)，确保可使用 idx_daily_perf_account_date(account_id,date)。
+      sql`${dailyPerformance.date} >= ${startDateStr}`,
+      sql`${dailyPerformance.date} < ${exclusiveEndDateStr}`
     ))
     .groupBy(sql`DATE(${dailyPerformance.date})`)
     .orderBy(sql`DATE(${dailyPerformance.date})`);
@@ -129,6 +140,9 @@ export async function getPerformanceSummary(accountId: number, startDate: Date, 
   const db = await getDb();
   if (!db) return null;
   
+  const startDateStr = toDateOnly(startDate);
+  const exclusiveEndDateStr = toExclusiveEndDateOnly(endDate);
+
   const result = await db.select({
     totalImpressions: sql<number>`COALESCE(SUM(impressions), 0)`,
     totalClicks: sql<number>`COALESCE(SUM(clicks), 0)`,
@@ -142,8 +156,9 @@ export async function getPerformanceSummary(accountId: number, startDate: Date, 
       eq(dailyPerformance.accountId, accountId),
       // ✅ 只汇总campaign级别的记录，排除账户级汇总记录（campaignId IS NULL）
       sql`${dailyPerformance.campaignId} IS NOT NULL`,
-      sql`DATE(${dailyPerformance.date}) >= ${startDate.toISOString().split('T')[0]}`,
-      sql`DATE(${dailyPerformance.date}) <= ${endDate.toISOString().split('T')[0]}`
+      // v785: 使用半开区间，避免 DATE(date) 导致索引失效，同时覆盖结束日期整天。
+      sql`${dailyPerformance.date} >= ${startDateStr}`,
+      sql`${dailyPerformance.date} < ${exclusiveEndDateStr}`
     ));
   
   return result[0];

@@ -106,6 +106,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 785,
+    description: 'v785: [性能巡检查询链路优化] — (1)P0-Dashboard关键KPI/趋势查询从tRPC批处理链路拆分,并将performance日期过滤改为索引友好的半开区间,降低首屏慢批处理耦合 (2)P0-Amazon API设置页同步任务轮询改为仅活跃任务期间高频轮询,避免无任务时持续请求 (3)P1-SyncLogs改为服务端分页、状态/关键词/日期过滤,并补充同步历史复合索引迁移 (4)P1-修复A/B测试旧路径兼容与canonical不一致 (5)P2-增强Dashboard错误诊断、KPI骨架屏和图表日期范围文案。',
+    affectedModules: ['analytics', 'sync', 'db'],
+    correctionActions: [],
+  },
+  {
     version: 784,
     description: 'v784: [campaigns storeId回退热修] — (1)P0-修复共享campaign维度上下文storeId仅读取ad_accounts.store_id的问题,当store_id为空时统一回退到ad_accounts.accountId (2)P0-覆盖独立SP/SB/SD同步、带tracking同步与performance报告自动创建campaigns路径,避免后续同步再次把storeId写空 (3)P1-配合生产回填将历史campaigns.storeId补齐,确保店铺/站点维度筛选和归因稳定。',
     affectedModules: ['sync', 'reports', 'db'],
