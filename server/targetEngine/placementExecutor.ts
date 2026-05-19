@@ -229,7 +229,14 @@ export async function executePlacementOptimization(
               topSuggestion?.suggestedMultiplier || campaign.placementTopSearchBidAdjustment || 0,
               // @ts-ignore Amazon API response type flexibility
               productSuggestion?.suggestedMultiplier || campaign.placementProductPageBidAdjustment || 0,
-              `位置优化: Top=${topSuggestion?.suggestedMultiplier || 0}%, Product=${productSuggestion?.suggestedMultiplier || 0}%`
+              `位置优化: Top=${topSuggestion?.suggestedMultiplier || 0}%, Product=${productSuggestion?.suggestedMultiplier || 0}%`,
+              undefined,
+              {
+                performanceGroupId: config.performanceGroupId,
+                source: 'placementExecutor',
+                operation: 'placement_adjustment_sync',
+                strictPerformanceGroup: true,
+              }
             );
             // @ts-ignore Legacy code type compatibility
             placementSyncSuccess = syncResult;

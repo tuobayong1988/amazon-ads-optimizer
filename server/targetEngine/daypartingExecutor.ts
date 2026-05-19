@@ -744,7 +744,14 @@ export async function executeDaypartingBudgetOptimization(
             amazonCampaignId,
             // @ts-ignore Legacy code type compatibility
             adjustedBudget,
-            `v179分时预算: 星期${currentDayOfWeek} 倍数${budgetMultiplier}x`
+            `v179分时预算: 星期${currentDayOfWeek} 倍数${budgetMultiplier}x`,
+            undefined,
+            {
+              performanceGroupId: config.performanceGroupId,
+              source: 'daypartingExecutor.budget',
+              operation: 'dayparting_budget_sync',
+              strictPerformanceGroup: true,
+            }
           );
           
           if (budgetSyncResult) {

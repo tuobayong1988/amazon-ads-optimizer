@@ -12,6 +12,22 @@ import { getAdAccounts, getPerformanceGroupsByAccountId } from './accounts';
 
 const log = createModuleLogger('DB:optimizationEvents');
 
+const EVENT_CATEGORIES_REQUIRING_CAMPAIGN = new Set([
+  'bid_adjustment',
+  'placement_adjustment',
+  'budget_adjustment',
+  'search_term_action',
+  'keyword_action',
+  'campaign_action',
+  'adgroup_action',
+  'target_management',
+]);
+
+function toPositiveNumber(value: unknown): number | undefined {
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) && numericValue > 0 ? numericValue : undefined;
+}
+
 // ==================== 优化日志函数 ====================
 
 /**
@@ -69,6 +85,11 @@ export async function createOptimizationLog(data: InsertOptimizationLog): Promis
     let extractedBidChangePercent: string | undefined;
     let extractedApiSyncStatus: string | undefined;
     let extractedApiSyncDetail: string | undefined;
+    let extractedInternalAdGroupId: number | undefined;
+    let extractedAdGroupName: string | undefined;
+    let extractedMatchType: string | undefined;
+    let extractedTargetId: string | undefined;
+    let extractedTargetName: string | undefined;
     
     if (data.actionDetail) {
       try {
@@ -80,6 +101,11 @@ export async function createOptimizationLog(data: InsertOptimizationLog): Promis
         extractedBidChangePercent = detail.changePercent != null ? String(detail.changePercent) : undefined;
         extractedApiSyncStatus = detail.apiSyncStatus || undefined;
         extractedApiSyncDetail = detail.apiSyncDetail || undefined;
+        extractedInternalAdGroupId = toPositiveNumber(detail.internalAdGroupId || detail.adGroupId);
+        extractedAdGroupName = detail.adGroupName || undefined;
+        extractedMatchType = detail.matchType || undefined;
+        extractedTargetId = detail.targetId != null ? String(detail.targetId) : (detail.productTargetId != null ? String(detail.productTargetId) : undefined);
+        extractedTargetName = detail.targetName || detail.targetText || detail.targetValue || undefined;
       } catch (parseErr: any) {
         // action_detail可能不是有效JSON，忽略解析错误
       }
@@ -91,6 +117,16 @@ export async function createOptimizationLog(data: InsertOptimizationLog): Promis
     // v212: 使用提取的apiSyncStatus（优先级：action_detail > data字段）
     const finalApiSyncStatus = extractedApiSyncStatus || data.apiSyncStatus || 'pending';
     const finalApiSyncDetail = extractedApiSyncDetail || data.apiSyncDetail;
+    const eventPerformanceGroupId = toPositiveNumber((data as Record<string, unknown>).performanceGroupId);
+    const eventAccountId = toPositiveNumber(data.accountId);
+    const eventCampaignId = data.campaignId ? guardCampaignIdInsert(data.campaignId, 'optimization_events') : null;
+
+    if (!eventAccountId || !eventPerformanceGroupId) {
+      throw new Error(`optimization_events缺少必要范围字段: accountId=${data.accountId || 'N/A'}, performanceGroupId=${String((data as Record<string, unknown>).performanceGroupId || 'N/A')}`);
+    }
+    if (EVENT_CATEGORIES_REQUIRING_CAMPAIGN.has(resolvedCategory) && !eventCampaignId) {
+      throw new Error(`optimization_events缺少campaignId: category=${resolvedCategory}, actionType=${resolvedActionType}`);
+    }
     
     // v333: 今action_detail中提取apiResponseId
     let extractedApiResponseId: string | undefined;
@@ -101,11 +137,10 @@ export async function createOptimizationLog(data: InsertOptimizationLog): Promis
       } catch { /* ignore */ }
     }
     
-    await db.insert(optimizationEvents).values({
-      // @ts-ignore - performanceGroupId may exist on extended InsertOptimizationLog
-      performanceGroupId: (data as Record<string, unknown>).performanceGroupId as number,
+    const optimizationEventPayload = {
+      performanceGroupId: eventPerformanceGroupId,
       performanceGroupName: data.performanceGroupName,
-      accountId: data.accountId || 0,
+      accountId: eventAccountId,
       accountName: data.accountName,
       userId: data.userId,
       userName: data.userName,
@@ -113,11 +148,16 @@ export async function createOptimizationLog(data: InsertOptimizationLog): Promis
       actionType: resolvedActionType as unknown,
       strategyTemplateId: data.strategyTemplateId,
       strategyTemplateName: data.strategyTemplateName,
-      campaignId: data.campaignId ? guardCampaignIdInsert(data.campaignId, 'optimization_events') : null,
+      campaignId: eventCampaignId,
       campaignName: data.campaignName,
+      internalAdGroupId: extractedInternalAdGroupId,
+      adGroupName: extractedAdGroupName,
       // v212: 从 action_detail中提取的关键字段
       keywordId: extractedKeywordId,
       keywordText: extractedKeywordText,
+      matchType: extractedMatchType,
+      targetId: extractedTargetId,
+      targetName: extractedTargetName,
       previousBid: extractedPreviousBid,
       newBid: extractedNewBid,
       bidChangePercent: extractedBidChangePercent,
@@ -177,7 +217,9 @@ export async function createOptimizationLog(data: InsertOptimizationLog): Promis
           return Object.keys(meta).length > 0 ? JSON.stringify(meta) : undefined;
         } catch { return undefined; }
       })(),
-    });
+    } as InsertOptimizationEvent;
+
+    await db.insert(optimizationEvents).values(optimizationEventPayload);
     log.info(`[v274] 双写optimization_events成功: logId=${logId}, category=${resolvedCategory}, keywordId=${extractedKeywordId || 'N/A'}, apiSyncStatus=${finalApiSyncStatus}`);
   } catch (e: any) {
     log.warn('[v212] 双写optimization_events失败:', (e instanceof Error ? (e as Error).message : String(e)) || e);

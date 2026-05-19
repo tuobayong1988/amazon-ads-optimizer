@@ -152,7 +152,14 @@ export async function executeBudgetAllocation(
               config.accountId,
               amazonCampaignId,
               finalBudget,
-              `v756-ROAS导向预算优化: $${currentBudget.toFixed(2)} -> $${finalBudget.toFixed(2)} (${changePercent > 0 ? '+' : ''}${changePercent.toFixed(1)}%)`
+              `v756-ROAS导向预算优化: $${currentBudget.toFixed(2)} -> $${finalBudget.toFixed(2)} (${changePercent > 0 ? '+' : ''}${changePercent.toFixed(1)}%)`,
+              undefined,
+              {
+                performanceGroupId: config.performanceGroupId,
+                source: 'budgetExecutor.roasGuided',
+                operation: 'budget_adjustment_sync',
+                strictPerformanceGroup: true,
+              }
             );
             
             if (budgetSyncResult) {
@@ -272,7 +279,14 @@ export async function executeBudgetAllocation(
               config.accountId,
               amazonCampaignId,
               finalBudget,
-              `v756回退路径预算优化: $${suggestion.currentBudget.toFixed(2)} -> $${finalBudget.toFixed(2)}`
+              `v756回退路径预算优化: $${suggestion.currentBudget.toFixed(2)} -> $${finalBudget.toFixed(2)}`,
+              undefined,
+              {
+                performanceGroupId: config.performanceGroupId,
+                source: 'budgetExecutor.fallback',
+                operation: 'budget_adjustment_sync',
+                strictPerformanceGroup: true,
+              }
             );
             
             if (budgetSyncResult) {

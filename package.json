@@ -12,6 +12,7 @@
     "lint:fix": "eslint server/routers/ --fix",
     "format": "prettier --write .",
     "test": "vitest run",
+    "test:security": "vitest run --config vitest.security.config.ts",
     "db:push": "drizzle-kit generate && drizzle-kit migrate"
   },
   "dependencies": {

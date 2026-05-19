@@ -19,6 +19,7 @@ import { getCircuitBreaker } from './circuitBreakerService';
 import { getAdaptiveTimeout } from './adaptiveTimeoutService';
 // v223: getAmazonSyncService 从 syncServiceProvider re-export
 import { getAmazonSyncService as _getAmazonSyncService } from '../sync/scheduling/syncServiceProvider';
+import { assertTargetEntitiesInScope, type TargetScopeContext } from './targetScopeGuard';
 
 // v223: 类型安全的包装器
 export async function getAmazonSyncService(accountId: number): Promise<AmazonSyncService | null> {
@@ -122,7 +123,8 @@ export async function syncBidAdjustmentsToAmazon(
     isProductTarget?: boolean;
     isSdAudience?: boolean;
     algorithmUsed?: string;
-  }>
+  }>,
+  scopeContext?: Pick<TargetScopeContext, 'performanceGroupId' | 'campaignId' | 'source' | 'operation' | 'strictPerformanceGroup'>
 ): Promise<{ success: number; failed: number; errors: string[]; itemResults: Map<number, { status: 'synced' | 'failed'; error?: string; apiResponseId?: string }> }> {
   const result = { success: 0, failed: 0, errors: [] as string[], itemResults: new Map<number, { status: 'synced' | 'failed'; error?: string; apiResponseId?: string }>() };
   
@@ -167,6 +169,36 @@ export async function syncBidAdjustmentsToAmazon(
   const uniqueAdjustments = Array.from(deduped.values());
   if (uniqueAdjustments.length < adjustments.length) {
     log.debug(`[AmazonApiHelper] 幂等性去重: ${adjustments.length}条 -> ${uniqueAdjustments.length}条`);
+  }
+
+  // v785: 统一目标范围守卫 — Amazon 写回前强制校验 accountId + performanceGroupId + campaign/entity 归属
+  if (scopeContext) {
+    try {
+      await assertTargetEntitiesInScope(
+        accountId,
+        scopeContext.performanceGroupId,
+        uniqueAdjustments.map(adj => ({
+          type: adj.isSdAudience ? 'sd_audience' : (adj.isProductTarget ? 'product_target' : 'keyword'),
+          id: adj.keywordId,
+          campaignId: adj.amazonCampaignId || (adj.campaignId !== undefined ? String(adj.campaignId) : undefined),
+        })),
+        {
+          campaignId: scopeContext.campaignId,
+          source: scopeContext.source || 'amazonApiHelper.syncBidAdjustmentsToAmazon',
+          operation: scopeContext.operation || 'bid_adjustment_sync',
+          strictPerformanceGroup: scopeContext.strictPerformanceGroup,
+        }
+      );
+    } catch (scopeErr: unknown) {
+      const errorMsg = `目标范围校验失败，已阻断批量出价写回: ${(scopeErr as Error).message}`;
+      log.warn(`[AmazonApiHelper] v785: ${errorMsg}`);
+      result.errors.push(errorMsg);
+      result.failed = uniqueAdjustments.length;
+      for (const adj of uniqueAdjustments) {
+        result.itemResults.set(adj.keywordId, { status: 'failed', error: errorMsg });
+      }
+      return result;
+    }
   }
   
   // v359+v512: 分离关键词、商品定向和SD受众，分别进行批量API调用
@@ -1515,8 +1547,24 @@ export async function syncBudgetAdjustmentToAmazon(
   campaignId: string,  // Amazon Campaign ID
   newBudget: number,
   reason: string,
-  campaignType?: string  // v159: campaign类型，用于选择正确的API
+  campaignType?: string,  // v159: campaign类型，用于选择正确的API
+  scopeContext?: Pick<TargetScopeContext, 'performanceGroupId' | 'source' | 'operation' | 'strictPerformanceGroup'>
 ): Promise<boolean> {
+  // v785: campaign级写回前统一范围校验
+  if (scopeContext) {
+    try {
+      await assertTargetEntitiesInScope(accountId, scopeContext.performanceGroupId, [{ type: 'campaign', id: campaignId }], {
+        campaignId,
+        source: scopeContext.source || 'amazonApiHelper.syncBudgetAdjustmentToAmazon',
+        operation: scopeContext.operation || 'budget_adjustment_sync',
+        strictPerformanceGroup: scopeContext.strictPerformanceGroup,
+      });
+    } catch (scopeErr: unknown) {
+      log.warn(`[AmazonApiHelper] v785: 目标范围校验失败，已阻断预算写回: ${(scopeErr as Error).message}`);
+      return false;
+    }
+  }
+
   const syncService = await getAmazonSyncService(accountId);
   if (!syncService) return false;
   
@@ -1563,8 +1611,24 @@ export async function syncPlacementAdjustmentToAmazon(
   topOfSearchPercent: number,
   productPagePercent: number,
   reason: string,
-  campaignType?: string  // v471: 新增参数，支持SP/SB路由
+  campaignType?: string,  // v471: 新增参数，支持SP/SB路由
+  scopeContext?: Pick<TargetScopeContext, 'performanceGroupId' | 'source' | 'operation' | 'strictPerformanceGroup'>
 ): Promise<boolean> {
+  // v785: campaign级写回前统一范围校验
+  if (scopeContext) {
+    try {
+      await assertTargetEntitiesInScope(accountId, scopeContext.performanceGroupId, [{ type: 'campaign', id: campaignId }], {
+        campaignId,
+        source: scopeContext.source || 'amazonApiHelper.syncPlacementAdjustmentToAmazon',
+        operation: scopeContext.operation || 'placement_adjustment_sync',
+        strictPerformanceGroup: scopeContext.strictPerformanceGroup,
+      });
+    } catch (scopeErr: unknown) {
+      log.warn(`[AmazonApiHelper] v785: 目标范围校验失败，已阻断版位写回: ${(scopeErr as Error).message}`);
+      return false;
+    }
+  }
+
   const syncService = await getAmazonSyncService(accountId);
   if (!syncService) return false;
   

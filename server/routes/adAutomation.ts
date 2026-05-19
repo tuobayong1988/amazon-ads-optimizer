@@ -84,13 +84,14 @@ export const adAutomationRouter = router({
     .input(z.object({
       // @ts-ignore Legacy code type compatibility
       accountId: z.number(),
+      performanceGroupId: z.number().optional(),
       targetAcos: z.number().default(30),
       targetRoas: z.number().default(3.33),
     }))
     // @ts-ignore Complex function parameter types
     .query(async ({ input, ctx }: unknown) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
-      const targets = await db.getBidTargets(input.accountId);
+      const targets = await db.getBidTargets(input.accountId, input.performanceGroupId);
       // @ts-ignore - type assertion
       const suggestions = adAutomation.analyzeBidAdjustments(targets as unknown, {
         rampUpPercent: 5,

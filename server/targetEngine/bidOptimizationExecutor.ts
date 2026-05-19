@@ -1044,7 +1044,13 @@ export async function executeBidOptimization(
           // @ts-ignore Legacy code type compatibility
           isProductTarget: d.isProductTarget || false,
           algorithmUsed: d.algorithmUsed, // v334: 传递算法标识到biddingLogs
-        }))
+        })),
+        {
+          performanceGroupId: config.performanceGroupId,
+          source: 'bidOptimizationExecutor',
+          operation: 'bid_adjustment_sync',
+          strictPerformanceGroup: true,
+        }
       );
       
       if (apiSyncResult.failed === 0 && apiSyncResult.success > 0) {

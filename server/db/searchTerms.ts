@@ -93,9 +93,14 @@ export async function getCampaignSearchTerms(accountId: number) {
 // 获取竞价目标数据用于智能竞价分析
 
 // 获取竞价目标数据用于智能竞价分析
-export async function getBidTargets(accountId: number) {
+export async function getBidTargets(accountId: number, performanceGroupId?: number | null) {
   const db = await getDb();
   if (!db) return [];
+
+  const scopedCampaignConditions = [eq(campaigns.accountId, accountId)];
+  if (performanceGroupId) {
+    scopedCampaignConditions.push(eq(campaigns.performanceGroupId, performanceGroupId));
+  }
   
   // 获取关键词目标 - 使用keywords表自带的绩效数据
   const keywordTargets = await db.select({
@@ -113,7 +118,7 @@ export async function getBidTargets(accountId: number) {
   .from(keywords)
   .innerJoin(adGroups, eq(keywords.internalAdGroupId, adGroups.id))
   .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.campaignId))
-  .where(eq(campaigns.accountId, accountId));
+  .where(and(...scopedCampaignConditions, eq(keywords.accountId, accountId)));
   
   // 获取商品定位目标 - 使用productTargets表自带的绩效数据
   const productTargetResults = await db.select({
@@ -131,7 +136,7 @@ export async function getBidTargets(accountId: number) {
   .from(productTargets)
   .innerJoin(adGroups, eq(productTargets.internalAdGroupId, adGroups.id))
   .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.campaignId))
-  .where(eq(campaigns.accountId, accountId));
+  .where(and(...scopedCampaignConditions, eq(productTargets.accountId, accountId)));
   
   const results = [
     ...keywordTargets.map(r => ({
