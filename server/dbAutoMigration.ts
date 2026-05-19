@@ -135,7 +135,7 @@ export async function runAutoDbMigration(): Promise<{ success: boolean; results:
         JOIN ad_accounts a ON c.accountId = a.id
         SET
           c.profileId = COALESCE(NULLIF(c.profileId, ''), a.profileId),
-          c.marketplaceId = COALESCE(NULLIF(c.marketplaceId, ''), a.marketplaceId),
+          c.marketplaceId = COALESCE(NULLIF(c.marketplaceId, ''), NULLIF(a.marketplaceId, ''), a.marketplace),
           c.storeId = COALESCE(NULLIF(c.storeId, ''), CAST(COALESCE(a.store_id, a.accountId) AS CHAR)),
           c.countryCode = COALESCE(NULLIF(c.countryCode, ''), UPPER(a.marketplace))
         WHERE c.profileId IS NULL OR c.profileId = ''

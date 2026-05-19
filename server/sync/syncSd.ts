@@ -34,6 +34,7 @@ import {
   getRecentlyOptimizedCampaignIds,
 } from './syncHelpers';
 import { getLocalKeywordBidRecommendation, getLocalTargetBidRecommendation } from '../optimization/localBidRecommendationEngine';
+import { dimensionsForCampaignUpsert, loadCampaignDimensionContext } from './campaignDimensionContext';
 
 const log = createModuleLogger('syncSd');
 
@@ -80,6 +81,8 @@ declare module '../../amazonSyncService' {
 AmazonSyncService.prototype.syncSdCampaigns = async function(this: AmazonSyncService, lastSyncTime?: string | null): Promise<number | { synced: number; skipped: number }> {
   const db = await getDb();
   if (!db) return { synced: 0, skipped: 0 };
+
+  const campaignDimensions = dimensionsForCampaignUpsert(await loadCampaignDimensionContext(db, this));
 
   try {
     const apiCampaigns = await this.client.listSdCampaigns();
@@ -219,6 +222,7 @@ AmazonSyncService.prototype.syncSdCampaigns = async function(this: AmazonSyncSer
       log.debug(`SD广告 ${apiCampaign.name}: goal=${safeGoal}, costType=${finalCostType}, tactic=${safeTactic}, strategy=${sdOptimizationStrategy}`);
       const campaignData = {
         accountId: this.accountId,
+        ...campaignDimensions,
         campaignId: String(apiCampaign.campaignId),
         campaignName: safePrimitive(apiCampaign.name, `SD_${apiCampaign.campaignId}`),  // v662
         campaignType: 'sd' as const,

@@ -67,7 +67,7 @@ async function loadCampaignDimensionContext(service: SyncContext, db: Awaited<Re
 
   return {
     profileId: toNullableDimension(clientProfileId) || toNullableDimension(account?.profileId),
-    marketplaceId: toNullableDimension(account?.marketplaceId),
+    marketplaceId: toNullableDimension(account?.marketplaceId) || accountMarketplace || toNullableDimension(service.marketplace),
     // 优先使用生产库既有 ad_accounts.store_id；为空时回退到项目既有 accountId 店铺/广告主标识语义。
     storeId: toNullableDimension(account?.storeId) || toNullableDimension(account?.accountId),
     countryCode: (accountMarketplace || toNullableDimension(service.marketplace))?.toUpperCase() || null,

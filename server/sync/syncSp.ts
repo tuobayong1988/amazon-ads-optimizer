@@ -35,6 +35,7 @@ import {
   getRecentlyOptimizedCampaignIds,
 } from './syncHelpers';
 import { processBatch, BATCH_PROCESSING_THRESHOLD, BATCH_SIZE, batchApiFetch, API_BATCH_FETCH_CAMPAIGN_THRESHOLD } from './batchSyncProcessor';
+import { dimensionsForCampaignUpsert, loadCampaignDimensionContext } from './campaignDimensionContext';
 
 const log = createModuleLogger('syncSp');
 
@@ -98,6 +99,7 @@ AmazonSyncService.prototype.syncSpCampaigns = async function(this: AmazonSyncSer
     return { synced: 0, skipped: 0 };
   }
   log.info('[同步] ✅ 数据库连接成功');
+  const campaignDimensions = dimensionsForCampaignUpsert(await loadCampaignDimensionContext(db, this));
 
   try {
     log.info('[同步] 正在调用Amazon API: listSpCampaigns()...');
@@ -237,6 +239,7 @@ AmazonSyncService.prototype.syncSpCampaigns = async function(this: AmazonSyncSer
 
       const campaignData = {
         accountId: this.accountId,
+        ...campaignDimensions,
         campaignId: String(apiCampaign.campaignId),
         campaignName: apiCampaign.name,
         campaignType: campaignType as 'sp_auto' | 'sp_manual' | 'sb' | 'sd',

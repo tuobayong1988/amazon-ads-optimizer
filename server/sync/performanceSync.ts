@@ -23,6 +23,7 @@ import type { AmazonAdsApiClient } from './amazonAdsApi';
 import { getExchangeRateByMarketplace } from '../services/exchangeRateService';
 import { getMarketplaceDateRange, getMarketplaceCurrentDate } from '../utils/timezone';
 import { extractCampaignIds, guardCampaignIdInsert } from '../utils/idTypes';
+import { dimensionsForCampaignUpsert, loadCampaignDimensionContext } from './campaignDimensionContext';
 
 /** 同步服务上下文 - 从AmazonSyncService传入 */
 export interface SyncContext {
@@ -290,6 +291,7 @@ async function processReportData(service: SyncContext, db: DbInstance, reportDat
     const { currency, rate: exchangeRate } = await getExchangeRateByMarketplace(service.marketplace);
     const todayStr = getMarketplaceCurrentDate(service.marketplace);
     const nowStr = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    const campaignDimensions = dimensionsForCampaignUpsert(await loadCampaignDimensionContext(db, service));
     
     // v423: 批量UPSERT - 收集所有待写入数据，分批执行
     const BATCH_SIZE = 500;
@@ -316,6 +318,7 @@ async function processReportData(service: SyncContext, db: DbInstance, reportDat
             log.info(`${adType}自动创建campaign: ${row.campaignName}`);
             const [newCampaign] = await db.insert(campaigns).values({
               accountId: service.accountId,
+              ...campaignDimensions,
               campaignId: String(row.campaignId),
               campaignName: row.campaignName,
               campaignType: adType === 'SP' ? 'sp_manual' : adType.toLowerCase() as 'sp_auto' | 'sp_manual' | 'sb' | 'sd',

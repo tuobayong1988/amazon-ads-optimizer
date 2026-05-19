@@ -106,6 +106,18 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 783,
+    description: 'v783: [campaigns全写入路径维度修复] — (1)P0-新增共享campaign维度上下文,统一profileId/marketplaceId/storeId/countryCode回退规则 (2)P0-补齐独立SP/SB/SD同步、带tracking同步与performance报告自动创建campaigns的维度写入,避免绕过campaignSync导致新记录缺维度 (3)P1-storeId回退到ad_accounts.store_id或accountId,countryCode统一大写,提升跨店铺/跨站点归因稳定性。',
+    affectedModules: ['sync', 'reports', 'db'],
+    correctionActions: [],
+  },
+  {
+    version: 782,
+    description: 'v782: [campaigns marketplaceId维度回填热修] — (1)P0-当ad_accounts.marketplaceId为空时,campaigns.marketplaceId自动回退到ad_accounts.marketplace或当前同步上下文站点代码,避免已补列但站点维度为空 (2)P0-自动迁移补齐countryCode缺列兜底,并强化profileId/marketplaceId/storeId/countryCode回填自愈逻辑 (3)P1-保持v781已新增维度索引与同步写入逻辑,确保跨店铺/跨站点广告活动可稳定归因。',
+    affectedModules: ['sync', 'db', 'migration'],
+    correctionActions: [],
+  },
+  {
     version: 781,
     description: 'v781: [campaigns店铺/站点维度映射热修] — (1)P0-campaigns表自动补齐profileId/marketplaceId/storeId三列并增加账户+维度索引,保留既有countryCode列 (2)P0-SP/SB/SD广告活动同步写入时强制填充profileId、marketplaceId、storeId、countryCode,避免跨店铺/跨站点广告活动无法一致归因 (3)P1-storeId按项目既有语义从ad_accounts.accountId回填,marketplaceId/profileId优先使用广告账户维度与当前Amazon Ads client上下文。',
     affectedModules: ['sync', 'db', 'migration'],

@@ -34,6 +34,7 @@ import {
   getRecentlyOptimizedCampaignIds,
 } from './syncHelpers';
 import { getLocalKeywordBidRecommendation, getLocalTargetBidRecommendation } from '../optimization/localBidRecommendationEngine';
+import { dimensionsForCampaignUpsert, loadCampaignDimensionContext } from './campaignDimensionContext';
 
 const log = createModuleLogger('syncSb');
 
@@ -66,6 +67,8 @@ declare module '../../amazonSyncService' {
 AmazonSyncService.prototype.syncSbCampaigns = async function(this: AmazonSyncService, lastSyncTime?: string | null): Promise<number | { synced: number; skipped: number }> {
   const db = await getDb();
   if (!db) return { synced: 0, skipped: 0 };
+
+  const campaignDimensions = dimensionsForCampaignUpsert(await loadCampaignDimensionContext(db, this));
 
   try {
     const apiCampaigns = await this.client.listSbCampaigns();
@@ -271,6 +274,7 @@ AmazonSyncService.prototype.syncSbCampaigns = async function(this: AmazonSyncSer
 
       const campaignData = {
         accountId: this.accountId,
+        ...campaignDimensions,
         campaignId: String(apiCampaign.campaignId),
         campaignName: apiCampaign.name,
         campaignType: 'sb' as const,

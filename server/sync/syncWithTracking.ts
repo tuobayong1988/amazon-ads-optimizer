@@ -19,6 +19,7 @@ import type {
   InsertSyncChangeRecord,
   InsertSyncConflict,
 } from '../../drizzle/schema';
+import { dimensionsForCampaignUpsert, loadCampaignDimensionContext } from './campaignDimensionContext';
 
 const log = createModuleLogger('SyncTracking');
 
@@ -70,6 +71,7 @@ AmazonSyncService.prototype.syncSpCampaignsWithTracking = async function(
 
   const changeRecords: InsertSyncChangeRecord[] = [];
   const conflictRecords: InsertSyncConflict[] = [];
+  const campaignDimensions = dimensionsForCampaignUpsert(await loadCampaignDimensionContext(db, this));
 
   try {
     log.info('[同步WithTracking] 正在调用Amazon API: listSpCampaigns()...');
@@ -135,6 +137,7 @@ AmazonSyncService.prototype.syncSpCampaignsWithTracking = async function(
       
       const campaignData = {
         accountId: this.accountId,
+        ...campaignDimensions,
         campaignId: String(apiCampaign.campaignId),
         campaignName: apiCampaign.name,
         // @ts-ignore Legacy code type compatibility
@@ -324,6 +327,7 @@ AmazonSyncService.prototype.syncSbCampaignsWithTracking = async function(
 
   const changeRecords: InsertSyncChangeRecord[] = [];
   const conflictRecords: InsertSyncConflict[] = [];
+  const campaignDimensions = dimensionsForCampaignUpsert(await loadCampaignDimensionContext(db, this));
 
   try {
     const apiCampaigns = await this.client.listSbCampaigns();
@@ -367,6 +371,7 @@ AmazonSyncService.prototype.syncSbCampaignsWithTracking = async function(
 
       const campaignData = {
         accountId: this.accountId,
+        ...campaignDimensions,
         campaignId: String(apiCampaign.campaignId),
         campaignName: apiCampaign.name,
         campaignType: 'sb' as const,
@@ -491,6 +496,7 @@ AmazonSyncService.prototype.syncSdCampaignsWithTracking = async function(
 
   const changeRecords: InsertSyncChangeRecord[] = [];
   const conflictRecords: InsertSyncConflict[] = [];
+  const campaignDimensions = dimensionsForCampaignUpsert(await loadCampaignDimensionContext(db, this));
 
   try {
     const apiCampaigns = await this.client.listSdCampaigns();
@@ -534,6 +540,7 @@ AmazonSyncService.prototype.syncSdCampaignsWithTracking = async function(
 
       const campaignData = {
         accountId: this.accountId,
+        ...campaignDimensions,
         campaignId: String(apiCampaign.campaignId),
         campaignName: apiCampaign.name,
         campaignType: 'sd' as const,
