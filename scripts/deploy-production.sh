@@ -260,8 +260,11 @@ METAEOF
   log_info "包内文件数: $file_count"
   
   # 关键文件检查
+  # 避免在 set -o pipefail 下使用 `unzip | grep -q`：grep 提前命中退出会让 unzip 收到 SIGPIPE，导致误判为缺少文件。
+  local package_file_list="$TEMP_DIR/package-file-list.txt"
+  unzip -Z1 "$PACKAGE_FILE" > "$package_file_list"
   for check_file in "dist/index.js" "package.json" "Procfile" "node_modules/.package-lock.json"; do
-    if ! unzip -l "$PACKAGE_FILE" | grep -q "$check_file"; then
+    if ! grep -Fxq "$check_file" "$package_file_list"; then
       # .package-lock.json可能不存在，只警告
       if [ "$check_file" = "node_modules/.package-lock.json" ]; then
         log_warn "包中缺少 $check_file（可能正常）"
