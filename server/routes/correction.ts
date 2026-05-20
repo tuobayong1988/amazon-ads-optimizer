@@ -314,14 +314,46 @@ export const correctionRouter = router({
 });
 
 
+const CORRECTION_SCAN_CACHE_TTL_MS = 2 * 60 * 1000;
+
+function buildCorrectionScanCacheKey(userId: number, accountId?: number) {
+  return apiCache.generateKey('autoCorrection.runScan.v791', userId, { accountId: accountId || 'all' });
+}
+
+function withCorrectionScanCacheMeta<T extends Record<string, unknown>>(result: T, cacheKey: string, cacheStatus: 'hit' | 'miss') {
+  return {
+    ...result,
+    cacheMeta: {
+      cacheKey,
+      cacheStatus,
+      ttlMs: CORRECTION_SCAN_CACHE_TTL_MS,
+      generatedAt: cacheStatus === 'hit'
+        ? ((result as any)?.cacheMeta?.generatedAt || new Date().toISOString())
+        : new Date().toISOString(),
+    },
+  };
+}
+
 // @ts-ignore Complex function parameter types
 export const autoCorrectionRouter = router({
   // 运行自动纠错扫描
+  // v791+: 增加账号级短期结果缓存，避免运营端连续点击或账号切换预取造成重复重扫描；force=true 时仍可显式重跑。
   runScan: protectedProcedure
-    .input(z.object({ accountId: z.number().optional() }))
+    .input(z.object({ accountId: z.number().optional(), force: z.boolean().optional().default(false) }))
     // @ts-ignore Complex function parameter types
     .mutation(async ({ ctx, input }: unknown) => {
-      return runAutoCorrection(input.accountId);
+      const cacheKey = buildCorrectionScanCacheKey(ctx.user.id, input.accountId);
+      if (!input.force) {
+        const cached = apiCache.get<Record<string, unknown>>(cacheKey);
+        if (cached) {
+          return withCorrectionScanCacheMeta(cached, cacheKey, 'hit');
+        }
+      }
+
+      const result = await runAutoCorrection(input.accountId);
+      const enrichedResult = withCorrectionScanCacheMeta(result as unknown as Record<string, unknown>, cacheKey, 'miss');
+      apiCache.set(cacheKey, enrichedResult, CORRECTION_SCAN_CACHE_TTL_MS);
+      return enrichedResult;
     }),
   
   // 获取扫描历史

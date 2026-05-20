@@ -159,6 +159,23 @@ class ApiCacheService {
     this.stats.size = this.cache.size;
     return count;
   }
+
+  /**
+   * 按自定义条件精准清理缓存。
+   * v791+: 用于首屏快照按 userId/accountId/date range 精准失效，避免账号切换和同步完成时清空全局缓存。
+   */
+  invalidateWhere(predicate: (key: string) => boolean): number {
+    let count = 0;
+    for (const key of this.cache.keys()) {
+      if (predicate(key)) {
+        this.cache.delete(key);
+        count++;
+      }
+    }
+    this.stats.evictions += count;
+    this.stats.size = this.cache.size;
+    return count;
+  }
   
   /**
    * 清空所有缓存

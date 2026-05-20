@@ -106,6 +106,36 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 791,
+    description: 'v791: [首屏快照自愈与账号切换深度优化] — (1)P0-analytics.getDashboardBootstrap 增加租户/账号/日期级短TTL快照缓存,同步任务终态后精准失效,避免登录和账号切换重复聚合 (2)P0-首屏返回数据新鲜度、覆盖率、缺数风险和自愈补数结果,使前端能明确展示数据状态 (3)P0-关键数据缺失或陈旧时自动创建去重后的后台补数队列任务,补足 performance/campaign/targeting 等核心数据链路 (4)P1-自动纠错诊断扫描增加短期结果缓存与 forceRefresh 参数,避免重复点击或账号切换反复触发重扫描 (5)P1-Home 仪表盘展示新鲜度/快照命中标识,并对其他账号快照进行轻量预取,提升多账号切换命中率和感知速度。',
+    affectedModules: ['analytics', 'dashboard', 'sync', 'correction', 'cache'],
+    correctionActions: [],
+  },
+  {
+    version: 790,
+    description: 'v790: [登录首屏非关键慢扫描移出] — (1)P0-Home 根路径推荐扫描、风险排行和智能建议等非关键卡片改为首屏后用户触发加载,避免登录第一时间进入慢扫描批处理链路 (2)P0-账号绩效列表不再在首屏自动兜底加载,关键 KPI/趋势继续由 analytics.getDashboardBootstrap 租户/账号快照驱动 (3)P1-保留手动加载入口与刷新能力,在不牺牲数据准确性的前提下进一步降低首屏阻塞和 EB 健康超时风险。',
+    affectedModules: ['dashboard', 'frontend', 'analytics'],
+    correctionActions: [],
+  },
+  {
+    version: 789,
+    description: 'v789: [根路径首屏旧慢查询残留清理] — (1)P0-修复 Home 根路径在 analytics.getDashboardBootstrap 快照加载期间仍并发触发 adAccount.getDailyTrend 旧趋势慢查询的问题 (2)P0-旧趋势接口改为仅在快照明确失败且无快照数据时作为兜底,确保首屏 KPI 与趋势图由租户/账号级快照优先驱动 (3)P1-减少登录第一时间不必要的 tRPC 批处理慢请求残留,进一步提升多租户多账号首屏响应速度并保持数据准确性。',
+    affectedModules: ['dashboard', 'frontend', 'analytics'],
+    correctionActions: [],
+  },
+  {
+    version: 788,
+    description: 'v788: [根路径登录首屏快照补丁] — (1)P0-确认生产登录后根路径 / 实际渲染 Home 仪表盘,并将其账号列表、KPI和趋势首屏数据接入 analytics.getDashboardBootstrap 快照接口 (2)P0-Home 首屏优先使用当前租户/当前账号快照数据渲染关键卡片和趋势图,避免继续被旧 adAccount.listWithPerformance 与 getDailyTrend 慢查询阻塞 (3)P1-旧账号绩效列表延后到快照成功或失败后作为风险排行等非首屏增强数据加载,保证准确性同时降低首屏等待 (4)P1-保留独立接口作为快照失败兜底,确保生产数据可用性。',
+    affectedModules: ['dashboard', 'frontend', 'analytics', 'api'],
+    correctionActions: [],
+  },
+  {
+    version: 787,
+    description: 'v787: [登录首屏租户/账号级快照性能升级] — (1)P0-新增 analytics.getDashboardBootstrap 首屏快照接口,一次性返回当前租户可访问账号、当前账号KPI和趋势数据,减少登录后账号列表/KPI/趋势拆散请求等待 (2)P0-KPI与趋势由同一按天聚合结果计算,降低数据库往返并保持日期口径一致 (3)P0-仪表盘优先使用快照账号列表、KPI和趋势渲染首屏,独立接口保留为刷新兜底 (4)P1-API状态组件改为按当前选中账号加载,避免显示默认第一个账号状态导致跨账号数据错位。',
+    affectedModules: ['analytics', 'dashboard', 'api'],
+    correctionActions: [],
+  },
+  {
     version: 786,
     description: 'v786: [生产回归健康指标慢查询热修] — (1)P0-修复 monitoring.getHealthMetrics 在生产首页触发约19秒慢响应的问题,将多段健康指标聚合改为并行执行并降低无界扫描 (2)P0-健康指标缓存键加入用户维度,避免 accountId=0 全局视角跨用户共享缓存 (3)P1-对高成本 ACoS 趋势与提价样本计算增加采样边界,保持监控诊断价值同时降低生产数据库压力 (4)P1-补充 optimization_events 健康指标查询复合索引迁移,支撑回滚率、算法激活率与熔断指标过滤。',
     affectedModules: ['dashboard', 'api', 'db'],

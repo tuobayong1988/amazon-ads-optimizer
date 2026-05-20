@@ -13,4 +13,4 @@
  * 每次发版时，只需修改此文件中的版本号，并在 postDeployOptimizer.ts 的
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
-export const SYSTEM_VERSION = 786;  // v786: 健康指标慢查询热修复：缓存隔离、并行聚合、采样与索引优化
+export const SYSTEM_VERSION = 791;  // v791: 首屏快照自愈与账号切换深度优化：短TTL缓存、新鲜度、自愈补数、诊断缓存与预取

@@ -967,19 +967,40 @@ function DashboardContent() {
   const endDate = format(timeRangeValue.dateRange.to, 'yyyy-MM-dd');
   const timeRange = timeRangeValue.preset === 'custom' ? 'custom' : timeRangeValue.preset;
   
-  // v689: 性能优化 — 核心查询增加staleTime，避免页面切换时重复请求
-  // 获取账户列表及绩效数据
-  const { data: accountsWithPerformance, refetch: refetchAccounts, isLoading: isAccountsLoading } = trpc.adAccount.listWithPerformance.useQuery(
-    // @ts-ignore
-    { timeRange: timeRange as unknown, days, startDate, endDate },
-    { enabled: !!user, staleTime: 2 * 60 * 1000 }
+  // v787: 根路径登录态首页也接入首屏快照。
+  // 一次请求返回当前租户账号列表、默认/当前账号、KPI 与趋势，避免旧的账号绩效列表和趋势慢查询阻塞首屏。
+  const { accountId: globalAccountId } = useGlobalAccountId();
+  const trpcUtils = trpc.useUtils();
+  const {
+    data: dashboardBootstrap,
+    refetch: refetchDashboardBootstrap,
+    isLoading: isDashboardBootstrapLoading,
+    error: dashboardBootstrapError,
+  } = trpc.analytics.getDashboardBootstrap.useQuery(
+    {
+      accountId: globalAccountId || undefined,
+      startDate,
+      endDate,
+      days,
+    },
+    { enabled: !!user, staleTime: 60 * 1000 }
   );
   
-  // 获取图表趋势数据
-  const { data: trendData } = trpc.adAccount.getDailyTrend.useQuery(
+  // v789: 登录首屏只加载快照。旧账号绩效列表属于风险排行增强数据，改为首屏稳定后由用户按需触发，避免再次进入慢查询链路。
+  const [enableSecondaryDashboardData, setEnableSecondaryDashboardData] = useState(false);
+  const [enableRecommendationScans, setEnableRecommendationScans] = useState(false);
+  const { data: accountsWithPerformance, refetch: refetchAccounts, isLoading: isAccountsPerformanceLoading } = trpc.adAccount.listWithPerformance.useQuery(
+    // @ts-ignore
+    { timeRange: timeRange as unknown, days, startDate, endDate },
+    { enabled: !!user && enableSecondaryDashboardData && (!!dashboardBootstrap || !!dashboardBootstrapError), staleTime: 2 * 60 * 1000 }
+  );
+  
+  // v788: 图表趋势优先使用快照数据；旧接口只在快照明确失败后兜底。
+  // 避免快照加载中的初始 undefined 状态并发触发 adAccount.getDailyTrend 慢查询，导致根路径首屏仍被旧链路拖慢。
+  const { data: trendDataFallback } = trpc.adAccount.getDailyTrend.useQuery(
     // @ts-ignore
     { days, timeRange: timeRange as unknown, startDate, endDate },
-    { enabled: !!user, staleTime: 2 * 60 * 1000 }
+    { enabled: !!user && !!dashboardBootstrapError && !dashboardBootstrap, staleTime: 2 * 60 * 1000 }
   );
   
   // v268 性能优化: 非关键数据请求增加staleTime，减少首屏并发请求数
@@ -995,11 +1016,41 @@ function DashboardContent() {
     { enabled: !!user, staleTime: 5 * 60 * 1000 }
   );
   
-  // v261: 获取系统健康核心指标（回滚率 + 算法激活率）
-  // v399: 使用全局选择器的accountId用于健康指标等需要单账户的查询
-  const { accountId: globalAccountId } = useGlobalAccountId();
+  const bootstrapAccounts = ((dashboardBootstrap as any)?.accounts || []) as any[];
+  const bootstrapKpis = (dashboardBootstrap as any)?.kpis;
+  const bootstrapSelectedAccount = (dashboardBootstrap as any)?.selectedAccount;
+  const dataFreshness = (dashboardBootstrap as any)?.dataFreshness;
+  const bootstrapCacheMeta = (dashboardBootstrap as any)?.cacheMeta;
   // @ts-ignore
-  const selectedAccountId = globalAccountId || accountsWithPerformance?.[0]?.id;
+  const selectedAccountId = globalAccountId || (dashboardBootstrap as any)?.selectedAccountId || accountsWithPerformance?.[0]?.id || bootstrapAccounts?.[0]?.id;
+  const isAccountsLoading = isDashboardBootstrapLoading && !dashboardBootstrap && !accountsWithPerformance;
+
+  useEffect(() => {
+    setEnableSecondaryDashboardData(false);
+    setEnableRecommendationScans(false);
+  }, [selectedAccountId, startDate, endDate]);
+
+  // v791+: 多账号切换预取。首屏稳定后提前预取相邻账号的快照，使运营人员切换店铺/站点时优先命中服务端短TTL缓存。
+  useEffect(() => {
+    if (!user || !dashboardBootstrap || bootstrapAccounts.length <= 1) return;
+    const prefetchTargets = bootstrapAccounts
+      .filter((account: any) => Number(account?.id) && Number(account?.id) !== Number(selectedAccountId))
+      .slice(0, 3);
+
+    prefetchTargets.forEach((account: any) => {
+      trpcUtils.analytics.getDashboardBootstrap.prefetch({
+        accountId: Number(account.id),
+        startDate,
+        endDate,
+        days,
+      }).catch(() => {
+        // 预取失败不影响当前首屏，用户真正切换时仍会按需拉取。
+      });
+    });
+  }, [user, dashboardBootstrap, bootstrapAccounts, selectedAccountId, startDate, endDate, days, trpcUtils]);
+  
+  // v261: 获取系统健康核心指标（回滚率 + 算法激活率）
+  // v399/v787: 使用当前选中账号或快照服务端默认账号，避免状态数据落到错误账号。
   // v648: 当没有选中账号时传accountId=0实现跨账号聚合
   const { data: healthMetrics } = trpc.monitoring.getHealthMetrics.useQuery(
     { accountId: selectedAccountId || 0, days: 7 },
@@ -1013,6 +1064,13 @@ function DashboardContent() {
   );
   
   // 图表数据
+  const trendData = useMemo(() => {
+    const bootstrapTrendData = (dashboardBootstrap as any)?.trendData;
+    if (bootstrapTrendData && bootstrapTrendData.length > 0) return bootstrapTrendData;
+    if (trendDataFallback && (trendDataFallback as any).length > 0) return trendDataFallback;
+    return [];
+  }, [dashboardBootstrap, trendDataFallback]);
+
   const chartData = useMemo(() => {
     if (trendData && (trendData as any).length > 0) return trendData;
     return [];
@@ -1029,13 +1087,40 @@ function DashboardContent() {
   
   // 按ACoS从高到低排序（风险排行）
   const accountsData = useMemo(() => {
-    if (!accountsWithPerformance || (accountsWithPerformance as any).length === 0) return [];
-    // @ts-ignore
-    return [...accountsWithPerformance].sort((a: unknown, b: unknown) => (b as any).acos - (a as any).acos);
-  }, [accountsWithPerformance]);
+    if (accountsWithPerformance && (accountsWithPerformance as any).length > 0) {
+      // @ts-ignore
+      return [...accountsWithPerformance].sort((a: unknown, b: unknown) => (b as any).acos - (a as any).acos);
+    }
+
+    if (bootstrapSelectedAccount && bootstrapKpis) {
+      const acos = Number((bootstrapKpis as any).acos || 0);
+      return [{
+        ...(bootstrapSelectedAccount as any),
+        spend: Number((bootstrapKpis as any).totalSpend || 0),
+        sales: Number((bootstrapKpis as any).totalSales || 0),
+        orders: Number((bootstrapKpis as any).totalOrders || 0),
+        acos,
+        roas: Number((bootstrapKpis as any).roas || 0),
+        status: acos <= 30 ? 'healthy' : acos <= 50 ? 'warning' : 'critical',
+        change: { spend: 0, sales: 0, acos: 0 },
+      }];
+    }
+
+    return [];
+  }, [accountsWithPerformance, bootstrapSelectedAccount, bootstrapKpis]);
   
   // 计算汇总数据
   const summary = useMemo(() => {
+    if (bootstrapKpis) {
+      const totalSpend = Number((bootstrapKpis as any).totalSpend || 0);
+      const totalSales = Number((bootstrapKpis as any).totalSales || 0);
+      const totalOrders = Number((bootstrapKpis as any).totalOrders || 0);
+      const avgAcos = Number((bootstrapKpis as any).acos || 0);
+      const avgRoas = Number((bootstrapKpis as any).roas || 0);
+      const profit = totalSales - totalSpend;
+      return { totalSpend, totalSales, totalOrders, avgAcos, avgRoas, profit, spendChange: 0, salesChange: 0, acosChange: 0, roasChange: 0 };
+    }
+
     const totalSpend = accountsData.reduce((sum: number, a: Record<string, unknown>) => sum + (a.spend as any), 0);
     const totalSales = accountsData.reduce((sum: number, a: Record<string, unknown>) => sum + (a.sales as any), 0);
     const totalOrders = accountsData.reduce((sum: number, a: Record<string, unknown>) => sum + (a.orders as any), 0);
@@ -1055,7 +1140,7 @@ function DashboardContent() {
     const roasChange = -acosChange;
     
     return { totalSpend, totalSales, totalOrders, avgAcos, avgRoas, profit, spendChange, salesChange, acosChange, roasChange };
-  }, [accountsData]);
+  }, [accountsData, bootstrapKpis]);
   
   // 账户健康统计
   const healthStats = useMemo(() => {
@@ -1107,7 +1192,11 @@ function DashboardContent() {
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
-      await refetchAccounts();
+      const refreshTasks = [refetchDashboardBootstrap()];
+      if (enableSecondaryDashboardData) {
+        refreshTasks.push(refetchAccounts());
+      }
+      await Promise.all(refreshTasks);
       toast.success('数据已刷新');
     } catch (error: any) {
       toast.error('刷新失败');
@@ -1136,6 +1225,35 @@ function DashboardContent() {
     if (acos <= 50) return 'bg-yellow-500';
     return 'bg-red-500';
   };
+
+  const getFreshnessBadgeClass = (status?: string) => {
+    if (status === 'fresh') return 'border-green-500/40 text-green-500 bg-green-500/10';
+    if (status === 'stale') return 'border-yellow-500/40 text-yellow-500 bg-yellow-500/10';
+    if (status === 'empty') return 'border-orange-500/40 text-orange-500 bg-orange-500/10';
+    return 'border-muted-foreground/30 text-muted-foreground bg-muted/30';
+  };
+
+  const renderDeferredRecommendationLoader = (description: string) => (
+    <div className="h-full min-h-[180px] flex flex-col items-center justify-center text-center gap-3 rounded-lg border border-dashed border-border/70 bg-muted/20 p-4">
+      <Sparkles className="w-8 h-8 text-muted-foreground/50" />
+      <div>
+        <div className="text-sm font-medium">首屏已优先展示账户核心数据</div>
+        <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{description}</p>
+      </div>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={(event) => {
+          event.stopPropagation();
+          setEnableRecommendationScans(true);
+          setEnableSecondaryDashboardData(true);
+        }}
+      >
+        加载建议扫描
+      </Button>
+    </div>
+  );
 
   const isMobile = useIsMobile();
 
@@ -1166,8 +1284,27 @@ function DashboardContent() {
               运营指挥中心
             </h1>
             <p className="text-muted-foreground text-sm mt-1">
-              {startDate} ~ {endDate} · 最后同步: {formatInTimeZone(new Date(), 'America/Los_Angeles', 'MM/dd HH:mm')} PST
+              {startDate} ~ {endDate} · 最后同步: {dataFreshness?.lastSuccessfulSyncAt ? formatInTimeZone(new Date(dataFreshness.lastSuccessfulSyncAt), 'America/Los_Angeles', 'MM/dd HH:mm') : formatInTimeZone(new Date(), 'America/Los_Angeles', 'MM/dd HH:mm')} PST
             </p>
+            {(dataFreshness || bootstrapCacheMeta) && (
+              <div className="flex flex-wrap items-center gap-2 mt-2 text-xs">
+                {dataFreshness && (
+                  <Badge variant="outline" className={getFreshnessBadgeClass(dataFreshness.status)}>
+                    {dataFreshness.label || '数据新鲜度'} · 覆盖率 {Math.round(Number(dataFreshness.coverageRatio || 0) * 100)}%
+                  </Badge>
+                )}
+                {dataFreshness?.selfHeal?.triggered && (
+                  <Badge variant="outline" className="border-blue-500/40 text-blue-500 bg-blue-500/10">
+                    已创建后台补数任务 #{dataFreshness.selfHeal.taskId}
+                  </Badge>
+                )}
+                {bootstrapCacheMeta && (
+                  <Badge variant="secondary" className="bg-muted text-muted-foreground">
+                    快照{bootstrapCacheMeta.cacheStatus === 'hit' ? '命中' : '生成'} · TTL {Math.round(Number(bootstrapCacheMeta.ttlMs || 0) / 1000)}s
+                  </Badge>
+                )}
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <TimeRangeSelector
@@ -1721,7 +1858,9 @@ function DashboardContent() {
                               <CardDescription className="text-xs">零转化高花费的搜索词和商品投放，建议立即处理</CardDescription>
                             </CardHeader>
                             <CardContent className="flex-1 overflow-y-auto">
-                              <EmergencyBleedingCard accountId={selectedAccountId} />
+                              {enableRecommendationScans
+                                ? <EmergencyBleedingCard accountId={selectedAccountId} />
+                                : renderDeferredRecommendationLoader('紧急止血会扫描搜索词与商品投放，已从登录首屏自动链路中移除，避免阻塞 KPI 与趋势数据。')}
                             </CardContent>
                           </Card>
                         )}
@@ -1738,7 +1877,9 @@ function DashboardContent() {
                               <CardDescription className="text-xs">ACoS异常偏高的关键词和商品投放，建议降低竞价</CardDescription>
                             </CardHeader>
                             <CardContent className="flex-1 overflow-y-auto">
-                              <HighAcosSuppressionCard accountId={selectedAccountId} />
+                              {enableRecommendationScans
+                                ? <HighAcosSuppressionCard accountId={selectedAccountId} />
+                                : renderDeferredRecommendationLoader('高 ACoS 抑制属于诊断扫描，点击后再加载，不再拖慢每个租户和账号的登录首屏。')}
                             </CardContent>
                           </Card>
                         )}
@@ -1755,7 +1896,9 @@ function DashboardContent() {
                               <CardDescription className="text-xs">未纳入优化目标的活跃广告活动，建议分配绩效组</CardDescription>
                             </CardHeader>
                             <CardContent className="flex-1 overflow-y-auto">
-                              <GoalAdjustmentCard accountId={selectedAccountId} />
+                              {enableRecommendationScans
+                                ? <GoalAdjustmentCard accountId={selectedAccountId} />
+                                : renderDeferredRecommendationLoader('优化目标调整会额外读取绩效组与未纳管活动，点击后按当前账号加载。')}
                             </CardContent>
                           </Card>
                         )}
@@ -1828,7 +1971,9 @@ function DashboardContent() {
                               </CardTitle>
                             </CardHeader>
                             <CardContent className="flex-1 overflow-y-auto">
-                              <IntelligentRecommendations accountId={selectedAccountId} />
+                              {enableRecommendationScans
+                                ? <IntelligentRecommendations accountId={selectedAccountId} />
+                                : renderDeferredRecommendationLoader('智能运营推荐会执行账号级诊断扫描，改为按需加载以保护登录首屏速度。')}
                             </CardContent>
                           </Card>
                         )}

@@ -10,6 +10,11 @@ import * as advancedAnalyticsService from '../analytics/advancedAnalyticsService
 import { eq, and, gte, lte, desc, sql } from 'drizzle-orm';
 import { verifyAccountAccess } from '../utils/accessControl';
 import { apiCache } from '../services/apiCacheService';
+import {
+  buildDashboardBootstrapCacheKey,
+  DASHBOARD_BOOTSTRAP_TTL_MS,
+  withDashboardBootstrapCacheMeta,
+} from '../services/dashboardBootstrapCache';
 import { createModuleLogger } from '../utils/logger';
 
 const log = createModuleLogger('Route_analytics');
@@ -199,9 +204,338 @@ async function getAccountCurrency(accountId: number): Promise<string> {
   return currency;
 }
 
+function normalizeAnalyticsDateRange(input: { startDate?: string; endDate?: string; days?: number }) {
+  const endDate = input.endDate ? new Date(input.endDate) : new Date();
+  const startDate = input.startDate ? new Date(input.startDate) : new Date(endDate.getTime() - (input.days ?? 30) * 24 * 60 * 60 * 1000);
+  const diffMs = endDate.getTime() - startDate.getTime();
+  const days = Math.max(1, Math.ceil(diffMs / (24 * 60 * 60 * 1000)) + 1);
+  return { startDate, endDate, days };
+}
+
+type DashboardFreshnessStatus = 'fresh' | 'stale' | 'empty' | 'attribution_pending';
+
+function toTimestamp(value: unknown): number | null {
+  if (!value) return null;
+  const parsed = new Date(String(value)).getTime();
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function buildDataFreshness(params: {
+  dailyAggregated: unknown[];
+  range: { startDate: Date; endDate: Date; days: number };
+  lastSuccessfulSync: string | null;
+  hasActiveSyncJob: boolean;
+  kpis: any;
+}) {
+  const coverageDays = (params.dailyAggregated || []).length;
+  const expectedDays = Math.max(1, params.range.days);
+  const coverageRatio = Math.min(1, coverageDays / expectedDays);
+  const missingDays = Math.max(0, expectedDays - coverageDays);
+  const lastSyncTs = toTimestamp(params.lastSuccessfulSync);
+  const lastSyncAgeHours = lastSyncTs ? Math.round(((Date.now() - lastSyncTs) / (60 * 60 * 1000)) * 10) / 10 : null;
+  const staleThresholdHours = 24;
+  const isAttributionPending = params.kpis?.dataMaturity?.overall === 'pending';
+
+  let status: DashboardFreshnessStatus = 'fresh';
+  if (coverageDays === 0) {
+    status = 'empty';
+  } else if (lastSyncAgeHours !== null && lastSyncAgeHours > staleThresholdHours) {
+    status = 'stale';
+  } else if (isAttributionPending) {
+    status = 'attribution_pending';
+  }
+
+  const message = status === 'empty'
+    ? (params.hasActiveSyncJob ? '当前日期范围暂无聚合数据，已有同步任务正在处理。' : '当前日期范围暂无聚合数据，系统将尝试后台补数。')
+    : status === 'stale'
+      ? `最近成功同步已超过${staleThresholdHours}小时，页面展示的是已落库数据，系统将优先刷新该账号。`
+      : status === 'attribution_pending'
+        ? params.kpis?.dataMaturity?.message || '部分转化数据仍处于归因窗口内，销售与ACoS可能继续回补。'
+        : '数据已按当前查询范围从聚合表生成，处于可用状态。';
+
+  return {
+    status,
+    message,
+    lastSuccessfulSync: params.lastSuccessfulSync,
+    lastSyncAgeHours,
+    hasActiveSyncJob: params.hasActiveSyncJob,
+    coverage: {
+      expectedDays,
+      availableDays: coverageDays,
+      missingDays,
+      coverageRatio,
+    },
+  };
+}
+
+async function maybeCreateDashboardSelfHealTask(params: {
+  userId: number;
+  accountId: number;
+  accountName?: string | null;
+  range: { startDate: Date; endDate: Date; days: number };
+  dataFreshness: ReturnType<typeof buildDataFreshness>;
+}) {
+  const { dataFreshness } = params;
+  const needsSelfHeal = !dataFreshness.hasActiveSyncJob && (
+    dataFreshness.status === 'empty'
+    || dataFreshness.status === 'stale'
+    || dataFreshness.coverage.coverageRatio < 0.6
+  );
+
+  if (!needsSelfHeal) {
+    return { triggered: false, reason: 'fresh_enough' };
+  }
+
+  const queuedTasks = await db.getSyncQueue(params.userId, 'queued') as any[];
+  const existing = queuedTasks.find(task => {
+    const sameAccount = Number(task.accountId) === Number(params.accountId);
+    const isPerformanceBackfill = ['performance', 'full'].includes(String(task.syncType || ''));
+    const isDashboardSelfHeal = String(task.currentStep || '').includes('首屏自愈补数');
+    return sameAccount && isPerformanceBackfill && isDashboardSelfHeal;
+  });
+
+  if (existing) {
+    return {
+      triggered: false,
+      reason: 'already_queued',
+      taskId: existing.id,
+    };
+  }
+
+  const startDate = params.range.startDate.toISOString().split('T')[0];
+  const endDate = params.range.endDate.toISOString().split('T')[0];
+  const taskId = await db.addToSyncQueue({
+    userId: params.userId,
+    accountId: params.accountId,
+    accountName: params.accountName || undefined,
+    syncType: 'performance',
+    priority: -1,
+    status: 'queued',
+    progress: 0,
+    currentStep: '首屏自愈补数',
+    totalSteps: 6,
+    completedSteps: 0,
+    estimatedTimeMs: 120000,
+    resultSummary: {
+      trigger: 'dashboard_bootstrap_self_heal',
+      reason: dataFreshness.status,
+      startDate,
+      endDate,
+      missingDays: dataFreshness.coverage.missingDays,
+      createdFrom: 'analytics.getDashboardBootstrap',
+    },
+  } as any);
+
+  return {
+    triggered: !!taskId,
+    reason: taskId ? 'queued' : 'queue_unavailable',
+    taskId,
+  };
+}
+
+function buildTrendDataFromDailyAggregates(dailyAggregated: unknown[]) {
+  return (dailyAggregated || []).map((day: any) => {
+    const sales = parseFloat(day.totalSales || '0');
+    const spend = parseFloat(day.totalSpend || '0');
+    const impressions = Number(day.totalImpressions) || 0;
+    const clicks = Number(day.totalClicks) || 0;
+    const orders = Number(day.totalOrders) || 0;
+
+    return {
+      date: day.date ? new Date(day.date).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' }) : 'N/A',
+      fullDate: day.date || new Date().toISOString().split('T')[0],
+      sales,
+      spend,
+      impressions,
+      clicks,
+      orders,
+      acos: sales > 0 ? (spend / sales) * 100 : 0,
+      roas: spend > 0 ? sales / spend : 0,
+      ctr: impressions > 0 ? (clicks / impressions) * 100 : 0,
+      cvr: clicks > 0 ? (orders / clicks) * 100 : 0,
+      cpc: clicks > 0 ? spend / clicks : 0,
+    };
+  });
+}
+
+function buildKpisFromDailyAggregates(
+  dailyAggregated: unknown[],
+  range: { startDate: Date; endDate: Date; days: number },
+  accountCurrency: string,
+) {
+  const totals: any = (dailyAggregated || []).reduce((acc: any, day: any) => {
+    acc.totalImpressions += Number(day.totalImpressions) || 0;
+    acc.totalClicks += Number(day.totalClicks) || 0;
+    acc.totalSpend += parseFloat(day.totalSpend || '0');
+    acc.totalSales += parseFloat(day.totalSales || '0');
+    acc.totalOrders += Number(day.totalOrders) || 0;
+    return acc;
+  }, {
+    totalImpressions: 0,
+    totalClicks: 0,
+    totalSpend: 0,
+    totalSales: 0,
+    totalOrders: 0,
+  });
+
+  const now = new Date();
+  const daysSinceEnd = Math.ceil((now.getTime() - range.endDate.getTime()) / (24 * 60 * 60 * 1000));
+  const spDataMaturity = daysSinceEnd >= 7 ? 'finalized' : 'pending';
+  const sbSdDataMaturity = daysSinceEnd >= 14 ? 'finalized' : 'pending';
+
+  return {
+    conversionsPerDay: totals.totalOrders / range.days,
+    roas: totals.totalSpend > 0 ? totals.totalSales / totals.totalSpend : 0,
+    totalSales: totals.totalSales,
+    acos: totals.totalSales > 0 ? (totals.totalSpend / totals.totalSales) * 100 : 0,
+    revenuePerDay: totals.totalSales / range.days,
+    totalSpend: totals.totalSpend,
+    totalOrders: totals.totalOrders,
+    totalClicks: totals.totalClicks,
+    totalImpressions: totals.totalImpressions,
+    ctr: totals.totalImpressions > 0 ? (totals.totalClicks / totals.totalImpressions) * 100 : 0,
+    cvr: totals.totalClicks > 0 ? (totals.totalOrders / totals.totalClicks) * 100 : 0,
+    cpc: totals.totalClicks > 0 ? totals.totalSpend / totals.totalClicks : 0,
+    days: range.days,
+    startDate: range.startDate.toISOString().split('T')[0],
+    endDate: range.endDate.toISOString().split('T')[0],
+    currency: accountCurrency,
+    dataMaturity: {
+      sp: spDataMaturity,
+      sb: sbSdDataMaturity,
+      sd: sbSdDataMaturity,
+      overall: spDataMaturity === 'finalized' && sbSdDataMaturity === 'finalized' ? 'finalized' : 'pending',
+      message: spDataMaturity === 'finalized' && sbSdDataMaturity === 'finalized'
+        ? '所有广告类型的归因数据已稳定'
+        : daysSinceEnd < 7
+          ? `近${daysSinceEnd}天数据尚在归因窗口内（SP:7天, SB/SD:14天），转化数据可能不完整`
+          : `SB/SD广告的近${14 - daysSinceEnd}天数据尚在归因窗口内，转化数据可能不完整`,
+    },
+  };
+}
+
 
 // ==================== Analytics Router ====================
 export const analyticsRouter = router({
+  /**
+   * v787: 登录首屏快照。
+   * 一次请求返回当前租户账号列表、选中账号、首屏 KPI 与趋势数据，避免仪表盘拆分为多个慢查询。
+   */
+  getDashboardBootstrap: protectedProcedure
+    .input(z.object({
+      accountId: z.number().optional(),
+      startDate: z.string().optional(),
+      endDate: z.string().optional(),
+      days: z.number().optional().default(30),
+    }).optional())
+    .query(async ({ input, ctx }: any) => {
+      const safeInput = input || {};
+      const userId = ctx.user.id as number;
+      const accounts = await db.getAdAccountsByUserId(userId);
+      const visibleAccounts = (accounts as any[]).filter(account => account.status !== 'archived');
+      const selectedAccount = safeInput.accountId
+        ? (accounts as any[]).find(account => Number(account.id) === Number(safeInput.accountId))
+        : visibleAccounts.find(account => Number(account.isDefault) === 1) || visibleAccounts[0] || (accounts as any[])[0];
+
+      if (safeInput.accountId && !selectedAccount) {
+        throw new TRPCError({ code: 'FORBIDDEN', message: '无权访问该广告账号' });
+      }
+
+      const range = normalizeAnalyticsDateRange(safeInput);
+      const rangeStart = range.startDate.toISOString().split('T')[0];
+      const rangeEnd = range.endDate.toISOString().split('T')[0];
+      const selectedAccountId = selectedAccount ? Number(selectedAccount.id) : null;
+      const cacheKey = buildDashboardBootstrapCacheKey({
+        userId,
+        accountId: selectedAccountId,
+        startDate: rangeStart,
+        endDate: rangeEnd,
+        days: range.days,
+      });
+
+      const cached = apiCache.get<any>(cacheKey);
+      if (cached) {
+        return {
+          ...cached,
+          cacheMeta: {
+            ...(cached.cacheMeta || {}),
+            cacheStatus: 'hit',
+            cacheTtlMs: DASHBOARD_BOOTSTRAP_TTL_MS,
+          },
+        };
+      }
+
+      if (!selectedAccount) {
+        const emptyResult = withDashboardBootstrapCacheMeta({
+          accounts,
+          selectedAccountId: null,
+          selectedAccount: null,
+          kpis: null,
+          trendData: [],
+          hasAccounts: false,
+          generatedAt: new Date().toISOString(),
+          dataFreshness: {
+            status: 'empty',
+            message: '当前用户尚未绑定广告账号，暂无可展示数据。',
+            lastSuccessfulSync: null,
+            lastSyncAgeHours: null,
+            hasActiveSyncJob: false,
+            coverage: {
+              expectedDays: range.days,
+              availableDays: 0,
+              missingDays: range.days,
+              coverageRatio: 0,
+            },
+          },
+        }, cacheKey, 'miss');
+        apiCache.set(cacheKey, emptyResult, DASHBOARD_BOOTSTRAP_TTL_MS);
+        return emptyResult;
+      }
+
+      const [dailyAggregated, accountCurrency, lastSuccessfulSync, activeSyncJob] = await Promise.all([
+        db.getDailyPerformanceAggregatedByDate(selectedAccountId as number, range.startDate, range.endDate),
+        getAccountCurrency(selectedAccountId as number),
+        db.getLastSuccessfulSync(selectedAccountId as number),
+        db.getAccountActiveSyncJob(selectedAccountId as number),
+      ]);
+
+      const kpis = buildKpisFromDailyAggregates(dailyAggregated, range, accountCurrency);
+      const dataFreshness = buildDataFreshness({
+        dailyAggregated,
+        range,
+        lastSuccessfulSync,
+        hasActiveSyncJob: !!activeSyncJob,
+        kpis,
+      });
+      const selfHeal = await maybeCreateDashboardSelfHealTask({
+        userId,
+        accountId: selectedAccountId as number,
+        accountName: selectedAccount?.name || selectedAccount?.accountName || selectedAccount?.profileName || null,
+        range,
+        dataFreshness,
+      });
+      const enrichedDataFreshness = {
+        ...dataFreshness,
+        selfHeal,
+        message: selfHeal.triggered
+          ? `${dataFreshness.message} 已自动创建后台补数任务。`
+          : dataFreshness.message,
+      };
+
+      const result = withDashboardBootstrapCacheMeta({
+        accounts,
+        selectedAccountId,
+        selectedAccount,
+        kpis,
+        trendData: buildTrendDataFromDailyAggregates(dailyAggregated),
+        hasAccounts: (accounts as any[]).length > 0,
+        generatedAt: new Date().toISOString(),
+        dataFreshness: enrichedDataFreshness,
+      }, cacheKey, 'miss');
+
+      apiCache.set(cacheKey, result, DASHBOARD_BOOTSTRAP_TTL_MS);
+      return result;
+    }),
   getDailyPerformance: protectedProcedure
     .input(z.object({
       accountId: z.number(),

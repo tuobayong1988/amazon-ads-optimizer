@@ -6,6 +6,7 @@
 import { and, count, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
 import { InsertSyncChangeRecord, InsertSyncChangeSummary, InsertSyncConflict, InsertSyncTaskQueue, SyncTaskQueue, dataSyncJobs, dataSyncLogs, syncChangeRecords, syncChangeSummary, syncConflicts, syncTaskQueue, dataSyncSchedules } from "../../drizzle/schema";
 import { getDb } from './connection';
+import { invalidateDashboardBootstrapCache } from '../services/dashboardBootstrapCache';
 
 // ==================== 同步历史记录相关函数 ====================
 
@@ -118,6 +119,24 @@ export async function updateSyncJob(jobId: number, data: {
   await db.update(dataSyncJobs)
     .set(updateData)
     .where(eq(dataSyncJobs.id, jobId));
+
+  // v791+: 同步任务进入终态后，精准失效该用户/账号的首屏快照缓存，避免继续展示旧聚合快照。
+  if (data.status && terminalStatuses.has(String(updateData.status || data.status))) {
+    try {
+      const [job] = await db.select({ userId: dataSyncJobs.userId, accountId: dataSyncJobs.accountId })
+        .from(dataSyncJobs)
+        .where(eq(dataSyncJobs.id, jobId))
+        .limit(1);
+      if (job) {
+        const invalidated = invalidateDashboardBootstrapCache({ userId: Number(job.userId), accountId: Number(job.accountId) });
+        if (invalidated > 0) {
+          // 保持静默，只在需要时由缓存服务统计命中和淘汰数量。
+        }
+      }
+    } catch (e) {
+      // 缓存失效失败不应影响同步任务状态落库。
+    }
+  }
 }
 
 /**
